@@ -24,6 +24,15 @@ describe('Home', () => {
           tenantId: 't-1',
           roleView: 'tenant_admin',
           cards: [{ id: 'incidents', title: '事件指挥' }],
+          metrics: {
+            connectors: 2,
+            incidentsOpen: 1,
+            scenarios: 3,
+            pendingApprovals: 0,
+            activeSessions: 1,
+          },
+          recentIncidents: [],
+          recentSessions: [],
         }}
         onStartSession={onStartSession}
         onOpenScenarios={vi.fn()}

@@ -85,6 +85,35 @@ export function registerTenantRoutes(
       ]);
       if (!tenant.rows[0]) return reply.code(403).send({ error: 'tenant_access_denied' });
 
+      const [metrics, incidents, sessions] = await Promise.all([
+        pool.query<{
+          connectors: string;
+          incidents_open: string;
+          scenarios: string;
+          pending_approvals: string;
+          active_sessions: string;
+        }>(
+          `SELECT
+             (SELECT count(*) FROM connectors WHERE tenant_id = $1) AS connectors,
+             (SELECT count(*) FROM incidents WHERE tenant_id = $1 AND status NOT IN ('resolved', 'closed')) AS incidents_open,
+             (SELECT count(*) FROM scenarios WHERE tenant_id = $1) AS scenarios,
+             (SELECT count(*) FROM approvals WHERE tenant_id = $1 AND status = 'pending') AS pending_approvals,
+             (SELECT count(*) FROM runtime_sessions WHERE tenant_id = $1 AND status = 'active') AS active_sessions`,
+          [context.tenantId],
+        ),
+        pool.query<{ id: string; title: string; severity: string; status: string }>(
+          `SELECT id, title, severity, status FROM incidents
+           WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 4`,
+          [context.tenantId],
+        ),
+        pool.query<{ id: string; role_view: string; status: string }>(
+          `SELECT id, role_view, status FROM runtime_sessions
+           WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 4`,
+          [context.tenantId],
+        ),
+      ]);
+      const row = metrics.rows[0];
+
       return reply.send({
         tenantId: context.tenantId,
         roleView: context.roleView,
@@ -93,6 +122,19 @@ export function registerTenantRoutes(
           { id: 'agents', title: '服务器 Agent' },
           { id: 'knowledge', title: '知识中心' },
         ],
+        metrics: {
+          connectors: Number(row?.connectors ?? 0),
+          incidentsOpen: Number(row?.incidents_open ?? 0),
+          scenarios: Number(row?.scenarios ?? 0),
+          pendingApprovals: Number(row?.pending_approvals ?? 0),
+          activeSessions: Number(row?.active_sessions ?? 0),
+        },
+        recentIncidents: incidents.rows,
+        recentSessions: sessions.rows.map((item) => ({
+          id: item.id,
+          roleView: item.role_view,
+          status: item.status,
+        })),
       });
     } catch (error) {
       if (error instanceof TenantAccessDeniedError) {

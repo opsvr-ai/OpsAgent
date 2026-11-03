@@ -104,10 +104,48 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             </div>
 
             <div className="status-strip" style={{ marginBottom: 24 }}>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Control Plane</strong><span>healthy</span></div></div>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>PostgreSQL</strong><span>RLS enforced</span></div></div>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Connectors</strong><span>9 类已注册</span></div></div>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Audit</strong><span>streaming</span></div></div>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>连接器</strong><span>{home.metrics.connectors} 个已配置</span></div></div>
+              <div className="status-cell"><span className="dot dot-warn" /><div><strong>待处置事件</strong><span>{home.metrics.incidentsOpen} 个</span></div></div>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>场景</strong><span>{home.metrics.scenarios} 个</span></div></div>
+              <div className="status-cell"><span className="dot dot-warn" /><div><strong>待审批</strong><span>{home.metrics.pendingApprovals} 项</span></div></div>
+            </div>
+
+            <div className="grid grid-main-side">
+              <section className="card">
+                <div className="card-head"><h2>最近事件</h2><span className="muted">{home.metrics.activeSessions} 个进行中会话</span></div>
+                <div className="card-body">
+                  {home.recentIncidents.length === 0 ? <p className="muted">暂无事件</p> : (
+                    <table className="table">
+                      <thead><tr><th>等级</th><th>事件</th><th>状态</th></tr></thead>
+                      <tbody>
+                        {home.recentIncidents.map((incident) => (
+                          <tr key={incident.id}>
+                            <td><span className="badge badge-neutral">{incident.severity}</span></td>
+                            <td>{incident.title}</td>
+                            <td>{incident.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </section>
+
+              <section className="card">
+                <div className="card-head"><h2>最近会话</h2></div>
+                <div className="card-body">
+                  {home.recentSessions.length === 0 ? <p className="muted">暂无会话</p> : (
+                    <div className="stack-sm">
+                      {home.recentSessions.map((session) => (
+                        <div key={session.id} className="row-between">
+                          <span className="mono">{session.id.slice(0, 12)}</span>
+                          <span className="muted">{session.roleView} · {session.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
 
             <div className="grid grid-3">

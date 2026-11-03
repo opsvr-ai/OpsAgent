@@ -22,6 +22,24 @@ export interface HomeResponse {
   readonly tenantId: string;
   readonly roleView: string;
   readonly cards: readonly { readonly id: string; readonly title: string }[];
+  readonly metrics: {
+    readonly connectors: number;
+    readonly incidentsOpen: number;
+    readonly scenarios: number;
+    readonly pendingApprovals: number;
+    readonly activeSessions: number;
+  };
+  readonly recentIncidents: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly severity: string;
+    readonly status: string;
+  }[];
+  readonly recentSessions: readonly {
+    readonly id: string;
+    readonly roleView: string;
+    readonly status: string;
+  }[];
 }
 
 export interface StartSessionRequest {

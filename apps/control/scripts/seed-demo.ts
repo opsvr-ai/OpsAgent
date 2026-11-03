@@ -166,6 +166,11 @@ async function main(): Promise<void> {
       [ids.approvalSession1, tenant, admin, ids.approvalSession2],
     );
     await client.query(
+      `DELETE FROM approvals
+       WHERE tenant_id = $1 AND status = 'pending' AND id NOT IN ($2, $3)`,
+      [tenant, ids.approval1, ids.approval2],
+    );
+    await client.query(
       `INSERT INTO approvals
          (id, tenant_id, session_id, runtime_approval_id, action, risk, status, details)
        VALUES

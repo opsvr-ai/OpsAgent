@@ -23,6 +23,7 @@ describe('Approvals', () => {
         action: 'write',
         risk: 'R2',
         sessionId: 's-1',
+        details: { file_path: 'hello.txt' },
         createdAt: '2026-11-03T00:00:00.000Z',
       },
     ]);

@@ -7,6 +7,7 @@ interface CreateBody {
   tool?: unknown;
   callId?: unknown;
   reason?: unknown;
+  details?: unknown;
 }
 
 function authorized(request: FastifyRequest, token?: string): boolean {
@@ -39,11 +40,15 @@ export function registerInternalApprovalRoutes(
     const sessionId = session.rows[0]?.id;
     if (!sessionId) return reply.code(404).send({ error: 'session_not_found' });
 
+    const details =
+      typeof body.details === 'object' && body.details !== null && !Array.isArray(body.details)
+        ? body.details
+        : {};
     const approval = await pool.query<{ id: string }>(
       `INSERT INTO approvals
-         (tenant_id, session_id, runtime_approval_id, action, risk, status)
-       VALUES ($1, $2, $3, $4, 'R2', 'pending') RETURNING id`,
-      [body.tenantId, sessionId, body.callId, body.tool],
+         (tenant_id, session_id, runtime_approval_id, action, risk, status, details)
+       VALUES ($1, $2, $3, $4, 'R2', 'pending', $5::jsonb) RETURNING id`,
+      [body.tenantId, sessionId, body.callId, body.tool, JSON.stringify(details)],
     );
     return reply.code(201).send({ id: approval.rows[0]?.id });
   });

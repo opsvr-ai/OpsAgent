@@ -46,6 +46,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
                 <span className="muted">{approval.sessionId.slice(0, 12)}</span>
               </div>
               <h3>{approval.action}</h3>
+              {Object.keys(approval.details).length > 0 ? (
+                <pre className="code-block">{JSON.stringify(approval.details, null, 2)}</pre>
+              ) : null}
               <div className="row-sm">
                 <button type="button" className="btn btn-primary" onClick={() => void decide(approval.id, 'approve')}>批准</button>
                 <button type="button" className="btn btn-outline" onClick={() => void decide(approval.id, 'deny')}>拒绝</button>

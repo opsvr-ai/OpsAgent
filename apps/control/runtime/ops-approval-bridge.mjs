@@ -3,6 +3,8 @@ const TOOLS = (process.env.OPSAGENT_APPROVAL_TOOLS ?? 'write,edit,bash,pwsh,shel
   .map((item) => item.trim())
   .filter(Boolean);
 
+const callDetails = new Map();
+
 const CONTROL_URL = process.env.OPSAGENT_CONTROL_URL ?? 'http://127.0.0.1:8080';
 const TENANT_ID = process.env.OPSAGENT_TENANT_ID ?? '';
 const SESSION_ID = process.env.OPSAGENT_SESSION_ID ?? '';
@@ -15,7 +17,7 @@ function headers() {
   };
 }
 
-async function createApproval(tool, callId, reason) {
+async function createApproval(tool, callId, reason, details) {
   const response = await fetch(`${CONTROL_URL}/internal/approvals`, {
     method: 'POST',
     headers: headers(),
@@ -25,6 +27,7 @@ async function createApproval(tool, callId, reason) {
       tool,
       callId,
       reason,
+      details: details ?? {},
     }),
   });
   if (!response.ok) throw new Error(`approval_create_failed:${response.status}`);
@@ -53,12 +56,16 @@ export const inject = ['approval'];
 export function apply(ctx) {
   ctx.on('tools/pre-execute', async (exec, next) => {
     if (!TOOLS.includes(exec.name)) return next();
+    const callId = exec.callId ?? exec.id ?? '';
+    if (callId) callDetails.set(callId, exec.input ?? {});
     return { kind: 'ask', reason: `OpsAgent approval required for ${exec.name}` };
   });
 
   ctx.on('approval/request', async (req) => {
     try {
-      const id = await createApproval(req.toolName, req.callId, req.reason);
+      const details = callDetails.get(req.callId) ?? {};
+      callDetails.delete(req.callId);
+      const id = await createApproval(req.toolName, req.callId, req.reason, details);
       return await waitForDecision(id, req.signal);
     } catch (error) {
       console.error(`ops-approval-bridge: ${error instanceof Error ? error.message : error}`);

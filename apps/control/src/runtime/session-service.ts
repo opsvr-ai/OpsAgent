@@ -142,6 +142,7 @@ export class SessionService {
     action: string;
     risk: string;
     sessionId: string;
+    details: Readonly<Record<string, unknown>>;
     createdAt: string;
   }>> {
     const result = await this.pool.query<{
@@ -149,9 +150,10 @@ export class SessionService {
       action: string;
       risk: string;
       session_id: string;
+      details: Record<string, unknown>;
       created_at: Date;
     }>(
-      `SELECT a.id, a.action, a.risk, a.session_id, a.created_at
+      `SELECT a.id, a.action, a.risk, a.session_id, a.details, a.created_at
        FROM approvals a
        JOIN runtime_sessions s ON s.id = a.session_id
        WHERE a.tenant_id = $1 AND s.user_id = $2 AND a.status = 'pending'
@@ -163,6 +165,7 @@ export class SessionService {
       action: row.action,
       risk: row.risk,
       sessionId: row.session_id,
+      details: row.details,
       createdAt: row.created_at.toISOString(),
     }));
   }

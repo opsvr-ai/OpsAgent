@@ -246,6 +246,7 @@ export interface ApprovalSummary {
   readonly action: string;
   readonly risk: string;
   readonly sessionId: string;
+  readonly details: Readonly<Record<string, unknown>>;
   readonly createdAt: string;
 }
 

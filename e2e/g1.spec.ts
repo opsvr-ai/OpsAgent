@@ -19,7 +19,7 @@ test('G1: login -> home -> session -> mock echo', async ({ page }) => {
 
   await expect(page.getByText('checking: echo hello')).toBeVisible();
   await expect(page.getByText('mock.echo').first()).toBeVisible();
-  await expect(page.getByText('完成')).toBeVisible();
+  await expect(page.getByText('完成').first()).toBeVisible();
 });
 
 test('G1: mock.restart requires approval', async ({ page }) => {
@@ -31,7 +31,7 @@ test('G1: mock.restart requires approval', async ({ page }) => {
   await expect(page.getByRole('button', { name: '批准' })).toBeVisible();
   await page.getByRole('button', { name: '批准' }).click();
   await expect(page.getByText('mock.restart').first()).toBeVisible();
-  await expect(page.getByText('完成')).toBeVisible();
+  await expect(page.getByText('完成').first()).toBeVisible();
 });
 
 test('G1: denied restart does not execute the tool', async ({ page }) => {
@@ -42,6 +42,6 @@ test('G1: denied restart does not execute the tool', async ({ page }) => {
 
   await expect(page.getByRole('button', { name: '拒绝' })).toBeVisible();
   await page.getByRole('button', { name: '拒绝' }).click();
-  await expect(page.getByText('完成')).toBeVisible();
+  await expect(page.getByText('完成').first()).toBeVisible();
   await expect(page.getByTestId('tool-call')).toHaveCount(0);
 });

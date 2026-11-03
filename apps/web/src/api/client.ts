@@ -285,3 +285,30 @@ export async function testConnector(
     method: 'POST',
   });
 }
+
+export interface KnowledgeDocument {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly status: string;
+}
+
+export async function listKnowledge(query?: string): Promise<KnowledgeDocument[]> {
+  return request<KnowledgeDocument[]>(
+    `/api/knowledge${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+  );
+}
+
+export async function createKnowledge(input: {
+  title: string;
+  body: string;
+}): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>('/api/knowledge', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function publishKnowledge(id: string): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(`/api/knowledge/${id}/publish`, { method: 'POST' });
+}

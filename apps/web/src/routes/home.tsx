@@ -11,9 +11,10 @@ export interface HomeProps {
   readonly onOpenIncidents: () => void;
   readonly onOpenApprovals: () => void;
   readonly onOpenConnectors: () => void;
+  readonly onOpenKnowledge: () => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
 
@@ -50,6 +51,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <button type="button" className="nav-item" onClick={onOpenIncidents}><svg><use href="/icons.svg#i-activity" /></svg><span>事件指挥</span></button>
             <button type="button" className="nav-item" onClick={onOpenApprovals}><svg><use href="/icons.svg#i-check" /></svg><span>待审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenConnectors}><svg><use href="/icons.svg#i-plug" /></svg><span>集成与连接器</span></button>
+            <button type="button" className="nav-item" onClick={onOpenKnowledge}><svg><use href="/icons.svg#i-book" /></svg><span>知识中心</span></button>
             <button type="button" className="nav-item" onClick={onOpenShares}><svg><use href="/icons.svg#i-share" /></svg><span>共享审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenStudio}><svg><use href="/icons.svg#i-wand" /></svg><span>创造模式</span></button>
             <button type="button" className="nav-item" onClick={onOpenAudit}><svg><use href="/icons.svg#i-shield" /></svg><span>审计</span></button>

@@ -42,6 +42,7 @@ describe('Home', () => {
         onOpenIncidents={vi.fn()}
         onOpenApprovals={vi.fn()}
         onOpenConnectors={vi.fn()}
+        onOpenKnowledge={vi.fn()}
       />,
     );
 

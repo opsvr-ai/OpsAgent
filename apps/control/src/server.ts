@@ -19,6 +19,7 @@ import { registerStudioRoutes } from './studio/routes.js';
 import type { StudioGenerator } from './studio/service.js';
 import { registerIncidentRoutes } from './incidents/routes.js';
 import { registerInternalApprovalRoutes } from './internal/approvals.js';
+import { registerKnowledgeRoutes } from './knowledge/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -65,6 +66,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     );
     registerAuditRoutes(app, options.pool);
     registerInternalApprovalRoutes(app, options.pool, options.internalToken);
+    registerKnowledgeRoutes(app, options.pool, audit);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit);
   }

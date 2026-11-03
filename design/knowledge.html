@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>知识中心 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div><div class="brand-name">OpsAgent</div><span class="brand-sub">AIOps Control Plane</span></div>
+    </div>
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta"><strong>星河银行 · 运维中心</strong><span>生产租户 · cn-east-1</span></span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item is-active" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="runtime-card"><span class="dot dot-ok"></span><div><strong>Agent 运行时正常</strong><span>3 节点 · 12 会话</span></div><div class="runtime-metric">v0.2.2</div></div>
+      <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip"><span class="avatar is-green">陈</span><span class="grow"><strong>陈志远</strong><span>值班 SRE · 知识管理员</span></span><svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg></button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">知识中心</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索知识、来源、标签<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Knowledge base · 租户内共享 · 知识管理员</div>
+            <h1 style="margin-top:8px">知识中心</h1>
+            <p class="sub">把会话、事件、巡检和变更中的证据加工成可复用的运维知识。知识来源包括插件数据、知识文档、用户对话和平台运行，自动沉淀只生成草稿，发布和变更必须经知识管理员确认。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-upload"></use></svg>导入文档</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-plus"></use></svg>新建知识</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="icon-tile is-green"><svg><use href="icons.svg#i-book"></use></svg></span><div><strong>已发布</strong><span>128 条 · 覆盖 6 类知识</span></div><span class="cell-end">128</span></div>
+          <div class="status-cell"><span class="dot dot-warn"></span><div><strong>待审核</strong><span>3 条 · 1 条自动沉淀</span></div><span class="cell-end">3</span></div>
+          <div class="status-cell"><span class="dot dot-primary"></span><div><strong>自动沉淀草稿</strong><span>7 条 · 本周新增 4 条</span></div><span class="cell-end">7</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>知识引用率</strong><span>近 7 天 64% 会话引用知识</span></div><span class="cell-end">64%</span></div>
+        </div>
+
+        <div class="section-head" style="margin-bottom:10px"><h2>知识生成来源</h2><span class="hint">四类来源共用同一套证据、去重与审核门禁</span></div>
+        <div class="grid grid-4" style="margin-bottom:20px">
+          <div class="card"><div class="card-body" style="padding:12px">
+            <div class="between"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-database"></use></svg></span><span class="badge badge-ok">自动</span></div>
+            <div class="strong" style="margin-top:8px">插件数据</div>
+            <div class="hint" style="margin-top:2px">知识智能体钻取 Zabbix / Prometheus / CMDB 数据集，每日增量 + 每周深度</div>
+            <div class="row-sm" style="margin-top:8px"><span class="mono small">64</span><span class="tiny faint">条知识 · 只读</span></div>
+          </div></div>
+          <div class="card"><div class="card-body" style="padding:12px">
+            <div class="between"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-file"></use></svg></span><span class="badge badge-info">已解析</span></div>
+            <div class="strong" style="margin-top:8px">知识文档</div>
+            <div class="hint" style="margin-top:2px">PDF / Word / Excel / Markdown / HTML，解析后抽取</div>
+            <div class="row-sm" style="margin-top:8px"><span class="mono small">38</span><span class="tiny faint">条知识 · 来源可追溯</span></div>
+          </div></div>
+          <div class="card"><div class="card-body" style="padding:12px">
+            <div class="between"><span class="icon-tile is-green"><svg><use href="icons.svg#i-message"></use></svg></span><span class="badge badge-ok">租户开启</span></div>
+            <div class="strong" style="margin-top:8px">用户对话</div>
+            <div class="hint" style="margin-top:2px">租户统一开启，脱敏后抽取会话；隐私告知已确认</div>
+            <div class="row-sm" style="margin-top:8px"><span class="mono small">21</span><span class="tiny faint">条知识 · 租户内</span></div>
+          </div></div>
+          <div class="card"><div class="card-body" style="padding:12px">
+            <div class="between"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-activity"></use></svg></span><span class="badge badge-ok">自动</span></div>
+            <div class="strong" style="margin-top:8px">平台运行</div>
+            <div class="hint" style="margin-top:2px">巡检、场景、事件与智能体产物中的有价值结论</div>
+            <div class="row-sm" style="margin-top:8px"><span class="mono small">45</span><span class="tiny faint">条知识 · 含证据</span></div>
+          </div></div>
+        </div>
+
+        <div class="section-head">
+          <div class="tabs" style="flex:1;border-bottom:0">
+            <a class="tab is-active" href="knowledge.html">全部<span class="count">128</span></a>
+            <a class="tab" href="knowledge.html">故障案例<span class="count">46</span></a>
+            <a class="tab" href="knowledge.html">Runbook<span class="count">38</span></a>
+            <a class="tab" href="knowledge.html">拓扑 / 资产<span class="count">21</span></a>
+            <a class="tab" href="knowledge.html">指标基线<span class="count">18</span></a>
+            <a class="tab" href="knowledge.html">待审核<span class="count">3</span></a>
+          </div>
+          <div class="actions"><button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-filter"></use></svg>筛选</button></div>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div class="stack">
+            <section class="card">
+              <div class="card-head"><h2>运维知识库</h2><div class="actions"><span class="badge badge-neutral">租户内共享</span><span class="badge badge-ok">已发布 125</span></div></div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>知识</th><th>类型</th><th>状态</th><th>更新</th><th class="actions-cell"></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-red"><svg><use href="icons.svg#i-alert"></use></svg></span><div><div class="cell-main">订单库连接池耗尽导致 5xx</div><div class="cell-sub">故障案例 · 插件数据 · 0.86 · 症状：5xx 4.8% · 连接数 92%</div></div></div></td>
+                      <td><span class="badge badge-neutral">故障案例</span></td>
+                      <td><span class="badge badge-ok">已发布</span></td>
+                      <td class="mono tiny nowrap">今天</td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="knowledge.html">查看</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-file"></use></svg></span><div><div class="cell-main">MySQL 连接数告警处理 Runbook</div><div class="cell-sub">Runbook · 知识文档 · 0.92 · 适用 order-db-*</div></div></div></td>
+                      <td><span class="badge badge-neutral">Runbook</span></td>
+                      <td><span class="badge badge-warn">待审核</span></td>
+                      <td class="mono tiny nowrap">今天</td>
+                      <td class="actions-cell"><a class="btn btn-ghost btn-sm" href="knowledge.html">审核</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-git-branch"></use></svg></span><div><div class="cell-main">交易链路服务依赖拓扑</div><div class="cell-sub">拓扑 · 插件数据 · 0.95 · order-service → order-db-01</div></div></div></td>
+                      <td><span class="badge badge-neutral">拓扑</span></td>
+                      <td><span class="badge badge-ok">已发布</span></td>
+                      <td class="mono tiny nowrap">昨天</td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="knowledge.html">查看</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-green"><svg><use href="icons.svg#i-activity"></use></svg></span><div><div class="cell-main">order-service 5xx 日间基线</div><div class="cell-sub">指标基线 · 平台运行 · 0.81 · 工作日 09:00–19:00</div></div></div></td>
+                      <td><span class="badge badge-neutral">指标基线</span></td>
+                      <td><span class="badge badge-ok">已发布</span></td>
+                      <td class="mono tiny nowrap">11-02</td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="knowledge.html">查看</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile"><svg><use href="icons.svg#i-clock"></use></svg></span><div><div class="cell-main">K8s 节点磁盘清理变更手册</div><div class="cell-sub">变更手册 · 知识文档 · 0.88 · 变更窗口 / 回滚点</div></div></div></td>
+                      <td><span class="badge badge-neutral">变更手册</span></td>
+                      <td><span class="badge badge-warn">待复审</span></td>
+                      <td class="mono tiny nowrap">10-28</td>
+                      <td class="actions-cell"><a class="btn btn-ghost btn-sm" href="knowledge.html">复审</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-message"></use></svg></span><div><div class="cell-main">支付网关超时排查经验</div><div class="cell-sub">故障案例 · 用户对话 · 0.79 · 脱敏后抽取</div></div></div></td>
+                      <td><span class="badge badge-neutral">故障案例</span></td>
+                      <td><span class="badge badge-warn">待审核</span></td>
+                      <td class="mono tiny nowrap">今天</td>
+                      <td class="actions-cell"><a class="btn btn-ghost btn-sm" href="knowledge.html">审核</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot"><span>知识发布、修改、归档都要审核；修改已发布知识会创建新版本，旧版本在新版本发布前继续可用。</span></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>自动沉淀</h2><div class="actions"><span class="badge badge-neutral">仅生成草稿</span></div></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item is-done"><div class="t-title">事件结束 · 订单服务 5xx</div><div class="t-meta">今天 12:18 · 证据 7 条</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">知识抽取器生成草稿</div><div class="t-meta">症状 / 根因 / 处置 / 适用范围 / 置信度 0.86</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">去重与质量检查</div><div class="t-meta">与 2 条现有知识相似，已合并补充</div></div>
+                  <div class="timeline-item is-active"><div class="t-title">等待知识管理员审核</div><div class="t-meta">林晚 · 知识管理员</div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>审核详情</h2><div class="actions"><span class="badge badge-warn">待审核</span></div></div>
+              <div class="card-body">
+                <div class="eyebrow">故障案例 · v3</div>
+                <div class="strong" style="font-size:var(--fs-16);margin-top:4px">订单库连接池耗尽导致 5xx</div>
+                <p class="small muted" style="line-height:1.7;margin:8px 0">order-service 5xx 从 0.2% 升至 4.8%；order-db-01 连接数 92%、等待队列 47；Zabbix 告警先于 5xx 3 分钟。处置：终止 2 个长事务、连接池 500→700、回调后观察 30 分钟。</p>
+                <div class="kv"><span class="k">来源</span><span class="v">事件 #inc_2041 · 会话 #sess_8f2a</span></div>
+                <div class="kv"><span class="k">证据</span><span class="v">7 条 · 2 份指标快照</span></div>
+                <div class="kv"><span class="k">适用</span><span class="v">order-db-* · 生产</span></div>
+                <div class="kv"><span class="k">置信度</span><span class="v mono">0.86</span></div>
+                <div class="kv"><span class="k">占用</span><span class="v">知识管理员</span></div>
+                <div class="field" style="margin-top:10px"><label>审核意见</label><textarea class="textarea" style="min-height:64px" placeholder="补充适用条件、回滚检查或标记退回原因…"></textarea></div>
+                <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px">
+                  <button class="btn btn-ghost btn-sm">退回</button>
+                  <button class="btn btn-outline btn-sm">保存草稿</button>
+                  <button class="btn btn-primary btn-sm"><svg><use href="icons.svg#i-check"></use></svg>审核发布</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>引用最多</h2><div class="actions"><span class="badge badge-neutral">近 7 天</span></div></div>
+              <div class="card-body">
+                <div class="between small"><span>MySQL 连接数告警 Runbook</span><span class="mono">42</span></div>
+                <div class="progress is-ok" style="margin:6px 0 10px"><i style="width:84%"></i></div>
+                <div class="between small"><span>交易链路服务依赖拓扑</span><span class="mono">31</span></div>
+                <div class="progress" style="margin:6px 0 10px"><i style="width:62%"></i></div>
+                <div class="between small"><span>order-service 5xx 基线</span><span class="mono">24</span></div>
+                <div class="progress" style="margin:6px 0 0"><i style="width:48%"></i></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-body">
+                <div class="notice is-info"><svg><use href="icons.svg#i-shield"></use></svg><span>知识按租户隔离；Agent 只能检索当前租户已发布且有权访问的知识，并必须引用来源。</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

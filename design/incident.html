@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>事件指挥台 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div><div class="brand-name">OpsAgent</div><span class="brand-sub">AIOps Control Plane</span></div>
+    </div>
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta"><strong>星河银行 · 运维中心</strong><span>生产租户 · cn-east-1</span></span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item is-active" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="runtime-card"><span class="dot dot-ok"></span><div><strong>Agent 运行时正常</strong><span>3 节点 · 12 会话</span></div><div class="runtime-metric">v0.2.2</div></div>
+      <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip"><span class="avatar is-green">陈</span><span class="grow"><strong>陈志远</strong><span>值班 SRE · DBA</span></span><svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg></button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><a href="incident.html">事件指挥</a><span class="sep">/</span><span class="current">#inc_2041</span></div>
+      <div class="topbar-spacer"></div>
+      <span class="env-pill"><span class="dot dot-danger" style="width:5px;height:5px"></span>P1 · 处理中</span>
+      <div class="topbar-actions">
+        <button class="icon-btn"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="row-sm" style="margin-bottom:4px"><span class="badge badge-danger">P1 事件</span><span class="badge badge-warn">处理中</span><span class="mono tiny faint">#inc_2041 · 6m 18s</span></div>
+            <h1>订单服务 5xx 突增</h1>
+            <p class="sub">指挥智能体已接管，4 名专业队友并行取证；1 个 R2 动作等待审批。知识草稿将在事件结束后生成。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-users"></use></svg>人工接管</button>
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-file"></use></svg>生成知识草稿</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-check"></use></svg>结束事件</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="dot dot-danger"></span><div><strong>影响</strong><span>2 个服务 · 3 个告警</span></div><span class="cell-end">P1</span></div>
+          <div class="status-cell"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-users"></use></svg></span><div><strong>队友</strong><span>2 运行 · 1 等待</span></div><span class="cell-end">4</span></div>
+          <div class="status-cell"><span class="icon-tile is-green"><svg><use href="icons.svg#i-list"></use></svg></span><div><strong>任务</strong><span>6 完成 · 1 阻塞</span></div><span class="cell-end">6/9</span></div>
+          <div class="status-cell"><span class="dot dot-warn"></span><div><strong>待审批</strong><span>SSH 只读</span></div><span class="cell-end">1</span></div>
+          <div class="status-cell"><span class="dot dot-primary"></span><div><strong>证据</strong><span>2 条独立来源</span></div><span class="cell-end">12</span></div>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div class="stack">
+            <section class="card">
+              <div class="card-head"><h2>任务板</h2><div class="actions"><span class="badge badge-neutral">Commander</span><button class="btn btn-ghost btn-sm">新增任务</button></div></div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>任务</th><th>负责人</th><th>依赖</th><th>状态</th><th class="actions-cell">更新</th></tr></thead>
+                  <tbody>
+                    <tr><td><div class="cell-main">定位影响范围</div><div class="cell-sub">确认服务、时间窗、影响面</div></td><td><span class="badge badge-info">指挥</span></td><td class="mono tiny">—</td><td><span class="badge badge-ok">完成</span></td><td class="actions-cell mono tiny faint">12:08</td></tr>
+                    <tr><td><div class="cell-main">指标取证</div><div class="cell-sub">Prometheus 5xx、延迟、连接数</div></td><td><span class="badge badge-neutral">metrics</span></td><td class="mono tiny">范围</td><td><span class="badge badge-ok">完成</span></td><td class="actions-cell mono tiny faint">12:10</td></tr>
+                    <tr><td><div class="cell-main">日志取证</div><div class="cell-sub">Loki 错误聚类、首现时间</div></td><td><span class="badge badge-neutral">logs</span></td><td class="mono tiny">范围</td><td><span class="badge badge-ok">完成</span></td><td class="actions-cell mono tiny faint">12:11</td></tr>
+                    <tr><td><div class="cell-main">数据库会话检查</div><div class="cell-sub">连接池、长事务、锁等待</div></td><td><span class="badge badge-neutral">dba</span></td><td class="mono tiny">审批</td><td><span class="badge badge-warn">等待审批</span></td><td class="actions-cell mono tiny faint">12:14</td></tr>
+                    <tr><td><div class="cell-main">假设与验证</div><div class="cell-sub">连接池耗尽 vs 发布变更</div></td><td><span class="badge badge-info">指挥</span></td><td class="mono tiny">指标+日志</td><td><span class="badge badge-info">进行中</span></td><td class="actions-cell mono tiny faint">12:15</td></tr>
+                    <tr><td><div class="cell-main">缓解方案</div><div class="cell-sub">终止长事务 / 扩连接池</div></td><td><span class="badge badge-info">指挥</span></td><td class="mono tiny">验证</td><td><span class="badge badge-neutral">待开始</span></td><td class="actions-cell mono tiny faint">—</td></tr>
+                    <tr><td><div class="cell-main">复盘与知识草稿</div><div class="cell-sub">时间线、根因、处置、证据</div></td><td><span class="badge badge-neutral">knowledge</span></td><td class="mono tiny">结束</td><td><span class="badge badge-neutral">待开始</span></td><td class="actions-cell mono tiny faint">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>证据板</h2><div class="actions"><span class="badge badge-neutral">去重后 7 条</span></div></div>
+              <div class="card-body stack-sm">
+                <div class="panel" style="background:var(--bg-subtle);padding:10px 12px">
+                  <div class="between"><div class="row-sm"><span class="badge badge-info">指标</span><span class="mono small">prometheus.query_range</span></div><span class="tiny faint mono">12:10 · 置信度 0.91</span></div>
+                  <div class="small" style="margin-top:6px">order-service 5xx 4.82%（30 分钟前 0.21%），trade-gateway 0.44%，pay-gateway 0.09%。</div>
+                  <div class="hint" style="margin-top:4px">来源：Prometheus · 本地数据集（42s 前同步）</div>
+                </div>
+                <div class="panel" style="background:var(--bg-subtle);padding:10px 12px">
+                  <div class="between"><div class="row-sm"><span class="badge badge-warn">告警</span><span class="mono small">zabbix.problem_get</span></div><span class="tiny faint mono">12:10 · 置信度 0.88</span></div>
+                  <div class="small" style="margin-top:6px">order-db-01 MySQL 连接数 92%（HIGH），比 5xx 早 3 分钟；trade-gateway 重试队列 &gt; 1k。</div>
+                  <div class="hint" style="margin-top:4px">来源：Zabbix · 本地数据集（42s 前同步）</div>
+                </div>
+                <div class="panel" style="background:var(--bg-subtle);padding:10px 12px">
+                  <div class="between"><div class="row-sm"><span class="badge badge-neutral">日志</span><span class="mono small">loki.query_range</span></div><span class="tiny faint mono">12:11 · 置信度 0.76</span></div>
+                  <div class="small" style="margin-top:6px">order-service 出现 47 次 "connection timeout acquiring connection"，首现 13:36:40，与连接数告警时间吻合。</div>
+                  <div class="hint" style="margin-top:4px">来源：Loki · 实时查询</div>
+                </div>
+                <div class="panel" style="border-style:dashed;background:transparent;padding:10px 12px">
+                  <div class="between"><div class="row-sm"><span class="badge badge-neutral">待补</span><span class="mono small">ssh.exec_readonly</span></div><span class="badge badge-warn">等待审批</span></div>
+                  <div class="small" style="margin-top:6px">需要数据库当前会话与锁等待，才能验证“长事务导致连接池耗尽”。</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>指挥时间线</h2><div class="actions"><span class="badge badge-ok">进行中</span></div></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item is-done"><div class="t-title">12:08 指挥智能体接管事件</div><div class="t-meta">拆解 9 个任务 · 派出 4 名队友</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">12:10 指标 + 告警证据汇合</div><div class="t-meta">时间顺序指向数据库 · 不是应用发布</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">12:11 日志确认连接超时</div><div class="t-meta">与 5xx 首现时间一致</div></div>
+                  <div class="timeline-item is-active"><div class="t-title">12:14 等待 SSH 只读审批</div><div class="t-meta">企业微信已送达 · 等待人工确认</div></div>
+                  <div class="timeline-item"><div class="t-title">待验证：长事务 / 连接泄漏</div><div class="t-meta">验证后生成 R2 缓解方案</div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>队友</h2><div class="actions"><span class="badge badge-neutral">4</span></div></div>
+              <div class="card-body stack-sm" style="gap:10px">
+                <div class="row-sm"><span class="avatar is-green" style="width:26px;height:26px;font-size:11px">指</span><div class="grow"><div class="strong small">指挥智能体</div><div class="tiny faint">任务拆解 / 证据合并 / 审批</div></div><span class="dot dot-primary"></span></div>
+                <div class="row-sm"><span class="avatar" style="width:26px;height:26px;font-size:11px">M</span><div class="grow"><div class="strong small">metrics</div><div class="tiny faint">Prometheus · 已完成</div></div><span class="dot dot-ok"></span></div>
+                <div class="row-sm"><span class="avatar is-amber" style="width:26px;height:26px;font-size:11px">L</span><div class="grow"><div class="strong small">logs</div><div class="tiny faint">Loki · 已完成</div></div><span class="dot dot-ok"></span></div>
+                <div class="row-sm"><span class="avatar" style="width:26px;height:26px;font-size:11px">D</span><div class="grow"><div class="strong small">dba</div><div class="tiny faint">SSH 只读 · 等待审批</div></div><span class="dot dot-warn"></span></div>
+                <div class="row-sm"><span class="avatar is-violet" style="width:26px;height:26px;font-size:11px">K</span><div class="grow"><div class="strong small">knowledge</div><div class="tiny faint">复盘 / 知识草稿 · 待命</div></div><span class="dot" style="background:var(--faint)"></span></div>
+              </div>
+              <div class="card-foot"><span>每个队友只能使用会话授权的工具；指挥不能提权。</span></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>待审批</h2><div class="actions"><span class="badge badge-warn">1</span></div></div>
+              <div class="card-body">
+                <div class="approval" style="margin:0">
+                  <div class="approval-head"><svg style="width:15px;height:15px;color:var(--warn)"><use href="icons.svg#i-shield"></use></svg><strong>SSH 只读查询</strong><span class="badge badge-neutral" style="margin-left:auto">R0 · 只读</span></div>
+                  <p style="margin:6px 0">通过 SSH 在 order-db-01 查询当前会话与锁等待，只读账号，执行一次。</p>
+                  <div class="cmd" style="font-size:11px">mysql -e "SHOW FULL PROCESSLIST"</div>
+                  <div class="approval-actions"><button class="btn btn-primary btn-sm">允许本次</button><button class="btn btn-ghost btn-sm">拒绝</button></div>
+                </div>
+                <div class="hint" style="margin-top:8px">已在企业微信推送审批卡片；Web 与 IM 的审批结果会写回同一张审批单。</div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>相关知识</h2><div class="actions"><a class="btn btn-ghost btn-sm" href="knowledge.html">知识中心</a></div></div>
+              <div class="card-body">
+                <div class="between small"><span>MySQL 连接数告警 Runbook</span><span class="badge badge-ok">已引用</span></div>
+                <div class="hint" style="margin-top:2px">v4 · 适用 order-db-* · 连接数 &gt; 90%</div>
+                <hr class="divider" style="margin:10px 0">
+                <div class="between small"><span>订单库连接池耗尽案例</span><span class="badge badge-info">相似 0.86</span></div>
+                <div class="hint" style="margin-top:2px">历史事件 #inc_1832 · 处置：终止长事务 + 扩池</div>
+                <div class="notice is-info" style="margin-top:10px"><svg><use href="icons.svg#i-book"></use></svg><span>事件结束后，指挥智能体会把本次证据与处置整理成知识草稿，交知识管理员审核。</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>交接</h2></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">当前班次</span><span class="v">值班 SRE · 陈志远</span></div>
+                <div class="kv"><span class="k">未决</span><span class="v">SSH 审批 / 长事务确认</span></div>
+                <div class="kv"><span class="k">下一步</span><span class="v">验证后生成 R2 缓解方案</span></div>
+                <div class="kv"><span class="k">风险</span><span class="v">连接池接近上限，可能继续恶化</span></div>
+                <button class="btn btn-outline" style="width:100%;margin-top:10px"><svg><use href="icons.svg#i-share"></use></svg>生成交接摘要</button>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

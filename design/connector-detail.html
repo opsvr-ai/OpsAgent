@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>Zabbix 连接器 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item is-active" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="connectors.html">集成与插件</a><span class="sep">/</span><span class="current">Zabbix</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <span class="icon-tile is-red" style="width:48px;height:48px;border-radius:12px;font-family:var(--font-mono);font-size:20px;font-weight:600">Z</span>
+          <div>
+            <div class="row-sm" style="margin-bottom:4px">
+              <span class="badge badge-ok"><span class="dot dot-ok" style="width:5px;height:5px;box-shadow:none"></span>运行中</span>
+              <span class="badge badge-warn">凭据 3 天后过期</span>
+              <span class="tag">v1.4.2</span>
+              <span class="tag">zabbix-prod</span>
+            </div>
+            <h1>Zabbix</h1>
+            <p class="sub">zabbix-prod.corp · JSON-RPC · 提供 6 个工具，已授权给 4 个角色。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline" id="testBtn"><svg><use href="icons.svg#i-wifi"></use></svg>测试连接</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-check"></use></svg>保存配置</button>
+            <button class="icon-btn"><svg><use href="icons.svg#i-more"></use></svg></button>
+          </div>
+        </div>
+
+        <div class="notice is-warn" style="margin-bottom:20px">
+          <svg><use href="icons.svg#i-alert"></use></svg>
+          <span><strong>API Token 将于 2026-11-06 到期。</strong>请在过期前轮换凭据；轮换过程中新会话会短暂使用旧 Token，正在运行的会话不受影响。<a href="#" style="color:inherit;text-decoration:underline;text-underline-offset:2px">立即轮换</a></span>
+        </div>
+
+        <div class="tabs" style="margin-bottom:20px">
+          <a class="tab is-active" href="connector-detail.html">连接配置</a>
+          <a class="tab" href="connector-detail.html">能力与工具<span class="count">6</span></a>
+          <a class="tab" href="connector-detail.html">权限分配<span class="count">4</span></a>
+          <a class="tab" href="data-store.html">数据沉淀<span class="count">4</span></a>
+          <a class="tab" href="connector-detail.html">健康与审计</a>
+          <a class="tab" href="connector-detail.html">版本记录</a>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div class="stack">
+            <section class="card">
+              <div class="card-head"><h2>基本连接</h2><div class="actions"><span class="badge badge-neutral">租户级配置</span></div></div>
+              <div class="card-body">
+                <div class="form-grid">
+                  <div class="field">
+                    <label>显示名称 <span class="req">*</span></label>
+                    <input class="input" type="text" value="Zabbix 生产监控">
+                  </div>
+                  <div class="field">
+                    <label>实例标识 <span class="req">*</span></label>
+                    <input class="input mono" type="text" value="zabbix-prod" style="font-family:var(--font-mono);font-size:12px">
+                    <div class="hint">用于工具命名，创建后不可修改。</div>
+                  </div>
+                  <div class="field full">
+                    <label>Zabbix API 地址 <span class="req">*</span></label>
+                    <input class="input mono" type="text" value="https://zabbix-prod.corp/api_jsonrpc.php" style="font-family:var(--font-mono);font-size:12px">
+                    <div class="hint">平台将通过出站代理访问该地址；仅允许 HTTPS。</div>
+                  </div>
+                  <div class="field">
+                    <label>环境</label>
+                    <select class="select"><option>生产环境</option><option>预发环境</option><option>测试环境</option></select>
+                  </div>
+                  <div class="field">
+                    <label>出站代理</label>
+                    <select class="select"><option>自动（cn-east-1 出口）</option><option>代理组 ops-proxy</option><option>不使用代理</option></select>
+                  </div>
+                  <div class="field full">
+                    <label>标签</label>
+                    <input class="input" type="text" value="监控, 生产, 核心系统">
+                    <div class="hint">标签用于场景检索与角色授权范围筛选。</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>鉴权</h2><div class="actions"><span class="badge badge-warn">即将过期</span></div></div>
+              <div class="card-body">
+                <div class="form-grid">
+                  <div class="field full">
+                    <label>鉴权方式</label>
+                    <div class="segmented" style="align-self:flex-start"><button class="is-on">API Token</button><button>用户名 / 密码</button></div>
+                  </div>
+                  <div class="field full">
+                    <label>API Token <span class="req">*</span></label>
+                    <div class="input-group">
+                      <input class="input" type="text" value="••••••••••••••••••••••••••••" readonly style="font-family:var(--font-mono)">
+                      <button class="btn btn-outline" type="button"><svg><use href="icons.svg#i-key"></use></svg>轮换</button>
+                    </div>
+                    <div class="hint">Token 由租户管理员在 Zabbix 中创建，权限建议为「只读 + 告警确认」。凭据加密保存，不展示明文。</div>
+                  </div>
+                  <div class="field">
+                    <label>Token 到期时间</label>
+                    <input class="input mono" type="text" value="2026-11-06 13:30" readonly>
+                  </div>
+                  <div class="field">
+                    <label>TLS 校验</label>
+                    <div class="row" style="height:34px"><span class="switch is-on"></span><span class="small muted">校验服务端证书</span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>同步与采集</h2></div>
+              <div class="card-body">
+                <div class="toggle-row">
+                  <div class="grow"><strong>同步主机与分组</strong><p>每 15 分钟同步主机清单，用于工具参数补全和资产关联。</p></div>
+                  <span class="switch is-on"></span>
+                </div>
+                <div class="toggle-row">
+                  <div class="grow"><strong>采集历史趋势</strong><p>允许通过工具读取 history / trend 数据，查询区间上限 7 天。</p></div>
+                  <span class="switch is-on"></span>
+                </div>
+                <div class="toggle-row">
+                  <div class="grow"><strong>允许告警确认</strong><p>允许智能体调用 problem.acknowledge，属于写操作，默认需要会话内审批。</p></div>
+                  <span class="switch"></span>
+                </div>
+                <div class="form-grid" style="margin-top:14px">
+                  <div class="field"><label>同步周期</label><select class="select"><option>每 15 分钟</option><option>每小时</option><option>手动</option></select></div>
+                  <div class="field"><label>请求超时</label><div class="input-group"><input class="input mono" type="text" value="10"><button class="btn btn-outline" type="button">秒</button></div></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <h2>角色权限</h2>
+                <div class="actions"><a class="btn btn-ghost btn-sm" href="admin-members.html">管理角色<svg><use href="icons.svg#i-arrow-right"></use></svg></a></div>
+              </div>
+              <div class="card-body flush">
+                <table class="matrix">
+                  <thead><tr><th>角色</th><th>只读工具</th><th>告警确认</th><th>高危写操作</th><th>数据范围</th></tr></thead>
+                  <tbody>
+                    <tr><td>值班 SRE · DBA</td><td><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span></td><td><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span></td><td><span class="checkbox"></span></td><td class="mono tiny">全部主机</td></tr>
+                    <tr><td>DBA</td><td><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span></td><td><span class="checkbox"></span></td><td><span class="checkbox"></span></td><td class="mono tiny">数据库分组</td></tr>
+                    <tr><td>容器平台</td><td><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span></td><td><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span></td><td><span class="checkbox"></span></td><td class="mono tiny">K8s 相关主机</td></tr>
+                    <tr><td>只读观察者</td><td><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span></td><td><span class="checkbox"></span></td><td><span class="checkbox"></span></td><td class="mono tiny">全部主机</td></tr>
+                    <tr><td>审计员</td><td><span class="checkbox"></span></td><td><span class="checkbox"></span></td><td><span class="checkbox"></span></td><td class="mono tiny">仅审计日志</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot"><svg style="width:13px;height:13px"><use href="icons.svg#i-shield"></use></svg><span>工具执行时按调用者身份再次校验；场景分享不会扩大权限。</span></div>
+            </section>
+
+            <div class="row" style="justify-content:flex-end;gap:8px">
+              <button class="btn btn-ghost">恢复默认</button>
+              <button class="btn btn-outline">保存为草稿</button>
+              <button class="btn btn-primary"><svg><use href="icons.svg#i-check"></use></svg>保存并应用</button>
+            </div>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>连接测试</h2><div class="actions"><span class="badge badge-ok">通过</span></div></div>
+              <div class="card-body">
+                <div class="row-sm"><span class="dot dot-ok"></span><span class="strong small">API 可达 · 鉴权成功</span></div>
+                <div class="kv"><span class="k">响应时间</span><span class="v mono">84ms</span></div>
+                <div class="kv"><span class="k">API 版本</span><span class="v mono">6.4.10</span></div>
+                <div class="kv"><span class="k">账号权限</span><span class="v">只读 · 告警确认</span></div>
+                <div class="kv"><span class="k">主机数</span><span class="v mono">1,284</span></div>
+                <div class="kv"><span class="k">最近测试</span><span class="v mono">今天 11:32</span></div>
+                <div class="hint" style="margin-top:10px">测试会调用 apiinfo.version 与 host.get(limit=1)，不会写入任何数据。</div>
+                <button class="btn btn-outline" style="width:100%;margin-top:12px"><svg><use href="icons.svg#i-refresh"></use></svg>重新测试</button>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>暴露的工具</h2><div class="actions"><span class="badge badge-neutral">6</span></div></div>
+              <div class="card-body flush">
+                <div class="kv" style="padding:9px 12px"><span class="v mono" style="font-size:12px">zabbix.host_list</span><span class="badge badge-ok" style="margin-left:auto">只读</span></div>
+                <div class="kv" style="padding:9px 12px"><span class="v mono" style="font-size:12px">zabbix.problem_get</span><span class="badge badge-ok" style="margin-left:auto">只读</span></div>
+                <div class="kv" style="padding:9px 12px"><span class="v mono" style="font-size:12px">zabbix.history_query</span><span class="badge badge-ok" style="margin-left:auto">只读</span></div>
+                <div class="kv" style="padding:9px 12px"><span class="v mono" style="font-size:12px">zabbix.trend_query</span><span class="badge badge-ok" style="margin-left:auto">只读</span></div>
+                <div class="kv" style="padding:9px 12px"><span class="v mono" style="font-size:12px">zabbix.problem_ack</span><span class="badge badge-warn" style="margin-left:auto">需审批</span></div>
+                <div class="kv" style="padding:9px 12px"><span class="v mono" style="font-size:12px">zabbix.maintenance_set</span><span class="badge badge-neutral" style="margin-left:auto">未启用</span></div>
+              </div>
+              <div class="card-foot"><a href="connector-detail.html" class="btn btn-ghost btn-sm" style="margin-left:auto">查看输入输出 Schema</a></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>数据与审计</h2></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">租户</span><span class="v">星河银行 · 运维中心</span></div>
+                <div class="kv"><span class="k">存储</span><span class="v">cn-east-1 · 加密</span></div>
+                <div class="kv"><span class="k">结果保留</span><span class="v">工具输出 30 天</span></div>
+                <div class="kv"><span class="k">脱敏</span><span class="v">Token / 密码 / 内网 IP</span></div>
+                <div class="kv"><span class="k">近 24h 调用</span><span class="v mono">1,284 次</span></div>
+                <a class="btn btn-outline btn-sm" href="platform-admin.html" style="width:100%;margin-top:12px"><svg><use href="icons.svg#i-history"></use></svg>查看调用审计</a>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-body">
+                <div class="notice is-info"><svg><use href="icons.svg#i-key"></use></svg><span>凭据由平台 KMS 信封加密，运行时按会话临时解密，不进入模型上下文，也不会写入会话日志。</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>集成与插件 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item is-active" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">集成与插件</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索连接器、工具<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Integration hub · 连接器与工具</div>
+            <h1 style="margin-top:8px">集成与插件</h1>
+            <p class="sub">标准运维平台通过表单接入，长尾系统用通用 HTTP 连接器或 AI 创造模式生成。连接器只在租户内生效，工具权限按角色分配。</p>
+          </div>
+          <div class="page-actions">
+            <a class="btn btn-outline" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>AI 生成连接器</a>
+            <a class="btn btn-outline" href="data-store.html"><svg><use href="icons.svg#i-database"></use></svg>数据沉淀</a>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-plus"></use></svg>接入标准平台</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-plug"></use></svg></span><div><strong>已接入</strong><span>12 个实例 · 覆盖 8 类平台</span></div><span class="cell-end">12</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>健康</strong><span>11 个正常 · 1 个鉴权即将过期</span></div><span class="cell-end">11/12</span></div>
+          <div class="status-cell"><span class="icon-tile is-green"><svg><use href="icons.svg#i-terminal"></use></svg></span><div><strong>可用工具</strong><span>58 个 · 14 个需审批</span></div><span class="cell-end">58</span></div>
+          <div class="status-cell"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-share"></use></svg></span><div><strong>授权角色</strong><span>4 个角色 · 最近变更 10:24</span></div><span class="cell-end">4</span></div>
+        </div>
+
+        <div class="section-head">
+          <div class="tabs" style="flex:1;border-bottom:0">
+            <a class="tab is-active" href="connectors.html">全部<span class="count">12</span></a>
+            <a class="tab" href="connectors.html">监控告警<span class="count">4</span></a>
+            <a class="tab" href="connectors.html">数据库与中间件<span class="count">4</span></a>
+            <a class="tab" href="connectors.html">容器与主机<span class="count">2</span></a>
+            <a class="tab" href="connectors.html">自定义生成<span class="count">2</span></a>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-filter"></use></svg>筛选</button>
+            <button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-history"></use></svg>变更记录</button>
+          </div>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div>
+            <div class="grid grid-2">
+              <a class="card" href="connector-detail.html" style="min-height:186px">
+                <div class="card-body">
+                  <div class="row" style="align-items:flex-start">
+                    <span class="icon-tile is-red" style="width:38px;height:38px;font-family:var(--font-mono);font-weight:600;font-size:16px">Z</span>
+                    <div class="grow">
+                      <div class="row-sm"><span class="strong" style="font-size:var(--fs-14)">Zabbix</span><span class="badge badge-warn">凭据 3 天后过期</span></div>
+                      <div class="hint" style="margin-top:2px">zabbix-prod · JSON-RPC · v6.4</div>
+                    </div>
+                  </div>
+                  <p class="scenario-desc" style="margin-top:12px">读取主机、问题、历史与趋势数据，支持按标签过滤与告警确认（写操作需审批）。</p>
+                  <div class="row-sm" style="margin-top:12px;color:var(--faint)">
+                    <span class="tag">6 个工具</span><span class="tag">4 个角色</span><span class="tag">12 分钟前同步</span>
+                  </div>
+                </div>
+                <div class="card-foot"><span class="dot dot-warn"></span>健康检查通过 · 鉴权待更新<span style="margin-left:auto">配置<svg style="width:12px;height:12px"><use href="icons.svg#i-chevron-right"></use></svg></span></div>
+              </a>
+
+              <a class="card" href="connector-detail.html" style="min-height:186px">
+                <div class="card-body">
+                  <div class="row" style="align-items:flex-start">
+                    <span class="icon-tile is-amber" style="width:38px;height:38px;font-family:var(--font-mono);font-weight:600;font-size:16px">P</span>
+                    <div class="grow">
+                      <div class="row-sm"><span class="strong" style="font-size:var(--fs-14)">Prometheus</span><span class="badge badge-ok">已连接</span></div>
+                      <div class="hint" style="margin-top:2px">prometheus-main · HTTP API · v2.49</div>
+                    </div>
+                  </div>
+                  <p class="scenario-desc" style="margin-top:12px">执行 PromQL 即时查询与区间查询，读取告警规则和活跃告警，返回可用于图表的结构化数据。</p>
+                  <div class="row-sm" style="margin-top:12px;color:var(--faint)">
+                    <span class="tag">8 个工具</span><span class="tag">5 个角色</span><span class="tag">1 分钟前同步</span>
+                  </div>
+                </div>
+                <div class="card-foot"><span class="dot dot-ok"></span>健康检查通过 · 42ms<span style="margin-left:auto">配置<svg style="width:12px;height:12px"><use href="icons.svg#i-chevron-right"></use></svg></span></div>
+              </a>
+
+              <a class="card" href="connector-detail.html" style="min-height:186px">
+                <div class="card-body">
+                  <div class="row" style="align-items:flex-start">
+                    <span class="icon-tile is-amber" style="width:38px;height:38px;font-family:var(--font-mono);font-weight:600;font-size:14px">G</span>
+                    <div class="grow">
+                      <div class="row-sm"><span class="strong" style="font-size:var(--fs-14)">Grafana</span><span class="badge badge-ok">已连接</span></div>
+                      <div class="hint" style="margin-top:2px">grafana-ops · HTTP API · v10.2</div>
+                    </div>
+                  </div>
+                  <p class="scenario-desc" style="margin-top:12px">查询看板、面板与数据源，按场景生成快照链接，供报告与共享页面引用。</p>
+                  <div class="row-sm" style="margin-top:12px;color:var(--faint)">
+                    <span class="tag">3 个工具</span><span class="tag">3 个角色</span><span class="tag">今天 09:12</span>
+                  </div>
+                </div>
+                <div class="card-foot"><span class="dot dot-ok"></span>健康检查通过 · 68ms<span style="margin-left:auto">配置<svg style="width:12px;height:12px"><use href="icons.svg#i-chevron-right"></use></svg></span></div>
+              </a>
+
+              <a class="card" href="connector-detail.html" style="min-height:186px">
+                <div class="card-body">
+                  <div class="row" style="align-items:flex-start">
+                    <span class="icon-tile is-amber" style="width:38px;height:38px"><svg style="width:17px;height:17px"><use href="icons.svg#i-cloud"></use></svg></span>
+                    <div class="grow">
+                      <div class="row-sm"><span class="strong" style="font-size:var(--fs-14)">Alertmanager</span><span class="badge badge-ok">已连接</span></div>
+                      <div class="hint" style="margin-top:2px">alertmanager-main · HTTP API</div>
+                    </div>
+                  </div>
+                  <p class="scenario-desc" style="margin-top:12px">读取活跃告警与静默规则，支持按服务聚合、关联同时间窗内的告警事件。</p>
+                  <div class="row-sm" style="margin-top:12px;color:var(--faint)">
+                    <span class="tag">4 个工具</span><span class="tag">4 个角色</span><span class="tag">2 分钟前同步</span>
+                  </div>
+                </div>
+                <div class="card-foot"><span class="dot dot-ok"></span>健康检查通过 · 31ms<span style="margin-left:auto">配置<svg style="width:12px;height:12px"><use href="icons.svg#i-chevron-right"></use></svg></span></div>
+              </a>
+
+              <a class="card" href="connector-detail.html" style="min-height:186px">
+                <div class="card-body">
+                  <div class="row" style="align-items:flex-start">
+                    <span class="icon-tile is-blue" style="width:38px;height:38px"><svg style="width:17px;height:17px"><use href="icons.svg#i-box"></use></svg></span>
+                    <div class="grow">
+                      <div class="row-sm"><span class="strong" style="font-size:var(--fs-14)">Kubernetes</span><span class="badge badge-ok">已连接</span></div>
+                      <div class="hint" style="margin-top:2px">prod-cn-east · Kubernetes API</div>
+                    </div>
+                  </div>
+                  <p class="scenario-desc" style="margin-top:12px">查询工作负载、事件与节点状态；扩缩容和重启等写操作需租户管理员预先授权。</p>
+                  <div class="row-sm" style="margin-top:12px;color:var(--faint)">
+                    <span class="tag">9 个工具</span><span class="tag">2 个角色</span><span class="tag">30 秒前同步</span>
+                  </div>
+                </div>
+                <div class="card-foot"><span class="dot dot-ok"></span>健康检查通过 · 120ms<span style="margin-left:auto">配置<svg style="width:12px;height:12px"><use href="icons.svg#i-chevron-right"></use></svg></span></div>
+              </a>
+
+              <a class="card" href="connector-detail.html" style="min-height:186px">
+                <div class="card-body">
+                  <div class="row" style="align-items:flex-start">
+                    <span class="icon-tile" style="width:38px;height:38px"><svg style="width:17px;height:17px"><use href="icons.svg#i-terminal"></use></svg></span>
+                    <div class="grow">
+                      <div class="row-sm"><span class="strong" style="font-size:var(--fs-14)">SSH 主机</span><span class="badge badge-ok">已连接</span></div>
+                      <div class="hint" style="margin-top:2px">ops-bastion · SSH · 跳板机</div>
+                    </div>
+                  </div>
+                  <p class="scenario-desc" style="margin-top:12px">通过跳板机执行只读命令与采集脚本；所有命令白名单化，交互式会话需二次确认。</p>
+                  <div class="row-sm" style="margin-top:12px;color:var(--faint)">
+                    <span class="tag">5 个工具</span><span class="tag">1 个角色</span><span class="tag">5 分钟前同步</span>
+                  </div>
+                </div>
+                <div class="card-foot"><span class="dot dot-ok"></span>健康检查通过 · 210ms<span style="margin-left:auto">配置<svg style="width:12px;height:12px"><use href="icons.svg#i-chevron-right"></use></svg></span></div>
+              </a>
+            </div>
+
+            <section class="card" style="margin-top:16px">
+              <div class="card-head"><h2>数据库与中间件</h2><div class="actions"><span class="badge badge-ok">4 个已连接</span><a class="btn btn-ghost btn-sm" href="connector-detail.html">管理</a></div></div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>连接器</th><th>类型</th><th>实例</th><th>工具</th><th>状态</th><th class="actions-cell"></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-activity"></use></svg></span><div><div class="cell-main">ClickHouse</div><div class="cell-sub">clickhouse-prod · HTTP · 只读</div></div></div></td>
+                      <td><span class="badge badge-neutral">分析库</span></td>
+                      <td class="num">2</td>
+                      <td class="mono small">5</td>
+                      <td><span class="badge badge-ok">已连接</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="connector-detail.html">配置</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-database"></use></svg></span><div><div class="cell-main">MySQL</div><div class="cell-sub">36 个实例 · 只读账号 · 慢查询/锁/复制</div></div></div></td>
+                      <td><span class="badge badge-neutral">数据库</span></td>
+                      <td class="num">36</td>
+                      <td class="mono small">6</td>
+                      <td><span class="badge badge-ok">已连接</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="connector-detail.html">配置</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-database"></use></svg></span><div><div class="cell-main">PostgreSQL</div><div class="cell-sub">8 个实例 · 只读 · 连接/复制/容量</div></div></div></td>
+                      <td><span class="badge badge-neutral">数据库</span></td>
+                      <td class="num">8</td>
+                      <td class="mono small">6</td>
+                      <td><span class="badge badge-ok">已连接</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="connector-detail.html">配置</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-red"><svg><use href="icons.svg#i-hard-drive"></use></svg></span><div><div class="cell-main">Redis</div><div class="cell-sub">12 个集群 · 只读 · 内存/命中率/慢日志</div></div></div></td>
+                      <td><span class="badge badge-neutral">中间件</span></td>
+                      <td class="num">12</td>
+                      <td class="mono small">5</td>
+                      <td><span class="badge badge-ok">已连接</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="connector-detail.html">配置</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot"><span>数据库连接器默认只读账号 + 参数化查询模板；临时只读 SQL 需单独授权。</span></div>
+            </section>
+
+            <div class="card" style="margin-top:16px;border-style:dashed;background:transparent">
+              <div class="card-body row" style="padding:18px">
+                <span class="icon-tile is-amber" style="width:38px;height:38px"><svg style="width:17px;height:17px"><use href="icons.svg#i-wand"></use></svg></span>
+                <div class="grow">
+                  <div class="strong">接入非标准化平台</div>
+                  <div class="hint" style="margin-top:2px">描述平台名称、API 文档地址与要读取的数据，创造模式会在沙箱里探查接口、生成连接器草稿并跑通测试用例。</div>
+                </div>
+                <a class="btn btn-outline" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>开始生成</a>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+              <div class="card-head"><h2>自定义连接器草稿</h2><div class="actions"><span class="badge badge-neutral">2 个</span></div></div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>名称</th><th>方式</th><th>测试</th><th>状态</th><th class="actions-cell">更新</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-layers"></use></svg></span><div><div class="cell-main">蓝鲸 CMDB 连接器</div><div class="cell-sub">bk-cmdb.internal · 由 AI 生成</div></div></div></td>
+                      <td><span class="badge badge-neutral">通用 HTTP</span></td>
+                      <td class="mono small">14 / 16 通过</td>
+                      <td><span class="badge badge-warn">待审核</span></td>
+                      <td class="actions-cell mono tiny faint">今天 10:18</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile"><svg><use href="icons.svg#i-file"></use></svg></span><div><div class="cell-main">内部工单系统</div><div class="cell-sub">itsm.internal · OpenAPI 3.1</div></div></div></td>
+                      <td><span class="badge badge-neutral">OpenAPI 导入</span></td>
+                      <td class="mono small">8 / 12 通过</td>
+                      <td><span class="badge badge-info">测试中</span></td>
+                      <td class="actions-cell mono tiny faint">昨天</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>接入方式与治理</h2></div>
+              <div class="card-body stack-sm">
+                <div class="panel" style="background:var(--bg-subtle);padding:11px 12px">
+                  <div class="row-sm"><span class="icon-tile is-blue" style="width:26px;height:26px"><svg style="width:13px;height:13px"><use href="icons.svg#i-plug"></use></svg></span><span class="strong small">标准连接器</span><span class="badge badge-neutral" style="margin-left:auto">12 个</span></div>
+                  <div class="hint" style="margin-top:6px">填表配置地址、凭据与能力。支持 Zabbix、Prometheus、Grafana、ClickHouse、MySQL、PostgreSQL、Redis、SSH 等。</div>
+                </div>
+                <div class="panel" style="background:var(--bg-subtle);padding:11px 12px">
+                  <div class="row-sm"><span class="icon-tile is-green" style="width:26px;height:26px"><svg style="width:13px;height:13px"><use href="icons.svg#i-code"></use></svg></span><span class="strong small">通用 HTTP</span><span class="badge badge-neutral" style="margin-left:auto">1 个</span></div>
+                  <div class="hint" style="margin-top:6px">请求模板 + JSONPath 映射，零代码覆盖 REST / OpenAPI 长尾平台，支持分页、重试与脱敏。</div>
+                </div>
+                <div class="panel" style="background:var(--bg-subtle);padding:11px 12px">
+                  <div class="row-sm"><span class="icon-tile is-amber" style="width:26px;height:26px"><svg style="width:13px;height:13px"><use href="icons.svg#i-wand"></use></svg></span><span class="strong small">AI 创造模式</span><span class="badge badge-warn" style="margin-left:auto">2 个</span></div>
+                  <div class="hint" style="margin-top:6px">AI 探查接口、生成 manifest 与测试用例，在沙箱通过后由租户管理员审核发布。</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>健康检查</h2><div class="actions"><button class="btn btn-ghost btn-sm"><svg><use href="icons.svg#i-refresh"></use></svg>刷新</button></div></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">Prometheus</span><span class="v text-ok">42ms</span><span class="mono tiny faint" style="margin-left:auto">11:38</span></div>
+                <div class="kv"><span class="k">Alertmanager</span><span class="v text-ok">31ms</span><span class="mono tiny faint" style="margin-left:auto">11:38</span></div>
+                <div class="kv"><span class="k">Kubernetes</span><span class="v text-ok">120ms</span><span class="mono tiny faint" style="margin-left:auto">11:38</span></div>
+                <div class="kv"><span class="k">Zabbix</span><span class="v text-warn">token 3 天后过期</span><span class="mono tiny faint" style="margin-left:auto">11:37</span></div>
+                <div class="kv"><span class="k">SSH</span><span class="v text-ok">210ms</span><span class="mono tiny faint" style="margin-left:auto">11:36</span></div>
+                <div class="notice is-warn" style="margin-top:12px"><svg><use href="icons.svg#i-alert"></use></svg><span>Zabbix Token 将于 2026-11-06 过期，更新凭据不会中断正在运行的会话。</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-body">
+                <div class="notice is-info"><svg><use href="icons.svg#i-shield"></use></svg><span>连接器凭据使用租户级信封加密存储，模型只能看到工具结果，无法读取原始密钥。所有调用写入审计日志。</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

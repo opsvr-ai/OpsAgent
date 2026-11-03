@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>场景中心 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务<span class="nav-badge">3</span></a>
+        <a class="nav-item is-active" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="home.html">工作台</a><span class="sep">/</span><span class="current">场景中心</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索场景、发布者<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Scenario hub · 可复用的运维流程</div>
+            <h1 style="margin-top:8px">场景中心</h1>
+            <p class="sub">把巡检、诊断与分析流程打包成场景插件：输入表单、工具编排、提示词、产物模板和权限一起发布，供角色或全租户复用。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-upload"></use></svg>从模板导入</button>
+            <a class="btn btn-primary" href="studio.html"><svg><use href="icons.svg#i-plus"></use></svg>新建场景</a>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-bolt"></use></svg></span><div><strong>可用场景</strong><span>12 个 · 覆盖 6 类运维任务</span></div><span class="cell-end">12</span></div>
+          <div class="status-cell"><span class="icon-tile is-green"><svg><use href="icons.svg#i-check"></use></svg></span><div><strong>本周运行</strong><span>86 次 · 成功率 97.6%</span></div><span class="cell-end">86</span></div>
+          <div class="status-cell"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-share"></use></svg></span><div><strong>待审批共享</strong><span>4 项 · 租户管理员处理</span></div><span class="cell-end">4</span></div>
+          <div class="status-cell"><span class="icon-tile"><svg><use href="icons.svg#i-clock"></use></svg></span><div><strong>定时计划</strong><span>9 个 · 今日 6 个已运行</span></div><span class="cell-end">9</span></div>
+        </div>
+
+        <div class="section-head" style="align-items:center">
+          <div class="tabs" style="flex:1;border-bottom:0">
+            <a class="tab is-active" href="scenarios.html">全部<span class="count">12</span></a>
+            <a class="tab" href="scenarios.html">我创建的<span class="count">3</span></a>
+            <a class="tab" href="scenarios.html">角色可用<span class="count">7</span></a>
+            <a class="tab" href="scenarios.html">租户共享<span class="count">4</span></a>
+            <a class="tab" href="scenarios.html">平台共享<span class="count">2</span></a>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-filter"></use></svg>筛选</button>
+            <button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-list"></use></svg>列表</button>
+          </div>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div>
+            <div class="grid grid-2">
+              <a class="card scenario-card" href="report.html">
+                <div class="card-body">
+                  <div class="scenario-top">
+                    <span class="icon-tile is-blue"><svg><use href="icons.svg#i-target"></use></svg></span>
+                    <div class="grow"><div class="scenario-title">核心系统日巡检</div><div class="scenario-sub">Zabbix · Prometheus · SSH</div></div>
+                    <span class="badge badge-info">租户共享</span>
+                  </div>
+                  <p class="scenario-desc">按基线采集主机、数据库、中间件与容器指标，输出按严重度分级的巡检报告，可直接转为工单。</p>
+                  <div class="scenario-tags"><span class="tag">巡检</span><span class="tag">每日 09:00</span><span class="tag">184 项检查</span></div>
+                </div>
+                <div class="scenario-foot"><span class="avatar is-green" style="width:20px;height:20px;font-size:12px">林</span>林晚 · 值班 SRE<span style="margin-left:auto"><span class="dot dot-ok"></span> 4m 12s</span></div>
+              </a>
+
+              <a class="card scenario-card" href="scenarios.html">
+                <div class="card-body">
+                  <div class="scenario-top">
+                    <span class="icon-tile is-green"><svg><use href="icons.svg#i-activity"></use></svg></span>
+                    <div class="grow"><div class="scenario-title">交易链路指标分析</div><div class="scenario-sub">Prometheus · 12 指标</div></div>
+                    <span class="badge badge-ok">角色可用</span>
+                  </div>
+                  <p class="scenario-desc">按服务维度对比 7 日基线与同比变化，自动拆解延迟、错误率与流量的贡献来源，并生成图表。</p>
+                  <div class="scenario-tags"><span class="tag">指标分析</span><span class="tag">按需</span><span class="tag">角色：值班 SRE</span></div>
+                </div>
+                <div class="scenario-foot"><span class="avatar" style="width:20px;height:20px;font-size:12px">陈</span>陈志远 · 值班 SRE<span style="margin-left:auto"><span class="dot dot-primary"></span> 1m 48s</span></div>
+              </a>
+
+              <a class="card scenario-card" href="scenarios.html">
+                <div class="card-body">
+                  <div class="scenario-top">
+                    <span class="icon-tile is-amber"><svg><use href="icons.svg#i-alert"></use></svg></span>
+                    <div class="grow"><div class="scenario-title">告警根因分析</div><div class="scenario-sub">Alertmanager · Zabbix</div></div>
+                    <span class="badge badge-neutral">个人</span>
+                  </div>
+                  <p class="scenario-desc">聚合同一时间窗的关联告警，结合变更记录与拓扑关系给出根因假设和可执行的处置建议。</p>
+                  <div class="scenario-tags"><span class="tag">故障诊断</span><span class="tag">草稿</span><span class="tag">需审批</span></div>
+                </div>
+                <div class="scenario-foot"><span class="avatar" style="width:20px;height:20px;font-size:12px">陈</span>陈志远 · 仅自己可见<span style="margin-left:auto"><button class="btn btn-outline btn-sm" type="button">申请共享</button></span></div>
+              </a>
+
+              <a class="card scenario-card" href="scenarios.html">
+                <div class="card-body">
+                  <div class="scenario-top">
+                    <span class="icon-tile is-blue"><svg><use href="icons.svg#i-database"></use></svg></span>
+                    <div class="grow"><div class="scenario-title">数据库健康巡检</div><div class="scenario-sub">MySQL · Redis · MongoDB</div></div>
+                    <span class="badge badge-info">租户共享</span>
+                  </div>
+                  <p class="scenario-desc">检查连接池、慢查询、主从延迟、复制状态与磁盘水位，按实例生成修复优先级。</p>
+                  <div class="scenario-tags"><span class="tag">巡检</span><span class="tag">每日 08:30</span><span class="tag">36 个实例</span></div>
+                </div>
+                <div class="scenario-foot"><span class="avatar is-amber" style="width:20px;height:20px;font-size:12px">周</span>周牧 · DBA<span style="margin-left:auto"><span class="dot dot-ok"></span> 2m 06s</span></div>
+              </a>
+
+              <a class="card scenario-card" href="scenarios.html">
+                <div class="card-body">
+                  <div class="scenario-top">
+                    <span class="icon-tile is-green"><svg><use href="icons.svg#i-cpu"></use></svg></span>
+                    <div class="grow"><div class="scenario-title">K8s 集群容量周报</div><div class="scenario-sub">Prometheus · Kubernetes</div></div>
+                    <span class="badge badge-ok">角色可用</span>
+                  </div>
+                  <p class="scenario-desc">按命名空间与工作负载预测 CPU、内存和存储水位，给出扩缩容建议与成本变化估算。</p>
+                  <div class="scenario-tags"><span class="tag">容量分析</span><span class="tag">每周一 10:00</span><span class="tag">3 个集群</span></div>
+                </div>
+                <div class="scenario-foot"><span class="avatar" style="width:20px;height:20px;font-size:12px">陈</span>陈志远 · 值班 SRE<span style="margin-left:auto"><span class="dot dot-ok"></span> 3m 40s</span></div>
+              </a>
+
+              <a class="card scenario-card" href="scenarios.html">
+                <div class="card-body">
+                  <div class="scenario-top">
+                    <span class="icon-tile is-amber"><svg><use href="icons.svg#i-git-branch"></use></svg></span>
+                    <div class="grow"><div class="scenario-title">变更风险评估</div><div class="scenario-sub">CMDB · Jira · 巡检报告</div></div>
+                    <span class="badge badge-neutral">个人</span>
+                  </div>
+                  <p class="scenario-desc">结合变更窗口、依赖拓扑与近期告警，评估变更影响面并列出回滚检查项。</p>
+                  <div class="scenario-tags"><span class="tag">变更</span><span class="tag">按需</span><span class="tag">需审批</span></div>
+                </div>
+                <div class="scenario-foot"><span class="avatar" style="width:20px;height:20px;font-size:12px">陈</span>陈志远 · 仅自己可见<span style="margin-left:auto"><button class="btn btn-outline btn-sm" type="button">申请共享</button></span></div>
+              </a>
+            </div>
+            <div class="pagination"><span>显示 6 / 12 个场景</span><span style="margin-left:auto" class="row-sm"><button class="btn btn-outline btn-sm">上一页</button><button class="btn btn-outline btn-sm">下一页</button></span></div>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>共享与发布</h2><div class="actions"><span class="badge badge-warn">4 待审批</span></div></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item is-done"><div class="t-title">个人草稿</div><div class="t-meta">仅创建者可用</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">角色可用</div><div class="t-meta">创建者默认发布范围</div></div>
+                  <div class="timeline-item is-active"><div class="t-title">租户共享</div><div class="t-meta">租户管理员审批后全租户可见</div></div>
+                  <div class="timeline-item"><div class="t-title">平台共享</div><div class="t-meta">租户管理员审核后进入平台目录</div></div>
+                </div>
+                <a class="btn btn-outline" href="admin-sharing.html" style="width:100%;margin-top:14px">处理共享申请<svg><use href="icons.svg#i-arrow-right"></use></svg></a>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>最近运行</h2><div class="actions"><a class="btn btn-ghost btn-sm" href="report.html">查看报告</a></div></div>
+              <div class="card-body flush">
+                <div style="padding:11px 12px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="strong small">核心系统日巡检</span><span class="badge badge-ok">成功</span></div>
+                  <div class="hint" style="margin-top:3px">今天 09:42 · 6 个系统 · 2 个严重发现</div>
+                </div>
+                <div style="padding:11px 12px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="strong small">数据库健康巡检</span><span class="badge badge-ok">成功</span></div>
+                  <div class="hint" style="margin-top:3px">今天 08:30 · 36 个实例 · 0 个严重发现</div>
+                </div>
+                <div style="padding:11px 12px">
+                  <div class="between"><span class="strong small">交易链路指标分析</span><span class="badge badge-warn">部分失败</span></div>
+                  <div class="hint" style="margin-top:3px">今天 11:06 · 2 个指标查询超时，已重试</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-body">
+                <div class="notice is-info"><svg><use href="icons.svg#i-shield"></use></svg><span>场景运行时继承调用者的角色权限，不会因为场景发布而扩大工具访问范围。</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

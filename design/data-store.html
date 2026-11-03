@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>插件数据沉淀 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div><div class="brand-name">OpsAgent</div><span class="brand-sub">AIOps Control Plane</span></div>
+    </div>
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta"><strong>星河银行 · 运维中心</strong><span>生产租户 · cn-east-1</span></span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+        <a class="nav-item is-active" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="runtime-card"><span class="dot dot-ok"></span><div><strong>Agent 运行时正常</strong><span>3 节点 · 12 会话</span></div><div class="runtime-metric">v0.2.2</div></div>
+      <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip"><span class="avatar is-green">陈</span><span class="grow"><strong>陈志远</strong><span>值班 SRE · DBA</span></span><svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg></button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="connectors.html">集成与插件</a><span class="sep">/</span><a href="connector-detail.html">Zabbix</a><span class="sep">/</span><span class="current">数据沉淀</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索数据集<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn"><svg><use href="icons.svg#i-bell"></use></svg></button>
+        <button class="icon-btn"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <span class="icon-tile is-red" style="width:44px;height:44px;border-radius:10px;font-family:var(--font-mono);font-size:18px;font-weight:600">Z</span>
+          <div>
+            <div class="row-sm" style="margin-bottom:4px"><span class="badge badge-ok">同步正常</span><span class="badge badge-neutral">zabbix-prod</span><span class="tag">本地优先</span></div>
+            <h1 style="margin-top:6px">插件数据沉淀</h1>
+            <p class="sub">Zabbix 的主机、告警、历史与趋势数据同步到租户本地数据集；查询先读本地，过期或缺失自动回源。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-refresh"></use></svg>立即同步</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-play"></use></svg>回源测试</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-database"></use></svg></span><div><strong>本地数据集</strong><span>4 个 · 2 个增量同步</span></div><span class="cell-end">4</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>存储占用</strong><span>2.8 GB / 5 GB 配额</span></div><span class="cell-end">56%</span></div>
+          <div class="status-cell"><span class="dot dot-warn"></span><div><strong>最新同步</strong><span>42 秒前 · 1 个数据集偏旧</span></div><span class="cell-end">42s</span></div>
+          <div class="status-cell"><span class="dot dot-primary"></span><div><strong>本地命中率</strong><span>近 24h 查询 87.4% 命中本地</span></div><span class="cell-end">87.4%</span></div>
+        </div>
+
+        <div class="stack">
+            <section class="card">
+              <div class="card-head">
+                <h2>数据集</h2>
+                <div class="actions"><span class="badge badge-neutral">租户 t-1001</span><button class="btn btn-ghost btn-sm">管理 schema</button></div>
+              </div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>数据集</th><th>来源能力</th><th>行数</th><th>大小</th><th>最后同步</th><th>新鲜度</th><th>保留</th><th>查询策略</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="cell-main mono">hosts</div><div class="cell-sub">主键 hostid · 6 字段</div></td>
+                      <td class="mono tiny">host.get</td>
+                      <td class="num">1,284</td>
+                      <td class="num">12 MB</td>
+                      <td class="mono tiny">42 秒前</td>
+                      <td><span class="badge badge-ok">新鲜</span></td>
+                      <td class="mono tiny">30 天</td>
+                      <td><span class="badge badge-info">本地优先</span></td>
+                    </tr>
+                    <tr>
+                      <td><div class="cell-main mono">problems</div><div class="cell-sub">主键 eventid · 9 字段</div></td>
+                      <td class="mono tiny">problem.get</td>
+                      <td class="num">8,642</td>
+                      <td class="num">28 MB</td>
+                      <td class="mono tiny">42 秒前</td>
+                      <td><span class="badge badge-ok">新鲜</span></td>
+                      <td class="mono tiny">30 天</td>
+                      <td><span class="badge badge-info">本地优先</span></td>
+                    </tr>
+                    <tr>
+                      <td><div class="cell-main mono">history</div><div class="cell-sub">主键 itemid+clock · 4 字段</div></td>
+                      <td class="mono tiny">history.get</td>
+                      <td class="num">2.1M</td>
+                      <td class="num">1.8 GB</td>
+                      <td class="mono tiny">5 分钟前</td>
+                      <td><span class="badge badge-warn">偏旧 · 阈值 10m</span></td>
+                      <td class="mono tiny">7 天</td>
+                      <td><span class="badge badge-info">本地优先</span></td>
+                    </tr>
+                    <tr>
+                      <td><div class="cell-main mono">trends</div><div class="cell-sub">主键 itemid+clock · 小时聚合</div></td>
+                      <td class="mono tiny">trend.get</td>
+                      <td class="num">640k</td>
+                      <td class="num">920 MB</td>
+                      <td class="mono tiny">1 小时前</td>
+                      <td><span class="badge badge-ok">新鲜</span></td>
+                      <td class="mono tiny">90 天</td>
+                      <td><span class="badge badge-neutral">仅本地</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot"><span>数据集由插件 manifest 声明，平台自动建表/索引；生成插件不能执行任意 DDL。</span><span style="margin-left:auto" class="mono">schema v3</span></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>同步与回源</h2><div class="actions"><span class="badge badge-ok">运行中</span></div></div>
+              <div class="card-body">
+                <div class="form-grid">
+                  <div class="field">
+                    <label>查询优先策略</label>
+                    <div class="segmented" style="align-self:flex-start"><button class="is-on">本地优先</button><button>实时优先</button><button>仅本地</button><button>仅实时</button></div>
+                    <div class="hint">本地 fresh → 本地；stale/miss → 回源 Zabbix；写操作永远实时。</div>
+                  </div>
+                  <div class="field">
+                    <label>同步周期</label>
+                    <select class="select"><option>增量：每 5 分钟</option><option>每 15 分钟</option><option>每小时</option></select>
+                  </div>
+                  <div class="field"><label>全量对账</label><select class="select"><option>每天 02:00</option><option>每周日</option><option>手动</option></select></div>
+                  <div class="field"><label>新鲜度阈值</label><div class="input-group"><input class="input mono" type="text" value="600"><button class="btn btn-outline" type="button">秒</button></div></div>
+                </div>
+                <div class="toggle-row" style="margin-top:10px">
+                  <div class="grow"><strong>回写实时查询结果</strong><p>本地缺失时回源对端，成功后将结果写回数据集，减少下次回源。</p></div>
+                  <span class="switch is-on"></span>
+                </div>
+                <div class="notice is-info" style="margin-top:10px"><svg><use href="icons.svg#i-activity"></use></svg><span>近 24h：本地命中 87.4%，回源 11.2%，回源失败 1.4%（已自动重试）；所有结果在工具卡片标注 <code class="mono" style="font-size:12px">source / asOf / stale</code>。</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>保留与自动清理</h2><div class="actions"><button class="btn btn-ghost btn-sm">清理 dry-run</button></div></div>
+              <div class="card-body">
+                <div class="form-grid">
+                  <div class="field"><label>按时间清理</label><select class="select"><option>删除 30 天前</option><option>删除 90 天前</option><option>不按时间清理</option></select></div>
+                  <div class="field"><label>按行数保留</label><select class="select"><option>每数据集保留最新 200 万行</option><option>500 万行</option></select></div>
+                  <div class="field"><label>单数据集配额</label><input class="input mono" type="text" value="2 GB"></div>
+                  <div class="field"><label>清理计划</label><select class="select"><option>每天 03:00</option><option>每小时</option></select></div>
+                </div>
+                <div class="hint" style="margin-top:8px">按分区 drop 优先；清理前生成影响报告；知识、审计、审批不在清理范围。超配额时先驱逐最旧数据并告警。</div>
+                <div class="between" style="margin-top:12px"><span class="small muted">上次清理：今天 03:00 · 删除 18.4 万行 / 释放 420 MB</span><span class="badge badge-ok">已完成</span></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="grid grid-3" style="margin-top:16px">
+            <section class="card">
+              <div class="card-head"><h2>存储配额</h2><div class="actions"><span class="badge badge-warn">56%</span></div></div>
+              <div class="card-body">
+                <div class="between small"><span class="muted">数据集总大小</span><span class="mono">2.8 GB / 5 GB</span></div>
+                <div class="progress is-warn" style="margin-top:8px"><i style="width:56%"></i></div>
+                <div class="stack-sm" style="gap:7px;margin-top:14px">
+                  <div class="between small"><span class="mono">history</span><span class="mono">1.8 GB</span></div>
+                  <div class="between small"><span class="mono">trends</span><span class="mono">920 MB</span></div>
+                  <div class="between small"><span class="mono">problems</span><span class="mono">28 MB</span></div>
+                  <div class="between small"><span class="mono">hosts</span><span class="mono">12 MB</span></div>
+                </div>
+                <div class="hint" style="margin-top:10px">配额由租户套餐决定；超限先停止同步并通知消息中心，不静默丢数据。</div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>一次查询的来源</h2><div class="actions"><span class="badge badge-ok">本地命中</span></div></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">工具</span><span class="v mono">zabbix_problem_list</span></div>
+                <div class="kv"><span class="k">来源</span><span class="v"><span class="badge badge-ok">local</span></span></div>
+                <div class="kv"><span class="k">asOf</span><span class="v mono">12:40:12 +08:00</span></div>
+                <div class="kv"><span class="k">stale</span><span class="v mono">false</span></div>
+                <div class="kv"><span class="k">回源</span><span class="v">未触发</span></div>
+                <div class="kv"><span class="k">耗时</span><span class="v mono">18ms（对端约 240ms）</span></div>
+                <div class="notice is-info" style="margin-top:10px"><svg><use href="icons.svg#i-eye"></use></svg><span>模型看到的是同一结果信封，来源与新鲜度随结果返回，避免把缓存当实时。</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>最近同步 / 清理</h2></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item is-done"><div class="t-title">hosts / problems 增量同步</div><div class="t-meta">12:40:12 · 1.2s</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">history 增量同步（5m 水位）</div><div class="t-meta">12:36:00 · 4.8s</div></div>
+                  <div class="timeline-item is-active"><div class="t-title">history 回源查询（10 条）</div><div class="t-meta">12:41:08 · 回写成功</div></div>
+                  <div class="timeline-item"><div class="t-title">每日清理 03:00</div><div class="t-meta">释放 420 MB</div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

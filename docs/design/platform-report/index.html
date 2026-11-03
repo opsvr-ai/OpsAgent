@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpsAgent 平台全景 · 功能、架构、通信与路线图</title>
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<header class="cover" id="top">
+  <div class="cover-top">
+    <div class="brand-line"><span class="brand-mark">OA</span><span>OpsAgent / Platform Overview</span></div>
+    <span>Architecture &amp; capability review · 2026.11</span>
+  </div>
+
+  <div class="cover-main">
+    <div class="cover-kicker">AIOps Control Plane · 运维智能体平台</div>
+    <h1>从告警到根因，<br>一条<span>可审计</span>的智能链</h1>
+    <p class="cover-sub">dsh 原生运行时、连接器与插件数据、四类来源知识、事件指挥 Commander、客户端 Agent 与多租户治理，组成一个统一的运维智能体平台。</p>
+    <div class="cover-tags">
+      <span>dsh native</span>
+      <span>multi-tenant</span>
+      <span>local-first data</span>
+      <span>typed tools</span>
+      <span>no-shell agent</span>
+    </div>
+  </div>
+
+  <div class="cover-stats">
+    <div><strong>1</strong><span>统一平台 · 控制面 + 运行时</span></div>
+    <div><strong>9</strong><span>P1 标准连接器</span></div>
+    <div><strong>4</strong><span>知识来源 · 热更新</span></div>
+    <div><strong>48</strong><span>周 · 不裁功能路线</span></div>
+  </div>
+
+  <div class="cover-meta">
+    <span>范围：平台服务端 / 运行时 / 连接器 / 客户端 Agent / 路线图</span>
+    <span>版本：v1.0 · 设计评审</span>
+  </div>
+</header>
+
+<div class="report">
+  <aside class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#positioning"><span>01</span>平台定位与全景</a>
+    <a href="#capability"><span>02</span>功能地图</a>
+    <a href="#server"><span>03</span>服务端架构</a>
+    <a href="#runtime"><span>04</span>运行时与智能体</a>
+    <a href="#agent"><span>05</span>客户端 Agent</a>
+    <a href="#communication"><span>06</span>通信与协议</a>
+    <a href="#data"><span>07</span>数据与知识热更新</a>
+    <a href="#scenario"><span>08</span>场景与创造模式</a>
+    <a href="#operations"><span>09</span>消息 / 长任务 / Commander</a>
+    <a href="#security"><span>10</span>安全与隔离</a>
+    <a href="#deploy"><span>11</span>部署与兼容</a>
+    <a href="#roadmap"><span>12</span>路线图</a>
+    <a href="#innovation"><span>13</span>创新点</a>
+  </aside>
+
+  <main class="content">
+
+    <section class="section" id="positioning">
+      <div class="section-head">
+        <div class="section-no">01</div>
+        <div><div class="kicker">Positioning</div><h2>不是又一个监控面板，<br>而是运维智能体的控制平面</h2></div>
+      </div>
+      <p class="lede">OpsAgent 把“看见、判断、派工、执行、复盘”收进一个平台：dsh 负责智能体运行时，控制面负责多租户/权限/审批/知识，连接器负责对端系统，Host Agent 负责主机侧，Commander 负责事件指挥。</p>
+
+      <div class="grid-4">
+        <div class="card"><div class="label">Control</div><strong>控制面</strong><p>租户、身份、角色、审批、审计、连接器、场景、消息、任务、知识。</p></div>
+        <div class="card"><div class="label">Runtime</div><strong>智能体运行时</strong><p>每租户独立 dsh 运行时、SDK 会话、工具注册、审批桥、事件流。</p></div>
+        <div class="card"><div class="label">Connect</div><strong>连接与执行</strong><p>9 个标准连接器、通用 HTTP、MCP、Host Agent、未来虚拟化/存储/网络 Agent。</p></div>
+        <div class="card"><div class="label">Knowledge</div><strong>知识与数据</strong><p>插件数据本地优先、四类知识来源、审核/版本/引用/热更新。</p></div>
+      </div>
+
+      <div class="layer-stack">
+        <div class="layer-row">
+          <div class="layer-label">Clients</div>
+          <div class="layer-body">
+            <div class="mod"><strong>Web</strong><span>19 屏控制台</span></div>
+            <div class="mod"><strong>Desktop</strong><span>薄客户端 · 系统密钥链</span></div>
+            <div class="mod"><strong>Host CLI</strong><span>opsagent chat / diagnose</span></div>
+            <div class="mod"><strong>企业微信</strong><span>审批卡片 / 通知</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Edge</div>
+          <div class="layer-body">
+            <div class="mod"><strong>Traefik / API</strong><span>TLS · 路由 · 限流</span></div>
+            <div class="mod"><strong>SSE / WebSocket</strong><span>会话/事件流</span></div>
+            <div class="mod"><strong>Agent Gateway</strong><span>mTLS 长连接 · 签名指令</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Control plane</div>
+          <div class="layer-body">
+            <div class="mod is-core"><strong>IAM / Tenant / RBAC</strong><span>LDAP · 多角色 · RLS</span></div>
+            <div class="mod is-core"><strong>Connector / Creation</strong><span>manifest · dsh cordis</span></div>
+            <div class="mod is-core"><strong>Knowledge / Data</strong><span>四来源 · pgvector · 热更新</span></div>
+            <div class="mod is-core"><strong>Message / Task</strong><span>WeCom · 长任务</span></div>
+            <div class="mod is-core"><strong>Commander</strong><span>Incident · Evidence · Approval</span></div>
+            <div class="mod is-core"><strong>Audit</strong><span>180 天 · 租户隔离</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Runtime</div>
+          <div class="layer-body">
+            <div class="mod is-blue"><strong>Runtime Agent</strong><span>每租户一个容器/进程</span></div>
+            <div class="mod is-blue"><strong>dsh + opsagent bundle</strong><span>SDK JSON-RPC · 工具 · 审批</span></div>
+            <div class="mod is-blue"><strong>Specialist / Commander Session</strong><span>专家与指挥</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Execution</div>
+          <div class="layer-body">
+            <div class="mod"><strong>Connector plugins</strong><span>Zabbix / Prom / Grafana / ClickHouse / DB / SSH</span></div>
+            <div class="mod"><strong>Host Agent</strong><span>Eino ADK 轻量 Runtime · root + 动作门控 · 发现/巡航/诊断/部署</span></div>
+            <div class="mod"><strong>Future agents</strong><span>虚拟化 / 存储 / 网络</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">State</div>
+          <div class="layer-body">
+            <div class="mod"><strong>PostgreSQL + pgvector</strong><span>控制库 / 数据集 / 知识 / 向量</span></div>
+            <div class="mod"><strong>Redis</strong><span>会话 / 队列 / 事件 fanout</span></div>
+            <div class="mod"><strong>MinIO</strong><span>产物 / 附件 / 快照</span></div>
+            <div class="mod"><strong>Vault / KMS</strong><span>凭据 / 信封加密</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout"><strong>平台边界：</strong>dsh 是运行时，不是被改造的 agent-loop；OpsAgent 只在公开扩展点上增加 bundle、工具、知识、连接器、Commander 与 Host Agent。平台管理员默认不读租户会话正文。</div>
+    </section>
+
+    <section class="section" id="capability">
+      <div class="section-head">
+        <div class="section-no">02</div>
+        <div><div class="kicker">Capability map</div><h2>一个平台，<br>覆盖运维的完整闭环</h2></div>
+      </div>
+      <p class="lede">从告警进来，到根因确认、审批处置、知识沉淀，再到下一次巡检复用；功能按领域拆开，但共享同一套租户、角色、审批、审计和知识。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>领域</th><th>能力</th><th>落地阶段</th></tr></thead>
+          <tbody>
+            <tr><td><strong>身份与治理</strong></td><td>LDAP + 本地管理员、多角色并集、租户/平台管理员边界、180 天审计、RLS</td><td>P1</td></tr>
+            <tr><td><strong>工作台与会话</strong></td><td>角色视角、工具卡片、流式、审批、产物、运行轨迹、浅色/深色/系统/时间四主题</td><td>P1</td></tr>
+            <tr><td><strong>连接器</strong></td><td>Zabbix、Prometheus、Grafana、Alertmanager、ClickHouse、MySQL、PostgreSQL、Redis、SSH；通用 HTTP；MCP</td><td>P1（P1.5 扩 6 个）</td></tr>
+            <tr><td><strong>场景</strong></td><td>巡检、指标异常分析、告警根因/故障诊断；手动/定时、报告、发布/复用</td><td>P1</td></tr>
+            <tr><td><strong>创造模式</strong></td><td>完整继承 dsh <code>cordis</code>：生成 Cordis connector bundle、沙箱 profile 安装、inspect、审核、灰度、转正/回滚</td><td>P1</td></tr>
+            <tr><td><strong>插件数据</strong></td><td>自动建库、同步/回源、本地优先、30 天/5GB 配额、四种查询策略、自动清理</td><td>P1.5</td></tr>
+            <tr><td><strong>知识</strong></td><td>插件数据/文档/对话/平台运行四来源、知识智能体、审核/版本/引用、热更新、租户 ACL</td><td>P1.5</td></tr>
+            <tr><td><strong>消息</strong></td><td>站内信、企业微信（私有部署）、邮件、Webhook；审批卡片、路由、模板、静默/升级</td><td>P1.5</td></tr>
+            <tr><td><strong>长任务</strong></td><td>持久化任务、检查点/心跳/恢复、无人值守巡检、平台健康巡检、自动告警、人工接管</td><td>P1.5</td></tr>
+            <tr><td><strong>Commander</strong></td><td>Incident/Evidence/Hypothesis/Approval、Host/Connector/Specialist Executor、根因确认、事件报告</td><td>P1.6</td></tr>
+            <tr><td><strong>Host Agent</strong></td><td>Go 单二进制 + Eino ADK 轻量 Agent Runtime、CLI 安装参数、CPU/内存限额、配置字段加密、root + 动作门控、受控发现/巡航、1 天快照、mTLS 签名指令、受控部署/升级</td><td>P2-A/P2-B</td></tr>
+            <tr><td><strong>未来</strong></td><td>部署/升级、虚拟化/存储/网络 Agent、Agent Teams、平台市场、K8s 部署</td><td>P2/P3</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>角色与视角</h3>
+      <div class="grid-3">
+        <div class="card is-accent"><div class="label">Multi-role</div><strong>一人多角色</strong><p>值班 SRE、DBA、容器平台、网络、变更经理、知识管理员、审计员等；权限取并集，视角切换不放大。</p></div>
+        <div class="card"><div class="label">Tenant admin</div><strong>租户治理</strong><p>配置连接器、授权角色、审批分享、维护成员；租户管理员是平台内唯一能配置插件的人。</p></div>
+        <div class="card"><div class="label">Platform admin</div><strong>平台治理</strong><p>租户生命周期、模型 Provider、目录治理；默认不能查看租户会话正文。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="server">
+      <div class="section-head">
+        <div class="section-no">03</div>
+        <div><div class="kicker">Server architecture</div><h2>控制面与运行时分离，<br>但共享同一套租户与审计</h2></div>
+      </div>
+      <p class="lede">控制面是“平台的大脑和账本”，运行时是“每个租户的智能体工作区”。两者通过 Runtime Agent / SDK 契约连接，不把平台数据库凭据下发给运行时。</p>
+
+      <div class="mod-grid">
+        <div class="mod is-core"><strong>API Gateway</strong><span>TLS、限流、认证、租户上下文注入、SSE</span></div>
+        <div class="mod is-core"><strong>Identity &amp; IAM</strong><span>LDAP、本地管理员、会话、9 角色、多角色并集</span></div>
+        <div class="mod is-core"><strong>Tenant / RBAC</strong><span>RLS、平台/租户边界、权限快照</span></div>
+        <div class="mod is-core"><strong>Connector Registry</strong><span>manifest、工具、健康、凭据引用、出站 allowlist</span></div>
+        <div class="mod is-core"><strong>Plugin Store</strong><span>storage.datasets、自动建库、同步、清理、配额</span></div>
+        <div class="mod is-core"><strong>Knowledge</strong><span>四来源、抽取、审核、版本、向量、热更新</span></div>
+        <div class="mod is-core"><strong>Message</strong><span>事件→模板→路由→渠道→回执</span></div>
+        <div class="mod is-core"><strong>Task</strong><span>长任务、检查点、心跳、定时巡检</span></div>
+        <div class="mod is-core"><strong>Commander</strong><span>Incident、Evidence、Hypothesis、Approval</span></div>
+        <div class="mod is-core"><strong>Agent Gateway</strong><span>主机注册、证书、签名指令、遥测</span></div>
+        <div class="mod is-core"><strong>Model Gateway</strong><span>OpenAI 兼容 / Anthropic、路由、配额、BYOK</span></div>
+        <div class="mod is-core"><strong>Audit</strong><span>追加写、180 天、租户导出</span></div>
+      </div>
+
+      <h3>运行时：每租户一个 dsh</h3>
+      <div class="grid-2">
+        <div class="card is-blue"><div class="label">Per tenant</div><strong>独立运行时</strong><p>独立容器/进程、独立 <code>DSH_HOME</code>、独立卷、独立网络策略；试用租户可共享池，但禁用 shell/终端。</p></div>
+        <div class="card"><div class="label">Runtime Agent</div><strong>mTLS ⇄ stdio</strong><p>控制面 ↔ Runtime Agent 走 mTLS；Runtime Agent ↔ dsh 走 stdio JSON-RPC；会话/工具/审批/事件都通过公开 SDK。</p></div>
+      </div>
+
+      <div class="code"><span class="c"># 控制面 → 运行时（设计契约）</span>
+POST /runtime/sessions          <span class="c"># 创建会话（tenant/user/roles/capability token）</span>
+GET  /runtime/sessions/:id/events <span class="c"># SSE：assistant.delta/tool/approval/done</span>
+POST /runtime/sessions/:id/prompt
+POST /runtime/approvals/:id     <span class="c"># approve / deny</span>
+
+<span class="c"># Runtime Agent → dsh（stdio JSON-RPC）</span>
+initialize → session.create → session.prompt → session.event* → approval.request → approval.resolve</div>
+
+      <div class="callout"><strong>关键隔离：</strong>运行时没有控制面数据库凭据；只通过本地 socket/HTTP 调控制面内部 API，mTLS + 短时 capability token。会话归属 <code>session_id → user_id</code>，跨用户 resume 直接拒绝。</div>
+    </section>
+
+    <section class="section" id="runtime">
+      <div class="section-head">
+        <div class="section-no">04</div>
+        <div><div class="kicker">Runtime &amp; agents</div><h2>dsh 是发动机，<br>OpsAgent 是方向盘和仪表盘</h2></div>
+      </div>
+      <p class="lede">不 fork agent-loop，不把内部 <code>src</code> 当扩展点。平台通过固定版本的 dsh、profile/bundle patch、<code>defineTool</code>、SDK JSON-RPC、审批钩子和会话事件，构建可升级的智能体能力。</p>
+
+      <div class="grid-3">
+        <div class="card"><div class="label">Extension</div><strong>薄 bundle</strong><p><code>opsagent-runtime</code> profile + Cordis patch；连接器工具、场景、Commander、Host Agent 桥都以插件方式接入。</p></div>
+        <div class="card"><div class="label">Protocol</div><strong>SDK JSON-RPC</strong><p>会话 create/resume/prompt、事件流、审批、工具结果；不依赖 dsh 内部实现。</p></div>
+        <div class="card"><div class="label">Models</div><strong>LLM Gateway</strong><p>OpenAI 兼容（chat/completions + responses）与 Anthropic Messages；平台 Key + 租户 BYOK；配额与审计。</p></div>
+      </div>
+
+      <h3>三类 Session</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Session</th><th>职责</th><th>工具面</th><th>限制</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Commander</strong></td><td>事件定级、拆任务、派发、证据汇总、根因/审批/报告</td><td>只读运维工具 + 编排工具</td><td>无 shell；R2+ 审批</td></tr>
+            <tr><td><strong>Specialist</strong></td><td>指标/日志/DB/K8s/网络分析</td><td>只读连接器工具、知识检索</td><td>无写操作、无任意命令</td></tr>
+            <tr><td><strong>Host CLI</strong></td><td>服务器本地对话、诊断、报告</td><td>本地只读动作 + 服务端 LLM</td><td>普通用户；R2+ 不能本地批准</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>一次会话如何工作</h3>
+      <div class="flow-strip">
+        <div class="flow-node"><span class="step">01</span><strong>创建</strong><span>控制面签发 capability token，Runtime Agent 启动会话</span></div>
+        <div class="flow-node"><span class="step">02</span><strong>提示</strong><span>模型规划；工具调用进入审批/沙箱</span></div>
+        <div class="flow-node"><span class="step">03</span><strong>工具</strong><span>连接器 / Host Agent / 知识检索，结果结构化</span></div>
+        <div class="flow-node"><span class="step">04</span><strong>事件</strong><span>SSE 回流到 Web；审批卡片到企业微信</span></div>
+        <div class="flow-node"><span class="step">05</span><strong>产物</strong><span>报告、证据、知识草稿；审计落库</span></div>
+      </div>
+
+      <div class="callout is-blue"><strong>Commander 不是“更大的模型”。</strong>它复用 dsh 的会话与工具，但把事件拆成 Incident/Ticket/Assignment，把结论拆成 Evidence/Hypothesis/Approval；模型不能直接执行 shell。</div>
+    </section>
+
+    <section class="section" id="agent">
+      <div class="section-head">
+        <div class="section-no">05</div>
+        <div><div class="kicker">Host Agent</div><h2>服务器上的受控操作员，<br>不是远程 Shell</h2></div>
+      </div>
+      <p class="lede">每台服务器一个 Go 单二进制：初始化发现、常驻观测、短周期快照、异常上报、CLI 排障；默认 root 采集，但所有动作走注册表 + 签名指令 + 审批。</p>
+
+      <div class="layer-stack">
+        <div class="layer-row">
+          <div class="layer-label">Host daemon</div>
+          <div class="layer-body">
+            <div class="mod is-dark"><strong>opsagentd</strong><span>discovery · collector · policy · executor · knowledge</span></div>
+            <div class="mod"><strong>CLI</strong><span>本地对话 / 诊断 / 报告</span></div>
+            <div class="mod"><strong>Local store</strong><span>SQLite + ring + snapshots</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Discovery</div>
+          <div class="layer-body">
+            <div class="mod"><strong>OS / systemd</strong><span>包、服务、用户、cron</span></div>
+            <div class="mod"><strong>App fingerprint</strong><span>Java/Node/Python/Go/Nginx</span></div>
+            <div class="mod"><strong>Deploy / config / logs</strong><span>部署方式、路径、哈希</span></div>
+            <div class="mod"><strong>Ops clients</strong><span>Zabbix Agent / node_exporter / filebeat</span></div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Runtime</div>
+          <div class="layer-body">
+            <div class="mod"><strong>Collector</strong><span>5s / 30s / 5m</span></div>
+            <div class="mod"><strong>Snapshot</strong><span>最长 1 天</span></div>
+            <div class="mod"><strong>Action registry</strong><span>R0–R3 · 路径/参数白名单</span></div>
+            <div class="mod"><strong>Local knowledge</strong><span>应用/数据中心/历史</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card is-warn"><div class="label">Root + gate</div><strong>默认 root，不等于任意 root Shell</strong><p>采集 <code>/proc</code>、systemd、journald、包信息需要 root；但只执行注册动作，不拼接命令，写路径最小化，R2+ 审批。</p></div>
+        <div class="card is-accent"><div class="label">1 day</div><strong>快照最长 1 天</strong><p>5s 1h、30s 6h、5m 24h、按需 24h/200MB；总上限 1GB 或 2%，超限自限流并告警。</p></div>
+      </div>
+
+      <h3>能力扩展</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Agent 类型</th><th>能力</th><th>阶段</th></tr></thead>
+          <tbody>
+            <tr><td><strong>OS Agent</strong></td><td>发现、采集、CLI、签名诊断、应用/DC 归属</td><td>P2-A/P2-B</td></tr>
+            <tr><td><strong>Virtualization Agent</strong></td><td>vCenter/KVM/云平台、宿主机/VM/集群/迁移</td><td>P3 插件</td></tr>
+            <tr><td><strong>Storage Agent</strong></td><td>池/卷/LUN/IO/容量/告警</td><td>P3 插件</td></tr>
+            <tr><td><strong>Network Agent</strong></td><td>接口/路由/ACL/会话/丢包/配置漂移</td><td>P3 插件</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">详细设计：<code>03-server-agent.md</code>；技术选型：<a href="os-agent-tech.html">os-agent-tech.html</a>；独立汇报：<code>server-agent-report/index.html</code>；Agent × Commander 协同详解：<a href="agent-commander.html">agent-commander.html</a>。</p>
+    </section>
+
+    <section class="section" id="communication">
+      <div class="section-head">
+        <div class="section-no">06</div>
+        <div><div class="kicker">Communication</div><h2>每一条链路，<br>都有身份、方向与审计</h2></div>
+      </div>
+      <p class="lede">平台不使用“一个 WebSocket 到处跑”的简单方案；不同链路按信任边界选择协议，Agent 永远只主动出站。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>链路</th><th>协议</th><th>认证</th><th>方向 / 语义</th></tr></thead>
+          <tbody>
+            <tr><td>Web / Desktop → Control API</td><td>HTTPS + JSON + SSE</td><td>HttpOnly session + Origin/CSRF</td><td>请求/事件流；不暴露运行时长连接口</td></tr>
+            <tr><td>Control → Runtime Agent</td><td>mTLS HTTP/2（可 gRPC）</td><td>租户/运行时证书 + capability token</td><td>创建/恢复/提示/审批；短时 token</td></tr>
+            <tr><td>Runtime Agent → dsh</td><td>stdio JSON-RPC</td><td>父进程管道 + capability</td><td>会话/工具/事件；不出容器</td></tr>
+            <tr><td>Runtime → Connector</td><td>HTTP / PromQL / SQL / SSH</td><td>凭据引用；只读账号</td><td>工具调用；出站 allowlist</td></tr>
+            <tr><td>Control → Agent Gateway</td><td>mTLS gRPC / HTTP2</td><td>Agent CA + host_id/tenant_id</td><td>注册、遥测、签名指令、证据</td></tr>
+            <tr><td>Gateway → Host Agent</td><td>Agent 主动 mTLS 长连接</td><td>设备证书 + 指令签名</td><td>0 入站端口；心跳/指令/回执</td></tr>
+            <tr><td>Control → WeCom / 邮件 / Webhook</td><td>HTTPS / SMTP</td><td>企业微信验签/解密；Webhook HMAC</td><td>出站；站内信兜底</td></tr>
+            <tr><td>Control → Model Provider</td><td>HTTPS（OpenAI 兼容 / Anthropic）</td><td>平台 Key / 租户 BYOK</td><td>LLM Gateway 统一路由/配额/审计</td></tr>
+            <tr><td>Knowledge publish → Runtime</td><td>Redis pub/sub + SSE/ETag</td><td>租户/版本</td><td>热更新失效通知；下一 turn 生效</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>链路 1：会话与审批</h3>
+      <div class="seq">
+        <div class="seq-row"><span class="seq-actor">Web</span><span class="seq-msg">POST /sessions → 创建会话</span><span class="seq-arrow">→ Control</span></div>
+        <div class="seq-row"><span class="seq-actor">Control</span><span class="seq-msg">签发 capability token → Runtime Agent</span><span class="seq-arrow">→ Runtime</span></div>
+        <div class="seq-row"><span class="seq-actor">Runtime</span><span class="seq-msg">session.prompt → 模型 → tool.call</span><span class="seq-arrow">→ dsh</span></div>
+        <div class="seq-row"><span class="seq-actor">dsh</span><span class="seq-msg">approval.request → 审批单 + 企业微信卡片</span><span class="seq-arrow">→ Control</span></div>
+        <div class="seq-row"><span class="seq-actor">Web</span><span class="seq-msg">approve/deny → 签名结果</span><span class="seq-arrow">→ Runtime</span></div>
+        <div class="seq-row"><span class="seq-actor">Runtime</span><span class="seq-msg">tool.result → assistant.delta → done</span><span class="seq-arrow">→ SSE</span></div>
+      </div>
+
+      <h3>链路 2：故障 → Commander → 主机/插件</h3>
+      <div class="seq">
+        <div class="seq-row"><span class="seq-actor">Alert</span><span class="seq-msg">告警/Agent 异常 → AlertSource</span><span class="seq-arrow">→ Incident</span></div>
+        <div class="seq-row"><span class="seq-actor">Commander</span><span class="seq-msg">定级、拆 Ticket、派发 Host/Connector</span><span class="seq-arrow">→ Assignments</span></div>
+        <div class="seq-row"><span class="seq-actor">Host</span><span class="seq-msg">签名诊断指令 → 本机只读证据</span><span class="seq-arrow">→ Evidence</span></div>
+        <div class="seq-row"><span class="seq-actor">Connector</span><span class="seq-msg">Prom/Zabbix/ClickHouse/DB 并行查询</span><span class="seq-arrow">→ Evidence</span></div>
+        <div class="seq-row"><span class="seq-actor">Commander</span><span class="seq-msg">假设更新、根因置信度、审批/报告</span><span class="seq-arrow">→ Incident</span></div>
+      </div>
+
+      <h3>链路 3：知识热更新</h3>
+      <div class="seq">
+        <div class="seq-row"><span class="seq-actor">Reviewer</span><span class="seq-msg">发布知识 vN → 新版本 + 审计</span><span class="seq-arrow">→ Control</span></div>
+        <div class="seq-row"><span class="seq-actor">Control</span><span class="seq-msg">pgvector alias swap / 索引更新</span><span class="seq-arrow">→ DB</span></div>
+        <div class="seq-row"><span class="seq-actor">Control</span><span class="seq-msg">knowledge.published（Redis/SSE）</span><span class="seq-arrow">→ Runtime</span></div>
+        <div class="seq-row"><span class="seq-actor">Runtime</span><span class="seq-msg">失效租户知识缓存；下一 turn 读取 vN</span><span class="seq-arrow">→ Turn</span></div>
+        <div class="seq-row"><span class="seq-actor">Agent</span><span class="seq-msg">引用带 version / citation；旧会话不串版本</span><span class="seq-arrow">→ Answer</span></div>
+      </div>
+
+      <div class="callout is-danger"><strong>Agent 没有入站端口。</strong>没有反向 SSH，没有“服务端随时连进主机”。所有主机动作由 Agent 主动建立 mTLS 连接后领取签名指令。</div>
+    </section>
+
+    <section class="section" id="data">
+      <div class="section-head">
+        <div class="section-no">07</div>
+        <div><div class="kicker">Data &amp; knowledge</div><h2>本地优先的数据，<br>可热更新的知识</h2></div>
+      </div>
+      <p class="lede">插件数据解决“查询快、对端稳”；知识解决“经验复用、越用越准”。两者都按租户隔离，都有版本、配额和审计。</p>
+
+      <h3>插件数据沉淀</h3>
+      <div class="grid-2">
+        <div class="card"><div class="label">Local first</div><strong>读本地，过期回源</strong><p>插件声明 <code>storage.datasets</code>；平台自动建库；查询先读本地，stale/缺失才回源对端；写操作实时。</p></div>
+        <div class="card"><div class="label">Lifecycle</div><strong>自动清理，不占满磁盘</strong><p>默认 30 天 / 单连接器 5GB；TTL、行数、配额；dry-run、清理审计；不删知识/审计/审批。</p></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>查询策略</th><th>行为</th><th>适用</th></tr></thead>
+          <tbody>
+            <tr><td><code>local_first</code></td><td>本地新鲜直接用；过期/缺失回源</td><td>默认，兼顾速度与一致性</td></tr>
+            <tr><td><code>live_first</code></td><td>优先实时，失败回本地</td><td>强实时告警/变更</td></tr>
+            <tr><td><code>local_only</code></td><td>只读本地，不访问对端</td><td>隔离/断网/审计场景</td></tr>
+            <tr><td><code>live_only</code></td><td>只读对端，不落本地</td><td>敏感/一次性查询</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>知识：四类来源</h3>
+      <div class="grid-4">
+        <div class="card"><div class="label">Plugin</div><strong>插件数据</strong><p>每日增量 + 每周深度钻取；基线/拓扑/模式。</p></div>
+        <div class="card"><div class="label">Docs</div><strong>知识文档</strong><p>PDF/Word/Excel/MD/HTML/CSV；ACL/版本/删除同步。</p></div>
+        <div class="card"><div class="label">Conversation</div><strong>用户对话</strong><p>租户统一开关；脱敏；历史显式回溯。</p></div>
+        <div class="card"><div class="label">Platform</div><strong>平台运行</strong><p>巡检/场景/事件产物；证据引用。</p></div>
+      </div>
+
+      <h3>知识热更新机制</h3>
+      <div class="flow-strip">
+        <div class="flow-node"><span class="step">01</span><strong>发布</strong><span>知识管理员审核通过，生成 vN</span></div>
+        <div class="flow-node"><span class="step">02</span><strong>索引</strong><span>pgvector 新版本索引/别名原子切换</span></div>
+        <div class="flow-node"><span class="step">03</span><strong>通知</strong><span>Redis/SSE <code>knowledge.published</code></span></div>
+        <div class="flow-node"><span class="step">04</span><strong>失效</strong><span>Runtime 清租户知识缓存</span></div>
+        <div class="flow-node"><span class="step">05</span><strong>生效</strong><span>下一 turn 的 <code>knowledge.search</code> 读 vN</span></div>
+        <div class="flow-node"><span class="step">06</span><strong>回滚</strong><span>切回上一版本，引用仍可追溯</span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card is-tint"><div class="label">No restart</div><strong>不重启运行时</strong><p>知识以版本化索引 + 工具查询的方式更新；运行时不需要重启，下一 turn 生效。正在生成的回答使用调用时的版本，引用带 <code>kbVersion</code>。</p></div>
+        <div class="card is-tint"><div class="label">Guardrails</div><strong>不会“悄悄换答案”</strong><p>发布/修改/归档都要审核；旧版本在新版本发布前继续可用；冲突保留证据；租户 ACL 不放大。</p></div>
+      </div>
+
+      <div class="callout"><strong>知识不是把文档塞进 prompt。</strong>检索返回片段 + 来源 + 版本 + 置信度；Agent 必须引用；没有证据的结论只作为假设。</div>
+    </section>
+
+    <section class="section" id="scenario">
+      <div class="section-head">
+        <div class="section-no">08</div>
+        <div><div class="kicker">Scenarios &amp; creation</div><h2>把排障经验做成可复用场景，<br>把非标平台做成可安装插件</h2></div>
+      </div>
+      <p class="lede">场景是“有输入、有步骤、有审批、有产物”的运维流程；创造模式用 dsh 的 <code>cordis</code> preset 自动生成可安装的 Cordis connector bundle，而不是只生成一份 manifest。</p>
+
+      <h3>场景</h3>
+      <div class="grid-3">
+        <div class="card"><div class="label">Inspection</div><strong>巡检</strong><p>手动/定时；平台健康 + 租户系统；报告/证据/趋势；异常自动告警。</p></div>
+        <div class="card"><div class="label">Metrics</div><strong>指标异常分析</strong><p>PromQL/ClickHouse/SQL；基线偏离、同比/环比、上下游关联。</p></div>
+        <div class="card"><div class="label">Diagnosis</div><strong>告警根因/故障诊断</strong><p>指标+日志+变更+主机证据；假设/根因/处置建议。</p></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>阶段</th><th>能力</th><th>权限</th></tr></thead>
+          <tbody>
+            <tr><td>草稿</td><td>创建者编辑、测试、版本化</td><td>创建者</td></tr>
+            <tr><td>角色可用</td><td>同角色成员运行；默认发布范围</td><td>创建者 / 角色</td></tr>
+            <tr><td>租户共享</td><td>全租户角色可用</td><td>租户管理员审批</td></tr>
+            <tr><td>平台共享</td><td>进入平台目录，其他租户可安装</td><td>租户管理员审核；平台管理员只治理/下架</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>创造模式：完整继承 dsh</h3>
+      <div class="flow-strip">
+        <div class="flow-node"><span class="step">01</span><strong>目标</strong><span>平台/API/凭据引用</span></div>
+        <div class="flow-node"><span class="step">02</span><strong>探查</strong><span>OpenAPI/端点/鉴权</span></div>
+        <div class="flow-node"><span class="step">03</span><strong>生成</strong><span>dsh <code>cordis</code> 写 Cordis bundle + SDK 代码 + tests + manifest</span></div>
+        <div class="flow-node"><span class="step">04</span><strong>沙箱</strong><span>plugin_manager 安装到 disposable profile；cordis_inspect 验证</span></div>
+        <div class="flow-node"><span class="step">05</span><strong>审核</strong><span>租户管理员 + 安全扫描</span></div>
+        <div class="flow-node"><span class="step">06</span><strong>灰度</strong><span>租户 profile 观察/转正/回滚</span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card is-accent"><div class="label">Inherit</div><strong>不另造生成器</strong><p>使用 dsh 的 <code>cordis</code> preset、创造模式 skills、<code>plugin_manager</code>、<code>cordis_inspect_*</code>；OpsAgent 只提供 Connector SDK、模板、沙箱编排和审核/灰度。</p></div>
+        <div class="card is-warn"><div class="label">Never auto-publish</div><strong>生成物不能直接进生产</strong><p>先沙箱安装、inspect、跑契约测试；测试未过不能提交；审核通过后才进租户 profile。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="operations">
+      <div class="section-head">
+        <div class="section-no">09</div>
+        <div><div class="kicker">Operations</div><h2>消息、长任务、Commander：<br>把智能体放进值班流程</h2></div>
+      </div>
+
+      <h3>消息中心</h3>
+      <p>审批、事件、巡检、知识待审统一收口。企业微信（私有部署）是默认外部渠道，邮件/Webhook 可选，站内信全量兜底。</p>
+      <div class="grid-4">
+        <div class="card"><div class="label">WeCom</div><strong>私有部署</strong><p>审批卡片、回调验签/解密、用户绑定、重试/回执。</p></div>
+        <div class="card"><div class="label">Email</div><strong>审批摘要/报告</strong><p>SMTP；按角色/值班表路由。</p></div>
+        <div class="card"><div class="label">Webhook</div><strong>告警/工单</strong><p>HMAC 签名、重放保护、指数退避。</p></div>
+        <div class="card"><div class="label">In-app</div><strong>站内信</strong><p>完整记录、未读/已读；企业微信失败兜底。</p></div>
+      </div>
+
+      <h3>长任务与无人值守巡检</h3>
+      <div class="flow-strip">
+        <div class="flow-node"><span class="step">01</span><strong>调度</strong><span>cron/手动创建持久任务</span></div>
+        <div class="flow-node"><span class="step">02</span><strong>检查点</strong><span>范围/指标/日志/报告</span></div>
+        <div class="flow-node"><span class="step">03</span><strong>心跳</strong><span>租约/超时/恢复</span></div>
+        <div class="flow-node"><span class="step">04</span><strong>告警</strong><span>平台健康/租户系统异常</span></div>
+        <div class="flow-node"><span class="step">05</span><strong>接管</strong><span>暂停/恢复/人工接管</span></div>
+      </div>
+      <p class="small">长任务不是“一个会话挂一天”：任务实体、检查点、心跳、预算和恢复都在平台侧；运行时重启后从最近检查点继续。</p>
+
+      <h3>Commander：证据优先的事件指挥</h3>
+      <p>Commander 选择性 fork/裁剪 dsh-superagent：保留 Trigger/Ticket/Assignment、Policy、Effects/Outbox 骨架，替换为 Incident/Evidence/Hypothesis/Approval 与 Host/Connector Executor；每租户一个实例，不直接接 research bundle。</p>
+      <div class="grid-3">
+        <div class="card is-accent"><div class="label">Incident</div><strong>事件聚合</strong><p>严重度、影响面、时间线、SLA；一个 Incident 多 Ticket。</p></div>
+        <div class="card is-accent"><div class="label">Evidence</div><strong>证据板</strong><p>Host/Connector/Log/Metric/Change；来源、时间、哈希、置信度。</p></div>
+        <div class="card is-accent"><div class="label">Approval</div><strong>审批</strong><p>R2/R3；Web/企业微信同一审批单；人工接管。</p></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Executor</th><th>用途</th><th>安全</th></tr></thead>
+          <tbody>
+            <tr><td><strong>HostAgentExecutor</strong></td><td>客户端 Agent 只读诊断/证据</td><td>签名指令；无 shell；超时/心跳</td></tr>
+            <tr><td><strong>ConnectorExecutor</strong></td><td>Prom/Zabbix/ClickHouse/DB 并行查询</td><td>只读凭据/参数化查询/限流</td></tr>
+            <tr><td><strong>SpecialistExecutor</strong></td><td>日志/指标专家分析</td><td>只读工具；不能直接执行</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">Agent 与 Commander 的完整协同、五个排障/部署示例：<a href="agent-commander.html">agent-commander.html</a>。</p>
+    </section>
+
+    <section class="section" id="security">
+      <div class="section-head">
+        <div class="section-no">10</div>
+        <div><div class="kicker">Security</div><h2>默认不信任，<br>每一步都可审计</h2></div>
+      </div>
+      <p class="lede">平台安全不是“加一个登录页”，而是身份、租户、工具、网络、凭据、审批、模型、Agent 八个面同时约束。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>面</th><th>控制</th></tr></thead>
+          <tbody>
+            <tr><td><strong>身份</strong></td><td>LDAP + 本地管理员 break-glass；无 OIDC；HttpOnly 会话；Origin/CSRF。</td></tr>
+            <tr><td><strong>租户</strong></td><td>PostgreSQL RLS；每租户运行时/卷/密钥/出口；平台管理员不读会话正文。</td></tr>
+            <tr><td><strong>RBAC</strong></td><td>9 个内置角色；多角色并集；租户管理员配插件/授权；工具级双校验。</td></tr>
+            <tr><td><strong>审批</strong></td><td>R0/R1 自动；R2 人工；R3 变更单；审批拒绝/超时/回执全审计。</td></tr>
+            <tr><td><strong>Agent</strong></td><td>默认 root + 动作注册表；无裸 Shell；路径/参数白名单；1 天快照；签名指令。</td></tr>
+            <tr><td><strong>Commander</strong></td><td>无 shell；类型化工具；人工 break-glass 不进模型；证据/假设/审批。</td></tr>
+            <tr><td><strong>凭据</strong></td><td>Vault/KMS；运行时短时 token；不写 prompt/日志；轮换。</td></tr>
+            <tr><td><strong>模型</strong></td><td>LLM Gateway；租户配额；BYOK；提示注入内容视为不可信数据。</td></tr>
+            <tr><td><strong>供应链</strong></td><td>dsh 版本 pin；bundle/技能包签名；创造模式沙箱；未签名拒绝。</td></tr>
+            <tr><td><strong>审计</strong></td><td>登录/租户/成员/工具/审批/知识/消息/任务/Agent 指令；180 天热存 + 归档。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-danger"><strong>三个“不允许”：</strong>不允许平台管理员默认读租户会话正文；不允许 Agent 执行任意 Shell；不允许分享/安装放大权限。</div>
+    </section>
+
+    <section class="section" id="deploy">
+      <div class="section-head">
+        <div class="section-no">11</div>
+        <div><div class="kicker">Deployment &amp; compatibility</div><h2>私有化优先，<br>dsh 版本可回滚</h2></div>
+      </div>
+      <p class="lede">首期用 docker-compose 交付，单机可起；K8s、计费、多区域放 P2。dsh 固定版本、契约测试、升级灰度和镜像回滚是硬约束。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>服务</th><th>职责</th></tr></thead>
+          <tbody>
+            <tr><td><code>traefik</code></td><td>TLS、路由、限流</td></tr>
+            <tr><td><code>web</code></td><td>React 控制台</td></tr>
+            <tr><td><code>control</code></td><td>API、IAM、RBAC、连接器、知识、消息、审批、Commander</td></tr>
+            <tr><td><code>worker</code></td><td>数据同步/清理、知识抽取、消息投递、长任务调度</td></tr>
+            <tr><td><code>host-agent-gateway</code></td><td>mTLS、注册/证书、指令、遥测</td></tr>
+            <tr><td><code>postgres</code></td><td>pgvector：控制库、数据集、知识、向量</td></tr>
+            <tr><td><code>redis</code></td><td>队列、缓存、事件 fanout</td></tr>
+            <tr><td><code>minio</code></td><td>产物、附件、快照</td></tr>
+            <tr><td><code>runtime</code></td><td>每租户 dsh + ops bundle + Commander</td></tr>
+            <tr><td><code>egress-proxy</code></td><td>出站白名单、审计</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card"><div class="label">Compatibility</div><strong>固定 dsh 版本</strong><p>7 项契约测试：启动/会话/工具/审批/协议/隔离/升级；不 import 内部 src，不 fork agent-loop。</p></div>
+        <div class="card"><div class="label">Observability</div><strong>可观测</strong><p>请求 trace、运行时健康、队列、连接器健康、Agent 心跳、消息投递、审计；OpenTelemetry 可选。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="roadmap">
+      <div class="section-head">
+        <div class="section-no">12</div>
+        <div><div class="kicker">Roadmap</div><h2>48 周，不裁功能，<br>按 Gate 顺延</h2></div>
+      </div>
+      <p class="lede">P1 12 周、P1.5 8 周、P1.6 8 周、P2-A 12 周、P2-B 8 周。每个 Gate 同时看功能、隔离、审计和失败路径；功能不降级，时间不够就顺延。</p>
+
+      <div class="roadmap">
+        <div class="roadmap-row"><div class="roadmap-when">W1–2 · G0</div><div class="roadmap-body"><strong>P0 技术验证</strong><p>dsh、SDK、工具、审批、模型、租户隔离、创造模式沙箱、长任务恢复；不通过不开 P1。</p><div class="chips"><span class="pill is-warn">Gate</span><span class="pill">7 项</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">W3–12 · G4</div><div class="roadmap-body"><strong>P1 平台底座</strong><p>多租户/身份/RBAC、9 连接器、3 场景、完整 dsh 创造模式、审批/审计/分享、Web；12 周。</p><div class="chips"><span class="pill is-ok">P1</span><span class="pill">9 连接器</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">W13–20 · G7</div><div class="roadmap-body"><strong>P1.5 数据/知识/消息/长任务</strong><p>插件数据、四来源知识、企业微信/邮件/Webhook、无人值守巡检、Desktop；8 周。</p><div class="chips"><span class="pill is-ok">P1.5</span><span class="pill">4 条主线</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">W21–28 · G8</div><div class="roadmap-body"><strong>P1.6 Commander</strong><p>fork/裁剪 dsh-superagent；Incident/Evidence/Approval、Alert/Agent Source、ConnectorExecutor、事件指挥 UI；connector-only。</p><div class="chips"><span class="pill is-blue">P1.6</span><span class="pill">no shell</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">W29–40 · G9</div><div class="roadmap-body"><strong>P2-A 客户端 Agent</strong><p>Go daemon/CLI、Eino ADK 轻量 Agent Runtime、模型 Gateway、注册/发现/采集、巡航/异常分析、Host Agent Gateway/Registry、root 门控、1 天快照。</p><div class="chips"><span class="pill is-blue">P2-A</span><span class="pill">12 周</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">W41–48 · G10</div><div class="roadmap-body"><strong>P2-B 完整根因闭环</strong><p>HostAgentExecutor、签名诊断、受控部署/升级、证据回传、Commander 根因/审批/报告；8 周。</p><div class="chips"><span class="pill is-ok">P2-B</span><span class="pill">完整闭环</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">P2/P3 · 未来</div><div class="roadmap-body"><strong>增强能力</strong><p>应用部署/升级、虚拟化/存储/网络 Agent 插件、Agent Teams、平台市场、K8s/计费/多区域。</p><div class="chips"><span class="pill">Roadmap</span><span class="pill">不承诺当前</span></div></div></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Gate</th><th>必须通过</th></tr></thead>
+          <tbody>
+            <tr><td>G0</td><td>dsh/SDK/工具/审批/模型/隔离/创造模式沙箱/长任务恢复</td></tr>
+            <tr><td>G1</td><td>登录→角色视角→会话→mock 工具→审批→审计；跨租户拒绝</td></tr>
+            <tr><td>G2</td><td>9 个连接器契约测试；只读；错误映射；凭据安全</td></tr>
+            <tr><td>G3</td><td>3 场景；dsh 创造模式生成+沙箱+审核；测试门禁</td></tr>
+            <tr><td>G4</td><td>P1 全部验收；性能/备份/兼容；无 blocker</td></tr>
+            <tr><td>G5</td><td>数据本地优先/回源/清理；WeCom 回调；长任务恢复</td></tr>
+            <tr><td>G6</td><td>四来源草稿；无人值守告警；Desktop 审批</td></tr>
+            <tr><td>G7</td><td>P1.5 全部验收；隔离/安全/故障注入</td></tr>
+            <tr><td>G8</td><td>Commander：fork/裁剪、Incident/Evidence/Approval、ConnectorExecutor、无 shell、UI</td></tr>
+            <tr><td>G9</td><td>Host Agent：Linux 安装/注册/发现/采集/CLI；root 门控；隔离</td></tr>
+            <tr><td>G10</td><td>HostAgentExecutor、签名诊断、客户端证据、根因闭环、灰度</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="innovation">
+      <div class="section-head">
+        <div class="section-no">13</div>
+        <div><div class="kicker">What is different</div><h2>六个真正的差异点</h2></div>
+      </div>
+      <p class="lede">不是把“大模型 + 监控”拼在一起，而是把运行时、数据、知识、审批、主机 Agent 和事件指挥做成一套可演进的系统。</p>
+
+      <div class="grid-2">
+        <div class="card is-accent"><div class="label">01</div><strong>dsh 原生，不 fork</strong><p>固定版本 + 薄 bundle + 公开 SDK；升级可控，能力跟随 dsh，而不是维护一个私有分支。</p></div>
+        <div class="card is-accent"><div class="label">02</div><strong>创造模式真正“生成插件”</strong><p>完整继承 dsh <code>cordis</code>，输出可安装 Cordis bundle；沙箱 profile + plugin_manager + cordis_inspect 验证，不是只生成 manifest。</p></div>
+        <div class="card is-accent"><div class="label">03</div><strong>Commander：证据优先</strong><p>Host/Connector/Specialist 三路取证；Incident/Evidence/Hypothesis/Approval；模型只负责编排和假设，不直接拿 shell。</p></div>
+        <div class="card is-accent"><div class="label">04</div><strong>Local-first 插件数据</strong><p>插件自动建库，读本地、过期回源，30 天/5GB 自动清理；既快又不把平台变成另一个时序库。</p></div>
+        <div class="card is-accent"><div class="label">05</div><strong>四来源知识 + 热更新</strong><p>插件/文档/对话/平台运行统一沉淀；知识管理员审核；版本化索引热更新，不重启运行时。</p></div>
+        <div class="card is-accent"><div class="label">06</div><strong>多租户 + Agent 无 shell</strong><p>每租户运行时/Commander；RLS/KMS/审计；Host Agent 默认 root 但动作门控；人工 break-glass 不进模型。</p></div>
+      </div>
+
+      <div class="callout is-blue"><strong>平台的最终目标：</strong>标准故障由 Commander 在分钟级完成跨源取证与根因确认；长尾问题由 Host Agent/连接器/创造模式持续扩展；每一次事件都沉淀为可复用知识，而不是一次性对话。</div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <span>OpsAgent · Platform overview · v1.0</span>
+  <span>设计基线：docs/design/00-platform-design.md · 2026-11-03</span>
+</footer>
+
+</body>
+</html>

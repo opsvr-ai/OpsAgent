@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>登录 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="login">
+  <section class="login-visual">
+    <div class="login-brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <strong>OpsAgent</strong>
+      <span class="env-pill" style="margin-left:8px"><span class="dot dot-ok" style="width:5px;height:5px"></span>RUNTIME ONLINE</span>
+    </div>
+
+    <div class="login-hero">
+      <div class="eyebrow">Operations intelligence · 运维智能体平台</div>
+      <h1>从告警到根因，<br><em>一条会话完成。</em></h1>
+      <p>把 Zabbix、Prometheus、Kubernetes 与自有运维平台接入同一个智能体工作台。每一次工具调用都在租户边界、角色权限与审计记录之内。</p>
+      <div class="login-facts">
+        <div class="login-fact"><strong>12</strong><span>标准连接器<br>开箱即用</span></div>
+        <div class="login-fact"><strong>9</strong><span>运维场景<br>可发布复用</span></div>
+        <div class="login-fact"><strong>100%</strong><span>租户数据<br>独立隔离</span></div>
+      </div>
+    </div>
+
+    <div class="login-log">
+      <div><span class="ok">●</span> <span class="key">runtime</span> dsh 0.2.2 · profile opsagent-runtime · 3 nodes</div>
+      <div><span class="ok">●</span> <span class="key">gateway</span> cn-east-1 · model routes 2/2 healthy</div>
+      <div><span class="ok">●</span> <span class="key">policy</span> tenant isolation enforced · audit streaming</div>
+    </div>
+  </section>
+
+  <section class="login-form-side">
+    <form class="login-form" action="home.html">
+      <div class="eyebrow">企业账号登录</div>
+      <h2>登录 OpsAgent</h2>
+      <p class="sub">使用企业 LDAP 账号登录。所属租户与角色由平台管理员分配，登录后可切换有权限的租户。</p>
+
+      <div class="field">
+        <label for="account">企业账号</label>
+        <input class="input" id="account" type="text" value="chenzhiyuan" autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">密码</label>
+        <input class="input" id="password" type="password" value="············" autocomplete="current-password">
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label for="tenant">租户</label>
+        <select class="select" id="tenant">
+          <option>星河银行 · 运维中心（默认）</option>
+          <option>星河银行 · 测试环境</option>
+        </select>
+        <div class="hint">可访问租户由平台管理员授权；租户内权限由租户管理员分配。</div>
+      </div>
+
+      <div class="between" style="margin-top:16px">
+        <label class="checkline"><span class="checkbox is-on"><svg><use href="icons.svg#i-check"></use></svg></span>记住此设备 7 天</label>
+        <a href="#" class="small muted inline-link" style="text-decoration:underline;text-underline-offset:2px">忘记密码</a>
+      </div>
+
+      <button class="btn btn-primary" type="submit">
+        <svg><use href="icons.svg#i-lock"></use></svg>通过 LDAP 登录
+      </button>
+
+      <div class="login-alt">或使用本地账号</div>
+      <div class="login-sso" style="grid-template-columns:1fr">
+        <button class="btn btn-outline" type="button"><svg><use href="icons.svg#i-key"></use></svg>本地管理员登录</button>
+      </div>
+
+      <div class="login-help">
+        首次登录将同步 LDAP 用户信息，但不会自动授予租户权限。如需开通，请联系
+        <a href="#">平台管理员</a>；角色权限由<a href="#">租户管理员</a>配置。
+      </div>
+      <div class="login-footer">OpsAgent v1.4.0 · dsh 0.2.2 · 仅限授权人员使用</div>
+    </form>
+  </section>
+</div>
+</body>
+</html>

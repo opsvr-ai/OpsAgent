@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>分享审批 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item is-active" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">分享审批</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索申请人、场景<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Share governance · 租户管理员审批</div>
+            <h1 style="margin-top:8px">分享审批</h1>
+            <p class="sub">场景与连接器默认只在角色内可用。扩大到租户或平台前，必须由租户管理员确认权限范围、数据边界与人工确认点。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-filter"></use></svg>筛选</button>
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-history"></use></svg>审批记录</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="dot dot-warn"></span><div><strong>待我审批</strong><span>4 项 · 最长等待 2h 14m</span></div><span class="cell-end">4</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>本月通过</strong><span>12 项 · 平均 46 分钟</span></div><span class="cell-end">12</span></div>
+          <div class="status-cell"><span class="dot dot-danger"></span><div><strong>本月驳回</strong><span>2 项 · 权限过大 / 缺测试</span></div><span class="cell-end">2</span></div>
+          <div class="status-cell"><span class="dot dot-primary"></span><div><strong>平台共享申请</strong><span>1 项 · 待租户管理员审核</span></div><span class="cell-end">1</span></div>
+        </div>
+
+        <div class="tabs" style="margin-bottom:20px">
+          <a class="tab is-active" href="admin-sharing.html">待我审批<span class="count">4</span></a>
+          <a class="tab" href="admin-sharing.html">我发起的<span class="count">3</span></a>
+          <a class="tab" href="admin-sharing.html">已处理<span class="count">18</span></a>
+          <a class="tab" href="admin-sharing.html">平台共享<span class="count">1</span></a>
+        </div>
+
+        <div class="grid grid-side-main">
+          <aside class="stack-sm">
+            <section class="card">
+              <div class="card-head" style="padding-bottom:10px"><h2>待审批队列</h2><div class="actions"><span class="badge badge-warn">4</span></div></div>
+              <div class="card-body flush">
+                <a href="admin-sharing.html" style="display:block;padding:12px 14px;background:var(--primary-soft);border-left:2px solid var(--primary);border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-warn">最高优先级</span><span class="tiny faint mono">2h 14m</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:6px">告警根因分析</div>
+                  <div class="hint" style="margin-top:2px">陈志远 · 申请租户共享 · 3 个工具</div>
+                  <div class="row-sm" style="margin-top:8px"><span class="tag">场景</span><span class="tag">含 SSH</span></div>
+                </a>
+                <a href="admin-sharing.html" style="display:block;padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-info">平台共享</span><span class="tiny faint mono">48m</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:6px">K8s 集群容量周报</div>
+                  <div class="hint" style="margin-top:2px">陈志远 · 申请平台共享 · 租户管理员审核</div>
+                  <div class="row-sm" style="margin-top:8px"><span class="tag">场景</span><span class="tag">跨租户</span></div>
+                </a>
+                <a href="admin-sharing.html" style="display:block;padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-neutral">版本更新</span><span class="tiny faint mono">1h 06m</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:6px">数据库健康巡检 v1.8</div>
+                  <div class="hint" style="margin-top:2px">周牧 · 申请租户共享 · 新增 2 项检查</div>
+                  <div class="row-sm" style="margin-top:8px"><span class="tag">场景</span><span class="tag">v1.7.2 → v1.8.0</span></div>
+                </a>
+                <a href="admin-sharing.html" style="display:block;padding:12px 14px">
+                  <div class="between"><span class="badge badge-neutral">新连接器</span><span class="tiny faint mono">昨天</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:6px">蓝鲸 CMDB 连接器</div>
+                  <div class="hint" style="margin-top:2px">陈志远 · 申请值班 SRE可用 · AI 生成</div>
+                  <div class="row-sm" style="margin-top:8px"><span class="tag">连接器</span><span class="tag">只读</span></div>
+                </a>
+              </div>
+            </section>
+            <div class="notice"><svg><use href="icons.svg#i-clock"></use></svg><span>审批 SLA：租户共享 4 小时，平台共享 2 个工作日。超时会提醒备用管理员。</span></div>
+          </aside>
+
+          <div class="stack">
+            <section class="card">
+              <div class="card-head" style="align-items:flex-start">
+                <div>
+                  <div class="row-sm" style="margin-bottom:4px"><span class="badge badge-warn">租户共享申请</span><span class="badge badge-neutral">#share_8842</span></div>
+                  <h2 style="font-size:var(--fs-20);letter-spacing:-0.02em">告警根因分析</h2>
+                  <div class="hint" style="margin-top:4px">申请人 陈志远 · 值班 SRE · 2026-11-03 08:30 提交</div>
+                </div>
+                <div class="actions">
+                  <button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-eye"></use></svg>预览运行</button>
+                  <button class="icon-btn"><svg><use href="icons.svg#i-more"></use></svg></button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="notice is-info" style="margin-bottom:16px"><svg><use href="icons.svg#i-share"></use></svg><span>申请把「告警根因分析」从<strong>个人草稿</strong>发布到<strong>租户共享</strong>，供本租户全部角色使用。审批后可被其他成员引用与运行。</span></div>
+
+                <div class="grid grid-2" style="gap:16px">
+                  <div>
+                    <div class="eyebrow" style="margin-bottom:8px">范围变化</div>
+                    <div class="panel" style="background:var(--bg-subtle)">
+                      <div class="between small"><span class="muted">当前可见</span><span>仅创建者（个人）</span></div>
+                      <div class="between small" style="margin-top:8px"><span class="muted">申请可见</span><span class="text-primary">租户内全部角色</span></div>
+                      <div class="between small" style="margin-top:8px"><span class="muted">工具权限</span><span>继承调用者角色，不扩大</span></div>
+                      <div class="between small" style="margin-top:8px"><span class="muted">依赖连接器</span><span class="mono">Zabbix · Prometheus</span></div>
+                      <div class="between small" style="margin-top:8px"><span class="muted">人工确认点</span><span>2 个（只读 / 写操作）</span></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="eyebrow" style="margin-bottom:8px">治理检查</div>
+                    <div class="panel" style="background:var(--bg-subtle)">
+                      <div class="row-sm small" style="margin-bottom:7px"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg>未包含高危写操作</div>
+                      <div class="row-sm small" style="margin-bottom:7px"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg>数据范围限定生产租户</div>
+                      <div class="row-sm small" style="margin-bottom:7px"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg>沙箱测试 12/12 通过</div>
+                      <div class="row-sm small" style="margin-bottom:7px"><svg style="width:14px;height:14px;color:var(--warn)"><use href="icons.svg#i-alert"></use></svg>包含 SSH 只读命令 1 条</div>
+                      <div class="row-sm small"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg>产物模板不含敏感字段</div>
+                    </div>
+                  </div>
+                </div>
+
+                <hr class="divider">
+
+                <div class="section-head" style="margin-bottom:10px"><h2 style="font-size:var(--fs-14)">场景编排</h2><span class="badge badge-neutral">6 步</span></div>
+                <div class="timeline">
+                  <div class="timeline-item is-done"><div class="t-title">收集同时间窗告警</div><div class="t-meta">zabbix.problem_get · alertmanager.alerts</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">关联服务与变更记录</div><div class="t-meta">prometheus.query · cmdb.service_get</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">读取主机与进程状态</div><div class="t-meta">ssh.exec_readonly · 需审批</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">生成根因假设与置信度</div><div class="t-meta">LLM 分析 · 引用 5 个数据源</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">输出处置建议与回滚点</div><div class="t-meta">模板：diagnosis-report.md</div></div>
+                  <div class="timeline-item"><div class="t-title">可选：发起修复会话</div><div class="t-meta">写操作 · 始终需要人工确认</div></div>
+                </div>
+
+                <hr class="divider">
+
+                <div class="field">
+                  <label for="comment">审批意见 <span class="faint">（通过时同步给申请人）</span></label>
+                  <textarea class="textarea" id="comment" placeholder="例如：同意租户共享，但 SSH 命令需保持逐次审批。"></textarea>
+                </div>
+
+                <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px">
+                  <button class="btn btn-ghost">驳回</button>
+                  <button class="btn btn-outline">仅角色可用</button>
+                  <button class="btn btn-primary"><svg><use href="icons.svg#i-check"></use></svg>通过并发布到租户</button>
+                </div>
+                <div class="hint" style="text-align:right;margin-top:8px">审批只能收窄范围，不能扩大申请人原本没有的工具权限。</div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>审批记录</h2><div class="actions"><span class="badge badge-neutral">可审计</span></div></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item is-done"><div class="t-title">陈志远 创建场景草稿</div><div class="t-meta">10-28 15:12 · 个人</div></div>
+                  <div class="timeline-item is-done"><div class="t-title">沙箱测试通过 · 12 个用例</div><div class="t-meta">11-02 17:40 · 系统</div></div>
+                  <div class="timeline-item is-active"><div class="t-title">提交租户共享申请</div><div class="t-meta">11-03 08:30 · 等待租户管理员</div></div>
+                  <div class="timeline-item"><div class="t-title">发布到租户目录</div><div class="t-meta">待审批后执行</div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

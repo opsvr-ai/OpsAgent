@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS Agent · 技术选型与落地设计</title>
+<link rel="stylesheet" href="report.css">
+<link rel="stylesheet" href="agent-commander.css">
+</head>
+<body>
+
+<header class="cover" id="top">
+  <div class="cover-top">
+    <div class="brand-line"><span class="brand-mark">OA</span><span>OpsAgent / OS Agent Engineering</span></div>
+    <span>Technical design · Linux first · 2026.11</span>
+  </div>
+
+  <div class="cover-main">
+    <div class="cover-kicker">Host Agent · 技术选型与落地</div>
+    <h1>一个 Go 二进制，<br>把主机变成<span>可观测、可诊断</span>的节点</h1>
+    <p class="cover-sub">不是把 shell 包一层：daemon/CLI 分离、root 动作门控、mTLS 签名指令、受控发现、1 天快照、可签名升级。本文把技术选型、模块、协议、打包与测试拆到可开发的程度。</p>
+    <div class="cover-tags">
+      <span>Go 1.24+</span>
+      <span>CGO disabled</span>
+      <span>gRPC + protobuf</span>
+      <span>SQLite / zstd</span>
+      <span>systemd</span>
+    </div>
+  </div>
+
+  <div class="cover-stats">
+    <div><strong>2</strong><span>进程：daemon + CLI</span></div>
+    <div><strong>0</strong><span>CGO / 动态库依赖</span></div>
+    <div><strong>24h</strong><span>本地快照上限</span></div>
+    <div><strong>0</strong><span>入站端口</span></div>
+  </div>
+
+  <div class="cover-meta">
+    <span>范围：Linux / systemd / 常见应用与中间件</span>
+    <span>版本：v1.0 · 技术评审</span>
+  </div>
+</header>
+
+<div class="report">
+  <aside class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#decisions"><span>01</span>选型结论</a>
+    <a href="#process"><span>02</span>进程与权限</a>
+    <a href="#modules"><span>03</span>模块与代码结构</a>
+    <a href="#discovery"><span>04</span>发现实现</a>
+    <a href="#collect"><span>05</span>采集与存储</a>
+    <a href="#protocol"><span>06</span>通信与协议</a>
+    <a href="#security"><span>07</span>安全</a>
+    <a href="#packaging"><span>08</span>打包与升级</a>
+    <a href="#testing"><span>09</span>测试与性能</a>
+    <a href="#roadmap"><span>10</span>路线与风险</a>
+  </aside>
+
+  <main class="content">
+
+    <section class="section" id="decisions">
+      <div class="section-head">
+        <div class="section-no">01</div>
+        <div><div class="kicker">Decisions</div><h2>技术选型：<br>为什么是 Go + 单二进制</h2></div>
+      </div>
+      <p class="lede">目标主机是生产 Linux 服务器：不能带 Python/Node 运行时，不能依赖系统库版本，不能要求内核模块。Go 的静态编译、跨平台、并发与 gRPC 生态最匹配。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>选型</th><th>决定</th><th>理由 / 边界</th></tr></thead>
+          <tbody>
+            <tr><td><strong>语言</strong></td><td>Go 1.24+（CI 固定 minor）</td><td>静态二进制、交叉编译、低运行时依赖；团队可维护；不用 Rust 的编译/生态成本，不用 Python/Node 的运行时依赖</td></tr>
+            <tr><td><strong>进程</strong></td><td><code>opsagentd</code>（root daemon）+ <code>opsagent</code>（普通用户 CLI）</td><td>daemon 内置 Agent Runtime；CLI 只通过 Unix socket 请求</td></tr><tr><td><strong>Agent Runtime</strong></td><td>CloudWeGo Eino ADK：ChatModelAgent/ReAct + 自定义 Tool + compose Graph；≤8–12 步、Token/时长预算</td><td>Apache-2.0；pin v0.9.x；禁用 DeepAgent shell/python 工具</td></tr><tr><td><strong>模型</strong></td><td>服务端 LLM Gateway（OpenAI 兼容 tool calling）；短时模型 token</td><td>Agent 不持有厂商 Key；租户配额/审计在服务端</td></tr><tr><td><strong>部署</strong></td><td>类型化 <code>deploy.*</code> 动作；签名 DeployOrder/制品；预检、canary、回滚</td><td>R3；变更单/维护窗口/审批；不做任意 Shell</td></tr>
+            <tr><td><strong>构建</strong></td><td><code>CGO_ENABLED=0</code>，静态链接，<code>-trimpath -ldflags "-s -w"</code></td><td>无 glibc 依赖；x86_64/aarch64 可交叉编译；镜像/包体积可控</td></tr>
+            <tr><td><strong>传输</strong></td><td>gRPC over HTTP/2 + mTLS</td><td>双向流、protobuf、成熟拦截器；Agent 主动出站</td></tr>
+            <tr><td><strong>本地存储</strong></td><td>SQLite（<code>modernc.org/sqlite</code>，纯 Go）+ zstd 快照</td><td>无 cgo；WAL；单文件迁移；ring/分区表；1 天保留</td></tr>
+            <tr><td><strong>OS 集成</strong></td><td>systemd D-Bus + <code>/proc</code> + <code>/sys</code> + journald + dpkg/rpm</td><td>Linux first；不加载内核模块，不依赖 eBPF；容器只读元数据</td></tr>
+            <tr><td><strong>CLI</strong></td><td>Cobra + Bubble Tea（交互式 chat）</td><td>命令可脚本化；chat 有 TUI；不把模型/凭据放本地</td></tr>
+            <tr><td><strong>配置/密钥</strong></td><td>YAML 配置 + 文件/TPM 私钥；证书 mTLS</td><td>join token 一次性；私钥 0600；不进日志/环境变量</td></tr>
+            <tr><td><strong>打包</strong></td><td>deb/rpm + tar.gz + systemd unit</td><td>私有化优先；签名包；版本固定；可回滚</td></tr>
+            <tr><td><strong>可观测</strong></td><td>stdlib <code>log/slog</code> JSON + journald + Agent 自身健康</td><td>不引入重日志框架；不监听本地 HTTP 管理端口</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-3">
+        <div class="card is-accent"><div class="label">Why Go</div><strong>单二进制、低依赖</strong><p>生产机不需要预装 runtime；静态编译、交叉编译、gRPC 与并发采集成熟。</p></div>
+        <div class="card"><div class="label">Not eBPF v1</div><strong>不加载内核模块</strong><p>v1 用 <code>/proc</code>、systemd、journald、包管理；eBPF 仅作为后续可选增强，避免内核/发行版兼容风险。</p></div>
+        <div class="card"><div class="label">Not root shell</div><strong>root 只做受控动作</strong><p>daemon root 是为了读取系统信息；执行器按动作注册表跑固定动作，不给任意 shell。</p></div>
+      </div>
+
+      <div class="callout is-blue"><strong>客户端是轻量 Go LLM Agent，不是纯主机代理。</strong>内置 CloudWeGo Eino ADK Runtime（Wake → Context → Plan → Act → Verify → Report → Sleep）；LLM 通过服务端 LLM Gateway，不把模型 Key/Node 运行时放到主机。它受服务端 Commander 控制；日常巡航/异常分析/部署都由签名策略与类型化工具约束。服务端 Commander 使用 dsh（P1.6 选择性 fork dsh-superagent）。</div>
+
+      <h3>智能体框架选型对比</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>方案</th><th>能否满足</th><th>结论</th></tr></thead>
+          <tbody>
+            <tr><td><strong>dsh on host</strong></td><td>Node 运行时、每主机部署 dsh、模型 Key/升级复杂</td><td><strong>不采用</strong>：太重，适合服务端 Commander</td></tr>
+            <tr><td><strong>LangChainGo</strong></td><td>Go 生态，但抽象多、迭代快、工具执行控制不够显式</td><td><strong>不采用</strong>：不适合 root Host Agent 的强审计</td></tr>
+            <tr><td><strong>Eino（CloudWeGo）</strong></td><td>Go 原生 Agent 框架：ADK/ReAct、Tool、HITL、compose Graph、callbacks；Apache-2.0，13k+ stars，v0.9.22（2026-10）</td><td><strong>采用</strong>：最匹配；pin 版本 + 薄封装 policy/executor</td></tr>
+            <tr><td><strong>ADK Go（Google）</strong></td><td>v2.7.0；需 Go 1.26.10；云原生/Gemini 优先，较新</td><td><strong>不采用</strong>：Go 版本门槛高、偏重、版本较新</td></tr>
+            <tr><td><strong>OpsAgent 薄封装</strong></td><td>不改框架核心：Tool 包装、Policy、审批、证据、部署执行</td><td><strong>采用</strong>：安全边界在 OpsAgent，不在模型</td></tr>
+            <tr><td><strong>服务端 Commander</strong></td><td>dsh + 选择性 fork dsh-superagent；多 Agent 编排</td><td><strong>采用</strong>：与客户端 Runtime 职责分离</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="process">
+      <div class="section-head">
+        <div class="section-no">02</div>
+        <div><div class="kicker">Process model</div><h2>两个进程，<br>一条本地 socket，零入站端口</h2></div>
+      </div>
+      <p class="lede">daemon 常驻、root、无网络监听；CLI 以登录用户运行，通过受权限保护的 Unix socket 调 daemon；服务端指令由 daemon 主动出站 mTLS 领取。</p>
+
+      <div class="diagram-grid">
+        <div class="diagram-box is-dark"><strong>opsagentd</strong><span>root；systemd Type=notify；Agent Runtime/策略/工具/传输</span></div>
+        <div class="diagram-box"><strong>opsagent CLI</strong><span>普通用户；Unix socket + SO_PEERCRED；chat/诊断/报告</span></div>
+        <div class="diagram-box is-blue"><strong>Agent Gateway</strong><span>mTLS 长连接；签名指令；遥测/回执</span></div>
+        <div class="diagram-box is-core"><strong>Local store</strong><span>/var/lib/opsagent：SQLite + ring + snapshots</span></div>
+        <div class="diagram-box"><strong>systemd</strong><span>unit、服务状态、journald、重启策略</span></div>
+        <div class="diagram-box"><strong>OS / Apps</strong><span>/proc /sys /etc 日志、包、端口、进程</span></div>
+      </div>
+
+      <div class="code"><span class="c"># 文件布局</span>
+/usr/local/bin/opsagentd          <span class="c"># root daemon</span>
+/usr/local/bin/opsagent           <span class="c"># CLI，普通用户</span>
+/etc/opsagent/agent.yaml          <span class="c"># 0600；IP 明文，认证字段加密</span>
+/etc/opsagent/join-token          <span class="c"># 一次性，0600，注册后删除</span>
+/var/lib/opsagent/agent.db        <span class="c"># SQLite WAL</span>
+/var/lib/opsagent/ring/           <span class="c"># 高频数据/快照</span>
+/var/lib/opsagent/pki/            <span class="c"># 设备证书/私钥，0600</span>
+/run/opsagent/agent.sock          <span class="c"># daemon ↔ CLI</span></div>
+
+      <h3>systemd 权限模型</h3>
+      <div class="code"><span class="c"># 方向示意；P0 在目标发行版实测</span>
+[Service]
+User=root
+ExecStart=/usr/local/bin/opsagentd --config /etc/opsagent/agent.yaml
+Type=notify
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/opsagent /run/opsagent
+ReadOnlyPaths=/etc /usr /proc /sys /var/log
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CPUQuota=50%
+MemoryHigh=192M
+MemoryMax=256M
+TasksMax=64
+IOWeight=50
+OOMScoreAdjust=200
+Environment=GOMEMLIMIT=200MiB GOMAXPROCS=2 GOGC=50</div>
+
+      <h3>安装参数</h3>
+      <div class="code"><span class="c"># 安装时通过 CLI 传入服务端 IP、租户、认证材料、资源限额</span>
+opsagent install \
+  --server 10.20.30.40:8443 \
+  --tenant t-1001 \
+  --join-token-file /root/opsagent-join-token \
+  --ca-cert /root/opsagent-ca.pem \
+  --cpu-quota 50% \
+  --memory-max 256M</div>
+      <p class="small"><code>--server</code> 支持 IP:port 或域名；生产禁止跳过 CA 校验。<code>--join-token</code> 可直接传，但更推荐 <code>--join-token-file</code>/stdin，避免进入 shell history/ps。</p>
+
+      <h3>资源限额</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>项</th><th>默认</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td>CPUQuota</td><td>50%</td><td>最多半个核；空闲目标 &lt;1%</td></tr>
+            <tr><td>MemoryHigh / Max</td><td>192M / 256M</td><td>软/硬上限；超限回收/降级</td></tr>
+            <tr><td>GOMEMLIMIT</td><td>200MiB</td><td>Go 堆软上限，避免 OOM</td></tr>
+            <tr><td>GOMAXPROCS</td><td>2</td><td>限制并行，避免抢业务 CPU</td></tr>
+            <tr><td>TasksMax / IOWeight</td><td>64 / 50</td><td>限制进程数/IO 权重</td></tr>
+            <tr><td>OOMScoreAdjust</td><td>200</td><td>Agent 先于业务被 OOM</td></tr>
+            <tr><td>Eino 预算</td><td>8–12 步 / 12 次模型调用</td><td>单次分析/部署有界</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>配置与敏感信息加密</h3>
+      <div class="code"><span class="c"># /etc/opsagent/agent.yaml（字段级加密，非整文件）</span>
+server:
+  address: <span class="s">"10.20.30.40:8443"</span>   <span class="c"># 明文；IP 不加密</span>
+  ca_file: <span class="s">"/etc/opsagent/ca.pem"</span>
+tenant:
+  id: <span class="s">"t-1001"</span>
+auth:
+  gateway_token: <span class="s">"enc:v1:..."</span>    <span class="c"># AES-256-GCM</span>
+  join_token: <span class="s">"enc:v1:..."</span>       <span class="c"># 仅注册重试；成功后删除</span>
+limits:
+  cpu_quota: <span class="s">"50%"</span>
+  memory_max: <span class="s">"256M"</span></div>
+      <p class="small">AES-256-GCM、每字段随机 nonce、AAD 绑定 tenant/server/field；master key 优先 TPM2/OS keyring，否则 0600 文件；私钥 0600/TPM；配置 0600 原子写；日志脱敏。IP/端口/租户/CA/限额明文，认证材料密文。</p>
+
+      <div class="grid-2">
+        <div class="card is-warn"><div class="label">Root</div><strong>root 但不是全权 root</strong><p>保留读取/诊断所需能力；systemd capability bounding set；不加载模块、不写业务目录、不开放入站端口。</p></div>
+        <div class="card"><div class="label">CLI</div><strong>普通用户</strong><p>只能通过 0660 socket + peer credentials 调用；R2+ 只能发起申请，不能本地批准。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="modules">
+      <div class="section-head">
+        <div class="section-no">03</div>
+        <div><div class="kicker">Code structure</div><h2>模块边界，<br>按“谁能做什么”拆</h2></div>
+      </div>
+      <p class="lede">代码按能力分目录，不按技术层堆文件；动作注册表、发现、采集、传输互相不越权。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>包/命令</th><th>职责</th><th>关键约束</th></tr></thead>
+          <tbody>
+            <tr><td><code>cmd/opsagentd</code></td><td>守护进程入口、systemd notify、信号、生命周期</td><td>不写业务逻辑</td></tr>
+            <tr><td><code>cmd/opsagent</code></td><td>CLI：status/chat/discover/diagnose/report</td><td>只调 Unix socket</td></tr>
+            <tr><td><code>internal/config</code></td><td>YAML 解析、默认值、校验、环境覆盖</td><td>拒绝未知字段；不打印 secret</td></tr><tr><td><code>internal/agent</code></td><td>Eino ADK Agent、ChatModelAgent、Runner、interrupt/resume</td><td>≤8–12 步；只注册 OpsAgent Tool</td></tr><tr><td><code>internal/llm</code></td><td>LLM Gateway 客户端、tool calling、重试</td><td>不落模型 Key；租户 token</td></tr><tr><td><code>internal/deploy</code></td><td>DeployOrder、制品校验、预检、canary、回滚</td><td>R3；签名制品；无 Shell</td></tr>
+            <tr><td><code>internal/identity</code></td><td>join token、CSR、证书轮换、私钥存储</td><td>0600；优先 TPM/OS keystore</td></tr>
+            <tr><td><code>internal/discovery</code></td><td>OS、systemd、包、端口、进程、容器、应用、配置/日志</td><td>只读、限路径、限时、证据</td></tr>
+            <tr><td><code>internal/collector</code></td><td>5s/30s/5m 指标、服务状态、日志签名</td><td>环形缓冲、资源限额</td></tr>
+            <tr><td><code>internal/store</code></td><td>SQLite schema/迁移、ring、snapshot、配额</td><td>WAL；1 天/1GB/2%</td></tr>
+            <tr><td><code>internal/policy</code></td><td>动作注册表、R0–R3、路径/参数白名单</td><td>默认拒绝</td></tr>
+            <tr><td><code>internal/executor</code></td><td>诊断动作、进程栈、日志尾、配置读</td><td>direct exec；无 shell 拼接</td></tr>
+            <tr><td><code>internal/transport</code></td><td>gRPC/mTLS、注册、心跳、指令、回执</td><td>只出站；nonce/过期</td></tr>
+            <tr><td><code>internal/knowledge</code></td><td>应用画像、归属、本地排障缓存</td><td>服务端主数据</td></tr>
+            <tr><td><code>internal/update</code></td><td>签名包校验、原子替换、回滚</td><td>未签名拒绝</td></tr>
+            <tr><td><code>proto/agent/v1</code></td><td>AgentCommand/Result/Evidence/Heartbeat</td><td>protoc 生成；版本兼容</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-blue"><strong>依赖原则：</strong>gRPC/protobuf、modernc sqlite、zstd、go-systemd dbus、Cobra、Bubble Tea、x/sys；不引入 ORM、不引入重量级插件框架。所有外部命令（rpm/dpkg/systemctl）都走固定 argv，不经过 shell。</div>
+    </section>
+
+    <section class="section" id="discovery">
+      <div class="section-head">
+        <div class="section-no">04</div>
+        <div><div class="kicker">Discovery</div><h2>发现不是扫全盘，<br>是多信号收敛</h2></div>
+      </div>
+      <p class="lede">发现的目标是“应用画像”，不是“文件索引”。每条结论必须有来源、置信度和证据；不确定就不自动绑定。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>信号</th><th>采集方式</th><th>产出</th></tr></thead>
+          <tbody>
+            <tr><td>OS / 内核</td><td><code>/etc/os-release</code>、<code>uname</code>、<code>/proc/cpuinfo</code>、<code>/proc/meminfo</code>、<code>/proc/diskstats</code></td><td>HostProfile</td></tr>
+            <tr><td>systemd 服务</td><td>D-Bus <code>ListUnits</code>/<code>GetUnit</code>；无 systemd 时降级</td><td>ServiceInventory</td></tr>
+            <tr><td>包</td><td><code>rpm -qa --qf</code> / <code>dpkg-query -W</code>（固定 argv）</td><td>PackageInventory</td></tr>
+            <tr><td>端口/进程</td><td><code>/proc/net/tcp*</code> + inode→<code>/proc/<pid>/fd</code>；<code>/proc/<pid>/stat/cmdline</code></td><td>ServiceInstance</td></tr>
+            <tr><td>容器</td><td>cgroup v1/v2 元数据；默认不接 docker/containerd socket</td><td>ContainerInstance（可选）</td></tr>
+            <tr><td>应用指纹</td><td>unit <code>ExecStart</code>、工作目录、jar/package.json、Nginx 配置、进程 cmdline、版本文件</td><td>AppInstance + confidence</td></tr>
+            <tr><td>部署方式</td><td>systemd / 容器 / 裸进程 / 静态站点；启动用户、工作目录、EnvironmentFile 键名（不读值）</td><td>DeploymentProfile</td></tr>
+            <tr><td>配置/日志</td><td>应用目录、unit、常见路径白名单；只读元数据/哈希/尾部</td><td>ConfigLogMap</td></tr>
+            <tr><td>运维工具客户端</td><td>进程/包/unit 特征：zabbix_agentd、node_exporter、filebeat、telegraf、falcon-agent</td><td>OpsToolClient</td></tr>
+            <tr><td>依赖</td><td>已有连接、父子进程、配置中的上游地址（只读解析）</td><td>DependencyEdge</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card is-warn"><div class="label">Limits</div><strong>发现预算</strong><p>最多 N 个目录、单文件最大 1MB、总时长 60s、并发 4；超预算标记 <code>partial</code>，不静默继续。</p></div>
+        <div class="card is-accent"><div class="label">Confidence</div><strong>不猜</strong><p>应用实例至少两个独立信号；低置信度只作候选；应用/数据中心冲突进入复核。</p></div>
+      </div>
+
+      <h3>应用识别例子</h3>
+      <div class="flow-strip">
+        <div class="flow-node"><span class="step">signal</span><strong>systemd unit</strong><span>ExecStart=<code>java -jar order-service.jar</code></span></div>
+        <div class="flow-node"><span class="step">signal</span><strong>端口</strong><span>8080 listening → PID</span></div>
+        <div class="flow-node"><span class="step">signal</span><strong>配置/日志</strong><span>/opt/order/conf、/var/log/order</span></div>
+        <div class="flow-node"><span class="step">result</span><strong>AppInstance</strong><span>Java/Spring Boot，confidence 0.92</span></div>
+        <div class="flow-node"><span class="step">bind</span><strong>CMDB</strong><span>IP/主机名 → 订单中心/华东-1</span></div>
+      </div>
+    </section>
+
+    <section class="section" id="collect">
+      <div class="section-head">
+        <div class="section-no">05</div>
+        <div><div class="kicker">Collection &amp; storage</div><h2>小颗粒度采集，<br>被磁盘预算驯服</h2></div>
+      </div>
+      <p class="lede">高频数据留在本地环形缓冲，服务端拿摘要/异常窗口/按需快照；不把主机变成第二个时序数据库。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>频率</th><th>数据</th><th>本地保留</th><th>上传</th></tr></thead>
+          <tbody>
+            <tr><td>5s</td><td>CPU、内存、load、磁盘 IO、网络、TopN 进程</td><td>1h</td><td>异常窗口</td></tr>
+            <tr><td>30s</td><td>服务状态、端口、连接、应用健康、线程/队列</td><td>6h</td><td>摘要/异常</td></tr>
+            <tr><td>5m</td><td>配置哈希、日志错误签名、依赖/版本变化</td><td>24h</td><td>变化/摘要</td></tr>
+            <tr><td>按需</td><td>线程栈、日志尾、连接详情、配置片段</td><td>24h / 200MB</td><td>任务结果</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card"><div class="label">SQLite</div><strong>WAL + 分区表</strong><p><code>metrics_fast</code>/<code>service_samples</code>/<code>config_events</code>；按时间分区/滚动删除；迁移带版本。</p></div>
+        <div class="card"><div class="label">Disk guard</div><strong>min(1GB, 2%)</strong><p>80% 清旧高频；95% 停高频并告警；快照 zstd；不允许写满磁盘。</p></div>
+      </div>
+
+      <div class="callout"><strong>不做的采集：</strong>不做全量日志上传、不做持续 <code>tcpdump</code>、不做全盘文件索引、不做无上限的 eBPF。采集器自身 CPU &lt;1%、RSS &lt;100MB、写入 &lt;5MB/s。</div>
+    </section>
+
+    <section class="section" id="protocol">
+      <div class="section-head">
+        <div class="section-no">06</div>
+        <div><div class="kicker">Protocol</div><h2>指令、结果、心跳：<br>全部 protobuf，全部签名</h2></div>
+      </div>
+      <p class="lede">gRPC 双向流是传输载体，业务层仍是“带 ID/过期/签名”的指令信封；模型和平台不能直接下发自由文本。</p>
+
+      <div class="code"><span class="c">// proto/agent/v1/agent.proto（摘要）</span>
+service AgentGateway {
+  rpc Connect(stream AgentMessage) returns (stream GatewayMessage);
+}
+
+message AgentMessage {
+  oneof body {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    CommandResult result = 3;
+    TelemetryBatch telemetry = 4;
+    EvidenceBatch evidence = 5;
+  }
+}
+
+message GatewayMessage {
+  oneof body {
+    Welcome welcome = 1;
+    SignedCommand command = 2;
+    PolicyUpdate policy = 3;
+    Ack ack = 4;
+  }
+}
+
+message SignedCommand {
+  string command_id = 1;
+  string tenant_id = 2;
+  string host_id = 3;
+  string action_id = 4;
+  bytes params_json = 5;
+  string policy_version = 6;
+  google.protobuf.Timestamp issued_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  string nonce = 9;
+  bytes signature = 10; <span class="c">// Ed25519 over canonical fields</span>
+}</div>
+
+      <div class="grid-2">
+        <div class="card is-warn"><div class="label">Verify</div><strong>Agent 校验 8 项</strong><p>mTLS 证书、签名、tenant/host、动作白名单、参数 schema、policy 版本、过期、nonce/replay。</p></div>
+        <div class="card is-accent"><div class="label">Idempotent</div><strong>command_id 幂等</strong><p>重复指令返回上次结果；执行前写 WAL；超时/重启可恢复；结果签名回传。</p></div>
+      </div>
+
+      <h3>动作注册表示例</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>action_id</th><th>实现</th><th>风险</th><th>限制</th></tr></thead>
+          <tbody>
+            <tr><td><code>diag.snapshot</code></td><td>采集指标/服务/端口/连接</td><td>R0</td><td>最大 50MB；脱敏</td></tr>
+            <tr><td><code>diag.log_tail</code></td><td>读日志尾部</td><td>R0</td><td>路径白名单；2MB</td></tr>
+            <tr><td><code>diag.thread_dump</code></td><td>Java/Go 栈</td><td>R0</td><td>PID/超时 30s</td></tr>
+            <tr><td><code>diag.config_read</code></td><td>配置片段</td><td>R0</td><td>路径白名单；不读密钥</td></tr>
+            <tr><td><code>change.restart</code></td><td>systemd restart</td><td>R2</td><td>审批 + 回滚点</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="section-head">
+        <div class="section-no">07</div>
+        <div><div class="kicker">Security</div><h2>先假设会被打，<br>再设计 agent</h2></div>
+      </div>
+      <p class="lede">Agent 在每台生产机上运行，必须按“本机可能被攻破、网络可能被劫持、服务端可能被冒充”设计。root 不是信任，签名和动作注册表才是。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>威胁</th><th>控制</th></tr></thead>
+          <tbody>
+            <tr><td>伪造服务端指令</td><td>双向 mTLS + Ed25519 签名 + KMS/HSM 托管 + 动作白名单</td></tr>
+            <tr><td>重放旧指令</td><td>nonce + 短过期 + 本地 replay cache + command_id 幂等</td></tr>
+            <tr><td>错发租户/主机</td><td>证书绑定 host/tenant；信封二次校验</td></tr>
+            <tr><td>日志/配置提示注入</td><td>内容视为不可信数据；模型只提议，执行器按动作执行</td></tr>
+            <tr><td>本机恶意用户</td><td>CLI Unix socket + SO_PEERCRED；R2+ 服务端审批；不共享 root</td></tr>
+            <tr><td>密钥泄露</td><td>私钥 0600/TPM；短证书；轮换/吊销；异常行为检测</td></tr>
+            <tr><td>供应链</td><td>二进制/包签名、SBOM、cosign、版本固定、灰度</td></tr>
+            <tr><td>Agent 自身漏洞</td><td>最小依赖、静态分析、fuzz、无入站端口、systemd 限制</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-danger"><strong>人工 break-glass 不进模型。</strong>紧急情况由人通过 SSH/跳板机操作，平台审计；不给 AI 一个“紧急 root shell”的例外。</div>
+    </section>
+
+    <section class="section" id="packaging">
+      <div class="section-head">
+        <div class="section-no">08</div>
+        <div><div class="kicker">Packaging</div><h2>安装、升级、回滚，<br>都按“可撤销”设计</h2></div>
+      </div>
+      <p class="lede">首版不依赖容器运行 Agent；用 deb/rpm/tar.gz + systemd，适合私有化银行/企业环境。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>产物</th><th>内容</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>deb / rpm</td><td>opsagentd、opsagent、systemd unit、默认配置</td><td>RHEL/Rocky 9、Ubuntu 22.04/24.04、Debian 12</td></tr>
+            <tr><td>tar.gz</td><td>静态二进制 + unit + install.sh</td><td>离线/无包管理环境</td></tr>
+            <tr><td>SBOM / cosign</td><td>依赖清单、签名</td><td>供应链审核</td></tr>
+            <tr><td>systemd unit</td><td>Type=notify、Restart、hardening</td><td>常驻与自恢复</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card"><div class="label">Upgrade</div><strong>下载 → 验签 → 原子替换 → 健康检查 → 回滚</strong><p>默认不自动升级；按租户灰度；失败保留上一版。</p></div>
+        <div class="card"><div class="label">Skills/tools</div><strong>签名包 + 本地缓存</strong><p>从服务端拉取；版本固定；未签名拒绝；离线用缓存。</p></div>
+      </div>
+
+      <div class="callout is-warn"><strong>不要用容器跑 Host Agent 作为默认方案。</strong>它需要主机 root、systemd/journal/包信息；容器会引入挂载/权限/升级复杂度，除非客户明确要求。</div>
+    </section>
+
+    <section class="section" id="testing">
+      <div class="section-head">
+        <div class="section-no">09</div>
+        <div><div class="kicker">Testing</div><h2>在真实发行版上验证，<br>不靠“本地能跑”</h2></div>
+      </div>
+      <p class="lede">Agent 的 bug 可能影响生产机；测试必须覆盖多发行版、root/普通用户、网络断开、磁盘满、时钟偏移、恶意输入。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>层</th><th>内容</th><th>环境</th></tr></thead>
+          <tbody>
+            <tr><td>单元</td><td>解析器、动作 schema、路径白名单、签名/重放、存储迁移</td><td>Go test + fixtures</td></tr>
+            <tr><td>集成</td><td>systemd/包/端口/进程发现、采集、SQLite、gRPC</td><td>Rocky/Ubuntu/Debian VM 或容器</td></tr>
+            <tr><td>端到端</td><td>注册→发现→采集→异常→签名指令→证据</td><td>真实 VM + mock Gateway</td></tr>
+            <tr><td>故障注入</td><td>kill/重启、断网、磁盘满、时钟偏移、证书过期、Gateway 5xx</td><td>VM/混沌脚本</td></tr>
+            <tr><td>安全</td><td>伪造/重放/错发租户/路径穿越/命令注入/提示注入</td><td>红队用例</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>目标指标</h3>
+      <div class="metric-grid">
+        <div class="metric"><strong>&lt;35MB</strong><span>静态二进制（目标）</span></div>
+        <div class="metric"><strong>&lt;100MB</strong><span>常驻 RSS</span></div>
+        <div class="metric"><strong>&lt;1%</strong><span>空闲 CPU</span></div>
+        <div class="metric"><strong>&lt;60s</strong><span>首次发现（目标）</span></div>
+      </div>
+      <p class="small">目标以 P0/P2-A 实测校准；不以牺牲采集完整性/安全性换指标。</p>
+    </section>
+
+    <section class="section" id="roadmap">
+      <div class="section-head">
+        <div class="section-no">10</div>
+        <div><div class="kicker">Roadmap</div><h2>先只读可用，<br>再受控变更</h2></div>
+      </div>
+      <p class="lede">P2-A 做“可安装、可发现、可采集、可诊断”；P2-B 做 HostAgentExecutor 与根因闭环；P3 才做部署/升级和更多 Agent 类型。</p>
+
+      <div class="roadmap">
+        <div class="roadmap-row"><div class="roadmap-when">P2-A · 12 周</div><div class="roadmap-body"><strong>可用 LLM Agent</strong><p>Go daemon/CLI、轻量 Agent Runtime、模型 Gateway、注册/发现/采集、日常巡航、异常分析、1 天快照、Gateway/Registry。</p><div class="chips"><span class="pill is-ok">G9</span><span class="pill">Linux first</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">P2-B · 8 周</div><div class="roadmap-body"><strong>可排障、可部署 Agent</strong><p>签名诊断、证据回传、Commander 根因/审批/报告；签名 DeployOrder/制品、预检、canary、健康检查、回滚。</p><div class="chips"><span class="pill is-ok">G10</span><span class="pill">诊断 + 部署</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">P3 · 未来</div><div class="roadmap-body"><strong>受控变更</strong><p>部署/升级、虚拟化/存储/网络 Agent 插件、跨设备协同；变更单 + 签名制品 + 灰度 + 回滚。</p><div class="chips"><span class="pill is-warn">R3</span><span class="pill">不承诺当前</span></div></div></div>
+      </div>
+
+      <h3>主要风险</h3>
+      <div class="risk-list">
+        <div class="risk"><strong>root 权限</strong><p class="level">高</p><p>动作门控、capability bounding set、路径白名单、威胁测试；不允许任意 shell。</p></div>
+        <div class="risk"><strong>发行版差异</strong><p class="level">中</p><p>Rocky/Ubuntu/Debian 先行；systemd 缺失降级；不承诺所有发行版。</p></div>
+        <div class="risk"><strong>资源占用</strong><p class="level">中</p><p>CPU/内存/磁盘预算；G9 实测；超限降级。</p></div>
+        <div class="risk"><strong>dsh/服务端协议演进</strong><p class="level">中</p><p>protobuf 版本、Agent 灰度、旧 Agent 兼容窗口。</p></div>
+      </div>
+
+      <p class="small" style="margin-top:22px">返回平台全景：<a href="index.html">platform-report/index.html</a> · 协同与示例：<a href="agent-commander.html">agent-commander.html</a> · 详细设计：<a href="../03-server-agent.md">03-server-agent.md</a></p>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <span>OpsAgent · OS Agent technical design · v1.0</span>
+  <span>设计基线：docs/design/00-platform-design.md · 2026-11-03</span>
+</footer>
+
+</body>
+</html>

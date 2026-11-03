@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>智能体会话 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item is-active" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+
+  <section class="main" style="overflow:hidden">
+    <div class="chat-layout">
+      <div class="chat-main">
+        <header class="chat-head">
+          <a class="icon-btn" href="home.html" aria-label="返回"><svg><use href="icons.svg#i-arrow-left"></use></svg></a>
+          <div class="grow">
+            <h1>排查订单服务 5xx 突增</h1>
+            <div class="sub">#sess_8f2a · 故障诊断 · 值班 SRE · 已运行 6m 18s</div>
+          </div>
+          <span class="badge badge-warn"><span class="dot dot-warn" style="width:5px;height:5px;box-shadow:none"></span>等待确认</span>
+          <a class="btn btn-outline btn-sm" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>指挥视图</a>
+          <button class="btn btn-outline btn-sm"><svg><use href="icons.svg#i-share"></use></svg>分享</button>
+          <button class="icon-btn"><svg><use href="icons.svg#i-more"></use></svg></button>
+        </header>
+
+        <div class="chat-log" style="padding-top:10px">
+          <div class="chat-inner">
+            <div class="msg msg-user">
+              <span class="avatar is-green">陈</span>
+              <div class="msg-body">
+                <div class="msg-meta"><strong>陈志远</strong><span>11:02</span></div>
+                <div class="msg-text"><p>过去 30 分钟订单服务 5xx 从 0.2% 升到 4.8%，先帮我确认是不是数据库连接池的问题，顺便看下最近的变更。</p></div>
+              </div>
+            </div>
+
+            <div class="msg">
+              <span class="avatar" style="background:linear-gradient(145deg,#4d7ef0,#27449c)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></span>
+              <div class="msg-body">
+                <div class="msg-meta"><strong>OpsAgent</strong><span>deepseek-v3 · 11:02</span><span class="badge badge-neutral" style="height:18px">已引用 3 个数据源</span></div>
+                <div class="msg-text">
+                  <p>我会并行核查三件事：错误率的服务分布、数据库连接与最近变更。全程只读，写操作会单独请你确认。</p>
+
+                  <div class="tool-card">
+                    <div class="tool-card-head">
+                      <span class="icon-tile is-blue"><svg><use href="icons.svg#i-activity"></use></svg></span>
+                      <div class="grow">
+                        <div class="name">prometheus.query_range</div>
+                        <div class="args">sum by(service)(rate(http_requests_total{code=~"5.."}[5m])) · 近 30m</div>
+                      </div>
+                      <span class="badge badge-neutral">本地 · 42s</span>
+                      <span class="badge badge-ok status">完成 · 1.2s</span>
+                    </div>
+                    <div class="tool-card-body">
+                      <table class="tool-table">
+                        <thead><tr><th>服务</th><th>5xx 比率</th><th>30 分钟前</th><th>变化</th></tr></thead>
+                        <tbody>
+                          <tr><td>order-service</td><td class="hl" style="color:var(--danger)">4.82%</td><td>0.21%</td><td style="color:var(--danger)">+4.61pp</td></tr>
+                          <tr><td>trade-gateway</td><td>0.44%</td><td>0.18%</td><td style="color:var(--warn)">+0.26pp</td></tr>
+                          <tr><td>pay-gateway</td><td>0.09%</td><td>0.08%</td><td>+0.01pp</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div class="panel row" style="margin:8px 0;padding:8px 10px;background:var(--bg-subtle);gap:8px">
+                    <span class="icon-tile is-amber" style="width:24px;height:24px"><svg style="width:13px;height:13px"><use href="icons.svg#i-alert"></use></svg></span>
+                    <span class="mono small">zabbix.problem_get</span>
+                    <span class="badge badge-ok">完成 · 0.8s</span>
+                    <span class="badge badge-warn">2 HIGH</span>
+                    <span class="hint" style="margin-left:auto">连接数 92% 先于 5xx 3 分钟</span>
+                  </div>
+
+                  <div class="approval">
+                    <div class="approval-head"><svg style="width:15px;height:15px;color:var(--warn)"><use href="icons.svg#i-shield"></use></svg><strong>需要你确认后执行</strong><span class="badge badge-neutral" style="margin-left:auto">只读 · 低危</span></div>
+                    <p style="margin-bottom:6px">通过 SSH 在 order-db-01 查询当前连接与会话，只读账号。</p>
+                    <div class="cmd">ssh ops-ro@order-db-01 "mysql -e 'SHOW PROCESSLIST'"</div>
+                    <div class="approval-actions">
+                      <button class="btn btn-primary btn-sm">允许本次执行</button>
+                      <button class="btn btn-outline btn-sm">查看影响范围</button>
+                      <button class="btn btn-ghost btn-sm">拒绝</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer">
+            <textarea placeholder="继续追问，或输入 / 运行场景、@ 引用数据源…"></textarea>
+            <div class="composer-bar">
+              <button class="icon-btn" style="width:26px;height:26px" aria-label="添加附件"><svg><use href="icons.svg#i-plus"></use></svg></button>
+              <span class="model-pill"><span class="dot dot-ok"></span>deepseek-v3 · 推理</span>
+              <span class="model-pill">工具审批：严格</span>
+              <button class="send" aria-label="发送"><svg><use href="icons.svg#i-arrow-right"></use></svg></button>
+            </div>
+          </div>
+          <div class="composer-hint">
+            <span>Enter 发送 · Shift + Enter 换行</span>
+            <span style="margin-left:auto" class="mono">上下文 18.4k / 128k token</span>
+          </div>
+        </div>
+      </div>
+
+      <aside class="chat-aside">
+        <section class="aside-block">
+          <div class="aside-head">
+            <svg style="width:14px;height:14px;color:var(--primary)"><use href="icons.svg#i-git-branch"></use></svg>
+            <strong>运行轨迹</strong>
+            <span class="actions badge badge-neutral">6 步</span>
+          </div>
+          <div class="aside-body">
+            <div class="timeline">
+              <div class="timeline-item is-done">
+                <div class="t-title">解析问题与权限检查</div>
+                <div class="t-meta">11:02:04 · 320ms</div>
+              </div>
+              <div class="timeline-item is-done">
+                <div class="t-title">查询 Prometheus 错误率</div>
+                <div class="t-meta">11:02:05 · 1.2s</div>
+              </div>
+              <div class="timeline-item is-done">
+                <div class="t-title">读取 Zabbix 告警</div>
+                <div class="t-meta">11:02:06 · 0.8s</div>
+              </div>
+              <div class="timeline-item is-active">
+                <div class="t-title">等待 SSH 只读查询确认</div>
+                <div class="t-meta">11:02:08 · 等待 2m</div>
+                <div class="t-body">审批策略：低危只读工具需会话内确认，超时 5 分钟自动取消。</div>
+              </div>
+              <div class="timeline-item">
+                <div class="t-title">分析连接池与锁等待</div>
+                <div class="t-meta">待执行</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="aside-block">
+          <div class="aside-head">
+            <svg style="width:14px;height:14px;color:var(--muted)"><use href="icons.svg#i-file"></use></svg>
+            <strong>产物</strong>
+            <span class="actions badge badge-neutral">2</span>
+          </div>
+          <div class="aside-body flush">
+            <div class="between" style="padding:9px 12px;border-bottom:1px solid var(--line-soft)">
+              <span class="mono small">metrics-order-5xx.csv</span>
+              <span class="row-sm"><span class="tiny faint mono">6.2 KB</span><svg style="width:13px;height:13px;color:var(--faint)"><use href="icons.svg#i-download"></use></svg></span>
+            </div>
+            <div class="between" style="padding:9px 12px">
+              <span class="mono small">diagnosis-draft.md</span>
+              <span class="row-sm"><span class="tiny faint mono">草稿</span><svg style="width:13px;height:13px;color:var(--faint)"><use href="icons.svg#i-eye"></use></svg></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="aside-block">
+          <div class="aside-head">
+            <svg style="width:14px;height:14px;color:var(--muted)"><use href="icons.svg#i-key"></use></svg>
+            <strong>本次可用能力</strong>
+          </div>
+          <div class="aside-body">
+            <div class="kv"><span class="k">角色</span><span class="v">值班 SRE · DBA</span></div>
+            <div class="kv"><span class="k">连接器</span><span class="v">Prometheus · Zabbix · SSH</span></div>
+            <div class="kv"><span class="k">工具</span><span class="v mono" style="font-size:12px">6 个只读 · 1 个需审批</span></div>
+            <div class="kv"><span class="k">数据边界</span><span class="v">租户内 · 不含客户数据</span></div>
+            <div class="notice is-info" style="margin-top:10px">
+              <svg><use href="icons.svg#i-shield"></use></svg>
+              <span>工具调用参数与结果已写入审计日志，凭据不会进入模型上下文。</span>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </section>
+</div>
+</body>
+</html>

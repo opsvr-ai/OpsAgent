@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>桌面端 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="desktop-stage">
+  <div class="desktop-window">
+    <div class="desktop-titlebar">
+      <div class="win-dots"><i></i><i></i><i></i></div>
+      <div class="title">OpsAgent Desktop — 星河银行 · 运维中心</div>
+      <div class="row-sm"><span class="badge badge-ok" style="height:18px"><span class="dot dot-ok" style="width:5px;height:5px;box-shadow:none"></span>已登录</span><span class="tiny faint mono">v1.4.0</span></div>
+    </div>
+
+    <div class="desktop-body">
+      <aside style="border-right:1px solid var(--line);background:var(--bg-subtle);display:flex;flex-direction:column;min-height:0">
+        <div class="brand" style="height:52px;border-bottom:1px solid var(--line)">
+          <div class="brand-mark" style="width:24px;height:24px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+          <div><div class="brand-name" style="font-size:13px">OpsAgent</div><span class="brand-sub" style="font-size:12px">Desktop</span></div>
+        </div>
+        <nav class="nav" style="padding:10px 8px">
+          <a class="nav-item" href="home.html" style="height:32px"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+          <a class="nav-item is-active" href="chat.html" style="height:32px"><svg><use href="icons.svg#i-message"></use></svg>会话<span class="nav-badge">3</span></a>
+          <a class="nav-item" href="scenarios.html" style="height:32px"><svg><use href="icons.svg#i-bolt"></use></svg>场景</a>
+          <a class="nav-item" href="tasks.html" style="height:32px"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+          <a class="nav-item" href="connectors.html" style="height:32px"><svg><use href="icons.svg#i-plug"></use></svg>连接器</a>
+          <div class="nav-label" style="margin-top:14px">本机</div>
+          <a class="nav-item" href="#" style="height:32px"><svg><use href="icons.svg#i-terminal"></use></svg>本地终端</a>
+          <a class="nav-item" href="#" style="height:32px"><svg><use href="icons.svg#i-hard-drive"></use></svg>文件</a>
+          <a class="nav-item" href="#" style="height:32px"><svg><use href="icons.svg#i-wifi"></use></svg>网络隧道</a>
+          <a class="nav-item" href="appearance.html" style="height:32px"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+        </nav>
+        <div style="margin-top:auto;padding:10px 8px;border-top:1px solid var(--line)">
+          <div class="row-sm" style="padding:6px 8px"><span class="avatar is-green" style="width:26px;height:26px;font-size:12px">陈</span><div class="grow"><div class="strong" style="font-size:12px">陈志远</div><div class="tiny faint">值班 SRE · 本机已绑定</div></div><span class="dot dot-ok"></span></div>
+        </div>
+      </aside>
+
+      <main style="min-width:0;overflow-y:auto;padding:18px 22px 22px">
+        <div class="between" style="margin-bottom:14px">
+          <div>
+            <div class="row-sm"><span class="badge badge-warn">等待确认</span><span class="mono tiny faint">#sess_8f2a</span></div>
+            <h1 style="margin:6px 0 0;font-size:20px;letter-spacing:-0.02em">排查订单服务 5xx 突增</h1>
+            <div class="hint" style="margin-top:3px">故障诊断 · 运行 6m 18s · 本地终端已连接</div>
+          </div>
+          <div class="row-sm"><button class="icon-btn"><svg><use href="icons.svg#i-share"></use></svg></button><button class="icon-btn"><svg><use href="icons.svg#i-more"></use></svg></button></div>
+        </div>
+
+        <div class="msg msg-user" style="margin-bottom:16px">
+          <span class="avatar is-green" style="width:24px;height:24px;font-size:12px">陈</span>
+          <div class="msg-body"><div class="msg-meta"><strong>陈志远</strong><span>11:02</span></div><div class="msg-text"><p>过去 30 分钟订单服务 5xx 升到 4.8%，先确认数据库连接池，顺便从我这台机器连内网看下。</p></div></div>
+        </div>
+
+        <div class="msg" style="margin-bottom:16px">
+          <span class="avatar" style="width:24px;height:24px;background:linear-gradient(145deg,#4d7ef0,#27449c)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:12px;height:12px"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></span>
+          <div class="msg-body">
+            <div class="msg-meta"><strong>OpsAgent</strong><span>deepseek-v3</span><span class="badge badge-neutral" style="height:18px">本地网关</span></div>
+            <div class="msg-text">
+              <p>已通过你的本地节点建立到 <code>10.20.0.0/16</code> 的隧道。Prometheus 显示错误集中在 order-service；Zabbix 在 13:34 先报 order-db-01 连接数 92%。</p>
+              <div class="tool-card" style="margin:10px 0">
+                <div class="tool-card-head">
+                  <span class="icon-tile is-blue" style="width:24px;height:24px"><svg style="width:13px;height:13px"><use href="icons.svg#i-terminal"></use></svg></span>
+                  <div class="grow"><div class="name">local.ssh.exec_readonly</div><div class="args">via desktop node · ops-ro@order-db-01 · 只读</div></div>
+                  <span class="badge badge-warn status">待本机确认</span>
+                </div>
+                <div class="tool-card-body">
+                  <div class="cmd" style="font-family:var(--font-mono);font-size:12px;background:var(--cmd-bg);border:1px solid var(--line);border-radius:5px;padding:7px 9px;color:var(--text)">ssh ops-ro@order-db-01 "mysql -e 'SHOW FULL PROCESSLIST'"</div>
+                  <div class="hint" style="margin-top:8px">该命令在桌面端执行，凭据只存在于本机密钥链；输出脱敏后回传平台用于审计。</div>
+                  <div class="approval-actions" style="margin-top:10px">
+                    <button class="btn btn-primary btn-sm">在本地执行</button>
+                    <button class="btn btn-outline btn-sm">查看命令</button>
+                    <button class="btn btn-ghost btn-sm">拒绝</button>
+                  </div>
+                </div>
+              </div>
+              <p class="hint">桌面端可以直接访问内网，不需要把生产网络暴露给平台服务端；每次本地执行仍需确认。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer" style="max-width:none">
+          <textarea placeholder="继续追问，或输入 / 运行场景…" style="height:48px"></textarea>
+          <div class="composer-bar">
+            <button class="icon-btn" style="width:26px;height:26px"><svg><use href="icons.svg#i-plus"></use></svg></button>
+            <span class="model-pill"><span class="dot dot-ok"></span>deepseek-v3</span>
+            <span class="model-pill"><span class="dot dot-ok"></span>本地网关已连接</span>
+            <button class="send"><svg><use href="icons.svg#i-arrow-right"></use></svg></button>
+          </div>
+        </div>
+      </main>
+
+      <aside class="local-node">
+        <div class="between" style="margin-bottom:10px"><strong style="font-size:13px">本地执行节点</strong><span class="badge badge-ok"><span class="dot dot-ok" style="width:5px;height:5px;box-shadow:none"></span>在线</span></div>
+        <div class="panel" style="background:var(--surface);padding:10px;margin-bottom:12px">
+          <div class="row-sm"><span class="icon-tile is-green" style="width:26px;height:26px"><svg style="width:13px;height:13px"><use href="icons.svg#i-laptop"></use></svg></span><div class="grow"><div class="strong small">MacBook Pro · 陈志远</div><div class="tiny faint mono">macOS 14.6 · x64</div></div></div>
+          <div class="kv" style="margin-top:6px"><span class="k">设备</span><span class="v mono">dev_7c2a</span></div>
+          <div class="kv"><span class="k">协议</span><span class="v">mTLS · 设备证书</span></div>
+          <div class="kv"><span class="k">租户</span><span class="v">星河银行 · 运维中心</span></div>
+        </div>
+
+        <div class="eyebrow" style="margin-bottom:6px">内网可达</div>
+        <div class="stack-sm" style="gap:6px">
+          <div class="row-sm small"><span class="dot dot-ok"></span><span class="mono">10.20.0.0/16</span><span class="faint small" style="margin-left:auto">22ms</span></div>
+          <div class="row-sm small"><span class="dot dot-ok"></span><span class="mono">172.18.0.0/16</span><span class="faint small" style="margin-left:auto">18ms</span></div>
+          <div class="row-sm small"><span class="dot dot-ok"></span><span class="mono">zabbix-prod.corp</span><span class="faint small" style="margin-left:auto">31ms</span></div>
+          <div class="row-sm small"><span class="dot dot-ok"></span><span class="mono">order-db-01</span><span class="faint small" style="margin-left:auto">24ms</span></div>
+        </div>
+
+        <hr class="divider" style="margin:12px 0">
+
+        <div class="eyebrow" style="margin-bottom:6px">本地能力</div>
+        <div class="toggle-row" style="padding:8px 0"><div class="grow"><strong style="font-size:12px">SSH 隧道</strong><p>按需建立，会话结束关闭</p></div><span class="switch is-on"></span></div>
+        <div class="toggle-row" style="padding:8px 0"><div class="grow"><strong style="font-size:12px">本地终端</strong><p>命令白名单与二次确认</p></div><span class="switch is-on"></span></div>
+        <div class="toggle-row" style="padding:8px 0"><div class="grow"><strong style="font-size:12px">文件上传</strong><p>仅上传到当前租户</p></div><span class="switch"></span></div>
+        <div class="toggle-row" style="padding:8px 0;border-bottom:0"><div class="grow"><strong style="font-size:12px">桌面通知</strong><p>审批提醒与巡检结果</p></div><span class="switch is-on"></span></div>
+
+        <div class="notice is-info" style="margin-top:12px;padding:9px"><svg style="width:13px;height:13px"><use href="icons.svg#i-lock"></use></svg><span style="font-size:12px;line-height:1.6">本机凭据存于系统密钥链，退出时清除；所有本地执行写入平台审计。</span></div>
+      </aside>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>创造模式 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item is-active" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="connectors.html">集成与插件</a><span class="sep">/</span><span class="current">创造模式 · 蓝鲸 CMDB</span></div>
+      <div class="topbar-spacer"></div>
+      <span class="env-pill"><span class="dot dot-warn" style="width:5px;height:5px"></span>草稿 · 未发布</span>
+      <div class="topbar-actions">
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page" style="padding-bottom:20px">
+      <div class="page-inner">
+        <div class="page-head" style="margin-bottom:16px">
+          <div>
+            <div class="eyebrow">Plugin studio · AI 生成连接器</div>
+            <h1 style="margin-top:8px;font-size:var(--fs-26)">蓝鲸 CMDB 连接器</h1>
+            <p class="sub">描述平台和目标数据，AI 在沙箱中探查接口、生成 manifest 与测试用例；通过后提交租户管理员审核。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-history"></use></svg>版本 0.3.0</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-upload"></use></svg>提交审核</button>
+          </div>
+        </div>
+
+        <div class="row-sm" style="margin-bottom:14px;color:var(--faint);font-size:12px">
+          <span class="badge badge-ok"><svg><use href="icons.svg#i-check"></use></svg>1 描述</span><span class="sep">→</span>
+          <span class="badge badge-ok"><svg><use href="icons.svg#i-check"></use></svg>2 探查接口</span><span class="sep">→</span>
+          <span class="badge badge-ok"><svg><use href="icons.svg#i-check"></use></svg>3 生成 manifest</span><span class="sep">→</span>
+          <span class="badge badge-warn"><span class="dot dot-warn" style="width:5px;height:5px;box-shadow:none"></span>4 沙箱测试</span><span class="sep">→</span>
+          <span class="badge badge-neutral">5 审核发布</span>
+          <span style="margin-left:auto" class="mono">已用时 4m 22s</span>
+        </div>
+
+        <div class="studio-grid">
+          <section class="studio-pane">
+            <div class="studio-pane-head">
+              <span class="icon-tile is-blue" style="width:24px;height:24px"><svg style="width:13px;height:13px"><use href="icons.svg#i-wand"></use></svg></span>
+              <strong>创作对话</strong>
+              <span class="actions mono tiny faint">deepseek-v3</span>
+            </div>
+            <div class="studio-pane-body">
+              <div class="studio-msg">
+                <div class="who"><span class="dot dot-ok"></span>OpsAgent · 11:46</div>
+                我来帮你接入蓝鲸 CMDB。先确认三件事：要读取哪些对象、是否有 OpenAPI 文档、凭据从哪里申请？
+              </div>
+              <div class="studio-msg is-user">
+                <div class="who">陈志远 · 11:47</div>
+                读取业务、主机和集群的拓扑关系；OpenAPI 文档在 https://bk-cmdb.internal/openapi.json；凭据用运维组的只读 Token，已经存到租户密钥库。
+              </div>
+              <div class="studio-msg">
+                <div class="who"><span class="dot dot-ok"></span>OpsAgent · 11:47</div>
+                已读取 OpenAPI 3.0 文档，识别出 7 个只读端点。建议先暴露 4 个能力：业务列表、主机查询、集群关系、主机拓扑。全部为只读，网络走 ops-proxy 白名单。
+              </div>
+              <div class="studio-msg" style="padding-bottom:14px">
+                <div class="who"><span class="dot dot-primary"></span>执行中 · 沙箱测试</div>
+                <div class="stack-sm" style="gap:8px;margin-top:8px">
+                  <div class="metric-line"><span class="dot dot-ok"></span><span style="width:88px">业务列表</span><div class="bar"><i style="width:100%;background:var(--ok)"></i></div><span class="val">通过 42ms</span></div>
+                  <div class="metric-line"><span class="dot dot-ok"></span><span style="width:88px">主机查询</span><div class="bar"><i style="width:100%;background:var(--ok)"></i></div><span class="val">通过 61ms</span></div>
+                  <div class="metric-line"><span class="dot dot-ok"></span><span style="width:88px">集群关系</span><div class="bar"><i style="width:100%;background:var(--ok)"></i></div><span class="val">通过 58ms</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="padding:10px;border-top:1px solid var(--line);background:var(--bg-subtle)">
+              <div class="composer" style="max-width:none">
+                <textarea placeholder="补充说明，例如：只保留只读能力…" style="height:42px"></textarea>
+                <div class="composer-bar" style="padding:2px 6px 6px 8px">
+                  <span class="model-pill"><span class="dot dot-ok"></span>deepseek-v3</span>
+                  <button class="send"><svg><use href="icons.svg#i-arrow-right"></use></svg></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="studio-pane">
+            <div class="studio-pane-head">
+              <div class="segmented" style="margin-right:auto"><button class="is-on">manifest</button><button>tools</button><button>测试</button></div>
+              <button class="btn btn-ghost btn-sm"><svg><use href="icons.svg#i-copy"></use></svg>复制</button>
+            </div>
+            <div class="studio-pane-body">
+              <div class="code-view">
+                <div class="code-line"><span class="ln">1</span><span class="c"># generated by OpsAgent Studio · draft v0.3.0</span></div>
+                <div class="code-line"><span class="ln">2</span><span class="k">apiVersion</span>: opsagent.io/v1</div>
+                <div class="code-line"><span class="ln">3</span><span class="k">kind</span>: Connector</div>
+                <div class="code-line"><span class="ln">4</span><span class="k">metadata</span>:</div>
+                <div class="code-line"><span class="ln">5</span>  <span class="k">name</span>: bk-cmdb</div>
+                <div class="code-line"><span class="ln">6</span>  <span class="k">displayName</span>: 蓝鲸 CMDB</div>
+                <div class="code-line"><span class="ln">7</span>  <span class="k">version</span>: <span class="s">0.3.0</span></div>
+                <div class="code-line"><span class="ln">8</span><span class="k">spec</span>:</div>
+                <div class="code-line"><span class="ln">9</span>  <span class="k">type</span>: <span class="s">http</span></div>
+                <div class="code-line"><span class="ln">10</span>  <span class="k">baseUrl</span>: <span class="s">https://bk-cmdb.internal/api/v3</span></div>
+                <div class="code-line"><span class="ln">11</span>  <span class="k">network</span>:</div>
+                <div class="code-line"><span class="ln">12</span>    <span class="k">egress</span>: <span class="s">ops-proxy</span></div>
+                <div class="code-line"><span class="ln">13</span>    <span class="k">allow</span>: [<span class="s">"bk-cmdb.internal"</span>]</div>
+                <div class="code-line"><span class="ln">14</span>  <span class="k">auth</span>:</div>
+                <div class="code-line"><span class="ln">15</span>    <span class="k">type</span>: <span class="s">bearer</span></div>
+                <div class="code-line"><span class="ln">16</span>    <span class="k">secretRef</span>: <span class="s">tenant/bk-cmdb/readonly-token</span></div>
+                <div class="code-line"><span class="ln">17</span>  <span class="k">capabilities</span>:</div>
+                <div class="code-line"><span class="ln">18</span>    - <span class="k">id</span>: <span class="s">biz.list</span></div>
+                <div class="code-line"><span class="ln">19</span>      <span class="k">method</span>: <span class="s">GET</span></div>
+                <div class="code-line"><span class="ln">20</span>      <span class="k">path</span>: <span class="s">/openapi/v2/biz/list</span></div>
+                <div class="code-line"><span class="ln">21</span>      <span class="k">query</span>: { <span class="k">page</span>: <span class="n">1</span>, <span class="k">page_size</span>: <span class="n">200</span> }</div>
+                <div class="code-line"><span class="ln">22</span>      <span class="k">output</span>: <span class="s">biz[]</span></div>
+                <div class="code-line"><span class="ln">23</span>      <span class="k">risk</span>: <span class="s">read</span></div>
+                <div class="code-line"><span class="ln">24</span>    - <span class="k">id</span>: <span class="s">host.query</span></div>
+                <div class="code-line"><span class="ln">25</span>      <span class="k">method</span>: <span class="s">POST</span></div>
+                <div class="code-line"><span class="ln">26</span>      <span class="k">path</span>: <span class="s">/openapi/v2/hosts/search</span></div>
+                <div class="code-line"><span class="ln">27</span>      <span class="k">body</span>: { <span class="k">biz_id</span>: <span class="n">$input.bizId</span> }</div>
+                <div class="code-line"><span class="ln">28</span>      <span class="k">risk</span>: <span class="s">read</span></div>
+                <div class="code-line"><span class="ln">29</span>    - <span class="k">id</span>: <span class="s">cluster.relations</span></div>
+                <div class="code-line"><span class="ln">30</span>      <span class="k">method</span>: <span class="s">GET</span></div>
+                <div class="code-line"><span class="ln">31</span>      <span class="k">path</span>: <span class="s">/openapi/v2/topo/cluster</span></div>
+                <div class="code-line"><span class="ln">32</span>      <span class="k">risk</span>: <span class="s">read</span></div>
+                <div class="code-line"><span class="ln">33</span>    - <span class="k">id</span>: <span class="s">host.topo</span></div>
+                <div class="code-line"><span class="ln">34</span>      <span class="k">method</span>: <span class="s">GET</span></div>
+                <div class="code-line"><span class="ln">35</span>      <span class="k">path</span>: <span class="s">/openapi/v2/topo/host</span></div>
+                <div class="code-line"><span class="ln">36</span>      <span class="k">pagination</span>: { <span class="k">cursor</span>: <span class="s">next_cursor</span> }</div>
+                <div class="code-line"><span class="ln">37</span>      <span class="k">risk</span>: <span class="s">read</span></div>
+                <div class="code-line"><span class="ln">38</span>  <span class="k">redaction</span>:</div>
+                <div class="code-line"><span class="ln">39</span>    <span class="k">fields</span>: [<span class="s">token</span>, <span class="s">password</span>, <span class="s">private_ip</span>]</div>
+                <div class="code-line"><span class="ln">40</span>  <span class="k">tests</span>:</div>
+                <div class="code-line"><span class="ln">41</span>    <span class="k">required</span>: <span class="n">16</span></div>
+                <div class="code-line"><span class="ln">42</span>    <span class="k">passed</span>: <span class="n">16</span></div>
+              </div>
+            </div>
+            <div class="card-foot"><span class="dot dot-ok"></span>16 / 16 测试通过 · 只读 · 无高危能力<span style="margin-left:auto" class="mono">2.4 KB</span></div>
+          </section>
+
+          <section class="studio-pane">
+            <div class="studio-pane-head"><strong>生成与审核</strong><span class="actions badge badge-warn">待提交</span></div>
+            <div class="studio-pane-body" style="padding:14px">
+              <div class="eyebrow" style="margin-bottom:10px">生成进度</div>
+              <div class="timeline">
+                <div class="timeline-item is-done"><div class="t-title">解析描述与权限目标</div><div class="t-meta">11:46 · 18s</div></div>
+                <div class="timeline-item is-done"><div class="t-title">读取 OpenAPI 文档</div><div class="t-meta">11:47 · 7 个端点</div></div>
+                <div class="timeline-item is-done"><div class="t-title">生成 manifest 与工具</div><div class="t-meta">11:48 · 4 个能力</div></div>
+                <div class="timeline-item is-active"><div class="t-title">沙箱测试</div><div class="t-meta">11:50 · 16/16 通过</div></div>
+                <div class="timeline-item"><div class="t-title">提交租户管理员审核</div><div class="t-meta">待执行</div></div>
+              </div>
+
+              <div class="eyebrow" style="margin:16px 0 10px">产物</div>
+              <div class="stack-sm" style="gap:7px">
+                <div class="row-sm small"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg><span class="mono">manifest.yaml</span><span class="faint tiny" style="margin-left:auto">2.4 KB</span></div>
+                <div class="row-sm small"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg><span class="mono">tools.json</span><span class="faint tiny" style="margin-left:auto">4 个工具</span></div>
+                <div class="row-sm small"><svg style="width:14px;height:14px;color:var(--ok)"><use href="icons.svg#i-check"></use></svg><span class="mono">tests.report.json</span><span class="faint tiny" style="margin-left:auto">16 用例</span></div>
+                <div class="row-sm small"><svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-file"></use></svg><span class="mono">README.md</span><span class="faint tiny" style="margin-left:auto">草稿</span></div>
+              </div>
+
+              <div class="notice is-warn" style="margin-top:16px"><svg><use href="icons.svg#i-shield"></use></svg><span>提交后进入审核，租户管理员确认能力范围与权限后才会出现在连接器列表。生成代码不会直接在生产执行。</span></div>
+
+              <div class="panel" style="margin-top:14px;background:var(--bg-subtle)">
+                <div class="between small"><span class="muted">可见范围</span><span>值班 SRE</span></div>
+                <div class="between small" style="margin-top:6px"><span class="muted">审核人</span><span>林晚 · 租户管理员</span></div>
+                <div class="between small" style="margin-top:6px"><span class="muted">目标环境</span><span>生产 · 只读</span></div>
+              </div>
+
+              <button class="btn btn-primary" style="width:100%;margin-top:14px;opacity:.5" disabled><svg><use href="icons.svg#i-upload"></use></svg>提交审核（需测试通过）</button>
+              <button class="btn btn-outline" style="width:100%;margin-top:8px"><svg><use href="icons.svg#i-eye"></use></svg>预览工具</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

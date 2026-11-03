@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>消息中心 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div><div class="brand-name">OpsAgent</div><span class="brand-sub">AIOps Control Plane</span></div>
+    </div>
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta"><strong>星河银行 · 运维中心</strong><span>生产租户 · cn-east-1</span></span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item is-active" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="runtime-card"><span class="dot dot-ok"></span><div><strong>Agent 运行时正常</strong><span>3 节点 · 12 会话</span></div><div class="runtime-metric">v0.2.2</div></div>
+      <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip"><span class="avatar is-green">陈</span><span class="grow"><strong>陈志远</strong><span>值班 SRE · DBA</span></span><svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg></button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">消息中心</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索消息<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Message center · 企业微信已连接</div>
+            <h1 style="margin-top:8px">消息中心</h1>
+            <p class="sub">审批、事件、巡检、知识待审统一收件；默认通过企业微信（私有部署）推送，站内信保留完整记录。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-check"></use></svg>全部已读</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-settings"></use></svg>渠道设置</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="dot dot-primary"></span><div><strong>未读</strong><span>5 条 · 2 条需审批</span></div><span class="cell-end">5</span></div>
+          <div class="status-cell"><span class="dot dot-warn"></span><div><strong>待我审批</strong><span>SSH 查询 · 变更窗口</span></div><span class="cell-end">2</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>今日投递</strong><span>86 条 · 送达 85</span></div><span class="cell-end">98.8%</span></div>
+          <div class="status-cell"><span class="dot dot-danger"></span><div><strong>失败</strong><span>1 条 · 企业微信限流</span></div><span class="cell-end">1</span></div>
+        </div>
+
+        <div class="grid grid-side-main">
+          <aside class="stack-sm">
+            <section class="card">
+              <div class="card-head" style="padding-bottom:10px"><h2>收件箱</h2><div class="actions"><span class="badge badge-warn">5 未读</span></div></div>
+              <div class="card-body flush">
+                <a href="messages.html" style="display:block;padding:12px 14px;background:var(--primary-soft);border-left:2px solid var(--primary);border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-warn">审批</span><span class="tiny faint mono">2 分钟前</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:5px">SSH 只读查询待确认</div>
+                  <div class="hint" style="margin-top:2px">order-db-01 · 陈志远 · #sess_8f2a</div>
+                </a>
+                <a href="messages.html" style="display:block;padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-danger">事件</span><span class="tiny faint mono">8 分钟前</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:5px">订单服务 5xx 突增 · P1</div>
+                  <div class="hint" style="margin-top:2px">Commander 已接管 · 4 名队友</div>
+                </a>
+                <a href="messages.html" style="display:block;padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-info">知识</span><span class="tiny faint mono">26 分钟前</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:5px">知识待审：MySQL 连接数 Runbook</div>
+                  <div class="hint" style="margin-top:2px">林晚 · 知识管理员</div>
+                </a>
+                <a href="messages.html" style="display:block;padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="between"><span class="badge badge-ok">巡检</span><span class="tiny faint mono">1 小时前</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:5px">核心系统日巡检完成</div>
+                  <div class="hint" style="margin-top:2px">2 严重 · 5 警告 · 报告已生成</div>
+                </a>
+                <a href="messages.html" style="display:block;padding:12px 14px">
+                  <div class="between"><span class="badge badge-neutral">系统</span><span class="tiny faint mono">昨天</span></div>
+                  <div class="strong" style="font-size:var(--fs-13);margin-top:5px">Zabbix 凭据将于 3 天后过期</div>
+                  <div class="hint" style="margin-top:2px">zabbix-prod · 建议轮换</div>
+                </a>
+              </div>
+            </section>
+            <div class="notice"><svg><use href="icons.svg#i-filter"></use></svg><span>按角色路由：值班 SRE 收事件/审批，知识管理员收知识审核，DBA 收数据库相关。</span></div>
+          </aside>
+
+          <div class="stack">
+            <section class="card">
+              <div class="card-head" style="align-items:flex-start">
+                <div>
+                  <div class="row-sm" style="margin-bottom:4px"><span class="badge badge-warn">审批请求</span><span class="badge badge-neutral">#msg_2041</span><span class="tiny faint mono">今天 12:14</span></div>
+                  <h2 style="font-size:var(--fs-20);letter-spacing:-0.02em">SSH 只读查询待确认</h2>
+                  <div class="hint" style="margin-top:4px">来自 陈志远 · 值班 SRE · 会话 #sess_8f2a · 事件 #inc_2041</div>
+                </div>
+                <div class="actions"><span class="badge badge-ok"><svg><use href="icons.svg#i-check"></use></svg>企业微信已送达</span></div>
+              </div>
+              <div class="card-body">
+                <p class="small" style="line-height:1.75;color:var(--text-soft);margin:0 0 12px">智能体需要在 order-db-01 执行只读查询，确认当前连接与会话。审批通过后仅执行一次，结果会脱敏后回传平台并写入审计。</p>
+                <div class="panel" style="background:var(--bg-subtle);padding:12px">
+                  <div class="row-sm" style="margin-bottom:8px"><span class="icon-tile is-green" style="width:26px;height:26px"><svg style="width:13px;height:13px"><use href="icons.svg#i-terminal"></use></svg></span><span class="mono small">ssh ops-ro@order-db-01</span><span class="badge badge-neutral" style="margin-left:auto">R0 · 只读</span></div>
+                  <div class="cmd" style="font-family:var(--font-mono);font-size:12px;background:var(--cmd-bg);border:1px solid var(--line);border-radius:5px;padding:7px 9px;color:var(--text)">mysql -e "SHOW FULL PROCESSLIST"</div>
+                  <div class="hint" style="margin-top:7px">影响：order-db-01 · 只读 · 预计 3 秒 · 不修改数据</div>
+                </div>
+                <div class="row" style="margin-top:12px;gap:8px">
+                  <button class="btn btn-primary">通过并执行</button>
+                  <button class="btn btn-outline">查看影响范围</button>
+                  <button class="btn btn-ghost">拒绝</button>
+                  <span class="hint" style="margin-left:auto">也可以在企业微信卡片中操作</span>
+                </div>
+                <hr class="divider">
+                <div class="eyebrow" style="margin-bottom:8px">投递记录</div>
+                <div class="kv"><span class="k">企业微信</span><span class="v">已送达 · 12:14:06 · 审批卡片</span><span class="badge badge-ok" style="margin-left:auto">送达</span></div>
+                <div class="kv"><span class="k">站内信</span><span class="v">已读 · 12:15:20</span><span class="badge badge-ok" style="margin-left:auto">已读</span></div>
+                <div class="kv"><span class="k">邮件</span><span class="v">未配置</span><span class="badge badge-neutral" style="margin-left:auto">跳过</span></div>
+                <div class="kv"><span class="k">审批单</span><span class="v mono">ap_8841 · 待处理</span><span class="badge badge-warn" style="margin-left:auto">待审批</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>渠道与路由</h2><div class="actions"><span class="badge badge-ok">企业微信 · 私有部署</span></div></div>
+              <div class="card-body">
+                <div class="grid grid-2" style="gap:12px">
+                  <div class="panel" style="background:var(--bg-subtle);padding:12px">
+                    <div class="row-sm"><span class="icon-tile is-green" style="width:28px;height:28px"><svg style="width:15px;height:15px"><use href="icons.svg#i-message"></use></svg></span><div><div class="strong small">企业微信</div><div class="tiny faint mono">qy.internal.corp · 已连接</div></div><span class="badge badge-ok" style="margin-left:auto">默认</span></div>
+                    <div class="kv" style="margin-top:8px"><span class="k">Corp ID</span><span class="v mono">ww_••••2041</span></div>
+                    <div class="kv"><span class="k">应用</span><span class="v">OpsAgent 审批</span></div>
+                    <div class="kv"><span class="k">回调</span><span class="v">已验签 · 最近 12:14</span></div>
+                    <div class="kv"><span class="k">用户绑定</span><span class="v">陈志远 ↔ chenzy</span></div>
+                  </div>
+                  <div class="panel" style="background:var(--bg-subtle);padding:12px">
+                    <div class="row-sm"><span class="icon-tile is-blue" style="width:28px;height:28px"><svg style="width:15px;height:15px"><use href="icons.svg#i-bell"></use></svg></span><div><div class="strong small">站内信</div><div class="tiny faint">全量保留 · 默认兜底</div></div><span class="badge badge-ok" style="margin-left:auto">启用</span></div>
+                    <div class="kv" style="margin-top:8px"><span class="k">保留</span><span class="v">90 天</span></div>
+                    <div class="kv"><span class="k">已读</span><span class="v">同步企业微信</span></div>
+                    <div class="kv"><span class="k">失败重试</span><span class="v">3 次 · 指数退避</span></div>
+                  </div>
+                  <div class="panel" style="background:var(--bg-subtle);padding:12px">
+                    <div class="row-sm"><span class="icon-tile" style="width:28px;height:28px"><svg style="width:15px;height:15px"><use href="icons.svg#i-mail"></use></svg></span><div><div class="strong small">邮件</div><div class="tiny faint">SMTP · 审批摘要/报告</div></div><span class="badge badge-neutral" style="margin-left:auto">未配置</span></div>
+                    <div class="kv" style="margin-top:8px"><span class="k">用途</span><span class="v">报告、审批摘要</span></div>
+                    <div class="kv"><span class="k">收件人</span><span class="v">按角色/值班表</span></div>
+                  </div>
+                  <div class="panel" style="background:var(--bg-subtle);padding:12px">
+                    <div class="row-sm"><span class="icon-tile" style="width:28px;height:28px"><svg style="width:15px;height:15px"><use href="icons.svg#i-link"></use></svg></span><div><div class="strong small">Webhook</div><div class="tiny faint">HTTPS · 告警/工单</div></div><span class="badge badge-neutral" style="margin-left:auto">未配置</span></div>
+                    <div class="kv" style="margin-top:8px"><span class="k">签名</span><span class="v">HMAC · 重放保护</span></div>
+                    <div class="kv"><span class="k">重试</span><span class="v">3 次 · 指数退避</span></div>
+                  </div>
+                </div>
+                <div class="hint" style="margin-top:12px">路由：事件/审批 → 值班角色；知识审核 → 知识管理员；数据库告警 → DBA；变更相关 → 变更经理。静默时段只发高优先级。</div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

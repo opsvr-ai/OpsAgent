@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>工作台（深色）· OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item is-active" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="home.html">工作台</a>
+        <span class="sep">/</span>
+        <span class="current">总览</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger">
+        <svg><use href="icons.svg#i-search"></use></svg>
+        搜索会话、场景、连接器
+        <kbd>⌘ K</kbd>
+      </button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知">
+          <svg><use href="icons.svg#i-bell"></use></svg>
+          <span class="notify-dot"></span>
+        </button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">2026 年 11 月 3 日 · 星期二</div>
+            <h1 style="margin-top:8px">早上好，陈志远</h1>
+            <p class="sub">32 个巡检任务已排期，4 项共享申请等待租户管理员审批，1 个连接器健康检查失败。</p>
+            <div class="row-sm" style="margin-top:10px">
+              <span class="eyebrow">当前视角</span>
+              <span class="tag is-active">值班 SRE</span>
+              <span class="tag">DBA</span>
+              <span class="tag">知识管理员</span>
+              <span class="hint">切换视角调整导航与首页模块，权限不放大</span>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-play"></use></svg>运行巡检</button>
+            <a class="btn btn-primary" href="chat.html"><svg><use href="icons.svg#i-plus"></use></svg>新建会话</a>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:24px">
+          <div class="status-cell">
+            <span class="dot dot-ok"></span>
+            <div><strong>Agent 运行时</strong><span>3 个节点 · 12 个活跃会话</span></div>
+            <span class="cell-end">99.98%</span>
+          </div>
+          <div class="status-cell">
+            <span class="dot dot-danger"></span>
+            <div><strong>连接器</strong><span>9 个实例 · 1 个鉴权过期</span></div>
+            <span class="cell-end">8/9</span>
+          </div>
+          <div class="status-cell">
+            <span class="dot dot-warn"></span>
+            <div><strong>今日巡检</strong><span>28 完成 · 2 进行中 · 2 待运行</span></div>
+            <span class="cell-end">87%</span>
+          </div>
+          <div class="status-cell">
+            <span class="dot dot-primary"></span>
+            <div><strong>待我处理</strong><span>3 个会话确认 · 1 项权限申请</span></div>
+            <span class="cell-end">4</span>
+          </div>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div class="stack">
+            <section class="card">
+              <div class="card-head">
+                <h2>需要关注</h2>
+                <span class="badge badge-danger">2 严重</span>
+                <div class="actions">
+                  <a class="btn btn-ghost btn-sm" href="report.html">全部发现<svg><use href="icons.svg#i-arrow-right"></use></svg></a>
+                </div>
+              </div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead>
+                    <tr><th>严重度</th><th>发现</th><th>影响范围</th><th>来源</th><th class="actions-cell">操作</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="badge badge-danger"><span class="dot dot-danger" style="width:5px;height:5px;box-shadow:none"></span>严重</span></td>
+                      <td>
+                        <div class="cell-main">MySQL 主库连接池耗尽</div>
+                        <div class="cell-sub">order-db-01 · 过去 30 分钟等待队列持续升高</div>
+                      </td>
+                      <td><span class="mono small nowrap">订单服务 · 交易网关</span></td>
+                      <td><span class="badge badge-neutral">巡检</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="chat.html">诊断</a></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-warn"><span class="dot dot-warn" style="width:5px;height:5px;box-shadow:none"></span>警告</span></td>
+                      <td>
+                        <div class="cell-main">K8s 节点磁盘使用率 91%</div>
+                        <div class="cell-sub">node-prod-07 · /var/lib/containerd 增长异常</div>
+                      </td>
+                      <td><span class="mono small nowrap">容器平台 · 12 负载</span></td>
+                      <td><span class="badge badge-neutral">指标</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="chat.html">诊断</a></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-warn"><span class="dot dot-warn" style="width:5px;height:5px;box-shadow:none"></span>警告</span></td>
+                      <td>
+                        <div class="cell-main">Zabbix 连接器凭据即将过期</div>
+                        <div class="cell-sub">zabbix-prod · Token 剩余 3 天有效期</div>
+                      </td>
+                      <td><span class="mono small nowrap">监控对接 · 6 个工具</span></td>
+                      <td><span class="badge badge-neutral">平台</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="connector-detail.html">处理</a></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-info"><span class="dot dot-primary" style="width:5px;height:5px;box-shadow:none"></span>提示</span></td>
+                      <td>
+                        <div class="cell-main">支付链路缺少黄金指标监控</div>
+                        <div class="cell-sub">pay-gateway 仅有存活探针，无延迟与错误率指标</div>
+                      </td>
+                      <td><span class="mono small nowrap">支付网关</span></td>
+                      <td><span class="badge badge-neutral">巡检</span></td>
+                      <td class="actions-cell"><a class="btn btn-outline btn-sm" href="report.html">查看</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot">
+                <span>最近一次巡检 09:42 · 覆盖 6 个系统、184 项检查</span>
+                <span style="margin-left:auto" class="mono">耗时 4m 12s</span>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <h2>进行中的会话</h2>
+                <div class="actions">
+                  <a class="btn btn-ghost btn-sm" href="chat.html">全部会话<svg><use href="icons.svg#i-arrow-right"></use></svg></a>
+                </div>
+              </div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>会话</th><th>关联场景</th><th>模型</th><th>状态</th><th class="actions-cell">更新</th></tr></thead>
+                  <tbody>
+                    <tr class="is-clickable">
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-message"></use></svg></span><div><div class="cell-main">排查订单服务 5xx 突增</div><div class="cell-sub">#sess_8f2a · 2 个工具调用待确认</div></div></div></td>
+                      <td class="muted">故障诊断</td>
+                      <td class="mono small">deepseek-v3</td>
+                      <td><span class="badge badge-warn">等待确认</span></td>
+                      <td class="actions-cell mono tiny faint">2 分钟前</td>
+                    </tr>
+                    <tr class="is-clickable">
+                      <td><div class="row-title"><span class="icon-tile is-green"><svg><use href="icons.svg#i-activity"></use></svg></span><div><div class="cell-main">核心交易链路容量评估</div><div class="cell-sub">#sess_71bd · 已生成 3 份图表</div></div></div></td>
+                      <td class="muted">指标分析</td>
+                      <td class="mono small">claude-sonnet</td>
+                      <td><span class="badge badge-info">运行中</span></td>
+                      <td class="actions-cell mono tiny faint">刚刚</td>
+                    </tr>
+                    <tr class="is-clickable">
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-file"></use></svg></span><div><div class="cell-main">编写 10 月运维月报</div><div class="cell-sub">#sess_3c19 · 引用 4 份巡检报告</div></div></div></td>
+                      <td class="muted">报表生成</td>
+                      <td class="mono small">deepseek-v3</td>
+                      <td><span class="badge badge-neutral">已暂停</span></td>
+                      <td class="actions-cell mono tiny faint">昨天</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section>
+              <div class="section-head">
+                <h2>常用场景</h2>
+                <div class="actions">
+                  <a class="btn btn-ghost btn-sm" href="scenarios.html">场景中心<svg><use href="icons.svg#i-arrow-right"></use></svg></a>
+                </div>
+              </div>
+              <div class="grid grid-3">
+                <a class="card scenario-card" href="scenarios.html">
+                  <div class="card-body">
+                    <div class="scenario-top">
+                      <span class="icon-tile is-blue"><svg><use href="icons.svg#i-target"></use></svg></span>
+                      <div><div class="scenario-title">核心系统日巡检</div><div class="scenario-sub">覆盖 6 个系统 · 184 项检查</div></div>
+                    </div>
+                    <p class="scenario-desc">采集主机、数据库、中间件与容器指标，按基线判定异常并生成可追溯的巡检报告。</p>
+                    <div class="scenario-tags"><span class="tag">租户共享</span><span class="tag">每日 09:00</span></div>
+                  </div>
+                  <div class="scenario-foot"><span class="dot dot-ok"></span>上次运行 09:42<span style="margin-left:auto" class="mono">4m 12s</span></div>
+                </a>
+                <a class="card scenario-card" href="scenarios.html">
+                  <div class="card-body">
+                    <div class="scenario-top">
+                      <span class="icon-tile is-green"><svg><use href="icons.svg#i-activity"></use></svg></span>
+                      <div><div class="scenario-title">交易链路指标分析</div><div class="scenario-sub">Prometheus · 12 个黄金指标</div></div>
+                    </div>
+                    <p class="scenario-desc">按服务维度对比 7 日基线与同比变化，定位延迟与错误率异常的贡献来源。</p>
+                    <div class="scenario-tags"><span class="tag">角色可用</span><span class="tag">按需</span></div>
+                  </div>
+                  <div class="scenario-foot"><span class="dot dot-primary"></span>上次运行 11:06<span style="margin-left:auto" class="mono">1m 48s</span></div>
+                </a>
+                <a class="card scenario-card" href="scenarios.html">
+                  <div class="card-body">
+                    <div class="scenario-top">
+                      <span class="icon-tile is-amber"><svg><use href="icons.svg#i-alert"></use></svg></span>
+                      <div><div class="scenario-title">告警根因分析</div><div class="scenario-sub">Alertmanager · Zabbix</div></div>
+                    </div>
+                    <p class="scenario-desc">聚合同一时间窗内的关联告警，结合变更记录与拓扑关系给出根因假设和处置建议。</p>
+                    <div class="scenario-tags"><span class="tag">个人</span><span class="tag">需审批</span></div>
+                  </div>
+                  <div class="scenario-foot"><span class="dot dot-warn"></span>草稿待发布</div>
+                </a>
+              </div>
+            </section>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>租户运行健康</h2><div class="actions"><span class="badge badge-ok">正常</span></div></div>
+              <div class="card-body stack-sm">
+                <div class="between small"><span class="muted">模型调用（今日）</span><span class="mono">12,480 <span class="faint">次</span></span></div>
+                <div class="progress is-ok"><i style="width:62%"></i></div>
+                <div class="between small" style="margin-top:8px"><span class="muted">Token 预算</span><span class="mono">62% <span class="faint">/ 800 万</span></span></div>
+                <div class="progress"><i style="width:62%"></i></div>
+                <div class="between small" style="margin-top:8px"><span class="muted">会话并发</span><span class="mono">12 / 40</span></div>
+                <div class="progress is-warn"><i style="width:30%"></i></div>
+                <hr class="divider" style="margin:14px 0">
+                <div class="kv"><span class="k">运行时版本</span><span class="v mono">dsh 0.2.2 · ops-1.4.0</span></div>
+                <div class="kv"><span class="k">数据区域</span><span class="v">cn-east-1 · 私有化</span></div>
+                <div class="kv"><span class="k">隔离模式</span><span class="v">独立运行时 · 加密存储</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>快捷指令</h2></div>
+              <div class="card-body" style="padding:8px">
+                <a class="nav-item" href="chat.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-search"></use></svg></span>排查最近 1 小时告警</a>
+                <a class="nav-item" href="scenarios.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-target"></use></svg></span>运行核心系统巡检</a>
+                <a class="nav-item" href="report.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-file"></use></svg></span>生成今日运维日报</a>
+                <a class="nav-item" href="studio.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-plus"></use></svg></span>接入一个运维平台</a>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>平台动态</h2><div class="actions"><a class="btn btn-ghost btn-sm" href="platform-admin.html">审计</a></div></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item is-active">
+                    <div class="t-title">林晚 通过了「告警根因分析」共享申请</div>
+                    <div class="t-meta">10:24 · 租户治理</div>
+                  </div>
+                  <div class="timeline-item is-done">
+                    <div class="t-title">Zabbix 连接器新增 3 个只读工具</div>
+                    <div class="t-meta">09:58 · 集成与插件</div>
+                  </div>
+                  <div class="timeline-item is-done">
+                    <div class="t-title">平台管理员引入 Prometheus 连接器 v1.4</div>
+                    <div class="t-meta">昨天 · 平台目录</div>
+                  </div>
+                  <div class="timeline-item is-risk">
+                    <div class="t-title">检测到 1 次跨租户访问尝试，已阻断</div>
+                    <div class="t-meta">昨天 · 安全审计</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

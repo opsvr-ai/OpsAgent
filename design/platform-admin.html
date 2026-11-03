@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>平台管理 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item is-active" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">平台管理</span></div>
+      <div class="topbar-spacer"></div>
+      <span class="badge badge-accent"><svg><use href="icons.svg#i-shield"></use></svg>平台管理员</span>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索租户、审计<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Platform administration · 平台管理员</div>
+            <h1 style="margin-top:8px">平台管理</h1>
+            <p class="sub">管理租户生命周期、跨租户成员分配、模型网关与平台级审计。平台管理员不进入租户会话内容。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-download"></use></svg>导出平台审计</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-plus"></use></svg>创建租户</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-building"></use></svg></span><div><strong>租户</strong><span>6 个 · 1 个待激活</span></div><span class="cell-end">6</span></div>
+          <div class="status-cell"><span class="icon-tile is-green"><svg><use href="icons.svg#i-users"></use></svg></span><div><strong>平台用户</strong><span>128 人 · 118 已激活</span></div><span class="cell-end">128</span></div>
+          <div class="status-cell"><span class="icon-tile"><svg><use href="icons.svg#i-server"></use></svg></span><div><strong>运行节点</strong><span>9 个 · 全部健康</span></div><span class="cell-end">9</span></div>
+          <div class="status-cell"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-activity"></use></svg></span><div><strong>今日模型调用</strong><span>48,210 次 · 失败率 0.3%</span></div><span class="cell-end">48.2k</span></div>
+        </div>
+
+        <div class="tabs" style="margin-bottom:20px">
+          <a class="tab is-active" href="platform-admin.html">租户管理<span class="count">6</span></a>
+          <a class="tab" href="platform-admin.html">模型接入<span class="count">3</span></a>
+          <a class="tab" href="platform-admin.html">平台目录</a>
+          <a class="tab" href="platform-admin.html">审计与合规</a>
+          <a class="tab" href="platform-admin.html">系统设置</a>
+        </div>
+
+        <div class="stack">
+            <section class="card">
+              <div class="card-head">
+                <h2>租户</h2>
+                <div class="actions"><div class="segmented"><button class="is-on">全部 6</button><button>正式 4</button><button>试用 2</button></div></div>
+              </div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>租户</th><th>套餐</th><th>成员</th><th>区域 / 隔离</th><th>用量</th><th>状态</th><th class="actions-cell"></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue" style="font-size:12px;font-family:var(--font-mono)">星</span><div><div class="cell-main">星河银行 · 运维中心</div><div class="cell-sub">tenant_01HX · 创建于 2025-06</div></div></div></td>
+                      <td><span class="badge badge-info">Enterprise</span></td>
+                      <td class="num">24</td>
+                      <td><div class="small">cn-east-1</div><div class="cell-sub">独立运行时</div></td>
+                      <td><div class="metric-line" style="width:88px"><div class="bar"><i style="width:62%"></i></div><span class="val">62%</span></div></td>
+                      <td><span class="badge badge-ok">正常</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">管理</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-green" style="font-size:12px;font-family:var(--font-mono)">云</span><div><div class="cell-main">云海证券 · 生产运维</div><div class="cell-sub">tenant_01HY · 创建于 2025-09</div></div></div></td>
+                      <td><span class="badge badge-info">Enterprise</span></td>
+                      <td class="num">18</td>
+                      <td><div class="small">cn-east-1</div><div class="cell-sub">独立运行时</div></td>
+                      <td><div class="metric-line" style="width:88px"><div class="bar"><i style="width:38%"></i></div><span class="val">38%</span></div></td>
+                      <td><span class="badge badge-ok">正常</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">管理</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber" style="font-size:12px;font-family:var(--font-mono)">城</span><div><div class="cell-main">城商行联盟 · 共享运维</div><div class="cell-sub">tenant_01J2 · 创建于 2026-01</div></div></div></td>
+                      <td><span class="badge badge-neutral">Business</span></td>
+                      <td class="num">32</td>
+                      <td><div class="small">cn-north-1</div><div class="cell-sub">共享池 · 逻辑隔离</div></td>
+                      <td><div class="metric-line" style="width:88px"><div class="bar"><i style="width:81%"></i></div><span class="val">81%</span></div></td>
+                      <td><span class="badge badge-warn">配额预警</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">管理</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile" style="font-size:12px;font-family:var(--font-mono)">医</span><div><div class="cell-main">仁和医院 · 信息中心</div><div class="cell-sub">tenant_01J7 · 创建于 2026-10</div></div></div></td>
+                      <td><span class="badge badge-neutral">Business</span></td>
+                      <td class="num">12</td>
+                      <td><div class="small">cn-east-1</div><div class="cell-sub">独立运行时</div></td>
+                      <td><div class="metric-line" style="width:88px"><div class="bar"><i style="width:0%"></i></div><span class="val">—</span></div></td>
+                      <td><span class="badge badge-neutral">待激活</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">配置</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile" style="font-size:12px;font-family:var(--font-mono)">测</span><div><div class="cell-main" style="white-space:nowrap">内部演示租户</div><div class="cell-sub">tenant_demo · 创建于 2025-03</div></div></div></td>
+                      <td><span class="badge badge-neutral">Trial</span></td>
+                      <td class="num">3</td>
+                      <td><div class="small">cn-east-1</div><div class="cell-sub">共享池</div></td>
+                      <td><div class="metric-line" style="width:88px"><div class="bar"><i style="width:12%"></i></div><span class="val">12%</span></div></td>
+                      <td><span class="badge badge-ok">正常</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">管理</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot"><span>平台管理员可把用户加入租户，但默认不可查看租户会话内容。</span><span style="margin-left:auto" class="mono">显示 5 / 6</span></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <h2>模型接入</h2>
+                <div class="actions"><span class="badge badge-ok">3 个 Provider 健康</span><button class="btn btn-ghost btn-sm">路由策略</button></div>
+              </div>
+              <div class="card-body flush">
+                <div style="padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="row">
+                    <span class="icon-tile is-blue" style="width:34px;height:34px;font-family:var(--font-mono);font-size:14px;font-weight:600">O</span>
+                    <div class="grow">
+                      <div class="between"><div class="row-sm"><span class="strong">OpenAI 兼容 · DeepSeek 官方</span><span class="badge badge-ok">健康</span></div><span class="mono tiny faint">默认路由</span></div>
+                      <div class="hint mono" style="margin-top:3px">https://api.deepseek.com/v1 · deepseek-v3 / deepseek-r1</div>
+                    </div>
+                    <div style="text-align:right;min-width:110px"><div class="mono small">32,480 次</div><div class="hint">今日 · P95 1.8s</div></div>
+                  </div>
+                </div>
+                <div style="padding:12px 14px;border-bottom:1px solid var(--line-soft)">
+                  <div class="row">
+                    <span class="icon-tile is-green" style="width:34px;height:34px;font-family:var(--font-mono);font-size:14px;font-weight:600">V</span>
+                    <div class="grow">
+                      <div class="between"><div class="row-sm"><span class="strong">OpenAI 兼容 · 自建 vLLM</span><span class="badge badge-ok">健康</span></div><span class="mono tiny faint">私有化租户</span></div>
+                      <div class="hint mono" style="margin-top:3px">https://llm.internal/v1 · qwen2.5-72b-instruct</div>
+                    </div>
+                    <div style="text-align:right;min-width:110px"><div class="mono small">9,704 次</div><div class="hint">今日 · P95 2.4s</div></div>
+                  </div>
+                </div>
+                <div style="padding:12px 14px">
+                  <div class="row">
+                    <span class="icon-tile is-amber" style="width:34px;height:34px;font-family:var(--font-mono);font-size:14px;font-weight:600">A</span>
+                    <div class="grow">
+                      <div class="between"><div class="row-sm"><span class="strong">Anthropic Messages · Claude</span><span class="badge badge-ok">健康</span></div><span class="mono tiny faint">长上下文 / 回退</span></div>
+                      <div class="hint mono" style="margin-top:3px">https://api.anthropic.com · claude-sonnet-4-5 · max_tokens 64k</div>
+                    </div>
+                    <div style="text-align:right;min-width:110px"><div class="mono small">6,026 次</div><div class="hint">今日 · P95 3.2s</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="card-foot"><svg style="width:13px;height:13px"><use href="icons.svg#i-shield"></use></svg><span>模型密钥由平台 KMS 托管；租户只能选择已授权的模型，不能读取密钥。</span><span style="margin-left:auto"><a href="#" class="inline-link">测试连接</a></span></div>
+            </section>
+          </div>
+
+          <div class="grid grid-3" style="margin-top:16px">
+            <section class="card">
+              <div class="card-head"><h2>运行节点</h2><div class="actions"><span class="badge badge-ok">9/9</span></div></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">cn-east-1</span><span class="v">4 节点 · 3 租户</span><span class="dot dot-ok" style="margin-left:auto"></span></div>
+                <div class="kv"><span class="k">cn-north-1</span><span class="v">3 节点 · 1 租户</span><span class="dot dot-ok" style="margin-left:auto"></span></div>
+                <div class="kv"><span class="k">cn-east-1</span><span class="v">2 节点 · 演示</span><span class="dot dot-ok" style="margin-left:auto"></span></div>
+                <hr class="divider" style="margin:12px 0">
+                <div class="between small"><span class="muted">CPU 使用</span><span class="mono">38%</span></div>
+                <div class="progress" style="margin-top:6px"><i style="width:38%"></i></div>
+                <div class="between small" style="margin-top:10px"><span class="muted">内存使用</span><span class="mono">54%</span></div>
+                <div class="progress" style="margin-top:6px"><i style="width:54%"></i></div>
+                <div class="between small" style="margin-top:10px"><span class="muted">队列积压</span><span class="mono">0</span></div>
+                <div class="progress is-ok" style="margin-top:6px"><i style="width:2%"></i></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>租户隔离策略</h2></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">共享池</span><span class="v">行级隔离 + 独立密钥</span></div>
+                <div class="kv"><span class="k">独立运行时</span><span class="v">每租户独立命名空间</span></div>
+                <div class="kv"><span class="k">存储</span><span class="v">对象前缀 + 租户加密</span></div>
+                <div class="kv"><span class="k">模型路由</span><span class="v">按租户白名单</span></div>
+                <div class="notice is-info" style="margin-top:12px"><svg><use href="icons.svg#i-lock"></use></svg><span>跨租户查询默认拒绝；平台管理员仅可查看元数据与审计，不返回会话正文。</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>待处理</h2></div>
+              <div class="card-body" style="padding:8px">
+                <a class="nav-item" href="admin-sharing.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-share"></use></svg></span>平台共享审核<span class="nav-badge">1</span></a>
+                <a class="nav-item" href="#" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-user"></use></svg></span>待激活用户<span class="nav-badge">10</span></a>
+                <a class="nav-item" href="#" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-alert"></use></svg></span>租户配额预警<span class="nav-badge is-alert">1</span></a>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-body">
+                <div class="notice"><svg><use href="icons.svg#i-history"></use></svg><span>审计日志按租户分区、只追加写入。保留 180 天，可导出到租户自有 SIEM。</span></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

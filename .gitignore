@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.DS_Store
+playwright-report/
+test-results/
+
+# External reference checkouts, not part of this product repo
+deepseek-harness/
+dsh-superagent-prototype/

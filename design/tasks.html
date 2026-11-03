@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>长任务中心 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div><div class="brand-name">OpsAgent</div><span class="brand-sub">AIOps Control Plane</span></div>
+    </div>
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta"><strong>星河银行 · 运维中心</strong><span>生产租户 · cn-east-1</span></span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item is-active" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="runtime-card"><span class="dot dot-ok"></span><div><strong>Agent 运行时正常</strong><span>3 节点 · 12 会话</span></div><div class="runtime-metric">v0.2.2</div></div>
+      <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip"><span class="avatar is-green">陈</span><span class="grow"><strong>陈志远</strong><span>值班 SRE · DBA</span></span><svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg></button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">长任务中心</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索任务<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn"><svg><use href="icons.svg#i-bell"></use></svg><span class="notify-dot"></span></button>
+        <button class="icon-btn"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Long-running tasks · 无人值守巡检</div>
+            <h1 style="margin-top:8px">长任务中心</h1>
+            <p class="sub">把巡检、健康检查、容量采集等流程作为持久化任务运行；有检查点、心跳、预算和人工接管，异常自动触发消息中心告警。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-calendar"></use></svg>计划管理</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-plus"></use></svg>新建长任务</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="dot dot-primary"></span><div><strong>运行中</strong><span>3 个 · 2 个无人值守</span></div><span class="cell-end">3</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>今日完成</strong><span>12 个 · 成功率 100%</span></div><span class="cell-end">12</span></div>
+          <div class="status-cell"><span class="dot dot-warn"></span><div><strong>异常告警</strong><span>2 条 · 已推企业微信</span></div><span class="cell-end">2</span></div>
+          <div class="status-cell"><span class="dot dot-ok"></span><div><strong>心跳</strong><span>3/3 任务正常 · 最近 8s</span></div><span class="cell-end">正常</span></div>
+        </div>
+
+        <div class="grid grid-main-side">
+          <div class="stack">
+            <section class="card">
+              <div class="card-head"><h2>任务列表</h2><div class="actions"><div class="segmented"><button class="is-on">全部</button><button>运行中</button><button>计划中</button><button>历史</button></div></div></div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>任务</th><th>触发</th><th>状态</th><th>进度</th><th>下次运行</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-shield"></use></svg></span><div><div class="cell-main">平台健康巡检</div><div class="cell-sub">控制面 / DB / 队列 / 连接器</div></div></div></td>
+                      <td class="nowrap"><span class="badge badge-info">每 30 分钟</span></td>
+                      <td><span class="badge badge-ok">运行中</span><div class="tiny faint" style="margin-top:3px">心跳 8s</div></td>
+                      <td><div class="tiny mono">4/6 · 64%</div><div class="progress" style="margin-top:5px"><i style="width:64%"></i></div></td>
+                      <td class="mono tiny nowrap">12:30</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-green"><svg><use href="icons.svg#i-activity"></use></svg></span><div><div class="cell-main">核心系统巡检</div><div class="cell-sub">订单 / 支付 / K8s / MySQL</div></div></div></td>
+                      <td class="nowrap"><span class="badge badge-neutral">每日 09:00</span></td>
+                      <td><span class="badge badge-ok">运行中</span><div class="tiny faint" style="margin-top:3px">心跳 21s</div></td>
+                      <td><div class="tiny mono">5/6 · 83%</div><div class="progress" style="margin-top:5px"><i style="width:83%;background:var(--ok)"></i></div></td>
+                      <td class="mono tiny nowrap">明天 09:00</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-hard-drive"></use></svg></span><div><div class="cell-main">ClickHouse 容量</div><div class="cell-sub">分区 / TTL / 副本 / 磁盘</div></div></div></td>
+                      <td class="nowrap"><span class="badge badge-neutral">每周一 10:00</span></td>
+                      <td><span class="badge badge-neutral">计划中</span><div class="tiny faint" style="margin-top:3px">—</div></td>
+                      <td><div class="tiny mono">—</div><div class="progress" style="margin-top:5px"><i style="width:0%"></i></div></td>
+                      <td class="mono tiny nowrap">周一 10:00</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile"><svg><use href="icons.svg#i-lock"></use></svg></span><div><div class="cell-main">证书与凭据巡检</div><div class="cell-sub">TLS / Token / Webhook</div></div></div></td>
+                      <td class="nowrap"><span class="badge badge-neutral">每日 08:00</span></td>
+                      <td><span class="badge badge-ok">已完成</span><div class="tiny faint" style="margin-top:3px">今天 08:02</div></td>
+                      <td><div class="tiny mono">100%</div><div class="progress" style="margin-top:5px"><i style="width:100%;background:var(--ok)"></i></div></td>
+                      <td class="mono tiny nowrap">明天 08:00</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot"><span>任务状态、检查点、告警、暂停/恢复全部进入审计；心跳丢失会自动进入 paused。</span></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>平台健康巡检 · 本次运行</h2><div class="actions"><span class="badge badge-ok">运行中 · 6m 18s</span><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-outline btn-sm">人工接管</button></div></div>
+              <div class="card-body">
+                <div class="grid grid-2" style="gap:16px">
+                  <div>
+                    <div class="eyebrow" style="margin-bottom:8px">检查点</div>
+                    <div class="timeline">
+                      <div class="timeline-item is-done"><div class="t-title">解析巡检范围</div><div class="t-meta">12:16:02 · 120ms</div></div>
+                      <div class="timeline-item is-done"><div class="t-title">控制面 + 运行时</div><div class="t-meta">12:16:04 · 8 项通过</div></div>
+                      <div class="timeline-item is-done"><div class="t-title">数据库 + 队列 + 存储</div><div class="t-meta">12:17:20 · 1 个警告</div></div>
+                      <div class="timeline-item is-active"><div class="t-title">连接器 + 消息渠道</div><div class="t-meta">12:18:44 · 进行中</div></div>
+                      <div class="timeline-item"><div class="t-title">生成健康报告 / 告警去重</div><div class="t-meta">待执行</div></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="eyebrow" style="margin-bottom:8px">健康分组</div>
+                    <div class="stack-sm" style="gap:8px">
+                      <div class="between small"><span>控制面 API</span><span class="badge badge-ok">通过</span></div>
+                      <div class="between small"><span>运行时节点 3/3</span><span class="badge badge-ok">通过</span></div>
+                      <div class="between small"><span>PostgreSQL / pgvector</span><span class="badge badge-ok">通过</span></div>
+                      <div class="between small"><span>Redis 内存 82%</span><span class="badge badge-warn">警告</span></div>
+                      <div class="between small"><span>对象存储可用 41%</span><span class="badge badge-ok">通过</span></div>
+                      <div class="between small"><span>企业微信回调</span><span class="badge badge-ok">通过</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="notice is-warn" style="margin-top:14px"><svg><use href="icons.svg#i-alert"></use></svg><span>Redis 内存使用 82%，超过 80% 阈值；已按去重窗口生成告警并推送企业微信，不自动扩容。</span></div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="stack">
+            <section class="card">
+              <div class="card-head"><h2>无人值守策略</h2><div class="actions"><span class="badge badge-ok">启用</span></div></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">调度</span><span class="v mono">*/30 * * * *</span></div>
+                <div class="kv"><span class="k">时间窗</span><span class="v">07:00–19:00</span></div>
+                <div class="kv"><span class="k">最大时长</span><span class="v mono">4h</span></div>
+                <div class="kv"><span class="k">Token 预算</span><span class="v mono">300k</span></div>
+                <div class="kv"><span class="k">并发</span><span class="v mono">3</span></div>
+                <div class="kv"><span class="k">告警渠道</span><span class="v">企业微信 · 邮件 · Webhook</span></div>
+                <div class="kv"><span class="k">去重窗口</span><span class="v mono">15m</span></div>
+                <div class="kv"><span class="k">自动修复</span><span class="v">关闭 · 仅告警</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>运行预算</h2><div class="actions"><span class="badge badge-neutral">健康</span></div></div>
+              <div class="card-body">
+                <div class="between small"><span class="muted">已用时长</span><span class="mono">6m 18s / 4h</span></div>
+                <div class="progress is-ok" style="margin:8px 0 12px"><i style="width:3%"></i></div>
+                <div class="between small"><span class="muted">Token</span><span class="mono">18.4k / 300k</span></div>
+                <div class="progress" style="margin:8px 0 12px"><i style="width:6%"></i></div>
+                <div class="between small"><span class="muted">工具调用</span><span class="mono">42 / 200</span></div>
+                <div class="progress" style="margin:8px 0 0"><i style="width:21%"></i></div>
+                <div class="hint" style="margin-top:10px">超预算会暂停任务并通知；不会无限重试。</div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>本次告警</h2><div class="actions"><span class="badge badge-warn">2</span></div></div>
+              <div class="card-body">
+                <div class="between small"><span>Redis 内存 &gt; 80%</span><span class="badge badge-warn">已推送</span></div>
+                <div class="hint" style="margin-top:2px">run_9f21 · 12:17:20 · 企业微信已送达</div>
+                <hr class="divider" style="margin:10px 0">
+                <div class="between small"><span>Zabbix Token 3 天后过期</span><span class="badge badge-warn">已推送</span></div>
+                <div class="hint" style="margin-top:2px">run_9f21 · 12:18:06 · 邮件待配置</div>
+                <a class="btn btn-outline btn-sm" href="incident.html" style="width:100%;margin-top:12px"><svg><use href="icons.svg#i-layers"></use></svg>严重时转事件指挥</a>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-body">
+                <div class="notice is-info"><svg><use href="icons.svg#i-clock"></use></svg><span>长任务不依赖会话进程常驻：检查点和心跳在平台侧，运行时重启后从最近检查点恢复。</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

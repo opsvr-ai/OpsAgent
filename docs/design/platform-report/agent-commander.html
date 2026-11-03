@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent × Commander · 运维排障协同工作机制</title>
+<link rel="stylesheet" href="report.css">
+<link rel="stylesheet" href="agent-commander.css">
+</head>
+<body>
+
+<header class="cover" id="top">
+  <div class="cover-top">
+    <div class="brand-line"><span class="brand-mark">OA</span><span>OpsAgent / Agent × Commander</span></div>
+    <span>Working mechanism · fault playbook · 2026.11</span>
+  </div>
+
+  <div class="cover-main">
+    <div class="cover-kicker">Host Agent × Commander · 排障协同</div>
+    <h1>主机上取证，<br>事件里<span>闭环</span></h1>
+    <p class="cover-sub">客户端 Agent 负责“在机器上看见、解释、回传”；平台 Commander 负责“定级、拆任务、跨源关联、确认根因、发起审批”。两者不是上下级 Shell，而是以证据为中心的协同。</p>
+    <div class="cover-tags">
+      <span>1 台主机 1 个 Agent</span>
+      <span>0 入站端口</span>
+      <span>R0–R3</span>
+      <span>1 天本地快照</span>
+      <span>证据优先</span>
+    </div>
+  </div>
+
+  <div class="cover-stats">
+    <div><strong>1</strong><span>Go 单二进制 / 主机</span></div>
+    <div><strong>4</strong><span>动作分级 R0–R3</span></div>
+    <div><strong>0</strong><span>入站端口 / 无反向 SSH</span></div>
+    <div><strong>24h</strong><span>本地快照最长保留</span></div>
+  </div>
+
+  <div class="cover-meta">
+    <span>范围：客户端 Agent、服务端 Commander、协同协议、排障示例、应急边界</span>
+    <span>版本：v1.0 · 设计评审</span>
+  </div>
+</header>
+
+<div class="report">
+  <aside class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#capabilities"><span>01</span>Agent 能力</a>
+    <a href="#lifecycle"><span>02</span>生命周期</a>
+    <a href="#inside"><span>03</span>Agent 内部架构</a>
+    <a href="#server"><span>04</span>服务端架构</a>
+    <a href="#coordination"><span>05</span>协同工作机制</a>
+    <a href="#playbooks"><span>06</span>排障与应急示例</a>
+    <a href="#boundaries"><span>07</span>能力边界与安全</a>
+    <a href="#failure"><span>08</span>失败模式与指标</a>
+    <a href="#future"><span>09</span>未来扩展</a>
+  </aside>
+
+  <main class="content">
+
+    <section class="section" id="capabilities">
+      <div class="section-head">
+        <div class="section-no">01</div>
+        <div><div class="kicker">Capabilities</div><h2>Agent 到底能做什么，<br>不能做什么</h2></div>
+      </div>
+      <p class="lede">Host Agent 的能力分成发现、观测、解释、受控执行四层。它的价值不是“能跑命令”，而是“在机器上形成可复核的证据，并把结论带回平台”。</p>
+      <div class="callout is-blue"><strong>框架说明：</strong>客户端是轻量 Go LLM Agent：内置 CloudWeGo Eino ADK Runtime（Wake → Context → Plan → Act → Verify → Report → Sleep），模型走服务端 LLM Gateway；不是 dsh on host，也不是纯主机代理。服务端 Commander 使用 dsh，负责下发 Profile/Directive/DeployOrder 与最终审批。</div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>能力</th><th>具体做什么</th><th>边界</th></tr></thead>
+          <tbody>
+            <tr><td><strong>受控发现</strong></td><td>OS/发行版/内核、systemd、包、用户、端口、进程、容器元数据、应用指纹、部署方式、配置/日志路径、运维工具客户端、已有依赖</td><td>只读、限路径、限时；不做端口扫描、不读密钥、不执行应用代码</td></tr>
+            <tr><td><strong>应用画像</strong></td><td>判断应用服务器/数据库/中间件/运维工具客户端；记录部署方式、配置路径、日志路径、端口、启动用户、版本、置信度</td><td>低置信度只作候选；不自动绑定应用系统/数据中心</td></tr>
+            <tr><td><strong>归属与本地知识</strong></td><td>IP/主机名/CMDB 匹配应用系统与数据中心；本地保存副本、置信度、更新时间</td><td>服务端是主数据；冲突进入复核</td></tr>
+            <tr><td><strong>常驻观测</strong></td><td>5s 资源/进程、30s 服务/端口/连接/应用健康、5m 配置哈希/日志签名/依赖变化</td><td>最长 1 天；1GB/2% 硬上限；不做长期本地趋势</td></tr>
+            <tr><td><strong>异常上报</strong></td><td>本地阈值/基线/连续次数；聚合、去重、带快照与证据上报</td><td>不直接触发破坏性动作；避免告警风暴</td></tr>
+            <tr><td><strong>本地 CLI</strong></td><td>类似 Claude Code 的对话：状态、发现、日志、诊断、报告；模型走服务端 Gateway</td><td>普通用户权限；R2+ 不能本地批准</td></tr>
+            <tr><td><strong>受控诊断</strong></td><td>日志尾、线程栈、连接/端口、配置片段、服务状态、诊断包</td><td>动作注册表；路径/参数白名单；输出上限</td></tr>
+            <tr><td><strong>本地 LLM 分析</strong></td><td>巡航/异常触发：上下文 + 只读工具 + 计划/验证/报告；模型走服务端 Gateway</td><td>≤8–12 步/预算；空闲不调模型；不持有模型 Key</td></tr>
+            <tr><td><strong>受控部署/升级</strong></td><td>签名 DeployOrder/制品、预检、停/换/启、健康检查、canary、回滚</td><td>R3；变更单/维护窗口/审批；只执行注册动作</td></tr>
+            <tr><td><strong>证据回传</strong></td><td>结果带采集时间、主机、应用、来源、哈希、置信度、脱敏标记</td><td>不把原始全量日志持续回传；按需/窗口</td></tr>
+            <tr><td><strong>安全接入</strong></td><td>一次性令牌、CSR、mTLS、证书轮换、签名指令、防重放</td><td>只出站；0 入站端口</td></tr>
+            <tr><td><strong>自我约束</strong></td><td>CPU/内存/IO 限额、磁盘预算、心跳、退避、降级、隔离</td><td>不影响业务；异常时先自限流</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="boundary">
+        <div class="boundary-col is-allow">
+          <h4>默认允许 · 只读 / 诊断</h4>
+          <ul>
+            <li>发现 OS/服务/应用/配置/日志位置</li>
+            <li>指标、服务状态、端口/连接、进程</li>
+            <li>日志尾部、错误签名、配置片段（脱敏）</li>
+            <li>线程栈、GC/堆摘要、诊断包</li>
+            <li>本地对话、报告、知识缓存</li>
+          </ul>
+        </div>
+        <div class="boundary-col is-deny">
+          <h4>默认禁止 / 必须审批</h4>
+          <ul>
+            <li>启动/停止/重启服务、kill 进程</li>
+            <li>写配置、删文件、装包、改内核/防火墙</li>
+            <li>读密钥/私钥/完整环境变量</li>
+            <li>任意 Shell、任意文件读取</li>
+            <li>端口扫描、横向访问、部署/升级（P3 前）</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout is-warn"><strong>Agent 不是“主机上的 root Shell”。</strong>默认 root 是为了读取 <code>/proc</code>、systemd、journald、包信息；所有写/执行都必须经过动作注册表、签名指令和 R0–R3 审批。</div>
+    </section>
+
+    <section class="section" id="lifecycle">
+      <div class="section-head">
+        <div class="section-no">02</div>
+        <div><div class="kicker">Lifecycle</div><h2>从安装到常驻，<br>每一步都有边界</h2></div>
+      </div>
+      <p class="lede">Agent 不应该在安装完成的一瞬间拥有完整能力。初始化先证明“我是谁、在哪、看见了什么”，再进入常驻观测。</p>
+
+      <div class="state-flow">
+        <div class="state"><span class="s-no">01</span><strong>安装 / 自检</strong><span>二进制、systemd、目录、最小权限；不读业务</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">02</span><strong>注册 / 身份</strong><span>join token → CSR → 证书；绑定 host/tenant</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">03</span><strong>受控发现</strong><span>OS/服务/应用/配置/日志；证据+置信度</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">04</span><strong>归属</strong><span>IP/主机名/CMDB → 应用/数据中心</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">05</span><strong>基线</strong><span>24–72h 轻量基线，避免误报</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state is-warn"><span class="s-no">06</span><strong>稳态</strong><span>常驻采集、异常上报、CLI、只读诊断</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>状态</th><th>允许</th><th>禁止 / 触发</th></tr></thead>
+          <tbody>
+            <tr><td><strong>bootstrap</strong></td><td>本机自检、出站连接</td><td>发现业务、执行命令；未注册</td></tr>
+            <tr><td><strong>enrolled</strong></td><td>拉签名策略/技能包、上报身份</td><td>R1+ 动作；证书未绑定</td></tr>
+            <tr><td><strong>discovering</strong></td><td>受控发现、DiscoveryReport</td><td>写/任意读；服务端发现任务</td></tr>
+            <tr><td><strong>steady</strong></td><td>采集、只读诊断、CLI、异常上报</td><td>修改系统/应用；发现完成+基线</td></tr>
+            <tr><td><strong>degraded</strong></td><td>降级采集、缓存、重连</td><td>扩大采集/非必要动作；服务端不可达/磁盘压力</td></tr>
+            <tr><td><strong>quarantined</strong></td><td>仅心跳、拉隔离策略、审计</td><td>所有业务动作；证书/策略违规</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout"><strong>初始化不做“大扫除”。</strong>只读、限路径、限文件类型、限时间预算；禁止全盘遍历、端口扫描、读 <code>/etc/shadow</code>、读应用密钥、执行应用代码。</div>
+    </section>
+
+    <section class="section" id="inside">
+      <div class="section-head">
+        <div class="section-no">03</div>
+        <div><div class="kicker">Inside the Agent</div><h2>一个 daemon，<br>一个受控执行器</h2></div>
+      </div>
+      <p class="lede">Agent 是单二进制，但内部职责严格分开：发现、采集、策略、执行、本地知识、传输互不越权。CLI 以普通用户运行，daemon 默认 root。</p>
+
+      <div class="diagram-grid">
+        <div class="diagram-box is-dark"><strong>opsagentd（root）</strong><span>常驻守护进程；生命周期、心跳、策略、动作门控</span></div>
+        <div class="diagram-box"><strong>opsagent CLI</strong><span>普通用户；Unix socket + peer credentials；只发起请求</span></div>
+        <div class="diagram-box is-blue"><strong>Transport</strong><span>mTLS 出站；心跳/指令/遥测/回执；0 入站</span></div>
+        <div class="diagram-box is-core"><strong>Discovery</strong><span>OS/systemd/包/端口/进程/容器/应用/配置/日志</span></div>
+        <div class="diagram-box is-core"><strong>Collector</strong><span>5s/30s/5m；环形缓冲；快照；资源限额</span></div>
+        <div class="diagram-box is-warn"><strong>Policy / Action gate</strong><span>R0–R3、路径/参数白名单、动作注册表</span></div>
+        <div class="diagram-box"><strong>Executor</strong><span>只执行注册动作；direct exec，无 shell 拼接</span></div>
+        <div class="diagram-box"><strong>Local store</strong><span>SQLite + ring + zstd；24h 内；1GB/2%</span></div>
+        <div class="diagram-box"><strong>Local knowledge</strong><span>应用画像、归属、排障缓存；服务端主数据</span></div>
+      </div>
+
+      <div class="layer-stack">
+        <div class="layer-row">
+          <div class="layer-label">Request path</div>
+          <div class="layer-body">
+            <div class="mod">CLI → Unix socket → daemon</div>
+            <div class="mod">Server → Agent Gateway → signed command → daemon</div>
+            <div class="mod">Daemon → Action gate → Executor → Evidence → signed result</div>
+          </div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-label">Data path</div>
+          <div class="layer-body">
+            <div class="mod">OS/API → Collector → local ring → snapshot → summarise</div>
+            <div class="mod">Anomaly → evidence package → upload</div>
+            <div class="mod">On-demand → signed diagnostic → result</div>
+          </div>
+        </div>
+      </div>
+
+      <h3>指令与结果</h3>
+      <div class="code"><span class="c">// 服务端 → Agent（签名、短过期、动作 ID）</span>
+{
+  <span class="k">"command_id"</span>: <span class="s">"cmd_01J9..."</span>,
+  <span class="k">"tenant_id"</span>: <span class="s">"t-1001"</span>,
+  <span class="k">"host_id"</span>: <span class="s">"host_8f2a"</span>,
+  <span class="k">"action_id"</span>: <span class="s">"diag.log_tail"</span>,
+  <span class="k">"params"</span>: { <span class="k">"service"</span>: <span class="s">"order-service"</span>, <span class="k">"max_bytes"</span>: 1048576 },
+  <span class="k">"issued_at"</span>: <span class="s">"..."</span>, <span class="k">"expires_at"</span>: <span class="s">"..."</span>,
+  <span class="k">"nonce"</span>: <span class="s">"b7f2..."</span>, <span class="k">"signature"</span>: <span class="s">"ed25519:..."</span>
+}</div>
+
+      <div class="code"><span class="c">// Agent → 服务端（签名结果 + 证据）</span>
+{
+  <span class="k">"command_id"</span>: <span class="s">"cmd_01J9..."</span>,
+  <span class="k">"host_id"</span>: <span class="s">"host_8f2a"</span>,
+  <span class="k">"state"</span>: <span class="s">"ok"</span>,
+  <span class="k">"evidence"</span>: [{
+    <span class="k">"kind"</span>: <span class="s">"log_tail"</span>, <span class="k">"at"</span>: <span class="s">"..."</span>,
+    <span class="k">"source"</span>: <span class="s">"/var/log/order/service.log"</span>,
+    <span class="k">"hash"</span>: <span class="s">"sha256:..."</span>, <span class="k">"redacted"</span>: true
+  }],
+  <span class="k">"summary"</span>: <span class="s">"HikariPool timeout; 42 waiters"</span>,
+  <span class="k">"signature"</span>: <span class="s">"ed25519:..."</span>
+}</div>
+
+      <div class="callout is-danger"><strong>执行器不允许 shell 拼接。</strong>动作 ID 对应内置实现；参数按 schema 校验；env 清洗；直接 exec 白名单二进制；输出按字节/行数截断；全过程审计。</div>
+    </section>
+
+    <section class="section" id="server">
+      <div class="section-head">
+        <div class="section-no">04</div>
+        <div><div class="kicker">Server side</div><h2>Commander 如何把<br>主机证据变成事件结论</h2></div>
+      </div>
+      <p class="lede">服务端不是“转发消息”。它维护 Incident、Ticket、Assignment、Evidence、Hypothesis、Approval；Commander 只在这些结构上做决策，所有工具调用都受租户/角色/风险约束。</p>
+
+      <div class="diagram-grid">
+        <div class="diagram-box is-core"><strong>Commander Session</strong><span>定级/拆任务/派发/汇总/根因/审批/报告</span></div>
+        <div class="diagram-box"><strong>Incident</strong><span>严重度、影响面、时间线、SLA、状态</span></div>
+        <div class="diagram-box"><strong>Ticket / Assignment</strong><span>一个排障任务；指派 Host/Connector/Specialist</span></div>
+        <div class="diagram-box is-blue"><strong>HostAgentExecutor</strong><span>签名诊断指令、心跳/超时、证据回传</span></div>
+        <div class="diagram-box is-blue"><strong>ConnectorExecutor</strong><span>Prom/Zabbix/ClickHouse/DB 并行查询</span></div>
+        <div class="diagram-box is-blue"><strong>SpecialistExecutor</strong><span>DSH 只读专家；日志/指标关联</span></div>
+        <div class="diagram-box is-warn"><strong>Evidence Board</strong><span>来源、时间、哈希、置信度、可见范围</span></div>
+        <div class="diagram-box is-warn"><strong>Hypothesis</strong><span>候选根因、预期证据、已验证/反驳</span></div>
+        <div class="diagram-box is-warn"><strong>Approval</strong><span>R2/R3、审批人、作用域、过期、回滚</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Executor</th><th>输入</th><th>输出</th><th>安全约束</th></tr></thead>
+          <tbody>
+            <tr><td><strong>HostAgentExecutor</strong></td><td>Ticket + 诊断动作 + 目标主机</td><td>Evidence/结论/失败原因</td><td>签名指令；无 shell；只读默认；R2 审批</td></tr>
+            <tr><td><strong>ConnectorExecutor</strong></td><td>Ticket + 查询/工具</td><td>指标/日志/DB/拓扑证据</td><td>只读凭据；参数化；超时/行数限制</td></tr>
+            <tr><td><strong>SpecialistExecutor</strong></td><td>Ticket + 证据上下文</td><td>分析结论/新假设</td><td>只读工具；不能直接执行</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Commander 的工具面</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>工具</th><th>作用</th><th>风险</th></tr></thead>
+          <tbody>
+            <tr><td><code>incident.open</code>/<code>incident.assign</code></td><td>建事件、拆 Ticket、派给 Host/Connector</td><td>R0</td></tr>
+            <tr><td><code>host.diagnose</code></td><td>向 Host Agent 下发只读诊断</td><td>R0/R1</td></tr>
+            <tr><td><code>connector.query</code></td><td>查 Prom/Zabbix/ClickHouse/DB</td><td>R0</td></tr>
+            <tr><td><code>evidence.record</code>/<code>hypothesis.update</code></td><td>证据入板、假设更新</td><td>R0</td></tr>
+            <tr><td><code>approval.request</code></td><td>R2/R3 审批</td><td>R2/R3</td></tr>
+            <tr><td><code>notify</code></td><td>企业微信/邮件/Webhook</td><td>R0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-blue"><strong>Commander 不直接“修”。</strong>它负责形成结论与处置建议；R2+ 由人审批，Host Agent/变更系统执行；执行结果再变成证据。</div>
+    </section>
+
+    <section class="section" id="coordination">
+      <div class="section-head">
+        <div class="section-no">05</div>
+        <div><div class="kicker">Coordination</div><h2>一条告警，<br>如何走完“发现 → 根因 → 审批 → 复盘”</h2></div>
+      </div>
+      <p class="lede">协同的核心不是“Agent 听命令”，而是“平台维护任务/证据/假设，Agent 在主机上执行受控动作并把证据带回来”。</p>
+
+      <div class="swim">
+        <div class="swim-head"><div>角色</div><div>动作</div><div>方向</div></div>
+        <div class="swim-row"><div class="swim-actor">Alert Source</div><div class="swim-msg">告警/Agent 异常进入；去重、分组、定级</div><div class="swim-arrow">→ Incident</div></div>
+        <div class="swim-row"><div class="swim-actor">Commander</div><div class="swim-msg">建 Incident；拆 Ticket：主机、指标、日志、DB、变更</div><div class="swim-arrow">→ Assignments</div></div>
+        <div class="swim-row"><div class="swim-actor">HostAgentExecutor</div><div class="swim-msg">签名指令 <code>host.diagnose</code>；目标主机/动作/参数/过期</div><div class="swim-arrow">→ Agent</div></div>
+        <div class="swim-row"><div class="swim-actor">Host Agent</div><div class="swim-msg">验证签名/租户/动作；执行只读诊断；采集证据</div><div class="swim-arrow">→ Evidence</div></div>
+        <div class="swim-row"><div class="swim-actor">ConnectorExecutor</div><div class="swim-msg">并行查 Prometheus/Zabbix/ClickHouse/DB；结果证据化</div><div class="swim-arrow">→ Evidence</div></div>
+        <div class="swim-row"><div class="swim-actor">Commander</div><div class="swim-msg">证据对齐；更新 Hypothesis；计算根因置信度；找证据缺口</div><div class="swim-arrow">→ Hypothesis</div></div>
+        <div class="swim-row"><div class="swim-actor">Approval</div><div class="swim-msg">R2 动作生成审批；Web/企业微信同一审批单</div><div class="swim-arrow">→ Human</div></div>
+        <div class="swim-row"><div class="swim-actor">Commander</div><div class="swim-msg">输出事件报告/处置建议；知识草稿；关闭 Incident</div><div class="swim-arrow">→ Knowledge</div></div>
+      </div>
+
+      <h3>Assignment 生命周期</h3>
+      <div class="state-flow">
+        <div class="state"><span class="s-no">01</span><strong>queued</strong><span>已创建，等待执行槽/预算</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state is-warn"><span class="s-no">02</span><strong>running</strong><span>签名指令已发；等待回执/心跳</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">03</span><strong>waiting_approval</strong><span>R2/R3；人工审批中</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">04</span><strong>succeeded</strong><span>证据/结论回传，进入证据板</span></div>
+        <div class="state-arrow">→</div>
+        <div class="state"><span class="s-no">05</span><strong>failed / timeout</strong><span>显式失败；重试/降级/转人工</span></div>
+      </div>
+
+      <h3>协调的 6 条规则</h3>
+      <div class="grid-2">
+        <div class="card"><div class="label">01</div><strong>Commander 决策，Agent 执行</strong><p>Commander 不直接执行主机命令；Agent 不决定事件是否关闭/是否需要审批。</p></div>
+        <div class="card"><div class="label">02</div><strong>证据必须可追溯</strong><p>每条结论引用来源、时间、哈希、命令 ID；没有证据的假设只作为待验证。</p></div>
+        <div class="card"><div class="label">03</div><strong>并行取证，串行裁决</strong><p>Host/Connector/Specialist 可并行；根因/审批由 Commander 统一收敛。</p></div>
+        <div class="card"><div class="label">04</div><strong>失败显式</strong><p>Agent 离线/超时/权限失败必须上报；不允许“假成功”或静默重试。</p></div>
+        <div class="card"><div class="label">05</div><strong>权限不放大</strong><p>Commander 不能因为“指挥”获得 Agent/连接器之外的权限；R2+ 仍走审批。</p></div>
+        <div class="card"><div class="label">06</div><strong>人类可接管</strong><p>暂停/改派/确认根因/终止；接管记录进事件时间线。</p></div>
+      </div>
+
+      <div class="callout is-warn"><strong>不要用“模型直接指挥 shell”替代这套机制。</strong>没有 Ticket/Evidence/Approval 的“多 Agent 对话”无法审计、无法回滚、也无法证明根因。</div>
+    </section>
+
+    <section class="section" id="playbooks">
+      <div class="section-head">
+        <div class="section-no">06</div>
+        <div><div class="kicker">Playbooks</div><h2>五个真实排障/部署场景，<br>看 Agent 和 Commander 怎么配合</h2></div>
+      </div>
+      <p class="lede">下面用五个典型故障/部署说明“谁在什么时候做什么、证据从哪里来、什么必须审批”。示例是设计推演，不是生产数据。</p>
+
+      <div class="example">
+        <div class="example-head"><div class="tag">示例 A · 数据库连接池耗尽</div><h4>订单服务 5xx：连接池 92%，等待队列 47</h4><p>告警来自 Zabbix/Prometheus；涉及应用主机、MySQL、连接池配置和最近变更。</p></div>
+        <div class="example-body">
+          <div class="timeline-ex">
+            <div class="t"><b>0s · Alert</b> Zabbix 告警：<code>order-service</code> 5xx 4.8%，连接数 92%。AlertSource 去重后建 Incident，严重度 P1。<span>Commander：定级，拆 Ticket：主机、连接池、DB、变更。</span></div>
+            <div class="t"><b>5s · Host</b> HostAgentExecutor 下发 <code>diag.snapshot</code> + <code>diag.log_tail</code> + <code>diag.config_read</code> 到 <code>order-app-12</code>。<span>Agent：发现应用 systemd、配置路径、日志路径；读取脱敏配置片段。</span></div>
+            <div class="t"><b>15s · Connector</b> Prometheus 查 <code>hikaricp_connections_pending</code>；MySQL 查 <code>processlist</code>/<code>max_connections</code>；变更记录查最近 30 分钟。<span>证据：等待队列从 3 → 47；连接池 max=50；30 分钟前发布过配置。</span></div>
+            <div class="t"><b>30s · Evidence</b> 证据板：应用日志 <code>HikariPool timeout</code>；线程栈 42 个等待；配置 hash 变化；连接数曲线。<span>Hypothesis A：连接泄漏；Hypothesis B：连接池上限过低；Hypothesis C：DB 端连接被占满。</span></div>
+            <div class="t"><b>60s · Commander</b> 交叉验证：DB 端连接正常，应用端连接只增不减，变更含连接池参数。<span>根因置信度 0.86：连接池参数/释放逻辑导致耗尽；建议回滚或扩容连接池。</span></div>
+            <div class="t"><b>2m · Approval</b> R2：回滚配置/重启应用；企业微信审批卡片；审批人确认维护窗口。<span>拒绝则只输出报告；批准后 Agent 执行受控重启，记录回滚点。</span></div>
+            <div class="t"><b>5m · Verify</b> Agent 回传重启后 5xx/连接数；Connector 复查；Incident 关闭；知识草稿“连接池耗尽排查/回滚”。</div>
+          </div>
+          <div class="callout" style="margin-bottom:0"><strong>这个场景里：</strong>Host Agent 提供“机器上到底发生了什么”；Connector 提供“平台侧指标/DB 视角”；Commander 负责把两者对齐并给出可审批的结论。</div>
+        </div>
+      </div>
+
+      <div class="example">
+        <div class="example-head"><div class="tag">示例 B · K8s 节点磁盘压力</div><h4>node-prod-07 磁盘 91%，Pod 被驱逐</h4><p>涉及节点、kubelet、容器运行时、日志/镜像占用、容量策略。</p></div>
+        <div class="example-body">
+          <div class="timeline-ex">
+            <div class="t"><b>0s</b> K8s/Node 告警；Incident P1；Commander 拆“节点、容器、日志/镜像、容量策略”四个 Ticket。</div>
+            <div class="t"><b>10s</b> Host Agent：<code>df</code>、节点 systemd、kubelet 日志、容器运行时元数据、目录占用（限路径/限深）。</div>
+            <div class="t"><b>20s</b> Connector：K8s 节点/Pod 状态；Prometheus 磁盘曲线；变更记录。</div>
+            <div class="t"><b>40s</b> Evidence：<code>/var/lib/containerd</code> 镜像层增长；日志轮转失败；<code>imagefs</code> 阈值触发。</div>
+            <div class="t"><b>2m</b> 方案：清理旧镜像/日志（R2）或扩容（R3）；先审批清理；保留回滚点；不自动 drain 节点。</div>
+            <div class="t"><b>5m</b> 清理后复查；若仍高，升级为扩容变更；知识草稿“节点 imagefs 压力处理”。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="example">
+        <div class="example-head"><div class="tag">示例 C · 发布后配置错误</div><h4>支付网关超时：配置 hash 变了，但代码没变</h4><p>典型的“变更相关故障”；主机证据 + 变更记录比单看指标更快。</p></div>
+        <div class="example-body">
+          <div class="timeline-ex">
+            <div class="t"><b>0s</b> 支付网关超时告警；Incident P1；Commander 优先查“最近变更”。</div>
+            <div class="t"><b>10s</b> Host Agent：配置路径/最后修改时间/脱敏 diff、服务状态、连接/线程、日志错误签名。</div>
+            <div class="t"><b>20s</b> 变更系统：10 分钟前配置发布；Connector：超时从发布后 1 分钟开始。</div>
+            <div class="t"><b>40s</b> 证据对齐：配置项 <code>timeout=200ms</code>（原 2s）；Hypothesis 明确；建议回滚配置。</div>
+            <div class="t"><b>2m</b> R2 回滚审批；Agent 不直接改配置，执行受控回滚/重启；验证超时恢复。</div>
+            <div class="t"><b>5m</b> 报告 + 知识：把“变更 → 配置 hash → 日志签名 → 指标”写成案例。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="example">
+        <div class="example-head"><div class="tag">示例 D · Agent 离线 / 网络分区</div><h4>主机 Agent 心跳丢失，但业务仍在跑</h4><p>应急场景最怕“没有证据却假装有结论”；平台必须显式降级。</p></div>
+        <div class="example-body">
+          <div class="timeline-ex">
+            <div class="t"><b>0s</b> Agent 心跳超时；Gateway 标记 degraded；Incident 追加“主机证据缺失”。</div>
+            <div class="t"><b>10s</b> Commander 不假设主机状态；改用 Prometheus/Zabbix/日志平台/其他主机证据；优先级提高。</div>
+            <div class="t"><b>30s</b> 如需本机数据，触发带外/人工检查；不能伪造 Host Agent 回执。</div>
+            <div class="t"><b>2m</b> 根因结论标注“主机侧未验证”；审批只允许低风险动作；报告明确证据缺口。</div>
+            <div class="t"><b>恢复</b> Agent 重连后补采快照；事件复审；避免重复告警。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="example">
+        <div class="example-head"><div class="tag">示例 E · 受控部署/升级</div><h4>订单服务 v2.4.1：签名 DeployOrder，canary 10%</h4><p>不是 Agent 自己决定发布；服务端下发标准、制品和策略，Agent 只执行注册的部署动作。</p></div>
+        <div class="example-body">
+          <div class="timeline-ex">
+            <div class="t"><b>0s · Order</b> 服务端生成签名 DeployOrder：应用/版本/制品 digest/目标主机/维护窗口/canary 10%/回滚版本；R3 审批通过。</div>
+            <div class="t"><b>10s · Preflight</b> Agent 校验签名/租户/主机/制品 digest；检查磁盘、端口、依赖、当前版本、健康基线；不通过即 abort。</div>
+            <div class="t"><b>30s · Canary</b> 停止一个实例 → 替换制品/配置 → 启动 → 健康检查（端口/HTTP/日志/指标）；失败自动回滚并上报。</div>
+            <div class="t"><b>2m · Observe</b> Agent 回传 canary 证据；Commander/连接器对比错误率/延迟/资源；人确认后放量。</div>
+            <div class="t"><b>5m · Rollout</b> 分批滚动；每批健康检查；Agent 记录部署动作/版本/证据；失败停止并回滚。</div>
+            <div class="t"><b>完成</b> 部署记录、变更单、证据、报告；知识草稿“v2.4.1 发布/回滚”。</div>
+          </div>
+          <div class="callout is-warn" style="margin-bottom:0"><strong>边界：</strong>DeployOrder 不能携带任意 Shell；Agent 只执行 <code>deploy.preflight</code>/<code>deploy.apply</code>/<code>deploy.health</code>/<code>deploy.rollback</code> 等注册动作；制品必须签名校验。</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="boundaries">
+      <div class="section-head">
+        <div class="section-no">07</div>
+        <div><div class="kicker">Boundaries</div><h2>应急也要有边界，<br>否则“智能”就是风险</h2></div>
+      </div>
+      <p class="lede">排障越紧急，越需要明确“谁能做什么”。Agent 默认只读；Commander 默认不执行；R2/R3 都必须有人类审批和回滚点。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>级别</th><th>示例</th><th>执行条件</th><th>审计</th></tr></thead>
+          <tbody>
+            <tr><td><strong>R0 只读</strong></td><td>status、metrics、日志尾、配置片段、端口/连接、线程栈</td><td>本地策略允许</td><td>动作/参数哈希/结果摘要</td></tr>
+            <tr><td><strong>R1 低危</strong></td><td>诊断包、快照、一次额外采集</td><td>本地策略 + 服务端任务</td><td>任务 ID + 产物</td></tr>
+            <tr><td><strong>R2 高危</strong></td><td>重启服务、清理临时文件、切日志级别、回滚配置</td><td>签名指令 + 人工审批 + 回滚点</td><td>全程审计 + 回执</td></tr>
+            <tr><td><strong>R3 变更</strong></td><td>部署、升级、扩缩容、改网络/内核</td><td>变更单 + 维护窗口 + 双人审批</td><td>变更单 + 回滚</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-3">
+        <div class="card is-warn"><div class="label">Root</div><strong>默认 root + 门控</strong><p>采集需要 root；但动作注册表、路径/参数白名单、无裸 Shell、写路径最小化、root 审计。</p></div>
+        <div class="card is-warn"><div class="label">Signed</div><strong>签名指令</strong><p>mTLS + KMS/HSM 签名 + nonce/过期 + command_id 幂等 + 主机/租户二次校验。</p></div>
+        <div class="card is-warn"><div class="label">Human</div><strong>人工 break-glass</strong><p>紧急情况由人通过 SSH/跳板机操作；不把“紧急”变成 AI 的任意 shell。</p></div>
+      </div>
+
+      <div class="callout is-danger"><strong>三个绝不：</strong>绝不把日志/告警文本拼成 Shell；绝不让 Commander 绕过审批执行 R2+；绝不用“模型说没事”替代证据。</div>
+    </section>
+
+    <section class="section" id="failure">
+      <div class="section-head">
+        <div class="section-no">08</div>
+        <div><div class="kicker">Failure modes</div><h2>Agent 不在、证据冲突、<br>审批超时怎么办</h2></div>
+      </div>
+      <p class="lede">排障系统必须能处理“证据不完整”的状态，而不是强行给一个根因。失败要显式、可重试、可接管。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>失败</th><th>平台行为</th><th>Agent 行为</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Agent 离线/心跳丢失</strong></td><td>标记 degraded；Incident 记录证据缺口；改用连接器/其他主机；不伪造回执</td><td>重连后退避；补报；不无限重试</td></tr>
+            <tr><td><strong>指令超时</strong></td><td>Assignment timeout；重试/换动作；必要时人工接管</td><td>取消本地动作；保留已产生证据</td></tr>
+            <tr><td><strong>证据冲突</strong></td><td>保留多源证据；Hypothesis 不强行收敛；请人确认</td><td>上传原始引用/时间/哈希</td></tr>
+            <tr><td><strong>审批超时/拒绝</strong></td><td>R2 不执行；Incident 记录；可转人工/变更窗口</td><td>保持只读；不绕过</td></tr>
+            <tr><td><strong>指令伪造/重放</strong></td><td>Gateway 拒发/审计；告警</td><td>签名/tenant/host/nonce 校验失败即拒</td></tr>
+            <tr><td><strong>插件查询失败</strong></td><td>标记证据缺失；重试/回源/降级</td><td>不相关</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>建议观测指标</h3>
+      <div class="metric-grid">
+        <div class="metric"><strong>≤ 30s</strong><span>首条主机证据（目标）</span></div>
+        <div class="metric"><strong>≤ 2s</strong><span>指令下发到 Agent 回执（目标）</span></div>
+        <div class="metric"><strong>100%</strong><span>R2+ 审批覆盖</span></div>
+        <div class="metric"><strong>&lt;1%</strong><span>Agent 空闲 CPU</span></div>
+      </div>
+      <p class="small">指标是设计目标，需要在 G9/G10 与生产灰度中校准；不以指标替代证据。</p>
+    </section>
+
+    <section class="section" id="future">
+      <div class="section-head">
+        <div class="section-no">09</div>
+        <div><div class="kicker">Future</div><h2>从“只读排障”到<br>“受控变更”</h2></div>
+      </div>
+      <p class="lede">P2-A/P2-B 先完成客户端 Agent 与只读排障闭环；P3 才考虑部署/升级、虚拟化/存储/网络 Agent 与更自主的编排。</p>
+
+      <div class="roadmap">
+        <div class="roadmap-row"><div class="roadmap-when">P2-A · 12 周</div><div class="roadmap-body"><strong>可用 Agent</strong><p>Linux 单二进制、Eino ADK 轻量 Agent Runtime、模型 Gateway、注册/证书、受控发现、应用画像、常驻采集、巡航/异常分析、Gateway/Registry。</p><div class="chips"><span class="pill is-ok">G9</span><span class="pill">root + gate</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">P2-B · 8 周</div><div class="roadmap-body"><strong>可排障 Agent</strong><p>HostAgentExecutor、签名诊断、线程栈/日志/连接/配置检查、受控部署/升级、证据回传、Commander 根因/审批/报告。</p><div class="chips"><span class="pill is-ok">G10</span><span class="pill">证据闭环</span></div></div></div>
+        <div class="roadmap-row"><div class="roadmap-when">P3 · 未来</div><div class="roadmap-body"><strong>可变更 Agent</strong><p>应用部署/升级、虚拟化/存储/网络 Agent 插件、跨设备协同；变更单 + 签名制品 + 灰度 + 回滚。</p><div class="chips"><span class="pill is-warn">不承诺当前</span><span class="pill">R3</span></div></div></div>
+      </div>
+
+      <div class="callout is-blue"><strong>设计原则不变：</strong>动作注册表、签名指令、R0–R3、证据优先、人类审批。扩展的是动作类型，不是给 Agent 一个万能 shell。</div>
+
+      <p class="small" style="margin-top:22px">返回平台全景：<a href="index.html">platform-report/index.html</a> · 技术选型：<a href="os-agent-tech.html">os-agent-tech.html</a> · 详细设计：<a href="../03-server-agent.md">03-server-agent.md</a> · 计划：<a href="../01-development-plan.md">01-development-plan.md</a></p>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <span>OpsAgent · Agent × Commander working mechanism · v1.0</span>
+  <span>设计基线：docs/design/00-platform-design.md · 2026-11-03</span>
+</footer>
+
+</body>
+</html>

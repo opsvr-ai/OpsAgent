@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>成员与角色 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge ">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item is-active" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge ">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+            <a class="theme-entry" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="home.html">工作台</a><span class="sep">/</span><span class="current">成员与角色</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索成员、角色<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Tenant governance · 租户管理员</div>
+            <h1 style="margin-top:8px">成员与角色</h1>
+            <p class="sub">平台管理员把用户分配到租户；租户管理员在此维护角色、成员归属与资源授权。LDAP 用户首次登录后自动出现在待分配列表。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline"><svg><use href="icons.svg#i-refresh"></use></svg>同步 LDAP</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-plus"></use></svg>新建角色</button>
+          </div>
+        </div>
+
+        <div class="status-strip" style="margin-bottom:20px">
+          <div class="status-cell"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-users"></use></svg></span><div><strong>租户成员</strong><span>24 人 · 22 人已激活</span></div><span class="cell-end">24</span></div>
+          <div class="status-cell"><span class="icon-tile is-green"><svg><use href="icons.svg#i-layers"></use></svg></span><div><strong>角色</strong><span>5 个业务组 · 1 个审计组</span></div><span class="cell-end">6</span></div>
+          <div class="status-cell"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-shield"></use></svg></span><div><strong>租户管理员</strong><span>3 人 · 双人复核已开启</span></div><span class="cell-end">3</span></div>
+          <div class="status-cell"><span class="icon-tile"><svg><use href="icons.svg#i-clock"></use></svg></span><div><strong>待分配</strong><span>2 人等待租户与角色</span></div><span class="cell-end">2</span></div>
+        </div>
+
+        <div class="tabs" style="margin-bottom:20px">
+          <a class="tab is-active" href="admin-members.html">成员<span class="count">24</span></a>
+          <a class="tab" href="admin-members.html">角色<span class="count">6</span></a>
+          <a class="tab" href="admin-members.html">权限矩阵</a>
+          <a class="tab" href="admin-members.html">租户设置</a>
+        </div>
+
+        <div class="stack">
+          <section class="card">
+              <div class="card-head">
+                <h2>成员</h2>
+                <div class="actions">
+                  <div class="segmented"><button class="is-on">全部 24</button><button>已激活 22</button><button>待分配 2</button></div>
+                </div>
+              </div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>成员</th><th>来源</th><th>角色（可多选）</th><th>最近登录</th><th>状态</th><th class="actions-cell"></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar is-violet">林</span><div><div class="cell-main">林晚</div><div class="cell-sub">lin.wan@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><div class="row-sm wrap" style="gap:4px"><span class="badge badge-info">租户管理员</span><span class="badge badge-neutral">知识管理员</span></div></td>
+                      <td class="mono tiny">今天 10:24</td>
+                      <td><span class="badge badge-ok">已激活</span></td>
+                      <td class="actions-cell"><button class="icon-btn" style="width:28px;height:28px"><svg><use href="icons.svg#i-more"></use></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar is-green">陈</span><div><div class="cell-main">陈志远</div><div class="cell-sub">chen.zhiyuan@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><div class="row-sm wrap" style="gap:4px"><span class="badge badge-ok">值班 SRE</span><span class="badge badge-neutral">DBA</span></div></td>
+                      <td class="mono tiny">刚刚</td>
+                      <td><span class="badge badge-ok">已激活</span></td>
+                      <td class="actions-cell"><button class="icon-btn" style="width:28px;height:28px"><svg><use href="icons.svg#i-more"></use></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar is-amber">周</span><div><div class="cell-main">周牧</div><div class="cell-sub">zhou.mu@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><div class="row-sm wrap" style="gap:4px"><span class="badge badge-ok">DBA</span><span class="badge badge-neutral">变更经理</span></div></td>
+                      <td class="mono tiny">今天 09:18</td>
+                      <td><span class="badge badge-ok">已激活</span></td>
+                      <td class="actions-cell"><button class="icon-btn" style="width:28px;height:28px"><svg><use href="icons.svg#i-more"></use></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar">赵</span><div><div class="cell-main">赵一鸣</div><div class="cell-sub">zhao.yiming@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><div class="row-sm wrap" style="gap:4px"><span class="badge badge-ok">容器平台</span><span class="badge badge-neutral">值班 SRE</span></div></td>
+                      <td class="mono tiny">昨天 18:42</td>
+                      <td><span class="badge badge-ok">已激活</span></td>
+                      <td class="actions-cell"><button class="icon-btn" style="width:28px;height:28px"><svg><use href="icons.svg#i-more"></use></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar is-green">许</span><div><div class="cell-main">许清</div><div class="cell-sub">xu.qing@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><span class="badge badge-neutral">只读观察者</span></td>
+                      <td class="mono tiny">昨天 16:07</td>
+                      <td><span class="badge badge-ok">已激活</span></td>
+                      <td class="actions-cell"><button class="icon-btn" style="width:28px;height:28px"><svg><use href="icons.svg#i-more"></use></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar is-violet">王</span><div><div class="cell-main">王砚</div><div class="cell-sub">wang.yan@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><span class="badge badge-neutral">审计员</span></td>
+                      <td class="mono tiny">10-30 14:20</td>
+                      <td><span class="badge badge-neutral">已停用</span></td>
+                      <td class="actions-cell"><button class="icon-btn" style="width:28px;height:28px"><svg><use href="icons.svg#i-more"></use></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar" style="background:linear-gradient(145deg,#5a5a5a,#333)">李</span><div><div class="cell-main">李衡</div><div class="cell-sub">li.heng@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><span class="badge badge-warn">待分配</span></td>
+                      <td class="mono tiny">—</td>
+                      <td><span class="badge badge-warn">待激活</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">分配</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="avatar" style="background:linear-gradient(145deg,#5a5a5a,#333)">孙</span><div><div class="cell-main">孙可</div><div class="cell-sub">sun.ke@corp.example.com</div></div></div></td>
+                      <td><span class="badge badge-neutral">LDAP</span></td>
+                      <td><span class="badge badge-warn">待分配</span></td>
+                      <td class="mono tiny">—</td>
+                      <td><span class="badge badge-warn">待激活</span></td>
+                      <td class="actions-cell"><button class="btn btn-outline btn-sm">分配</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-foot">
+                <span>平台管理员负责把用户加入租户；租户管理员只能管理本租户成员。</span>
+                <span style="margin-left:auto" class="mono">显示 8 / 24</span>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>角色</h2><div class="actions"><button class="btn btn-ghost btn-sm">查看权限矩阵</button></div></div>
+              <div class="card-body flush">
+                <table class="table">
+                  <thead><tr><th>角色</th><th>成员</th><th>可用连接器</th><th>场景权限</th><th class="actions-cell">更新</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-shield"></use></svg></span><div><div class="cell-main">租户管理员</div><div class="cell-sub">租户级配置与审批 · 3 人</div></div></div></td>
+                      <td class="num">3</td>
+                      <td class="small muted">全部 9 个</td>
+                      <td class="small muted">全部场景 + 审批</td>
+                      <td class="actions-cell mono tiny faint">内置</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-green"><svg><use href="icons.svg#i-users"></use></svg></span><div><div class="cell-main">值班 SRE</div><div class="cell-sub">核心系统日常运维 · 8 人</div></div></div></td>
+                      <td class="num">8</td>
+                      <td class="small muted">Zabbix、Prometheus、SSH 等 6 个</td>
+                      <td class="small muted nowrap">7 可用 · 1 审批</td>
+                      <td class="actions-cell mono tiny faint">10:24</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-database"></use></svg></span><div><div class="cell-main">DBA</div><div class="cell-sub">数据库与存储 · 4 人</div></div></div></td>
+                      <td class="num">4</td>
+                      <td class="small muted">Zabbix、Prometheus、SSH</td>
+                      <td class="small muted nowrap">4 可用 · 1 审批</td>
+                      <td class="actions-cell mono tiny faint">昨天</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-box"></use></svg></span><div><div class="cell-main">容器平台</div><div class="cell-sub">K8s 与发布 · 5 人</div></div></div></td>
+                      <td class="num">5</td>
+                      <td class="small muted">Kubernetes、Prometheus 等 4 个</td>
+                      <td class="small muted">5 个可用</td>
+                      <td class="actions-cell mono tiny faint">10-30</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-amber"><svg><use href="icons.svg#i-book"></use></svg></span><div><div class="cell-main">知识管理员</div><div class="cell-sub">知识审核与发布 · 2 人</div></div></div></td>
+                      <td class="num">2</td>
+                      <td class="small muted">只读证据与知识库</td>
+                      <td class="small muted">知识审核 / 发布</td>
+                      <td class="actions-cell mono tiny faint">10:24</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile is-blue"><svg><use href="icons.svg#i-clock"></use></svg></span><div><div class="cell-main">变更经理</div><div class="cell-sub">窗口与风险 · 3 人</div></div></div></td>
+                      <td class="num">3</td>
+                      <td class="small muted">全部只读</td>
+                      <td class="small muted">变更评估 / R2 审批</td>
+                      <td class="actions-cell mono tiny faint">10-30</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile"><svg><use href="icons.svg#i-eye"></use></svg></span><div><div class="cell-main">只读观察者</div><div class="cell-sub">查看报告与指标 · 6 人</div></div></div></td>
+                      <td class="num">6</td>
+                      <td class="small muted">Prometheus、Grafana</td>
+                      <td class="small muted">只读场景 3 个</td>
+                      <td class="actions-cell mono tiny faint">10-28</td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title"><span class="icon-tile"><svg><use href="icons.svg#i-book"></use></svg></span><div><div class="cell-main">审计员</div><div class="cell-sub" style="white-space:nowrap">审计与报告 · 2 人</div></div></div></td>
+                      <td class="num">2</td>
+                      <td class="small muted">无工具访问</td>
+                      <td class="small muted">审计视图</td>
+                      <td class="actions-cell mono tiny faint">内置</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="grid grid-3" style="margin-top:16px">
+            <section class="card">
+              <div class="card-head"><h2>LDAP 同步</h2><div class="actions"><span class="badge badge-ok">正常</span></div></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">目录</span><span class="v mono">ldap://corp.example.com</span></div>
+                <div class="kv"><span class="k">Base DN</span><span class="v mono">ou=ops,dc=corp,dc=example</span></div>
+                <div class="kv"><span class="k">同步周期</span><span class="v">每 30 分钟</span></div>
+                <div class="kv"><span class="k">最近同步</span><span class="v mono">今天 10:24</span></div>
+                <div class="kv"><span class="k">同步结果</span><span class="v">24 人 · 2 人待分配</span></div>
+                <hr class="divider" style="margin:12px 0">
+                <div class="eyebrow" style="margin-bottom:8px">组映射</div>
+                <div class="stack-sm" style="gap:6px">
+                  <div class="between small"><span class="mono">ops-sre</span><span class="badge badge-neutral">值班 SRE</span></div>
+                  <div class="between small"><span class="mono">dba</span><span class="badge badge-neutral">DBA</span></div>
+                  <div class="between small"><span class="mono">k8s-platform</span><span class="badge badge-neutral">容器平台</span></div>
+                </div>
+                <div class="hint" style="margin-top:10px">LDAP 组映射只决定初始角色，最终权限仍由租户管理员确认。</div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>租户边界</h2></div>
+              <div class="card-body">
+                <div class="kv"><span class="k">租户</span><span class="v">星河银行 · 运维中心</span></div>
+                <div class="kv"><span class="k">数据区域</span><span class="v">cn-east-1 · 私有化</span></div>
+                <div class="kv"><span class="k">成员上限</span><span class="v mono">24 / 50</span></div>
+                <div class="kv"><span class="k">隔离模式</span><span class="v">独立运行时 + 加密存储</span></div>
+                <div class="notice is-info" style="margin-top:12px"><svg><use href="icons.svg#i-shield"></use></svg><span>平台管理员可跨租户分配用户，但看不到租户内的会话内容；所有跨租户操作都会进入平台审计。</span></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>管理员操作</h2></div>
+              <div class="card-body" style="padding:8px">
+                <a class="nav-item" href="admin-sharing.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-share"></use></svg></span>处理共享申请<span class="nav-badge is-alert">4</span></a>
+                <a class="nav-item" href="connectors.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-plug"></use></svg></span>配置连接器权限</a>
+                <a class="nav-item" href="platform-admin.html" style="height:38px"><span class="icon-tile" style="width:24px;height:24px"><svg><use href="icons.svg#i-history"></use></svg></span>导出审计日志</a>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

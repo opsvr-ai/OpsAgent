@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Server Agent · 服务器智能体平台功能与架构汇报</title>
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<div style="background:#ffe9d6;border-bottom:1px solid #e8b57a;color:#5a3510;padding:12px 20px;font:13px/1.6 system-ui,sans-serif">历史版本：本页未包含 Eino LLM Agent、日常巡航、受控部署、资源限额与配置加密。当前口径请看 <a href="../platform-report/os-agent-tech.html" style="color:#8a4b08">os-agent-tech.html</a> 和 <a href="../platform-report/agent-commander.html" style="color:#8a4b08">agent-commander.html</a>。</div>
+
+<header class="cover" id="top">
+  <div class="cover-top">
+    <div class="brand-line"><span class="brand-mark">OA</span><span>OpsAgent / Platform Architecture</span></div>
+    <span>Internal design review · 2026.11</span>
+  </div>
+
+  <div class="cover-main">
+    <div class="cover-kicker">Server Agent · 服务器智能体</div>
+    <h1>让每台服务器<br>拥有一个<span>可控</span>的智能体</h1>
+    <p class="cover-sub">自动发现、常驻观测、受控排障。不是远程 Shell，也不是无边界采集器——而是一台服务器上可审计、可收敛、可扩展的本地操作员。</p>
+    <div class="cover-tags">
+      <span>Go 单二进制</span>
+      <span>0 入站端口</span>
+      <span>mTLS + 签名指令</span>
+      <span>只读自巡航</span>
+      <span>Linux first</span>
+    </div>
+  </div>
+
+  <div class="cover-stats">
+    <div><strong>1</strong><span>每台服务器一个 Agent</span></div>
+    <div><strong>4</strong><span>动作分级 · R0–R3</span></div>
+    <div><strong>≤1 GB</strong><span>本地快照磁盘上限</span></div>
+    <div><strong>16 周</strong><span>Agent 独立主线</span></div>
+  </div>
+
+  <div class="cover-meta">
+    <span>定位：服务器侧执行与观测代理</span>
+    <span>范围：Linux / systemd / 容器 / 常见中间件</span>
+    <span>版本：v0.1 · 待评审</span>
+  </div>
+</header>
+
+<div class="report">
+  <aside class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#positioning"><span>01</span>定位与总体架构</a>
+    <a href="#lifecycle"><span>02</span>Agent 生命周期</a>
+    <a href="#discovery"><span>03</span>初始化与自动发现</a>
+    <a href="#collection"><span>04</span>常驻采集与快照</a>
+    <a href="#boundaries"><span>05</span>能力边界</a>
+    <a href="#security"><span>06</span>通信与安全</a>
+    <a href="#troubleshooting"><span>07</span>排障闭环</a>
+    <a href="#server"><span>08</span>服务端纳管</a>
+    <a href="#stack"><span>09</span>技术栈与进程模型</a>
+    <a href="#future"><span>10</span>能力拓展蓝图</a>
+    <a href="#roadmap"><span>11</span>落地路线</a>
+    <a href="#decisions"><span>12</span>待确认事项</a>
+  </aside>
+
+  <main class="content">
+
+    <section class="section" id="positioning">
+      <div class="section-head">
+        <div class="section-no">01</div>
+        <div><div class="kicker">Positioning</div><h2>不是远程 Shell，<br>而是服务器上的受控操作员</h2></div>
+      </div>
+      <p class="lede">服务器 Agent 的价值不在于“能执行多少命令”，而在于它能在本地完成发现、观测和初步诊断，同时把所有越界动作收回到服务端的策略与审批里。</p>
+      <p>它由四部分组成：一个常驻守护进程、一个本地 CLI、一个本地知识与快照库、一个只读优先的执行器。服务端负责身份、策略、指令签名、工具编排和总控智能体；Agent 负责在主机上“看见、记住、解释、回传”。</p>
+
+      <div class="grid-4">
+        <div class="card"><div class="label">Discover</div><strong>本地发现</strong><p>操作系统、服务、应用部署方式、配置与日志位置，形成可复核的应用画像。</p></div>
+        <div class="card"><div class="label">Observe</div><strong>常驻观测</strong><p>小颗粒度指标与状态快照，本地留存短周期，异常时带证据上报。</p></div>
+        <div class="card"><div class="label">Act</div><strong>受控执行</strong><p>只执行注册过的动作；读操作默认允许，写操作需要签名指令与审批。</p></div>
+        <div class="card"><div class="label">Explain</div><strong>证据回传</strong><p>把“为什么判断异常”连同采样、配置、日志片段一起交给服务端。</p></div>
+      </div>
+
+      <div class="callout"><strong>边界先于能力。</strong>Agent 的能力不是靠文档约束，而是靠三件事同时约束：初始能力包、服务端策略、执行器动作注册表。任何一条不满足，动作就不可执行。</div>
+
+      <div class="arch">
+        <div class="arch-row">
+          <div class="arch-col">
+            <div class="arch-title">Server control plane</div>
+            <div class="node is-core"><strong>Agent Gateway</strong><span>mTLS 长连接 · 指令下发 · 遥测接收</span></div>
+            <div class="node"><strong>Enrollment / CA</strong><span>一次性令牌 · CSR · 证书轮换 · 吊销</span></div>
+            <div class="node is-blue"><strong>总控智能体 + 工具插件</strong><span>分析、编排、调用 Zabbix / Prometheus / DB</span></div>
+            <div class="node"><strong>CMDB / Knowledge</strong><span>主机 → 应用系统 → 数据中心</span></div>
+          </div>
+          <div class="arrow">⇄</div>
+          <div class="arch-col">
+            <div class="arch-title">Host agent</div>
+            <div class="node is-dark"><strong>opsagentd</strong><span>发现 · 采集 · 策略 · 执行器 · 本地知识</span></div>
+            <div class="node is-core"><strong>CLI · opsagent</strong><span>本地对话 · 诊断 · 只读工具</span></div>
+            <div class="node"><strong>Snapshot / Knowledge</strong><span>SQLite + ring buffer · 磁盘配额</span></div>
+            <div class="node"><strong>Policy cache</strong><span>签名技能包/工具包 · 离线可用</span></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="arch-col">
+            <div class="arch-title">Host reality</div>
+            <div class="node"><strong>OS services</strong><span>systemd · packages · cron · users</span></div>
+            <div class="node"><strong>Applications</strong><span>Java / Node / Python / Go / Nginx</span></div>
+            <div class="node"><strong>Config & logs</strong><span>路径、版本、权限、错误签名</span></div>
+            <div class="node"><strong>Containers</strong><span>runtime metadata · 可选只读接入</span></div>
+          </div>
+        </div>
+        <div class="arch-foot">
+          <span class="chip is-accent">Agent 只主动出站</span>
+          <span class="chip">服务端不开放入站端口到主机</span>
+          <span class="chip">所有指令带 ID / 过期时间 / 签名</span>
+          <span class="chip is-warn">LLM 只提议，不直接下发 Shell</span>
+        </div>
+      </div>
+
+      <h3>三条设计底线</h3>
+      <div class="grid-3">
+        <div class="card is-tint"><div class="label">01</div><strong>不开放入站</strong><p>Agent 主动向 Gateway 建立 mTLS 长连接。没有反向端口、没有公网监听、没有“服务端随时 SSH 进来”。</p></div>
+        <div class="card is-tint"><div class="label">02</div><strong>不执行裸 Shell</strong><p>服务端下发的是动作 ID + 结构化参数。执行器按注册表校验，不把自然语言或日志内容拼成命令。</p></div>
+        <div class="card is-tint"><div class="label">03</div><strong>不自动做危险动作</strong><p>发现、采集、诊断默认只读；重启、改配置、装包、升级属于 R2/R3，必须审批与可回滚。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="lifecycle">
+      <div class="section-head">
+        <div class="section-no">02</div>
+        <div><div class="kicker">Lifecycle</div><h2>从“被安装”到“被信任”，<br>中间有明确的 Gate</h2></div>
+      </div>
+      <p>Agent 不应该在安装完成的一瞬间就拥有完整能力。初始化阶段先证明“我是谁、我在哪、我看见了什么”，再进入常驻观测。每一步都有可验证的产物。</p>
+
+      <div class="flow">
+        <div class="flow-step"><div class="flow-no">01</div><div><h4>安装与自检</h4><p>释放二进制、systemd unit、目录与最小权限；自检 CPU/内存/磁盘/时钟/网络连通性；不读取业务数据。</p><div class="chips"><span class="chip">只读</span><span class="chip">无凭据</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">02</div><div><h4>注册与身份</h4><p>使用一次性加入令牌换取 CSR 签名，拿到设备证书；绑定主机名、IP、租户与数据中心；随后拉取签名策略/技能包/工具包。</p><div class="chips"><span class="chip is-accent">mTLS</span><span class="chip">证书轮换</span><span class="chip">签名包</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">03</div><div><h4>受控发现</h4><p>按能力包扫描有限路径：systemd、包管理、监听端口、进程、容器元数据、配置/日志位置；生成带证据的 DiscoveryReport。</p><div class="chips"><span class="chip">只读</span><span class="chip">有限路径</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">04</div><div><h4>应用归属</h4><p>用 IP/主机名/CMDB 匹配应用系统与数据中心；多候选时保留置信度，交服务端或人确认，不强行绑定。</p><div class="chips"><span class="chip">本地知识</span><span class="chip">冲突可审计</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">05</div><div><h4>基线建立</h4><p>采集 24–72 小时基线：服务集合、端口、进程、资源曲线、日志错误签名；避免把“正常波动”当异常。</p><div class="chips"><span class="chip">短周期</span><span class="chip">本地</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">06</div><div><h4>常驻自巡航</h4><p>按节奏采集指标、服务状态、应用健康与配置漂移；异常本地聚合、去重、带快照上报。</p><div class="chips"><span class="chip is-accent">只读默认</span><span class="chip">低开销</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">07</div><div><h4>受控排障</h4><p>服务端总控智能体下发诊断动作；Agent 执行只读检查、收集证据、给出本地结论；涉及写操作进入审批。</p><div class="chips"><span class="chip">签名指令</span><span class="chip">幂等</span></div></div></div>
+        <div class="flow-step"><div class="flow-no">08</div><div><h4>扩展与升级</h4><p>技能包/工具包热更新；二进制签名升级、灰度、回滚；未来部署/升级能力沿用同一套策略。</p><div class="chips"><span class="chip">签名包</span><span class="chip is-warn">R3 预留</span></div></div></div>
+      </div>
+
+      <h3>Agent 状态机</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>状态</th><th>允许做什么</th><th>不允许做什么</th><th>进入条件</th></tr></thead>
+          <tbody>
+            <tr><td><strong>bootstrap</strong></td><td>本机自检、读取安装参数、建立出站连接</td><td>发现业务、执行命令、读取配置/日志</td><td>安装完成，未注册</td></tr>
+            <tr><td><strong>enrolled</strong></td><td>拉取签名策略/能力包、上报主机身份</td><td>执行 R1+ 动作</td><td>证书签发 + 租户绑定</td></tr>
+            <tr><td><strong>discovering</strong></td><td>受控发现、生成 DiscoveryReport</td><td>写操作、任意文件读取</td><td>服务端下发发现任务</td></tr>
+            <tr><td><strong>steady</strong></td><td>常驻采集、本地分析、只读诊断、CLI 对话</td><td>修改系统/应用、部署、升级</td><td>发现完成 + 基线建立</td></tr>
+            <tr><td><strong>degraded</strong></td><td>降级采集、缓存、重连、上报</td><td>扩大采集、执行非必要动作</td><td>服务端不可达、磁盘/资源压力</td></tr>
+            <tr><td><strong>quarantined</strong></td><td>仅心跳、拉取隔离策略、上报审计</td><td>执行任何业务动作</td><td>证书异常、策略违规、服务端隔离</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-warn"><strong>初始化不做“大扫除”。</strong>发现阶段只读、限定路径、限定文件类型、限定时间预算。禁止全盘遍历、端口扫描、读取 `/etc/shadow`、读取应用环境变量中的密钥、执行应用代码。</div>
+    </section>
+
+    <section class="section" id="discovery">
+      <div class="section-head">
+        <div class="section-no">03</div>
+        <div><div class="kicker">Discovery</div><h2>先发现，再判断，<br>最后才允许“上报为知识”</h2></div>
+      </div>
+      <p class="lede">初始化阶段最重要的不是“采到最多”，而是“用最小侵入建立一张可复核的应用画像”：这台机器上跑了什么、怎么部署、配置在哪、日志在哪、出问题先看哪里。</p>
+
+      <h3>发现范围</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>层</th><th>采集信号</th><th>产出</th><th>边界</th></tr></thead>
+          <tbody>
+            <tr><td><strong>操作系统</strong></td><td>发行版/内核/架构、CPU/内存/磁盘/网卡、systemd、包列表、用户/组、cron、时区/时钟</td><td>HostProfile</td><td>只读；不读取密码文件内容；不做网络扫描</td></tr>
+            <tr><td><strong>服务与端口</strong></td><td>systemd units、监听 socket、进程 cmdline、容器元数据、健康检查</td><td>ServiceInventory</td><td>只读；容器 runtime socket 默认不接</td></tr>
+            <tr><td><strong>应用识别</strong></td><td>二进制/启动命令、语言运行时、端口、依赖进程、配置目录、日志目录、版本文件</td><td>AppInstance + 置信度</td><td>不执行应用代码；不读业务数据</td></tr>
+            <tr><td><strong>部署方式</strong></td><td>systemd unit / 容器 / Kubernetes / 裸进程 / 静态站点；启动用户、工作目录、环境文件路径（不读值）</td><td>DeploymentProfile</td><td>只读元数据；环境变量只记录键名</td></tr>
+            <tr><td><strong>配置与日志</strong></td><td>配置路径、格式、最后修改时间、哈希；日志路径、轮转策略、错误签名</td><td>ConfigLogMap</td><td>只读；内容脱敏；不读取密钥/证书私钥</td></tr>
+            <tr><td><strong>运维工具客户端</strong></td><td>Zabbix Agent、node_exporter、filebeat、telegraf、falcon-agent、Datadog 等特征</td><td>OpsToolClient</td><td>识别为“被管理端”，不当作业务应用</td></tr>
+            <tr><td><strong>依赖关系</strong></td><td>端口连接、进程父子、配置文件中的上游地址（只读解析）</td><td>DependencyEdge</td><td>不做主动探测；仅本机已有连接/配置</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>应用服务器 vs 运维工具客户端 vs 数据库/中间件</h3>
+      <div class="grid-3">
+        <div class="card is-accent"><div class="label">Application</div><strong>应用服务器</strong><p>有业务端口、业务配置、业务日志、应用进程；例如 Spring Boot、Node、Go 服务、Tomcat、Nginx 反向代理。</p></div>
+        <div class="card"><div class="label">Ops client</div><strong>运维工具客户端</strong><p>以“采集/转发/执行”为目的：Zabbix Agent、node_exporter、filebeat、telegraf。它们本身不是业务应用。</p></div>
+        <div class="card"><div class="label">Data / middleware</div><strong>数据库与中间件</strong><p>MySQL、PostgreSQL、Redis、ClickHouse、Kafka 等；按数据服务单独建模，不与业务应用混为一谈。</p></div>
+      </div>
+
+      <p>识别采用“多信号 + 置信度”，不靠单一进程名。比如：<span class="mono">java -jar order-service.jar</span> + 监听 8080 + systemd unit + 配置/日志路径，才判定为应用实例；只有 <span class="mono">java</span> 进程不构成结论。</p>
+
+      <div class="grid-2">
+        <div class="card"><div class="label">Evidence</div><strong>每条结论必须带证据</strong><p>进程 cmdline、unit 文件路径、端口、配置路径、日志路径、包版本、发现时间。没有证据的猜测只作为“候选”，不写入正式知识。</p></div>
+        <div class="card is-warn"><div class="label">Confidence</div><strong>低置信度不自动绑定</strong><p>多候选应用系统/数据中心时，标记 <span class="mono">ambiguous</span>，保留候选与理由，交服务端匹配或人工确认。</p></div>
+      </div>
+
+      <h3>DiscoveryReport 摘要</h3>
+      <div class="code"><span class="c">// 本地生成，签名后上报；正文不包含密钥</span>
+{
+  <span class="k">"host"</span>: { <span class="k">"hostname"</span>: <span class="s">"order-app-12"</span>, <span class="k">"ip"</span>: <span class="s">"10.20.8.12"</span>, <span class="k">"os"</span>: <span class="s">"Rocky Linux 9.4"</span> },
+  <span class="k">"app_candidates"</span>: [{
+    <span class="k">"name"</span>: <span class="s">"order-service"</span>, <span class="k">"type"</span>: <span class="s">"java-springboot"</span>,
+    <span class="k">"deploy"</span>: <span class="s">"systemd"</span>, <span class="k">"ports"</span>: [8080],
+    <span class="k">"config"</span>: [<span class="s">"/opt/order/conf/application.yml"</span>],
+    <span class="k">"logs"</span>: [<span class="s">"/var/log/order/service.log"</span>],
+    <span class="k">"confidence"</span>: 0.92, <span class="k">"evidence"</span>: [<span class="s">"systemd:order.service"</span>, <span class="s">"proc:cmdline"</span>]
+  }],
+  <span class="k">"ops_clients"</span>: [<span class="s">"zabbix-agent2"</span>, <span class="s">"node_exporter"</span>],
+  <span class="k">"binding"</span>: { <span class="k">"app_system"</span>: <span class="s">"订单中心"</span>, <span class="k">"dc"</span>: <span class="s">"华东-1"</span>, <span class="k">"confidence"</span>: 0.86 }
+}</div>
+
+      <h3>应用归属：IP/主机名不是唯一真相</h3>
+      <p>服务端按“显式标签 → CMDB IP/网段 → 主机名规则 → 人工确认”的顺序匹配应用系统与数据中心。Agent 把结果和候选一起写入本地知识，离线时仍能回答“这台机器属于谁”。IP 变更、迁移、克隆时，旧绑定不会被静默覆盖，而是进入复核队列。</p>
+      <div class="callout is-blue"><strong>本地知识是缓存，不是主数据。</strong>服务端是应用系统/数据中心的主数据源；Agent 本地保存的是“可离线使用的副本 + 置信度 + 更新时间”，冲突时以服务端复核结果为准。</div>
+    </section>
+
+    <section class="section" id="collection">
+      <div class="section-head">
+        <div class="section-no">04</div>
+        <div><div class="kicker">Collection</div><h2>小颗粒度采集，<br>但必须被磁盘预算驯服</h2></div>
+      </div>
+      <p class="lede">常驻采集的目标是“异常发生时，有足够细的现场”，不是“把所有数据搬回服务端”。细粒度数据留在本地环形缓冲区，服务端只接收摘要、异常窗口和按需拉取的快照。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>频率</th><th>采集</th><th>本地保留</th><th>是否上传</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">5s</td><td>CPU、内存、load、磁盘 IO、网络吞吐、进程 TopN</td><td>2 小时</td><td>否，异常窗口才带出</td></tr>
+            <tr><td class="mono">30s</td><td>服务状态、监听端口、连接数、应用健康、线程/队列关键指标</td><td>24 小时</td><td>摘要 + 异常</td></tr>
+            <tr><td class="mono">5m</td><td>配置哈希、日志错误签名、依赖变化、版本/包变化</td><td>24 小时</td><td>变化 + 摘要</td></tr>
+            <tr><td class="mono">on-demand</td><td>进程栈、日志尾部、连接详情、配置片段、诊断包</td><td>24 小时 / 200MB</td><td>仅任务结果</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card is-tint"><div class="label">Disk guard</div><strong>硬上限：1GB 或磁盘 2%</strong><p>取更小值。超过 80% 时删最旧的高频数据；超过 95% 暂停高频采集，只保留服务状态与异常，并上报告警。不允许 Agent 把磁盘写满。</p></div>
+        <div class="card is-tint"><div class="label">Local first</div><strong>快照在本地，按需上传</strong><p>zstd 压缩、列式/环形表、按时间分区；上传走批量 + 背压，服务端不可达时只保留最近窗口。</p></div>
+      </div>
+
+      <h3>本地目录与存储</h3>
+      <div class="code"><span class="c"># /var/lib/opsagent（权限 0700，属主 opsagent）</span>
+/var/lib/opsagent/
+├── agent.db              <span class="c"># SQLite：发现结果、应用画像、策略版本、任务记录</span>
+├── ring/
+│   ├── fast/             <span class="c"># 5s 指标，2h</span>
+│   ├── service/          <span class="c"># 30s 服务与端口，24h</span>
+│   └── config/           <span class="c"># 5m 配置哈希与错误签名，24h</span>
+├── snapshots/            <span class="c"># 异常现场，24h / 200MB</span>
+├── packages/             <span class="c"># 签名技能包/工具包缓存</span>
+└── logs/                 <span class="c"># Agent 自身日志，按大小轮转</span></div>
+
+      <p>采集器自身必须“有礼貌”：CPU 配额、IO 优先级、采集抖动、错峰、批量写入、单次读取上限；日志只读尾部与错误签名，不整文件读入内存。Agent 的资源消耗目标：空闲 CPU &lt; 1%、常驻内存 &lt; 100MB、磁盘写入 &lt; 5MB/s（突发除外），并纳入验收。</p>
+
+      <div class="callout"><strong>不是所有数据都值得上传。</strong>服务端要的是“异常窗口 + 证据 + 趋势摘要”。把 5s 全量指标持续回传，既浪费带宽，也会把平台变成另一个时序数据库。</div>
+    </section>
+
+    <section class="section" id="boundaries">
+      <div class="section-head">
+        <div class="section-no">05</div>
+        <div><div class="kicker">Boundaries</div><h2>自巡航能做什么，<br>不能做什么，要写进执行器</h2></div>
+      </div>
+      <p class="lede">边界不是一份“注意事项”，而是动作注册表 + 策略 + 审批。Agent 在自巡航状态只读；R2/R3 动作必须由服务端签名指令触发，且本地 CLI 不能自我批准。</p>
+
+      <div class="boundary">
+        <div class="boundary-col is-allow">
+          <h4>默认允许 · 只读自巡航</h4>
+          <ul>
+            <li>读取主机/OS/服务/端口/进程/容器元数据</li>
+            <li>读取配置路径、格式、哈希；读取脱敏后的配置片段</li>
+            <li>读取日志尾部、错误签名、轮转状态</li>
+            <li>采集指标、生成快照、本地趋势分析</li>
+            <li>执行只读诊断：连接检查、端口检查、线程栈、GC/堆摘要</li>
+            <li>本地 CLI 问答、解释、生成排障报告</li>
+            <li>从服务端拉取签名策略/技能包/工具包</li>
+          </ul>
+        </div>
+        <div class="boundary-col is-deny">
+          <h4>默认禁止 · 必须审批或不做</h4>
+          <ul>
+            <li>启动/停止/重启服务、kill 进程</li>
+            <li>修改配置、写入应用目录、删除文件</li>
+            <li>安装/卸载软件包、修改内核参数、防火墙</li>
+            <li>读取密钥、私钥、密码、完整环境变量值</li>
+            <li>任意 Shell、任意脚本、任意文件读取</li>
+            <li>端口扫描、网络探测、横向访问其他主机</li>
+            <li>把主机文件/日志原文外传到非授权地址</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>动作分级</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>级别</th><th>例子</th><th>执行条件</th><th>审计</th></tr></thead>
+          <tbody>
+            <tr><td><strong>R0 只读</strong></td><td>status、metrics、log tail、config read（脱敏）、port check</td><td>本地策略允许即可</td><td>记录动作、参数哈希、结果摘要</td></tr>
+            <tr><td><strong>R1 低危</strong></td><td>生成诊断包、采集线程栈、触发一次快照</td><td>本地策略 + 服务端任务</td><td>记录任务 ID 与产物</td></tr>
+            <tr><td><strong>R2 高危</strong></td><td>重启服务、清理临时文件、切换日志级别</td><td>服务端签名指令 + 人工审批 + 回滚点</td><td>全程审计 + 结果回执</td></tr>
+            <tr><td><strong>R3 禁止/受控</strong></td><td>部署应用、升级版本、改配置、扩缩容</td><td>未来能力；变更单 + 维护窗口 + 双人审批</td><td>变更单 + 逐步回滚</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>CLI：像 Claude Code，但不是一个本地 root Shell</h3>
+      <div class="grid-2">
+        <div class="card"><div class="label">CLI 能力</div><strong>本地对话 + 受控工具</strong><p><span class="mono">opsagent chat</span> 支持自然语言、上下文、技能包；可问“这台机器为什么 5xx”“日志里最早异常是什么”“帮我生成诊断报告”。</p></div>
+        <div class="card is-warn"><div class="label">CLI 不能</div><strong>绕过服务端审批</strong><p>CLI 只能发起请求；R2+ 由服务端策略与审批决定。本地用户不能自己点“同意”就把生产服务重启。</p></div>
+      </div>
+      <div class="code"><span class="c"># 只读诊断示例</span>
+opsagent status
+opsagent discover --scope app,logs --dry-run
+opsagent diagnose --app order-service --since 30m
+opsagent logs order-service --tail 200 --grep "ERROR|Timeout"
+opsagent report --incident inc_2041
+<span class="c"># R2 动作：发起申请，不在本地直接执行</span>
+opsagent request restart order-service --reason "thread pool exhausted" --window 10m</div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="section-head">
+        <div class="section-no">06</div>
+        <div><div class="kicker">Security</div><h2>不能伪造的指令，<br>不能冒充的数据</h2></div>
+      </div>
+      <p class="lede">服务器 Agent 是“能执行动作的软件”，安全模型必须假设：网络可被劫持、服务端可能被攻破、Agent 证书可能泄露、本机用户可能恶意、日志内容可能提示注入。每一层都要有独立校验。</p>
+
+      <h3>接入与身份</h3>
+      <div class="flow">
+        <div class="flow-step"><div class="flow-no">01</div><div><h4>一次性加入令牌</h4><p>安装包携带短 TTL、单次使用的 join token；绑定租户、预期网段/标签、可选主机名。令牌泄露不能无限注册。</p></div></div>
+        <div class="flow-step"><div class="flow-no">02</div><div><h4>CSR + 设备证书</h4><p>Agent 生成密钥对（优先 OS keystore/TPM），提交 CSR；服务端 CA 签发带 host_id、tenant_id 的客户端证书。</p></div></div>
+        <div class="flow-step"><div class="flow-no">03</div><div><h4>自动/人工纳管</h4><p>满足网段 + 标签 + 镜像签名策略可自动批准；否则进入待审批。未知主机默认隔离，不能执行任务。</p></div></div>
+        <div class="flow-step"><div class="flow-no">04</div><div><h4>证书轮换与吊销</h4><p>短周期轮换；主机隔离、重装、离职/下线即吊销；Gateway 维护 CRL/OCSP 等价状态。</p></div></div>
+      </div>
+
+      <h3>指令信封：LLM 永远不直接生成 Shell</h3>
+      <div class="code">{
+  <span class="k">"command_id"</span>: <span class="s">"cmd_01J9..."</span>,
+  <span class="k">"tenant_id"</span>: <span class="s">"t-1001"</span>,
+  <span class="k">"host_id"</span>: <span class="s">"host_8f2a"</span>,
+  <span class="k">"action_id"</span>: <span class="s">"diag.thread_dump"</span>,
+  <span class="k">"params"</span>: { <span class="k">"pid"</span>: 1842, <span class="k">"max_bytes"</span>: 1048576 },
+  <span class="k">"policy_version"</span>: <span class="s">"pol_2041"</span>,
+  <span class="k">"issued_at"</span>: <span class="s">"2026-11-03T14:52:31+08:00"</span>,
+  <span class="k">"expires_at"</span>: <span class="s">"2026-11-03T14:57:31+08:00"</span>,
+  <span class="k">"nonce"</span>: <span class="s">"b7f2..."</span>,
+  <span class="k">"signature"</span>: <span class="s">"ed25519:..."</span>
+}</div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>攻击/风险</th><th>防线</th></tr></thead>
+          <tbody>
+            <tr><td>伪造服务端下发命令</td><td>mTLS 双向认证 + 指令签名（KMS/HSM 托管密钥）+ 动作 ID 白名单；Agent 不解析自由文本命令</td></tr>
+            <tr><td>重放旧命令</td><td>nonce + 短过期时间 + 本机持久化 replay cache + command_id 幂等</td></tr>
+            <tr><td>命令发错主机/租户</td><td>证书绑定 host_id/tenant_id；指令信封再次校验；主机不匹配直接拒绝</td></tr>
+            <tr><td>伪造 Agent 上报数据</td><td>设备私钥签名遥测批次；序列号/时间窗；Gateway 校验证书与主机归属</td></tr>
+            <tr><td>日志/配置提示注入</td><td>日志内容只作为“不可信数据”进入模型；工具调用走策略引擎，模型不能直接产生可执行命令</td></tr>
+            <tr><td>Agent 密钥泄露</td><td>短周期证书、设备隔离、异常行为检测、吊销；高风险动作要求二次签名/审批</td></tr>
+            <tr><td>本机恶意用户</td><td>CLI 走本地 Unix socket + peer 凭证；不以 root 运行；R2+ 仍需服务端审批</td></tr>
+            <tr><td>供应链/升级包</td><td>二进制与技能包签名、校验和、版本固定、灰度、回滚；禁止未签名插件</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-danger"><strong>LLM 不是信任边界。</strong>总控智能体可以“提议”排障动作，但最终下发必须经过策略引擎、RBAC、审批和签名。模型输出永远不能拼成 Shell 字符串直接执行。</div>
+
+      <h3>LLM 路径与数据边界</h3>
+      <p>Agent 不持有模型厂商密钥。CLI/诊断需要模型时，通过 mTLS 调服务端 LLM Gateway；服务端做租户配额、脱敏、审计和模型路由。主机侧只发送必要的上下文摘要，默认不把整份日志/配置上传。离线时 CLI 退化为本地规则与已缓存知识。</p>
+    </section>
+
+    <section class="section" id="troubleshooting">
+      <div class="section-head">
+        <div class="section-no">07</div>
+        <div><div class="kicker">Closed loop</div><h2>异常上报只是开始，<br>排障是一条可审计的闭环</h2></div>
+      </div>
+      <p class="lede">Agent 本地先做一层“是否真的异常”的判断，服务端再做跨主机/跨工具关联；总控智能体下发的是诊断任务，不是“你去修”。修复永远在审批之后。</p>
+
+      <div class="flow">
+        <div class="flow-step"><div class="flow-no">01</div><div><h4>本地检测</h4><p>阈值、基线偏离、连续次数、错误签名突增；本地聚合，避免单点抖动直接触发告警风暴。</p></div></div>
+        <div class="flow-step"><div class="flow-no">02</div><div><h4>带证据上报</h4><p>异常事件包含：指标窗口、服务/端口、配置哈希、日志签名、最近变更、所属应用/数据中心、快照引用。</p></div></div>
+        <div class="flow-step"><div class="flow-no">03</div><div><h4>服务端关联</h4><p>总控智能体同时查主机 Agent、Prometheus/Zabbix、ClickHouse、数据库插件、变更记录和知识库。</p></div></div>
+        <div class="flow-step"><div class="flow-no">04</div><div><h4>下发诊断任务</h4><p>只读动作：线程栈、连接详情、日志尾部、GC 摘要、依赖端口检查、配置片段。任务带预算与超时。</p></div></div>
+        <div class="flow-step"><div class="flow-no">05</div><div><h4>本地分析 + 回传</h4><p>Agent 在本机做初步归因，返回证据 + 结论 + 置信度；服务端保留原始证据引用，不只看模型总结。</p></div></div>
+        <div class="flow-step"><div class="flow-no">06</div><div><h4>修复/接管</h4><p>R2+ 进入审批；R3 走变更单。人可以随时接管；Agent 不自动执行破坏性动作。</p></div></div>
+      </div>
+
+      <h3>诊断动作注册表（节选）</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>action_id</th><th>用途</th><th>风险</th><th>限制</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">diag.snapshot</td><td>采集当前系统/应用快照</td><td>R0</td><td>只读；最大 50MB；脱敏</td></tr>
+            <tr><td class="mono">diag.log_tail</td><td>读取应用日志尾部/错误窗口</td><td>R0</td><td>最大 2MB；路径白名单；脱敏</td></tr>
+            <tr><td class="mono">diag.thread_dump</td><td>Java/Go 进程栈摘要</td><td>R0</td><td>单次；PID 校验；超时 30s</td></tr>
+            <tr><td class="mono">diag.port_check</td><td>本机监听/连接状态</td><td>R0</td><td>仅本机；不扫描远端</td></tr>
+            <tr><td class="mono">diag.config_read</td><td>读取配置片段（脱敏）</td><td>R0</td><td>路径白名单；不读密钥</td></tr>
+            <tr><td class="mono">diag.service_status</td><td>systemd/容器状态</td><td>R0</td><td>只读</td></tr>
+            <tr><td class="mono">change.restart</td><td>重启服务</td><td>R2</td><td>审批 + 回滚点 + 维护窗口</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout is-blue"><strong>服务端工具插件并行分析。</strong>主机 Agent 不是唯一证据源。总控智能体可以同时调度 Zabbix/Prometheus/ClickHouse/MySQL/Redis 插件，把“主机内视图”和“平台侧指标/日志/拓扑”对齐后再下结论。</div>
+    </section>
+
+    <section class="section" id="server">
+      <div class="section-head">
+        <div class="section-no">08</div>
+        <div><div class="kicker">Server side</div><h2>自动纳管，<br>但不自动信任</h2></div>
+      </div>
+      <p class="lede">服务端要能自动发现新装 Agent、建立连接、分配租户、拉取清单，并在异常时调度诊断。但“自动纳管”不等于“自动放权”：未知主机先隔离，策略通过后才进入稳态。</p>
+
+      <h3>服务端新增模块</h3>
+      <div class="grid-3">
+        <div class="card"><div class="label">Gateway</div><strong>Agent Gateway</strong><p>mTLS 长连接、心跳、遥测接收、指令下发、背压、断线重连。</p></div>
+        <div class="card"><div class="label">Identity</div><strong>Enrollment / CA</strong><p>加入令牌、CSR、证书生命周期、主机隔离、吊销。</p></div>
+        <div class="card"><div class="label">Inventory</div><strong>Agent Registry / CMDB</strong><p>主机、应用、服务、数据中心、版本、状态、标签。</p></div>
+        <div class="card"><div class="label">Policy</div><strong>Policy / Skills</strong><p>能力包、工具包、动作白名单、采集策略、签名与灰度。</p></div>
+        <div class="card"><div class="label">Control</div><strong>总控智能体</strong><p>异常关联、诊断编排、工具插件调度、结论与工单。</p></div>
+        <div class="card"><div class="label">Audit</div><strong>Command / Evidence</strong><p>指令、结果、证据、审批、回滚全链路审计。</p></div>
+      </div>
+
+      <h3>主机 → 应用系统 → 数据中心</h3>
+      <p>纳管时用 IP、网段、主机名、Agent 标签、CMDB 记录做匹配；匹配结果写入主机档案，并同步到 Agent 本地知识。多候选/冲突保留，不静默覆盖。应用画像由发现结果与服务端 CMDB 合并，后续排障时可直接回答“这台机器属于哪个应用、哪个数据中心、上下游是谁”。</p>
+
+      <h3>平台新增管理页面</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>页面</th><th>核心内容</th><th>关键操作</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Agent 管理</strong></td><td>主机列表、租户/应用/数据中心、版本、状态、最后心跳、策略版本</td><td>筛选、批量纳管、隔离、升级、导出</td></tr>
+            <tr><td><strong>Agent 详情</strong></td><td>发现画像、应用归属、服务/端口、配置/日志位置、采集状态、历史命令</td><td>发起诊断、查看证据、重跑发现</td></tr>
+            <tr><td><strong>策略与技能包</strong></td><td>能力包、动作白名单、采集策略、签名版本、灰度范围</td><td>发布、灰度、回滚、吊销</td></tr>
+            <tr><td><strong>指令与证据</strong></td><td>签名指令、执行结果、证据、审批、失败原因</td><td>重试、撤销、转工单</td></tr>
+            <tr><td><strong>主机异常</strong></td><td>异常时间线、关联应用/DC、主机视图 + 平台指标</td><td>升级事件、派发诊断、通知</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Agent 类型：OS 先行，其余作为插件预留</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Agent 类型</th><th>部署位置</th><th>核心能力</th><th>阶段</th></tr></thead>
+          <tbody>
+            <tr><td><strong>OS Agent</strong></td><td>Linux 服务器 / VM 内</td><td>系统发现、应用识别、常驻采集、CLI、受控诊断</td><td>本期主线</td></tr>
+            <tr><td><strong>Virtualization Agent</strong></td><td>vCenter / KVM / 云平台</td><td>宿主机、虚拟机、集群、迁移、容量</td><td>预留插件</td></tr>
+            <tr><td><strong>Storage Agent</strong></td><td>存储阵列 / 分布式存储</td><td>池、卷、LUN、IO 延迟、容量、告警</td><td>预留插件</td></tr>
+            <tr><td><strong>Network Agent</strong></td><td>交换机 / 防火墙 / SDN</td><td>接口、路由、ACL、会话、丢包、配置漂移</td><td>预留插件</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>四类 Agent 共用同一套注册、策略、指令、审计协议；差异在“采集器 + 动作注册表”。不把 OS Agent 做成万能代理，也不让每类设备各造一套控制面。</p>
+    </section>
+
+    <section class="section" id="stack">
+      <div class="section-head">
+        <div class="section-no">09</div>
+        <div><div class="kicker">Implementation</div><h2>Go 单二进制，<br>小依赖、可审计、可收敛</h2></div>
+      </div>
+      <p class="lede">选择 Go 的原因不是“流行”，而是静态编译、跨平台交叉编译、低运行时依赖、并发采集与 gRPC 生态成熟。目标是一台主机一个二进制 + 一个 systemd unit + 一个本地库。</p>
+
+      <div class="grid-2">
+        <div class="card"><div class="label">Binary</div><strong>opsagentd + opsagent</strong><p>守护进程与 CLI 同一仓库、同一版本；CLI 通过本地 Unix socket 调守护进程，不直接持有权限。</p></div>
+        <div class="card"><div class="label">Transport</div><strong>gRPC / HTTP2 + mTLS</strong><p>Agent 主动出站；双向流用于指令/心跳，批量遥测走独立流；protobuf 固定 schema。</p></div>
+        <div class="card"><div class="label">Store</div><strong>SQLite（无 cgo）+ ring</strong><p>发现结果、应用画像、策略版本、任务、快照索引；高频指标用环形文件/分区表，zstd 压缩。</p></div>
+        <div class="card"><div class="label">OS integration</div><strong>systemd + /proc + journald</strong><p>Linux first；包管理 dpkg/rpm；容器只读元数据；不加载内核模块，不依赖 eBPF。</p></div>
+      </div>
+
+      <h3>进程与权限模型</h3>
+      <div class="code"><span class="c"># systemd  hardening 方向（示意）</span>
+User=opsagent
+Group=opsagent
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/proc /sys /etc /var/log
+ReadWritePaths=/var/lib/opsagent
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CPUQuota=50%
+MemoryMax=256M
+IOWeight=50</div>
+      <p>默认不以 root 运行。需要读取 journald/系统服务时，通过组成员或只读路径授权；不为“方便”开放 docker socket、宿主 root shell 或任意文件读。若某个采集必须更高权限，拆成最小 helper，并单独审计。</p>
+
+      <h3>代码结构（建议）</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模块</th><th>职责</th><th>关键约束</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">cmd/opsagentd</td><td>守护进程入口、systemd notify、生命周期</td><td>不包含业务逻辑</td></tr>
+            <tr><td class="mono">cmd/opsagent</td><td>CLI、交互式对话、诊断命令</td><td>通过 Unix socket 调 daemon</td></tr>
+            <tr><td class="mono">internal/discovery</td><td>OS/服务/应用/配置/日志发现</td><td>只读、限路径、限时、证据</td></tr>
+            <tr><td class="mono">internal/collector</td><td>指标、服务状态、快照、环形缓冲</td><td>磁盘预算、背压、低开销</td></tr>
+            <tr><td class="mono">internal/policy</td><td>动作注册表、R0–R3、签名校验</td><td>默认拒绝</td></tr>
+            <tr><td class="mono">internal/transport</td><td>mTLS、gRPC、重连、指令去重</td><td>只出站、nonce/过期</td></tr>
+            <tr><td class="mono">internal/store</td><td>SQLite、本地知识、快照索引</td><td>迁移、配额、加密可选</td></tr>
+            <tr><td class="mono">internal/diagnostics</td><td>线程栈、日志尾、端口、配置片段</td><td>白名单、脱敏、超时</td></tr>
+            <tr><td class="mono">internal/knowledge</td><td>应用画像、归属、排障经验缓存</td><td>主数据在服务端</td></tr>
+            <tr><td class="mono">internal/update</td><td>签名包、灰度、回滚</td><td>未签名拒绝</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>资源目标（需在验收中实测）</h3>
+      <div class="grid-4">
+        <div class="card is-tint"><div class="label">CPU</div><strong>&lt; 1% 空闲</strong><p>采集峰值 &lt; 5%，CPUQuota 限制</p></div>
+        <div class="card is-tint"><div class="label">Memory</div><strong>&lt; 100MB</strong><p>常驻；异常诊断可短时上浮</p></div>
+        <div class="card is-tint"><div class="label">Disk</div><strong>≤ 1GB / 2%</strong><p>取更小值；超限自限流</p></div>
+        <div class="card is-tint"><div class="label">Network</div><strong>摘要 + 按需</strong><p>不持续回传高频原始数据</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="future">
+      <div class="section-head">
+        <div class="section-no">10</div>
+        <div><div class="kicker">Expansion</div><h2>未来能力：<br>部署、升级、更多设备类型</h2></div>
+      </div>
+      <p class="lede">能力扩展不改变安全模型。新增动作仍然要注册、分级、签名、审批、可回滚；只是把“执行器”从只读诊断扩展到变更执行。</p>
+
+      <h3>应用部署/升级蓝图</h3>
+      <div class="flow">
+        <div class="flow-step"><div class="flow-no">01</div><div><h4>变更单</h4><p>应用、版本、目标主机、维护窗口、回滚版本、审批人；与现有 ITSM/变更管理对接。</p></div></div>
+        <div class="flow-step"><div class="flow-no">02</div><div><h4>预检</h4><p>磁盘、依赖、端口、配置兼容、当前健康；预检失败不进入执行。</p></div></div>
+        <div class="flow-step"><div class="flow-no">03</div><div><h4>灰度/分批</h4><p>先 1 台 canary，观察健康与错误率；再按批次滚动，失败自动暂停。</p></div></div>
+        <div class="flow-step"><div class="flow-no">04</div><div><h4>执行与回滚</h4><p>签名制品、校验和、原子替换、健康检查；失败回滚到上一版本，保留现场。</p></div></div>
+        <div class="flow-step"><div class="flow-no">05</div><div><h4>验收与知识</h4><p>验证端口/日志/指标；变更记录进入知识库；失败样本进入复盘。</p></div></div>
+      </div>
+
+      <div class="callout is-warn"><strong>R3 的门槛：</strong>部署/升级不是“给 Agent 一个 Shell”。它需要制品签名、变更审批、维护窗口、双人复核、回滚演练和审计；没有这些，不做。</div>
+
+      <h3>Agent 类型插件化</h3>
+      <p>虚拟化、存储、网络 Agent 作为服务端插件接入：统一注册、证书、指令、审计；各自提供采集器与动作注册表，不共享 OS Agent 的 root 权限。设备侧 Agent 只做“该设备允许的只读/受控动作”，不做跨域横向。</p>
+    </section>
+
+    <section class="section" id="roadmap">
+      <div class="section-head">
+        <div class="section-no">11</div>
+        <div><div class="kicker">Roadmap</div><h2>P1.6 之后，<br>独立 16 周主线</h2></div>
+      </div>
+      <p class="lede">Server Agent 是新的、跨平台、强安全属性的主线。建议不塞进 P1/P1.5/P1.6 的 28 周，而是在 P1.6 之后作为 P2-A/P2-B 独立推进；如果要并行，需要额外 2.5 FTE，且会拉长联调与安全评审。</p>
+
+      <div class="timeline">
+        <div class="tl-item"><div class="tl-when">P2-A · 10 周</div><h4>可用 Agent</h4><p>Linux 单二进制、注册/证书、受控发现、应用画像、常驻采集、异常上报、CLI 只读对话、服务端 Gateway/Registry。</p></div>
+        <div class="tl-item"><div class="tl-when">P2-B · 6 周</div><h4>可排障 Agent</h4><p>签名诊断指令、线程栈/日志/连接/配置检查、证据回传、总控智能体编排、本地知识、安全加固与灰度。</p></div>
+        <div class="tl-item is-future"><div class="tl-when">P3 · 未来</div><h4>可变更 Agent</h4><p>应用部署/升级、虚拟化/存储/网络 Agent 插件、跨设备协同、变更审批与回滚。</p></div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card"><div class="label">Track A</div><strong>主机侧</strong><p>Go daemon、CLI、发现、采集、策略、执行器、本地知识。</p></div>
+        <div class="card"><div class="label">Track B</div><strong>服务端</strong><p>Gateway、CA、Registry、命令总线、总控智能体、工具插件。</p></div>
+        <div class="card"><div class="label">Track C</div><strong>安全/质量</strong><p>威胁建模、证书/签名、伪造/重放测试、隔离、资源验收。</p></div>
+      </div>
+
+      <h3>与现有路线的关系</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>选择</th><th>影响</th><th>建议</th></tr></thead>
+          <tbody>
+            <tr><td>P1.6 之后串行</td><td>现有 28 周不变，Agent 再 +16 周</td><td><strong>推荐</strong>：安全评审充分，团队不被撕裂</td></tr>
+            <tr><td>与 P1.5 并行</td><td>需要额外 2.5 FTE；联调/安全评审竞争</td><td>仅当有独立 Agent 小组</td></tr>
+            <tr><td>塞进 P1.5</td><td>8 周内无法完成发现/安全/CLI/排障闭环</td><td>不建议，会牺牲质量</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="decisions">
+      <div class="section-head">
+        <div class="section-no">12</div>
+        <div><div class="kicker">Decisions</div><h2>需要确认的<br>六个实现边界</h2></div>
+      </div>
+      <p>这些不是“功能要不要”，而是“第一版按什么安全/运维边界落地”。确认后才能进入 Agent 任务级计划。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>待确认</th><th>建议默认</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><strong>首发 OS 范围</strong></td><td>Linux（systemd）优先；Windows/macOS 后续，不在首版承诺</td></tr>
+            <tr><td>2</td><td><strong>Agent 运行权限</strong></td><td>**默认 root + 动作级权限门控**；CLI 普通用户；无裸 Shell</td></tr>
+            <tr><td>3</td><td><strong>自动纳管策略</strong></td><td>一次性令牌 + CSR；同网段/镜像标签可自动批准，其他人工；未知主机隔离</td></tr>
+            <tr><td>4</td><td><strong>LLM 调用路径</strong></td><td>Agent 不持有模型 Key；统一走服务端 LLM Gateway / 租户配额</td></tr>
+            <tr><td>5</td><td><strong>快照保留默认</strong></td><td>**最长 1 天**：5s 1h、30s 6h、5m 24h；异常 24h/200MB；总上限 1GB 或 2%</td></tr>
+            <tr><td>6</td><td><strong>未来写能力</strong></td><td>P2 不做部署/升级；P3 以变更单 + 签名制品 + 回滚为前提</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout"><strong>下一步：</strong>确认本汇报的六个边界后，再拆 P2-A 的 10 周任务级计划（模块、接口、协议、测试、验收）。在确认前，不进入 Agent 编码。</div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <span>OpsAgent · Server Agent architecture review · v0.1</span>
+  <span>设计基线：docs/design/00-platform-design.md · 2026-11-03</span>
+</footer>
+
+</body>
+</html>

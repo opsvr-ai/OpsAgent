@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dsh-design" content="web">
+<title>外观与主题 · OpsAgent</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5"/><path d="M12 17h8"/></svg></div>
+      <div>
+        <div class="brand-name">OpsAgent</div>
+        <span class="brand-sub">AIOps Control Plane</span>
+      </div>
+    </div>
+
+    <button class="tenant-switch">
+      <span class="avatar">星</span>
+      <span class="tenant-meta">
+        <strong>星河银行 · 运维中心</strong>
+        <span>生产租户 · cn-east-1</span>
+      </span>
+      <svg><use href="icons.svg#i-chevron-down"></use></svg>
+    </button>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作空间</div>
+        <a class="nav-item" href="home.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a class="nav-item" href="chat.html"><svg><use href="icons.svg#i-message"></use></svg>智能体会话<span class="nav-badge">3</span></a>
+        <a class="nav-item" href="messages.html"><svg><use href="icons.svg#i-bell"></use></svg>消息中心<span class="nav-badge is-alert">5</span></a>
+        <a class="nav-item" href="incident.html"><svg><use href="icons.svg#i-layers"></use></svg>事件指挥</a>
+        <a class="nav-item" href="tasks.html"><svg><use href="icons.svg#i-clock"></use></svg>长任务</a>
+        <a class="nav-item" href="scenarios.html"><svg><use href="icons.svg#i-bolt"></use></svg>场景中心</a>
+        <a class="nav-item" href="knowledge.html"><svg><use href="icons.svg#i-book"></use></svg>知识中心<span class="nav-badge">2</span></a>
+
+        <a class="nav-item" href="connectors.html"><svg><use href="icons.svg#i-plug"></use></svg>集成与插件<span class="nav-badge is-alert">1</span></a>
+        <a class="nav-item" href="studio.html"><svg><use href="icons.svg#i-wand"></use></svg>创造模式</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">租户治理</div>
+        <a class="nav-item" href="admin-members.html"><svg><use href="icons.svg#i-users"></use></svg>成员与角色</a>
+        <a class="nav-item" href="admin-sharing.html"><svg><use href="icons.svg#i-share"></use></svg>分享审批<span class="nav-badge">4</span></a>
+        <a class="nav-item" href="platform-admin.html"><svg><use href="icons.svg#i-shield"></use></svg>平台管理</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="runtime-card">
+        <span class="dot dot-ok"></span>
+        <div>
+          <strong>Agent 运行时正常</strong>
+          <span>3 节点 · 12 会话</span>
+        </div>
+        <div class="runtime-metric">v0.2.2</div>
+      </div>
+      <a class="theme-entry is-active" href="appearance.html"><svg><use href="icons.svg#i-sun"></use></svg>外观与主题</a>
+      <button class="user-chip">
+        <span class="avatar is-green">陈</span>
+        <span class="grow">
+          <strong>陈志远</strong>
+          <span>值班 SRE · DBA</span>
+        </span>
+        <svg style="width:14px;height:14px;color:var(--faint)"><use href="icons.svg#i-chevron-down"></use></svg>
+      </button>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="home.html">工作台</a><span class="sep">/</span><span class="current">外观与主题</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="search-trigger"><svg><use href="icons.svg#i-search"></use></svg>搜索设置<kbd>⌘ K</kbd></button>
+      <div class="topbar-actions">
+        <span class="env-pill"><span class="dot dot-ok" style="width:5px;height:5px"></span>PROD · 华东 1</span>
+        <button class="icon-btn" aria-label="通知"><svg><use href="icons.svg#i-bell"></use></svg></button>
+        <button class="icon-btn" aria-label="帮助"><svg><use href="icons.svg#i-book"></use></svg></button>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Preferences · 用户偏好</div>
+            <h1 style="margin-top:8px">外观与主题</h1>
+            <p class="sub">选择浅色、深色、跟随系统或按时间自动切换。设置只影响你自己的账号，不会改变租户内其他人的界面。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">恢复租户默认</button>
+            <button class="btn btn-primary"><svg><use href="icons.svg#i-check"></use></svg>保存偏好</button>
+          </div>
+        </div>
+
+        <div class="notice is-info" style="margin-bottom:20px">
+          <svg><use href="icons.svg#i-monitor"></use></svg>
+          <span><strong>当前生效：浅色</strong> · 模式为「浅色」（平台默认）；你也可以切换跟随系统或时间自适应。</span>
+        </div>
+
+        <div class="theme-grid">
+          <button class="theme-card is-selected" type="button">
+            <div class="theme-swatch sw-light">
+              <div class="sw-side"></div>
+              <div class="sw-main"><div class="sw-line accent"></div><div class="sw-line"></div><div class="sw-line short"></div></div>
+            </div>
+            <div class="tc-head">
+              <span class="tc-icon"><svg><use href="icons.svg#i-sun"></use></svg></span>
+              <strong>浅色</strong>
+              <span class="tc-radio"></span>
+            </div>
+            <p>始终使用浅色界面，适合明亮环境或白天长时间使用。</p>
+          </button>
+
+          <button class="theme-card" type="button">
+            <div class="theme-swatch sw-dark">
+              <div class="sw-side"></div>
+              <div class="sw-main"><div class="sw-line accent"></div><div class="sw-line"></div><div class="sw-line short"></div></div>
+            </div>
+            <div class="tc-head">
+              <span class="tc-icon"><svg><use href="icons.svg#i-moon"></use></svg></span>
+              <strong>深色</strong>
+              <span class="tc-radio"></span>
+            </div>
+            <p>始终使用深色控制台，适合值班室、低光环境与多屏监控。</p>
+          </button>
+
+          <button class="theme-card" type="button">
+            <div class="theme-swatch sw-split">
+              <div class="half light"><div class="sw-line accent"></div><div class="sw-line"></div></div>
+              <div class="half dark"><div class="sw-line accent"></div><div class="sw-line"></div></div>
+            </div>
+            <div class="tc-head">
+              <span class="tc-icon"><svg><use href="icons.svg#i-monitor"></use></svg></span>
+              <strong>跟随系统</strong>
+              <span class="tc-radio"></span>
+            </div>
+            <p>跟随操作系统的浅色/深色外观，系统切换时实时更新。</p>
+          </button>
+
+          <button class="theme-card" type="button">
+            <div class="theme-swatch sw-split sw-clock">
+              <div class="half light"><div class="sw-line accent"></div><div class="sw-line"></div></div>
+              <div class="half dark"><div class="sw-line accent"></div><div class="sw-line"></div></div>
+              <span class="clock-badge"><svg><use href="icons.svg#i-clock"></use></svg></span>
+            </div>
+            <div class="tc-head">
+              <span class="tc-icon"><svg><use href="icons.svg#i-clock"></use></svg></span>
+              <strong>时间自适应</strong>
+              <span class="tc-radio"></span>
+            </div>
+            <p>按本地时间自动切换；默认 07:00–19:00 浅色，其余时间深色。</p>
+          </button>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:20px;align-items:start">
+          <section class="card">
+            <div class="card-head"><h2>时间自适应</h2><div class="actions"><span class="badge badge-neutral">未启用</span></div></div>
+            <div class="card-body">
+              <div class="time-row">
+                <span class="small muted">浅色窗口</span>
+                <input class="time-input" type="text" inputmode="numeric" value="07:00" aria-label="浅色窗口开始时间">
+                <span class="muted small">至</span>
+                <input class="time-input" type="text" inputmode="numeric" value="19:00" aria-label="浅色窗口结束时间">
+                <select class="select" style="width:160px" aria-label="时区">
+                  <option>Asia/Shanghai</option>
+                  <option>Asia/Tokyo</option>
+                  <option>UTC</option>
+                </select>
+              </div>
+              <div class="toggle-row" style="margin-top:10px">
+                <div class="grow"><strong>跟随设备时区</strong><p>关闭后固定使用上方时区；跨时区值班时建议开启。</p></div>
+                <span class="switch is-on"></span>
+              </div>
+              <div class="hint" style="margin-top:8px">窗口内使用浅色，窗口外使用深色；每分钟检查一次，页面重新聚焦时立即校验。支持跨午夜窗口（如 22:00–06:00）。</div>
+              <div class="between" style="margin-top:14px">
+                <div><div class="strong small">当前会话临时切换</div><div class="tiny faint" style="margin-top:2px">只影响本标签页，刷新或重新登录后回到用户默认</div></div>
+                <div class="segmented"><button class="is-on">跟随偏好</button><button>浅色</button><button>深色</button></div>
+              </div>
+              <div class="notice is-info" style="margin-top:12px">
+                <svg><use href="icons.svg#i-clock"></use></svg>
+                <span>时间自适应由客户端按本地时间计算，不依赖服务端时钟；切换发生在下一分钟，不打断正在进行的会话。</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h2>生效优先级</h2><div class="actions"><span class="badge badge-neutral">从高到低</span></div></div>
+            <div class="card-body">
+              <div class="precedence">
+                <div class="precedence-item is-top">
+                  <span class="precedence-rank">1</span>
+                  <div><strong>当前会话临时切换</strong><span>手动切到浅色/深色只影响本标签页；刷新或重新登录后失效</span></div>
+                </div>
+                <div class="precedence-item">
+                  <span class="precedence-rank">2</span>
+                  <div><strong>用户默认</strong><span>你在「外观与主题」里保存的选择，跨设备生效</span></div>
+                </div>
+                <div class="precedence-item">
+                  <span class="precedence-rank">3</span>
+                  <div><strong>租户默认</strong><span>租户管理员为新成员设置的默认；不会覆盖已有用户的选择</span></div>
+                </div>
+                <div class="precedence-item">
+                  <span class="precedence-rank">4</span>
+                  <div><strong>平台默认</strong><span>平台管理员设置的兜底值，默认浅色</span></div>
+                </div>
+              </div>
+              <div class="hint" style="margin-top:12px">自动模式只决定“解析成浅色还是深色”，不改变优先级。服务端读取用户偏好并在首屏注入 <code class="mono" style="font-size:12px">data-theme</code>，避免刷新闪烁。</div>
+            </div>
+          </section>
+        </div>
+
+        <section class="card" style="margin-top:20px">
+          <div class="card-head">
+            <h2>快速预览</h2>
+            <div class="actions">
+              <a class="btn btn-ghost btn-sm" href="home.html">打开浅色工作台<svg><use href="icons.svg#i-arrow-right"></use></svg></a>
+              <a class="btn btn-ghost btn-sm" href="home-dark.html">打开深色工作台<svg><use href="icons.svg#i-arrow-right"></use></svg></a>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="preview-pair">
+              <div>
+                <div class="preview-frame is-light">
+                  <div class="pf-side"><div class="pf-line accent" style="width:60%"></div><div class="pf-line" style="margin-top:7px"></div><div class="pf-line short" style="margin-top:6px"></div><div class="pf-line" style="margin-top:6px"></div></div>
+                  <div class="pf-main"><div class="pf-line accent" style="width:32%"></div><div class="pf-line wide"></div><div class="pf-line"></div><div class="pf-line short"></div><div class="pf-row"><div class="pf-chip"></div><div class="pf-chip"></div></div></div>
+                </div>
+                <div class="between" style="margin-top:7px"><span class="badge badge-neutral">浅色</span><span class="hint">#F6F7F9 · 正文 13px</span></div>
+              </div>
+              <div>
+                <div class="preview-frame is-dark">
+                  <div class="pf-side"><div class="pf-line accent" style="width:60%"></div><div class="pf-line" style="margin-top:7px"></div><div class="pf-line short" style="margin-top:6px"></div><div class="pf-line" style="margin-top:6px"></div></div>
+                  <div class="pf-main"><div class="pf-line accent" style="width:32%"></div><div class="pf-line wide"></div><div class="pf-line"></div><div class="pf-line short"></div><div class="pf-row"><div class="pf-chip"></div><div class="pf-chip"></div></div></div>
+                </div>
+                <div class="between" style="margin-top:7px"><span class="badge badge-neutral">深色</span><span class="hint">#0A0C0F · 正文 13px</span></div>
+              </div>
+            </div>
+            <div class="notice is-info" style="margin-top:14px">
+              <svg><use href="icons.svg#i-shield"></use></svg>
+              <span>两套主题都满足正文 4.5:1 对比度；状态色、图表、代码块与焦点环都使用同一套语义变量。主题只改变呈现，不改变权限与数据。</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

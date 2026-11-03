@@ -24,6 +24,9 @@ export function Audit({ onBack }: AuditProps) {
       subtitle="最近 100 条租户审计记录，工具调用与审批决策均不可篡改。"
       onBack={onBack}
     >
+        <div className="row-sm" style={{ marginBottom: 16 }}>
+          <a className="btn btn-outline" href="/api/audit/export" download>导出 CSV</a>
+        </div>
         {error ? <p role="alert">{error}</p> : null}
         {events === null ? <p className="muted">加载中…</p> : null}
         {events?.length === 0 ? <p className="muted">暂无审计事件</p> : null}

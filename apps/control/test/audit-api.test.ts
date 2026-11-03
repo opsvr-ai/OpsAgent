@@ -53,6 +53,24 @@ describe('audit API', () => {
     await app.close();
   });
 
+  it('exports audit events as CSV', async () => {
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+    });
+    const cookie = await login(app, 'tenant-admin');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/audit/export',
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/csv');
+    expect(response.body).toContain('createdAt,action,result');
+    expect(response.body).toContain('auth.login');
+    await app.close();
+  });
+
   it('denies a role without audit.read', async () => {
     const app = buildServer({
       pool,

@@ -34,4 +34,20 @@ export function registerAuditRoutes(app: FastifyInstance, pool: Pool): void {
     const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 200) : 50;
     return reply.send(await audit.list(ctx.tenantId, limit));
   });
+
+  app.get('/api/audit/export', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'audit.read');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const csv = await audit.exportCsv(ctx.tenantId);
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="audit.csv"')
+      .send(csv);
+  });
 }

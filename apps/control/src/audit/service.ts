@@ -32,4 +32,26 @@ export class AuditService {
       createdAt: row.created_at.toISOString(),
     }));
   }
+
+  async exportCsv(tenantId: string, limit = 1000): Promise<string> {
+    const records = await this.list(tenantId, limit);
+    const escape = (value: unknown): string => {
+      const text = typeof value === 'string' ? value : JSON.stringify(value ?? '');
+      return `"${text.replaceAll('"', '""')}"`;
+    };
+    const header = ['createdAt', 'action', 'result', 'actorId', 'resource', 'metadata'].join(',');
+    const rows = records.map((record) =>
+      [
+        record.createdAt,
+        record.action,
+        record.result,
+        record.actorId ?? '',
+        record.resource ?? '',
+        record.metadata,
+      ]
+        .map(escape)
+        .join(','),
+    );
+    return [header, ...rows].join('\n');
+  }
 }

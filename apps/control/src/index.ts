@@ -6,6 +6,7 @@ import { ScenarioScheduler } from './scenarios/scheduler.js';
 import { DshHeadlessGenerator } from './studio/dsh-generator.js';
 import { DshRuntime } from './runtime/dsh.js';
 import { ModelProviderService } from './models/service.js';
+import { AuditService } from './audit/service.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
 const pool = new Pool({
@@ -39,6 +40,14 @@ const app = buildServer({
     : { studioGenerator: new DshHeadlessGenerator(undefined, modelService) }),
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
+const auditRetention = new AuditService(pool);
+const retentionTimer = setInterval(() => {
+  void auditRetention.purgeOlderThan(180).catch((error) => {
+    console.error('audit retention failed', error);
+  });
+}, 24 * 60 * 60 * 1000);
+retentionTimer.unref();
+void auditRetention.purgeOlderThan(180).catch(() => undefined);
 
 await app.listen({ host: '0.0.0.0', port });
 scheduler.start();
@@ -47,6 +56,7 @@ console.log(`opsagent-control listening on :${port}`);
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     scheduler.stop();
+    clearInterval(retentionTimer);
     void app.close().then(() => pool.end());
   });
 }

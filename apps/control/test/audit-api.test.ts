@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { buildServer } from '../src/server.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
+import { AuditService } from '../src/audit/service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 let pool: Pool;
@@ -69,6 +70,18 @@ describe('audit API', () => {
     expect(response.body).toContain('createdAt,action,result');
     expect(response.body).toContain('auth.login');
     await app.close();
+  });
+
+  it('purges audit events older than the retention window', async () => {
+    await pool.query(
+      `INSERT INTO audit_events (tenant_id, actor_id, action, result, created_at)
+       VALUES ($1, NULL, 'old.event', 'success', now() - interval '200 days')`,
+      ['00000000-0000-4000-8000-000000000001'],
+    );
+    const removed = await new AuditService(pool).purgeOlderThan(180);
+    expect(removed).toBeGreaterThanOrEqual(1);
+    const old = await pool.query("SELECT 1 FROM audit_events WHERE action = 'old.event'");
+    expect(old.rowCount).toBe(0);
   });
 
   it('denies a role without audit.read', async () => {

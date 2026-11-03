@@ -33,8 +33,7 @@ export class AuditService {
     }));
   }
 
-  async exportCsv(tenantId: string, limit = 1000): Promise<string> {
-    const records = await this.list(tenantId, limit);
+  async exportCsv(tenantId: string, limit = 1000): Promise<string> {    const records = await this.list(tenantId, limit);
     const escape = (value: unknown): string => {
       const text = typeof value === 'string' ? value : JSON.stringify(value ?? '');
       return `"${text.replaceAll('"', '""')}"`;
@@ -53,5 +52,13 @@ export class AuditService {
         .join(','),
     );
     return [header, ...rows].join('\n');
+  }
+
+  async purgeOlderThan(days: number): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM audit_events WHERE created_at < now() - ($1 || ' days')::interval`,
+      [Math.max(1, Math.trunc(days))],
+    );
+    return result.rowCount ?? 0;
   }
 }

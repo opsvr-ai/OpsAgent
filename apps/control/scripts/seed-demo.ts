@@ -37,7 +37,20 @@ const ids = {
   studio2: 'c0000000-0000-4000-8000-000000000002',
   command1: 'd0000000-0000-4000-8000-000000000001',
   command2: 'd0000000-0000-4000-8000-000000000002',
+  member1: 'e0000000-0000-4000-8000-000000000001',
+  member2: 'e0000000-0000-4000-8000-000000000002',
+  member3: 'e0000000-0000-4000-8000-000000000003',
+  member4: 'e0000000-0000-4000-8000-000000000004',
+  member5: 'e0000000-0000-4000-8000-000000000005',
 };
+
+const demoMembers = [
+  [ids.member1, 'lin.wan', '林晚', 'lin.wan@corp.example.com', ['sre_duty', 'knowledge_admin']],
+  [ids.member2, 'zhou.mu', '周牧', 'zhou.mu@corp.example.com', ['dba', 'change_manager']],
+  [ids.member3, 'zhao.yiming', '赵一鸣', 'zhao.yiming@corp.example.com', ['container_platform', 'sre_duty']],
+  [ids.member4, 'xu.qing', '许清', 'xu.qing@corp.example.com', ['readonly_observer']],
+  [ids.member5, 'wang.yan', '王砚', 'wang.yan@corp.example.com', ['auditor']],
+] as const;
 
 const pool = new Pool({ connectionString: databaseUrl });
 
@@ -218,6 +231,29 @@ async function main(): Promise<void> {
        ON CONFLICT (id) DO NOTHING`,
       [ids.studio1, tenant, admin, ids.studio2],
     );
+
+    for (const [id, username, displayName, email, roles] of demoMembers) {
+      await client.query(
+        `INSERT INTO users (id, username, display_name, email, status)
+         VALUES ($1, $2, $3, $4, 'active')
+         ON CONFLICT (id) DO NOTHING`,
+        [id, username, displayName, email],
+      );
+      await client.query(
+        `INSERT INTO memberships (tenant_id, user_id, status)
+         VALUES ($1, $2, 'active')
+         ON CONFLICT DO NOTHING`,
+        [tenant, id],
+      );
+      for (const role of roles) {
+        await client.query(
+          `INSERT INTO user_roles (tenant_id, user_id, role_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
+          [tenant, id, role],
+        );
+      }
+    }
 
     await client.query('COMMIT');
     console.log('demo data seeded');

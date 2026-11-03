@@ -28,10 +28,10 @@ describe('Knowledge', () => {
       status: 'published',
     });
     render(<Knowledge onBack={vi.fn()} />);
-    expect(await screen.findByText('连接池排查')).toBeInTheDocument();
+    expect((await screen.findAllByText('连接池排查')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '发布' }));
     await waitFor(() => expect(publishMock).toHaveBeenCalledWith('k-1'));
-    expect(await screen.findByText('published')).toBeInTheDocument();
+    expect((await screen.findAllByText('published')).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state', async () => {

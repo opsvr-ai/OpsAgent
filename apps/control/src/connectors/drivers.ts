@@ -7,23 +7,31 @@ import type { MysqlQueryFn } from './mysql.js';
 import type { RedisClient } from './redis.js';
 import type { SshExec, SshExecResult } from './ssh.js';
 
-export function createPostgresQuery(connectionString: string): QueryFn {
+export function createPostgresQuery(
+  connectionString: string,
+): QueryFn & { close(): Promise<void> } {
   const pool = new Pool({ connectionString });
-  return async (sql, params) => {
+  const query: QueryFn = async (sql, params) => {
     const result = await pool.query(sql, params as unknown[]);
     return { rows: result.rows, rowCount: result.rowCount };
   };
+  return Object.assign(query, { close: () => pool.end() });
 }
 
-export function createMysqlQuery(url: string): MysqlQueryFn {
+export function createMysqlQuery(
+  url: string,
+): MysqlQueryFn & { close(): Promise<void> } {
   const pool = mysql.createPool(url);
-  return async (sql, params) => {
+  const query: MysqlQueryFn = async (sql, params) => {
     const [rows] = await pool.query(sql, params as unknown[]);
     return { rows: rows as unknown[], rowCount: Array.isArray(rows) ? rows.length : 0 };
   };
+  return Object.assign(query, { close: () => pool.end() });
 }
 
-export function createRedisClient(url: string): RedisClient {
+export function createRedisClient(
+  url: string,
+): RedisClient & { close(): Promise<void> } {
   const redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 2 });
   const connect = async () => {
     if (redis.status === 'wait') await redis.connect();
@@ -41,6 +49,9 @@ export function createRedisClient(url: string): RedisClient {
         options.COUNT,
       );
       return { cursor: next, keys };
+    },
+    close: async () => {
+      redis.disconnect();
     },
   };
 }

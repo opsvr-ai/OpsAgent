@@ -1379,3 +1379,10 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .role-option { align-items: flex-start; gap: 9px; padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 8px; }
 .role-option strong { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
 .role-option .muted { display: block; font-size: 11px; line-height: 1.45; margin-top: 2px; }
+.studio-list-item { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 11px 12px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.studio-list-item:hover { background: var(--surface-2); }
+.studio-list-item.is-active { background: var(--primary-soft); box-shadow: inset 2px 0 0 var(--primary); }
+.studio-list-item strong { font-size: var(--fs-12); font-weight: 600; }
+.studio-list-item span { font-family: var(--font-mono); font-size: 10px; color: var(--faint); }
+.file-row { padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: 11px; }
+.file-row:last-child { border-bottom: 0; }

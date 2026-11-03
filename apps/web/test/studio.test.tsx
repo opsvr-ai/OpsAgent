@@ -37,10 +37,10 @@ describe('Studio', () => {
     });
 
     render(<Studio onBack={vi.fn()} />);
-    expect(await screen.findByText('connect cmdb')).toBeInTheDocument();
+    expect((await screen.findAllByText('connect cmdb')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '提交审核' }));
     await waitFor(() => expect(submitMock).toHaveBeenCalledWith('st-1'));
-    expect(await screen.findByText(/pending_review/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/pending_review/)).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state', async () => {

@@ -114,14 +114,14 @@ func main() {
 		case <-ticker.C:
 			var memory runtime.MemStats
 			runtime.ReadMemStats(&memory)
+			metrics := hostMetrics()
+			metrics["cpuCores"] = runtime.NumCPU()
+			metrics["goroutines"] = runtime.NumGoroutine()
+			metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
+			metrics["uptimeSec"] = int64(time.Since(started).Seconds())
 			if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
 				AgentKey: registered.AgentKey,
-				Metrics: map[string]any{
-					"cpuCores":   runtime.NumCPU(),
-					"goroutines": runtime.NumGoroutine(),
-					"heapMB":     float64(memory.HeapAlloc) / 1024 / 1024,
-					"uptimeSec":  int64(time.Since(started).Seconds()),
-				},
+				Metrics:  metrics,
 			}, nil); err != nil {
 				log.Printf("heartbeat: %v", err)
 			}

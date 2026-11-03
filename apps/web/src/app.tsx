@@ -14,12 +14,13 @@ import { Connectors } from './routes/connectors.js';
 import { Knowledge } from './routes/knowledge.js';
 import { Messages } from './routes/messages.js';
 import { Agents } from './routes/agents.js';
+import { Tasks } from './routes/tasks.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -58,6 +59,7 @@ export function App() {
   if (view === 'knowledge') return <Knowledge onBack={() => setView('home')} />;
   if (view === 'messages') return <Messages onBack={() => setView('home')} />;
   if (view === 'agents') return <Agents onBack={() => setView('home')} />;
+  if (view === 'tasks') return <Tasks onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -74,6 +76,7 @@ export function App() {
       onOpenKnowledge={() => setView('knowledge')}
       onOpenMessages={() => setView('messages')}
       onOpenAgents={() => setView('agents')}
+      onOpenTasks={() => setView('tasks')}
     />
   );
 }

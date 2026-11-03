@@ -15,6 +15,7 @@ import { createDefaultProbeRegistry } from './connectors/http-probes.js';
 import { registerScenarioRoutes } from './scenarios/routes.js';
 import type { ToolResolver } from './scenarios/service.js';
 import { registerAuditRoutes } from './audit/routes.js';
+import { registerTaskRoutes } from './tasks/routes.js';
 import { registerStudioRoutes } from './studio/routes.js';
 import type { StudioGenerator } from './studio/service.js';
 import { registerIncidentRoutes } from './incidents/routes.js';
@@ -61,12 +62,14 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       audit,
       options.connectorProbes ?? createDefaultProbeRegistry(),
     );
+    const scenarioTools = options.scenarioTools ?? { resolve: async () => undefined };
     registerScenarioRoutes(
       app,
       options.pool,
       audit,
-      options.scenarioTools ?? { resolve: async () => undefined },
+      scenarioTools,
     );
+    registerTaskRoutes(app, options.pool, audit, scenarioTools);
     registerAuditRoutes(app, options.pool);
     registerInternalApprovalRoutes(app, options.pool, options.internalToken);
     registerKnowledgeRoutes(app, options.pool, audit);

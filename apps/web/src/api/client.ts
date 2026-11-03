@@ -345,3 +345,36 @@ export interface AgentSummary {
 export async function listAgents(): Promise<AgentSummary[]> {
   return request<AgentSummary[]>('/api/agents');
 }
+
+export interface TaskSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly scenarioId: string;
+  readonly status: string;
+  readonly runId: string | null;
+  readonly error: string | null;
+}
+
+export async function listTasks(): Promise<TaskSummary[]> {
+  return request<TaskSummary[]>('/api/tasks');
+}
+
+export async function createTask(input: {
+  title: string;
+  scenarioId: string;
+}): Promise<TaskSummary> {
+  return request<TaskSummary>('/api/tasks', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function approveTask(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<TaskSummary> {
+  return request<TaskSummary>(`/api/tasks/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ decision }),
+  });
+}

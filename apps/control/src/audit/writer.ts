@@ -24,6 +24,8 @@ export type AuditAction =
   | 'studio.review'
   | 'knowledge.create'
   | 'knowledge.publish'
+  | 'task.create'
+  | 'task.approve'
   | 'incident.create'
   | 'incident.update';
 

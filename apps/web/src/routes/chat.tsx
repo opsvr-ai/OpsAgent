@@ -10,6 +10,7 @@ import {
 import { NAV } from './design-shell.js';
 import { GlobalSearch } from './global-search.js';
 import { ThemeToggle } from '../theme/use-theme.js';
+import { useSession } from '../session-context.js';
 
 export interface ChatProps {
   readonly sessionId: string;
@@ -18,6 +19,7 @@ export interface ChatProps {
 }
 
 export function Chat({ sessionId, roleView, onBack }: ChatProps) {
+  const session = useSession();
   const [events, setEvents] = useState<RuntimeEvent[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -105,6 +107,12 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
               >
                 <svg><use href={`/icons.svg#i-${item.icon}`} /></svg>
                 <span>{item.label}</span>
+                {item.id === 'messages' && (session?.home?.metrics.messagesUnread ?? 0) > 0 ? (
+                  <span className="nav-badge is-alert">{session?.home?.metrics.messagesUnread}</span>
+                ) : null}
+                {item.id === 'approvals' && (session?.home?.metrics.pendingApprovals ?? 0) > 0 ? (
+                  <span className="nav-badge is-alert">{session?.home?.metrics.pendingApprovals}</span>
+                ) : null}
               </button>
             ))}
           </div>

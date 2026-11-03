@@ -25,6 +25,12 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
     : session?.me.tenants[0];
   const userName = session?.me.user.displayName ?? '开发管理员';
   const roleView = session?.home?.roleView ?? 'tenant_admin';
+  const navCount = (id: string): number => {
+    if (!session?.home) return 0;
+    if (id === 'messages') return session.home.metrics.messagesUnread;
+    if (id === 'approvals') return session.home.metrics.pendingApprovals;
+    return 0;
+  };
 
   return (
     <div className="app">
@@ -67,6 +73,7 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
               >
                 <svg><use href={`/icons.svg#i-${item.icon}`} /></svg>
                 {item.label}
+                {navCount(item.id) > 0 ? <span className="nav-badge is-alert">{navCount(item.id)}</span> : null}
               </button>
             ))}
           </div>

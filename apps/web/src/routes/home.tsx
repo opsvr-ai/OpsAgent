@@ -116,10 +116,10 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <button type="button" className="nav-item" onClick={onStartSession}><svg><use href="/icons.svg#i-message" /></svg><span>智能体会话</span></button>
             <button type="button" className="nav-item" onClick={onOpenScenarios}><svg><use href="/icons.svg#i-bolt" /></svg><span>场景中心</span></button>
             <button type="button" className="nav-item" onClick={onOpenIncidents}><svg><use href="/icons.svg#i-activity" /></svg><span>事件指挥</span></button>
-            <button type="button" className="nav-item" onClick={onOpenApprovals}><svg><use href="/icons.svg#i-check" /></svg><span>待审批</span></button>
+            <button type="button" className="nav-item" onClick={onOpenApprovals}><svg><use href="/icons.svg#i-check" /></svg><span>待审批</span>{home.metrics.pendingApprovals > 0 ? <span className="nav-badge is-alert">{home.metrics.pendingApprovals}</span> : null}</button>
             <button type="button" className="nav-item" onClick={onOpenConnectors}><svg><use href="/icons.svg#i-plug" /></svg><span>集成与连接器</span></button>
             <button type="button" className="nav-item" onClick={onOpenKnowledge}><svg><use href="/icons.svg#i-book" /></svg><span>知识中心</span></button>
-            <button type="button" className="nav-item" onClick={onOpenMessages}><svg><use href="/icons.svg#i-bell" /></svg><span>消息中心</span></button>
+            <button type="button" className="nav-item" onClick={onOpenMessages}><svg><use href="/icons.svg#i-bell" /></svg><span>消息中心</span>{home.metrics.messagesUnread > 0 ? <span className="nav-badge is-alert">{home.metrics.messagesUnread}</span> : null}</button>
             <button type="button" className="nav-item" onClick={onOpenAgents}><svg><use href="/icons.svg#i-server" /></svg><span>服务器 Agent</span></button>
             <button type="button" className="nav-item" onClick={onOpenTasks}><svg><use href="/icons.svg#i-clock" /></svg><span>长任务</span></button>
             <button type="button" className="nav-item" onClick={onOpenSessions}><svg><use href="/icons.svg#i-message" /></svg><span>会话历史</span></button>

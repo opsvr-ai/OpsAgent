@@ -7,6 +7,8 @@ import {
   promptSession,
   type ApprovalSummary,
 } from '../api/client.js';
+import { NAV } from './design-shell.js';
+import { ThemeToggle } from '../theme/use-theme.js';
 
 export interface ChatProps {
   readonly sessionId: string;
@@ -87,8 +89,23 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
         <nav className="nav">
           <div className="nav-group">
             <div className="nav-label">工作空间</div>
-            <button type="button" className="nav-item" onClick={onBack}>工作台</button>
-            <button type="button" className="nav-item is-active">智能体会话</button>
+            {NAV.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`nav-item${item.id === 'sessions' ? ' is-active' : ''}`}
+                onClick={() => {
+                  if (item.id === 'home') {
+                    onBack();
+                    return;
+                  }
+                  window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: item.id }));
+                }}
+              >
+                <svg><use href={`/icons.svg#i-${item.icon}`} /></svg>
+                <span>{item.label}</span>
+              </button>
+            ))}
           </div>
         </nav>
       </aside>
@@ -101,6 +118,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             <span className="current mono">{sessionId.slice(0, 18)}</span>
           </div>
           <div className="topbar-spacer" />
+          <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />{roleView}</span>
         </header>
 
@@ -122,6 +140,13 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                       <div className="msg-meta"><strong>OpsAgent</strong><span>ready</span></div>
                       <div className="msg-text">
                         <p>描述告警、服务或主机问题。R2/R3 操作会先请求审批，所有工具调用写入审计。</p>
+                        <div className="chat-suggestions">
+                          {['查看最近告警', '检查订单服务错误率', '解释最近一次变更'].map((suggestion) => (
+                            <button key={suggestion} type="button" className="btn btn-outline" onClick={() => setInput(suggestion)}>
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -215,6 +240,25 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
               </form>
             </div>
           </div>
+          <aside className="chat-aside">
+            <div className="aside-block">
+              <div className="eyebrow">当前会话</div>
+              <div className="stack-sm" style={{ marginTop: 10 }}>
+                <div className="aside-row"><span>会话</span><span className="mono">{sessionId.slice(0, 12)}</span></div>
+                <div className="aside-row"><span>角色视角</span><span>{roleView}</span></div>
+                <div className="aside-row"><span>状态</span><span>{busy ? '运行中' : '空闲'}</span></div>
+              </div>
+            </div>
+            <div className="aside-block">
+              <div className="eyebrow">待处理</div>
+              <p className="muted">{runtimeApprovals.length} 个运行时审批</p>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'approvals' }))}>打开审批中心</button>
+            </div>
+            <div className="aside-block">
+              <div className="eyebrow">安全边界</div>
+              <p className="muted">工具调用受租户、角色与风险等级约束；R2/R3 必须审批。</p>
+            </div>
+          </aside>
         </main>
       </section>
     </div>

@@ -95,17 +95,27 @@ export function Connectors({ onBack }: ConnectorsProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新建连接器</h2><span className="muted">凭据保存后可探测</span></div>
         <div className="card-body">
-          <h2>新建连接器</h2>
-          <label htmlFor="connector-name">名称</label>
-          <input id="connector-name" value={name} onChange={(event) => setName(event.target.value)} />
-          <label htmlFor="connector-type">类型</label>
-          <select id="connector-type" value={type} onChange={(event) => setType(event.target.value)}>
-            {TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <label htmlFor="connector-url">Base URL（HTTP 类）</label>
-          <input id="connector-url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} />
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>创建</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="connector-name">名称</label>
+              <input id="connector-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 prod-prometheus" />
+            </div>
+            <div className="field">
+              <label htmlFor="connector-type">类型</label>
+              <select id="connector-type" value={type} onChange={(event) => setType(event.target.value)}>
+                {TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="connector-url">Base URL（HTTP 类）</label>
+              <input id="connector-url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="http://prometheus:9090" />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>创建连接器</button>
+          </div>
         </div>
       </section>
 
@@ -116,13 +126,17 @@ export function Connectors({ onBack }: ConnectorsProps) {
           <article key={connector.id} className="card">
             <div className="card-body">
               <div className="scenario-top">
+                <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-plug" /></svg></span>
                 <span className="badge badge-neutral">{connector.connectorType}</span>
                 <span className="badge badge-neutral">{connector.status}</span>
               </div>
               <h3>{connector.name}</h3>
+              <p className="muted mono">{connector.credentialRef ?? (Object.keys(connector.config).length > 0 ? JSON.stringify(connector.config) : '未配置凭据')}</p>
               {probe[connector.id] ? <p className="muted">{probe[connector.id]}</p> : null}
-              <button type="button" className="btn btn-outline" onClick={() => void test(connector.id)}>测试连接</button>
-              <button type="button" className="btn btn-outline" onClick={() => void openDetail(connector.id)}>详情</button>
+              <div className="row-sm">
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => void test(connector.id)}>测试连接</button>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => void openDetail(connector.id)}>详情</button>
+              </div>
             </div>
           </article>
         ))}

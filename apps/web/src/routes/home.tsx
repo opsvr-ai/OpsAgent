@@ -30,6 +30,39 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
   const [switchOpen, setSwitchOpen] = useState(false);
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
+  const cardActions: Record<string, () => void> = {
+    incidents: onOpenIncidents,
+    agents: onOpenAgents,
+    knowledge: onOpenKnowledge,
+    scenarios: onOpenScenarios,
+    approvals: onOpenApprovals,
+    connectors: onOpenConnectors,
+    messages: onOpenMessages,
+    tasks: onOpenTasks,
+    audit: onOpenAudit,
+  };
+  const cardCopy: Record<string, string> = {
+    incidents: '查看事件时间线，推进排查、恢复与关闭。',
+    agents: '安装服务器 Agent，查看心跳、指标并执行诊断。',
+    knowledge: '沉淀排障经验，经审核后发布给团队。',
+    scenarios: '编排标准化处置步骤，按风险审批执行。',
+    approvals: '集中处理运行时、场景与共享审批。',
+    connectors: '接入监控、数据库、主机与 HTTP 服务。',
+    messages: '查看事件与审批产生的站内通知。',
+    tasks: '在后台执行长场景，审批挂起后可继续。',
+    audit: '检索、筛选并导出租户审计事件。',
+  };
+  const cardIcons: Record<string, string> = {
+    incidents: 'activity',
+    agents: 'server',
+    knowledge: 'book',
+    scenarios: 'bolt',
+    approvals: 'check',
+    connectors: 'plug',
+    messages: 'bell',
+    tasks: 'clock',
+    audit: 'shield',
+  };
 
   return (
     <div className="app">
@@ -55,22 +88,21 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
           </span>
         </button>
         {switchOpen ? (
-          <div className="card" style={{ marginBottom: 8 }}>
-            <div className="card-body">
-              {me.tenants.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="nav-item"
-                  onClick={() => {
-                    setSwitchOpen(false);
-                    onSwitchTenant(item.id);
-                  }}
-                >
-                  {item.name}
-                </button>
-              ))}
-            </div>
+          <div className="tenant-menu">
+            {me.tenants.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="tenant-menu-item"
+                onClick={() => {
+                  setSwitchOpen(false);
+                  onSwitchTenant(item.id);
+                }}
+              >
+                <strong>{item.name}</strong>
+                <span>{item.slug}</span>
+              </button>
+            ))}
           </div>
         ) : null}
 
@@ -185,9 +217,10 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
                   {home.recentSessions.length === 0 ? <p className="muted">暂无会话</p> : (
                     <div className="stack-sm">
                       {home.recentSessions.map((session) => (
-                        <div key={session.id} className="row-between">
-                          <span className="mono">{session.id.slice(0, 12)}</span>
-                          <span className="muted">{session.roleView} · {session.status}</span>
+                        <div key={session.id} className="session-row">
+                          <span className="mono session-id">{session.id.slice(0, 18)}</span>
+                          <span className="badge badge-neutral">{session.roleView}</span>
+                          <span className="muted">{session.status}</span>
                         </div>
                       ))}
                     </div>
@@ -198,14 +231,17 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
 
             <div className="grid grid-3">
               {home.cards.map((card) => (
-                <button key={card.id} type="button" className="card scenario-card" onClick={onStartSession}>
+                <button key={card.id} type="button" className="card scenario-card home-card" onClick={cardActions[card.id] ?? onStartSession}>
                   <div className="card-body">
                     <div className="scenario-top">
-                      <span className="icon-tile is-blue">◆</span>
+                      <span className="icon-tile is-blue">
+                        <svg><use href={`/icons.svg#i-${cardIcons[card.id] ?? 'grid'}`} /></svg>
+                      </span>
                       <span className="badge badge-neutral">{home.roleView}</span>
                     </div>
                     <h3>{card.title}</h3>
-                    <p className="muted">{tenant?.name ?? home.tenantId} · {card.id}</p>
+                    <p className="muted">{cardCopy[card.id] ?? `${tenant?.name ?? home.tenantId} 的工作区`}</p>
+                    <span className="home-card-link">进入 →</span>
                   </div>
                 </button>
               ))}

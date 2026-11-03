@@ -12,6 +12,25 @@ export interface AgentsProps {
   readonly onBack: () => void;
 }
 
+const METRIC_LABELS: Record<string, string> = {
+  cpuCores: 'CPU 核数',
+  goroutines: 'Goroutines',
+  heapMB: 'Heap MB',
+  uptimeSec: '运行秒数',
+  memTotalGB: '内存总量 GB',
+  memAvailableGB: '可用内存 GB',
+  memLoadPct: '内存负载 %',
+  diskTotalGB: '磁盘总量 GB',
+  diskFreeGB: '磁盘可用 GB',
+};
+
+function metricValue(value: unknown): string {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+  return String(value);
+}
+
 export function Agents({ onBack }: AgentsProps) {
   const [agents, setAgents] = useState<AgentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,13 +114,22 @@ export function Agents({ onBack }: AgentsProps) {
               <p className="muted">{agent.hostname}</p>
               <p className="muted">{agent.os}/{agent.arch} · v{agent.version}</p>
               {Object.keys(agent.metrics).length > 0 ? (
-                <p className="muted mono">{JSON.stringify(agent.metrics)}</p>
+                <div className="metric-grid">
+                  {Object.entries(agent.metrics).slice(0, 8).map(([key, value]) => (
+                    <div key={key} className="metric-item">
+                      <span>{METRIC_LABELS[key] ?? key}</span>
+                      <strong>{metricValue(value)}</strong>
+                    </div>
+                  ))}
+                </div>
               ) : null}
               {commands[agent.id] ? (
                 <p className="muted">诊断命令：{commands[agent.id]?.status}</p>
               ) : null}
-              <button type="button" className="btn btn-outline" onClick={() => void runDiagnostics(agent.id)}>执行诊断</button>
-              <button type="button" className="btn btn-primary" onClick={() => void runAiDiagnosis(agent.id)}>AI 诊断</button>
+              <div className="row-sm">
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => void runDiagnostics(agent.id)}>执行诊断</button>
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => void runAiDiagnosis(agent.id)}>AI 诊断</button>
+              </div>
             </div>
           </article>
         ))}

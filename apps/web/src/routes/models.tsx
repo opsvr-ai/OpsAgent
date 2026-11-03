@@ -62,19 +62,33 @@ export function Models({ onBack }: ModelsProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新增模型</h2><span className="muted">仅当前租户可用</span></div>
         <div className="card-body">
-          <h2>新增模型</h2>
-          <label htmlFor="model-name">名称</label>
-          <input id="model-name" value={name} onChange={(event) => setName(event.target.value)} />
-          <label htmlFor="model-provider">Provider</label>
-          <input id="model-provider" value={provider} onChange={(event) => setProvider(event.target.value)} />
-          <label htmlFor="model-base">Base URL</label>
-          <input id="model-base" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} />
-          <label htmlFor="model-id">模型</label>
-          <input id="model-id" value={model} onChange={(event) => setModel(event.target.value)} />
-          <label htmlFor="model-key">API Key</label>
-          <input id="model-key" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>保存</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="model-name">名称</label>
+              <input id="model-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="deepseek-prod" />
+            </div>
+            <div className="field">
+              <label htmlFor="model-provider">Provider</label>
+              <input id="model-provider" value={provider} onChange={(event) => setProvider(event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="model-base">Base URL</label>
+              <input id="model-base" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="model-id">模型</label>
+              <input id="model-id" value={model} onChange={(event) => setModel(event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="model-key">API Key</label>
+              <input id="model-key" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="sk-..." />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>保存模型</button>
+          </div>
         </div>
       </section>
       {models === null ? <p className="muted">加载中…</p> : null}

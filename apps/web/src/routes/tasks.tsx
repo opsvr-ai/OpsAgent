@@ -53,13 +53,21 @@ export function Tasks({ onBack }: TasksProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新建长任务</h2><span className="muted">后台执行，可审批恢复</span></div>
         <div className="card-body">
-          <h2>新建长任务</h2>
-          <label htmlFor="task-title">标题</label>
-          <input id="task-title" value={title} onChange={(event) => setTitle(event.target.value)} />
-          <label htmlFor="task-scenario">场景 ID</label>
-          <input id="task-scenario" value={scenarioId} onChange={(event) => setScenarioId(event.target.value)} />
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>创建</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="task-title">标题</label>
+              <input id="task-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如 夜间巡检" />
+            </div>
+            <div className="field">
+              <label htmlFor="task-scenario">场景 ID</label>
+              <input id="task-scenario" value={scenarioId} onChange={(event) => setScenarioId(event.target.value)} placeholder="场景 ID" />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>创建任务</button>
+          </div>
         </div>
       </section>
       {tasks === null ? <p className="muted">加载中…</p> : null}

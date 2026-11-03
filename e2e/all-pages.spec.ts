@@ -21,9 +21,27 @@ test('all sidebar pages render without console or page errors', async ({ page })
   await page.getByRole('button', { name: '登录' }).click();
   await expect(page.getByText('tenant_admin').first()).toBeVisible();
 
+  async function assertLayout(): Promise<void> {
+    const layout = await page.evaluate(() => {
+      const oversized = Array.from(document.querySelectorAll('svg')).filter((svg) => {
+        const box = svg.getBoundingClientRect();
+        return box.width > 48 || box.height > 48;
+      }).length;
+      return {
+        oversized,
+        horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    });
+    expect(layout.oversized, 'no oversized SVG icons').toBe(0);
+    expect(layout.horizontalOverflow, 'no horizontal page overflow').toBe(false);
+  }
+
+  await assertLayout();
+
   const nav = page.locator('.sidebar .nav-item');
   await nav.nth(13).click();
   await expect(page.locator('h1')).toBeVisible();
+  await assertLayout();
   const count = await nav.count();
   expect(count).toBeGreaterThanOrEqual(17);
 
@@ -32,6 +50,7 @@ test('all sidebar pages render without console or page errors', async ({ page })
     await nav.nth(index).click();
     await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
     titles.push((await page.locator('h1').first().textContent({ timeout: 5_000 }) ?? '').trim());
+    await assertLayout();
     await expect(page.getByRole('alert').filter({ hasText: '加载失败' })).toHaveCount(0);
   }
 

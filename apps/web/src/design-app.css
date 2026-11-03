@@ -1339,3 +1339,36 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+/* ---------- App integration ---------- */
+.crumbs svg { width: 14px; height: 14px; flex: none; }
+.tenant-menu { position: absolute; z-index: 40; left: 14px; right: 14px; margin-top: 74px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 6px; }
+.tenant-menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+.tenant-menu-item:hover { background: var(--surface-2); }
+.tenant-menu-item strong { font-size: var(--fs-12); font-weight: 600; }
+.tenant-menu-item span { font-family: var(--font-mono); font-size: 10px; color: var(--faint); }
+.session-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-width: 0; }
+.session-id { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-soft); }
+.metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.metric-item { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 7px; padding: 7px 9px; min-width: 0; }
+.metric-item span { display: block; font-size: 10px; color: var(--faint); }
+.metric-item strong { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metric-code { max-height: 150px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 7px; padding: 8px 10px; font-size: 11px; color: var(--text-soft); }
+.form-actions { display: flex; gap: var(--space-3); margin-top: var(--space-4); }
+.form-grid .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.form-grid .field label { font-size: var(--fs-12); color: var(--muted); }
+.chat-aside .aside-block { padding: 14px 16px; border-bottom: 1px solid var(--line-soft); }
+.chat-aside .aside-block:last-child { border-bottom: 0; }
+.home-card { text-align: left; align-items: stretch; min-height: 190px; }
+.home-card .card-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.home-card h3 { margin: 4px 0 0; }
+.home-card .muted { margin: 0; line-height: 1.55; }
+.home-card-link { margin-top: auto; color: var(--primary); font-size: var(--fs-12); font-weight: 500; }
+.chat-aside .row-between { gap: 10px; min-width: 0; }
+.chat-aside .row-between > :last-child { text-align: right; }
+.chat-aside .row-between .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aside-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 3px 0; }
+.aside-row > span:first-child { color: var(--faint); font-size: 11px; }
+.aside-row > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chat-suggestions .btn { font-size: 12px; height: 30px; }

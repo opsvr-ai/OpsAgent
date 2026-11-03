@@ -67,26 +67,37 @@ export function Knowledge({ onBack }: KnowledgeProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新建知识</h2><span className="muted">发布前可审核</span></div>
         <div className="card-body">
-          <h2>新建知识</h2>
-          <label htmlFor="knowledge-title">标题</label>
-          <input id="knowledge-title" value={title} onChange={(event) => setTitle(event.target.value)} />
-          <label htmlFor="knowledge-body">内容</label>
-          <textarea id="knowledge-body" rows={4} value={body} onChange={(event) => setBody(event.target.value)} />
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>创建</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="knowledge-title">标题</label>
+              <input id="knowledge-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如 MySQL 连接池排障" />
+            </div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label htmlFor="knowledge-body">内容</label>
+              <textarea id="knowledge-body" rows={5} value={body} onChange={(event) => setBody(event.target.value)} placeholder="记录现象、排查步骤、根因与处置方案" />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>创建知识</button>
+          </div>
         </div>
       </section>
 
       <section className="card">
         <div className="card-body">
-          <label htmlFor="knowledge-search">搜索</label>
-          <input
-            id="knowledge-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter') void search(); }}
-          />
-          <button type="button" className="btn btn-outline" onClick={() => void search()}>搜索</button>
+          <div className="row-sm">
+            <label htmlFor="knowledge-search">搜索</label>
+            <input
+              id="knowledge-search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') void search(); }}
+              placeholder="按标题或内容搜索"
+            />
+            <button type="button" className="btn btn-outline" onClick={() => void search()}>搜索</button>
+          </div>
         </div>
       </section>
 

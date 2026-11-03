@@ -13,7 +13,7 @@ export interface DesignShellProps {
   readonly children: ReactNode;
 }
 
-const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
+export const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
   { id: 'home', label: '工作台', icon: 'grid' },
   { id: 'incidents', label: '事件指挥', icon: 'activity' },
   { id: 'approvals', label: '待审批', icon: 'check' },

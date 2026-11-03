@@ -6,6 +6,7 @@ import {
   submitStudioSession,
   type StudioSession,
 } from '../api/client.js';
+import { DesignShell } from './design-shell.js';
 
 export interface StudioProps {
   readonly onBack: () => void;
@@ -59,22 +60,16 @@ export function Studio({ onBack }: StudioProps) {
   }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">OpsAgent</div>
-        <div className="tenant">
-          <strong>创造模式</strong>
-          <span>生成 → 测试 → 审核</span>
-        </div>
-        <button type="button" onClick={onBack}>返回工作台</button>
-      </aside>
-      <main className="page">
-        <header>
-          <div className="eyebrow">Studio</div>
-          <h1>创造模式</h1>
-        </header>
-        {error ? <p role="alert">{error}</p> : null}
-        <section className="card">
+    <DesignShell
+      active="studio"
+      eyebrow="Studio"
+      title="创造模式"
+      subtitle="用 dsh 生成连接器 bundle，经过测试与审核后发布。"
+      onBack={onBack}
+    >
+      {error ? <p role="alert">{error}</p> : null}
+      <section className="card">
+        <div className="card-body">
           <h2>新建会话</h2>
           <label htmlFor="studio-goal">目标</label>
           <input id="studio-goal" value={goal} onChange={(event) => setGoal(event.target.value)} />
@@ -84,29 +79,31 @@ export function Studio({ onBack }: StudioProps) {
             value={platform}
             onChange={(event) => setPlatform(event.target.value)}
           />
-          <button type="button" onClick={() => void create()}>生成</button>
-        </section>
-        {sessions === null ? <p className="muted">加载中…</p> : null}
-        {sessions?.length === 0 ? <p className="muted">暂无创造会话</p> : null}
-        <section className="cards">
-          {sessions?.map((session) => (
-            <article key={session.id} className="card">
-              <h2>{session.goal}</h2>
+          <button type="button" className="btn btn-primary" onClick={() => void create()}>生成</button>
+        </div>
+      </section>
+      {sessions === null ? <p className="muted">加载中…</p> : null}
+      {sessions?.length === 0 ? <p className="muted">暂无创造会话</p> : null}
+      <section className="grid grid-3">
+        {sessions?.map((session) => (
+          <article key={session.id} className="card">
+            <div className="card-body">
+              <h3>{session.goal}</h3>
               <p className="muted">{session.platform} · {session.status}</p>
               {session.bundle ? <p className="muted">{session.bundle.files.length} files</p> : null}
               {session.status === 'generated' ? (
-                <button type="button" onClick={() => void submit(session.id)}>提交审核</button>
+                <button type="button" className="btn btn-primary" onClick={() => void submit(session.id)}>提交审核</button>
               ) : null}
               {session.status === 'pending_review' ? (
-                <div>
-                  <button type="button" onClick={() => void review(session.id, 'approve')}>通过</button>
-                  <button type="button" onClick={() => void review(session.id, 'reject')}>拒绝</button>
+                <div className="row-sm">
+                  <button type="button" className="btn btn-primary" onClick={() => void review(session.id, 'approve')}>通过</button>
+                  <button type="button" className="btn btn-outline" onClick={() => void review(session.id, 'reject')}>拒绝</button>
                 </div>
               ) : null}
-            </article>
-          ))}
-        </section>
-      </main>
-    </div>
+            </div>
+          </article>
+        ))}
+      </section>
+    </DesignShell>
   );
 }

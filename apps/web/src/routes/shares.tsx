@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listShares, reviewShare, type ScenarioShare } from '../api/client.js';
+import { DesignShell } from './design-shell.js';
 
 export interface SharesProps {
   readonly onBack: () => void;
@@ -28,42 +29,39 @@ export function Shares({ onBack }: SharesProps) {
   }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">OpsAgent</div>
-        <div className="tenant">
-          <strong>共享审批</strong>
-          <span>场景共享申请</span>
-        </div>
-        <button type="button" onClick={onBack}>返回工作台</button>
-      </aside>
-      <main className="page">
-        <header>
-          <div className="eyebrow">Sharing</div>
-          <h1>共享审批</h1>
-        </header>
+    <DesignShell
+      active="shares"
+      eyebrow="Sharing"
+      title="共享审批"
+      subtitle="场景跨租户共享申请；审批通过后场景发布到租户目录。"
+      onBack={onBack}
+    >
         {error ? <p role="alert">{error}</p> : null}
         {shares === null ? <p className="muted">加载中…</p> : null}
         {shares?.length === 0 ? <p className="muted">暂无共享申请</p> : null}
-        <section className="cards">
+        <section className="grid grid-3">
           {shares?.map((share) => (
             <article key={share.id} className="card">
-              <h2>{share.scenarioId}</h2>
-              <p className="muted">{share.scope} · {share.status}</p>
+              <div className="card-body">
+                <div className="scenario-top">
+                  <span className="badge badge-neutral">{share.scope}</span>
+                  <span className="badge badge-neutral">{share.status}</span>
+                </div>
+                <h3 className="mono">{share.scenarioId}</h3>
               {share.status === 'pending' ? (
-                <div>
-                  <button type="button" onClick={() => void review(share.id, 'approve')}>
+                <div className="row-sm">
+                  <button type="button" className="btn btn-primary" onClick={() => void review(share.id, 'approve')}>
                     批准
                   </button>
-                  <button type="button" onClick={() => void review(share.id, 'reject')}>
+                  <button type="button" className="btn btn-outline" onClick={() => void review(share.id, 'reject')}>
                     拒绝
                   </button>
                 </div>
               ) : null}
+              </div>
             </article>
           ))}
         </section>
-      </main>
-    </div>
+    </DesignShell>
   );
 }

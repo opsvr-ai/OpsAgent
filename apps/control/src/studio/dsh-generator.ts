@@ -3,7 +3,16 @@ import { tmpdir } from 'node:os';
 import type { StudioBundle, StudioGenerator } from './service.js';
 
 export interface HeadlessRunner {
-  run(prompt: string): Promise<string>;
+  run(prompt: string, env?: Readonly<Record<string, string>>): Promise<string>;
+}
+
+export interface StudioModelResolver {
+  resolve(tenantId: string): Promise<{
+    provider: string;
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  } | null>;
 }
 
 export interface HeadlessRunnerOptions {
@@ -23,17 +32,19 @@ export class DshHeadlessRunner implements HeadlessRunner {
     this.cwd = options.cwd ?? tmpdir();
   }
 
-  run(prompt: string): Promise<string> {
+  run(prompt: string, env: Readonly<Record<string, string>> = {}): Promise<string> {
     return new Promise((resolve, reject) => {
       const child =
         process.platform === 'win32'
           ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `${this.command} headless -`], {
               cwd: this.cwd,
+              env: { ...process.env, ...env },
               windowsHide: true,
               stdio: ['pipe', 'pipe', 'pipe'],
             })
           : spawn(this.command, ['headless', '-'], {
               cwd: this.cwd,
+              env: { ...process.env, ...env },
               windowsHide: true,
               stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -77,9 +88,12 @@ function extractJson(text: string): unknown {
 }
 
 export class DshHeadlessGenerator implements StudioGenerator {
-  constructor(private readonly runner: HeadlessRunner = new DshHeadlessRunner()) {}
+  constructor(
+    private readonly runner: HeadlessRunner = new DshHeadlessRunner(),
+    private readonly models?: StudioModelResolver,
+  ) {}
 
-  async generate(input: { goal: string; platform: string }): Promise<StudioBundle> {
+  async generate(input: { goal: string; platform: string; tenantId: string }): Promise<StudioBundle> {
     const prompt = [
       'You are generating an OpsAgent connector bundle.',
       'Return ONLY JSON: {"files":["..."],"manifest":{}}.',
@@ -87,7 +101,16 @@ export class DshHeadlessGenerator implements StudioGenerator {
       `Platform: ${input.platform}`,
       `Goal: ${input.goal}`,
     ].join('\n');
-    const output = await this.runner.run(prompt);
+    const model = this.models ? await this.models.resolve(input.tenantId) : null;
+    const env =
+      model && model.provider === 'deepseek'
+        ? {
+            DEEPSEEK_API_KEY: model.apiKey,
+            DEEPSEEK_BASE_URL: model.baseUrl,
+            DEEPSEEK_MODEL: model.model,
+          }
+        : {};
+    const output = await this.runner.run(prompt, env);
     const parsed = extractJson(output) as { files?: unknown; manifest?: unknown };
     if (
       !Array.isArray(parsed.files) ||

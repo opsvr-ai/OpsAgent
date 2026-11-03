@@ -36,7 +36,7 @@ const app = buildServer({
     : {}),
   ...(process.env.STUDIO_DSH_ENABLED === 'false'
     ? {}
-    : { studioGenerator: new DshHeadlessGenerator() }),
+    : { studioGenerator: new DshHeadlessGenerator(undefined, modelService) }),
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
 

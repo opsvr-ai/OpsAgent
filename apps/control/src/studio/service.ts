@@ -7,7 +7,7 @@ export interface StudioBundle {
 }
 
 export interface StudioGenerator {
-  generate(input: { goal: string; platform: string }): Promise<StudioBundle>;
+  generate(input: { goal: string; platform: string; tenantId: string }): Promise<StudioBundle>;
 }
 
 export interface StudioSessionRecord {
@@ -39,7 +39,7 @@ export class StudioService {
     platform: string;
   }): Promise<StudioSessionRecord> {
     const bundle = this.generator
-      ? await this.generator.generate({ goal: input.goal, platform: input.platform })
+      ? await this.generator.generate({ goal: input.goal, platform: input.platform, tenantId: input.tenantId })
       : null;
     const status = bundle ? 'generated' : 'draft';
     const result = await this.pool.query(

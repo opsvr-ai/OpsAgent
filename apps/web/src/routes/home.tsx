@@ -64,6 +64,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
     tasks: 'clock',
     audit: 'shield',
   };
+  const unresolvedIncidents = home.recentIncidents.filter((incident) => incident.status !== 'resolved' && incident.status !== 'closed');
   const now = new Date();
   const today = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 · ${now.toLocaleDateString('zh-CN', { weekday: 'long' })}`;
 
@@ -217,13 +218,13 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <div className="grid grid-main-side">
               <div className="stack">
                 <section className="card">
-                  <div className="card-head"><h2>最近事件</h2><span className="muted">{home.recentIncidents.length} 条</span></div>
+                  <div className="card-head"><h2>需要关注</h2><span className="badge badge-warn">{unresolvedIncidents.length} 未关闭</span></div>
                   <div className="card-body">
-                    {home.recentIncidents.length === 0 ? <p className="muted">暂无事件</p> : (
+                    {unresolvedIncidents.length === 0 ? <p className="muted">暂无未关闭事件</p> : (
                       <table className="table">
                         <thead><tr><th>等级</th><th>事件</th><th>状态</th><th /></tr></thead>
                         <tbody>
-                          {home.recentIncidents.map((incident) => (
+                          {unresolvedIncidents.map((incident) => (
                             <tr key={incident.id}>
                               <td><span className="badge badge-neutral">{incident.severity}</span></td>
                               <td className="cell-main">{incident.title}</td>

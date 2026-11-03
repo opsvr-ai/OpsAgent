@@ -66,8 +66,8 @@ export function DataStore({ onBack }: DataStoreProps) {
   return (
     <DesignShell
       active="data"
-      eyebrow="Data"
-      title="插件数据沉淀"
+      eyebrow="Data · 本地快照"
+      title="数据沉淀"
       subtitle="本地快照、同步与回源、保留策略和配额。"
       onBack={onBack}
       actions={<button type="button" className="btn btn-primary" onClick={() => void refresh()}>刷新数据</button>}

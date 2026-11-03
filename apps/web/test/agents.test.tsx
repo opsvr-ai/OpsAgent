@@ -8,6 +8,10 @@ vi.mock('../src/api/client.js', () => ({
   listAgents: vi.fn(),
   createAgentCommand: vi.fn(),
   listAgentCommands: vi.fn(),
+  getAgentInstallCommand: vi.fn().mockImplementation(async (os: string) => ({
+    os,
+    command: os === 'linux' ? 'curl install.sh | bash' : 'iwr install.ps1 | iex',
+  })),
 }));
 
 const listMock = vi.mocked(listAgents);

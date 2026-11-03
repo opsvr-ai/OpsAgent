@@ -407,6 +407,12 @@ export async function createAgentCommand(
   });
 }
 
+export async function getAgentInstallCommand(
+  os: 'linux' | 'windows',
+): Promise<{ os: string; command: string }> {
+  return request<{ os: string; command: string }>(`/api/agents/install-command?os=${os}`);
+}
+
 export interface TaskSummary {
   readonly id: string;
   readonly title: string;

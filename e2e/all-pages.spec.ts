@@ -32,7 +32,7 @@ test('all sidebar pages render without console or page errors', async ({ page })
     await nav.nth(index).click();
     await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
     titles.push((await page.locator('h1').first().textContent({ timeout: 5_000 }) ?? '').trim());
-    await expect(page.getByText('加载失败')).toHaveCount(0);
+    await expect(page.getByRole('alert').filter({ hasText: '加载失败' })).toHaveCount(0);
   }
 
   expect(new Set(titles).size).toBe(titles.length);

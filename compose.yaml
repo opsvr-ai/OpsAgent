@@ -90,6 +90,9 @@ services:
       # generation only after installing/configuring dsh inside the container.
       STUDIO_DSH_ENABLED: "false"
       DSH_RUNTIME_ENABLED: "false"
+      OPSAGENT_AGENT_ENROLLMENT_TOKEN: opsagent-local-enroll
+      OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist
+      OPSAGENT_PUBLIC_URL: http://127.0.0.1:8080
       PORT: "8080"
     ports:
       - "8080:8080"

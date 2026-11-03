@@ -41,6 +41,33 @@ type agentCommand struct {
 	Type string `json:"type"`
 }
 
+func runCommand(commandType string, metrics map[string]any) map[string]any {
+	result := map[string]any{"type": commandType, "ok": true}
+	switch commandType {
+	case "diagnostics":
+		result["metrics"] = metrics
+	case "disk_check":
+		result["diskTotalGB"] = metrics["diskTotalGB"]
+		result["diskFreeGB"] = metrics["diskFreeGB"]
+	case "memory_check":
+		result["memTotalGB"] = metrics["memTotalGB"]
+		result["memAvailableGB"] = metrics["memAvailableGB"]
+		result["memLoadPct"] = metrics["memLoadPct"]
+	case "ai_diagnose":
+		analysis, err := aiDiagnose(metrics)
+		if err != nil {
+			result["ok"] = false
+			result["error"] = err.Error()
+		} else {
+			result["analysis"] = analysis
+		}
+	default:
+		result["ok"] = false
+		result["error"] = "unsupported_command"
+	}
+	return result
+}
+
 func getJSON(url string, target any) (int, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	response, err := client.Get(url)
@@ -145,29 +172,7 @@ func main() {
 		if err != nil {
 			log.Printf("command poll: %v", err)
 		} else if status == http.StatusOK && command.ID != "" {
-			result := map[string]any{"type": command.Type, "ok": true}
-			switch command.Type {
-			case "diagnostics":
-				result["metrics"] = metrics
-			case "disk_check":
-				result["diskTotalGB"] = metrics["diskTotalGB"]
-				result["diskFreeGB"] = metrics["diskFreeGB"]
-			case "memory_check":
-				result["memTotalGB"] = metrics["memTotalGB"]
-				result["memAvailableGB"] = metrics["memAvailableGB"]
-				result["memLoadPct"] = metrics["memLoadPct"]
-			case "ai_diagnose":
-				analysis, err := aiDiagnose(metrics)
-				if err != nil {
-					result["ok"] = false
-					result["error"] = err.Error()
-				} else {
-					result["analysis"] = analysis
-				}
-			default:
-				result["ok"] = false
-				result["error"] = "unsupported_command"
-			}
+			result := runCommand(command.Type, metrics)
 			if err := post(
 				controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
 				nil,

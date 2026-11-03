@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ThemeToggle } from '../theme/use-theme.js';
 
-export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'shares' | 'studio' | 'audit';
+export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'shares' | 'studio' | 'audit' | 'help';
 
 export interface DesignShellProps {
   readonly active: DesignNav;
@@ -31,6 +31,7 @@ const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
   { id: 'shares', label: '共享审批', icon: 'share' },
   { id: 'studio', label: '创造模式', icon: 'wand' },
   { id: 'audit', label: '审计', icon: 'shield' },
+  { id: 'help', label: '用户手册', icon: 'book' },
 ];
 
 export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, children }: DesignShellProps) {

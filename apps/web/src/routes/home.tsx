@@ -22,10 +22,11 @@ export interface HomeProps {
   readonly onOpenModels: () => void;
   readonly onOpenData: () => void;
   readonly onOpenAppearance: () => void;
+  readonly onOpenHelp: () => void;
   readonly onSwitchTenant: (tenantId: string) => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge, onOpenMessages, onOpenAgents, onOpenTasks, onOpenSessions, onOpenMembers, onOpenModels, onOpenData, onOpenAppearance, onSwitchTenant }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge, onOpenMessages, onOpenAgents, onOpenTasks, onOpenSessions, onOpenMembers, onOpenModels, onOpenData, onOpenAppearance, onOpenHelp, onSwitchTenant }: HomeProps) {
   const [switchOpen, setSwitchOpen] = useState(false);
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
@@ -91,6 +92,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <button type="button" className="nav-item" onClick={onOpenModels}><svg><use href="/icons.svg#i-shield" /></svg><span>模型配置</span></button>
             <button type="button" className="nav-item" onClick={onOpenData}><svg><use href="/icons.svg#i-database" /></svg><span>数据沉淀</span></button>
             <button type="button" className="nav-item" onClick={onOpenAppearance}><svg><use href="/icons.svg#i-sun" /></svg><span>外观与主题</span></button>
+            <button type="button" className="nav-item" onClick={onOpenHelp}><svg><use href="/icons.svg#i-book" /></svg><span>用户手册</span></button>
             <button type="button" className="nav-item" onClick={onOpenShares}><svg><use href="/icons.svg#i-share" /></svg><span>共享审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenStudio}><svg><use href="/icons.svg#i-wand" /></svg><span>创造模式</span></button>
             <button type="button" className="nav-item" onClick={onOpenAudit}><svg><use href="/icons.svg#i-shield" /></svg><span>审计</span></button>

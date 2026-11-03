@@ -23,6 +23,7 @@ import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
 import { registerAgentRoutes } from './agents/routes.js';
+import { registerAgentInstallRoutes } from './agents/install.js';
 import { registerMemberRoutes } from './members/routes.js';
 import { registerModelRoutes } from './models/routes.js';
 import { registerPlatformRoutes } from './platform/routes.js';
@@ -38,6 +39,8 @@ export interface BuildServerOptions {
   readonly runtime?: RuntimeClient;
   readonly internalToken?: string;
   readonly agentEnrollmentToken?: string;
+  readonly agentDistDir?: string;
+  readonly agentPublicUrl?: string;
   readonly modelSecret?: string;
 }
 
@@ -81,6 +84,10 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerKnowledgeRoutes(app, options.pool, audit);
     registerMessageRoutes(app, options.pool);
     registerAgentRoutes(app, options.pool, options.agentEnrollmentToken);
+    registerAgentInstallRoutes(app, options.pool, options.agentEnrollmentToken, {
+      distDir: options.agentDistDir ?? 'agents/opsagent-agent/dist',
+      ...(options.agentPublicUrl ? { publicUrl: options.agentPublicUrl } : {}),
+    });
     registerMemberRoutes(app, options.pool, audit);
     registerModelRoutes(app, options.pool, audit, options.modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret');
     registerPlatformRoutes(app, options.pool);

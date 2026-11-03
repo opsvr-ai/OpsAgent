@@ -36,6 +36,8 @@ const app = buildServer({
   ...(process.env.OPSAGENT_AGENT_ENROLLMENT_TOKEN
     ? { agentEnrollmentToken: process.env.OPSAGENT_AGENT_ENROLLMENT_TOKEN }
     : {}),
+  agentDistDir: process.env.OPSAGENT_AGENT_DIST_DIR ?? 'agents/opsagent-agent/dist',
+  ...(process.env.OPSAGENT_PUBLIC_URL ? { agentPublicUrl: process.env.OPSAGENT_PUBLIC_URL } : {}),
   ...(process.env.STUDIO_DSH_ENABLED === 'false'
     ? {}
     : { studioGenerator: new DshHeadlessGenerator(undefined, modelService) }),

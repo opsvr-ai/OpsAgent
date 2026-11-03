@@ -9,6 +9,7 @@
     "build": "pnpm -r build",
     "test": "pnpm --filter @opsagent/control exec node scripts/ensure-test-db.mjs && pnpm -r test",
     "e2e": "playwright test",
+    "agent:dist": "node scripts/build-agent-dist.mjs",
     "dev:docker": "docker compose up -d postgres redis control web",
     "dev:docker:seed": "docker compose run --rm seed",
     "dev:docker:down": "docker compose down",

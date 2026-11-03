@@ -13,7 +13,8 @@ export type AuditAction =
   | 'connector.create'
   | 'connector.test'
   | 'scenario.create'
-  | 'scenario.run';
+  | 'scenario.run'
+  | 'scenario.publish';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

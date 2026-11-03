@@ -106,8 +106,35 @@ export function registerScenarioRoutes(
     return reply.send(result);
   });
 
-  app.get<{ Params: { id: string } }>('/api/scenarios/:id/runs', async (request, reply) => {
+  app.patch<{ Params: { id: string } }>('/api/scenarios/:id/status', async (request, reply) => {
     const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.publish');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+
+    const body = request.body as { status?: unknown } | undefined;
+    if (body?.status !== 'draft' && body?.status !== 'published' && body?.status !== 'archived') {
+      return reply.code(400).send({ error: 'invalid_status' });
+    }
+
+    const scenario = await scenarios.setStatus(ctx.tenantId, request.params.id, body.status);
+    if (!scenario) return reply.code(404).send({ error: 'scenario_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'scenario.publish',
+      resource: scenario.id,
+      result: 'success',
+      metadata: { status: scenario.status },
+    });
+    return reply.send(scenario);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/scenarios/:id/runs', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
       requirePermission(ctx, 'scenario.run');

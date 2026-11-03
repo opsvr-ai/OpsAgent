@@ -83,6 +83,17 @@ export class ScenarioService {
     return row ? this.map(row) : null;
   }
 
+  async setStatus(tenantId: string, id: string, status: string): Promise<ScenarioRecord | null> {
+    const result = await this.pool.query(
+      `UPDATE scenarios SET status = $1, updated_at = now()
+       WHERE tenant_id = $2 AND id = $3
+       RETURNING id, tenant_id, name, description, definition, status, version`,
+      [status, tenantId, id],
+    );
+    const row = result.rows[0];
+    return row ? this.map(row) : null;
+  }
+
   async run(tenantId: string, id: string): Promise<ScenarioRunResult | null> {
     const scenario = await this.get(tenantId, id);
     if (!scenario) return null;

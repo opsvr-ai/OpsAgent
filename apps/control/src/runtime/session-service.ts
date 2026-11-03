@@ -80,8 +80,32 @@ export class SessionService {
     return this.map(row);
   }
 
-  async get(id: string, tenantId: string, userId: string): Promise<SessionRecord | null> {
+  async list(tenantId: string, userId: string): Promise<Array<{
+    id: string;
+    roleView: string;
+    status: string;
+    createdAt: string;
+  }>> {
     const result = await this.pool.query<{
+      id: string;
+      role_view: string;
+      status: string;
+      created_at: Date;
+    }>(
+      `SELECT id, role_view, status, created_at FROM runtime_sessions
+       WHERE tenant_id = $1 AND user_id = $2
+       ORDER BY created_at DESC LIMIT 50`,
+      [tenantId, userId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      roleView: row.role_view,
+      status: row.status,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
+  async get(id: string, tenantId: string, userId: string): Promise<SessionRecord | null> {    const result = await this.pool.query<{
       id: string;
       tenant_id: string;
       user_id: string;

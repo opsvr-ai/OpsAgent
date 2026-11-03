@@ -46,6 +46,7 @@ describe('Home', () => {
         onOpenMessages={vi.fn()}
         onOpenAgents={vi.fn()}
         onOpenTasks={vi.fn()}
+        onOpenSessions={vi.fn()}
       />,
     );
 

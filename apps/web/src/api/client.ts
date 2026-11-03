@@ -378,3 +378,14 @@ export async function approveTask(
     body: JSON.stringify({ decision }),
   });
 }
+
+export interface SessionSummary {
+  readonly id: string;
+  readonly roleView: string;
+  readonly status: string;
+  readonly createdAt: string;
+}
+
+export async function listSessions(): Promise<SessionSummary[]> {
+  return request<SessionSummary[]>('/api/sessions');
+}

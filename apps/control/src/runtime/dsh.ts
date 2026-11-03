@@ -13,6 +13,12 @@ export interface DshEventRunner {
   run(prompt: string, sessionId?: string): AsyncIterable<Record<string, unknown>>;
 }
 
+function toolRisk(tool: string): 'R0' | 'R1' | 'R2' {
+  if (tool === 'read' || tool.endsWith('_read') || tool.endsWith('_query')) return 'R0';
+  if (tool === 'search' || tool === 'list' || tool === 'glob') return 'R1';
+  return 'R2';
+}
+
 export interface DshEventRunnerOptions {
   readonly command?: string;
   readonly cwd?: string;
@@ -90,6 +96,7 @@ export class DshRuntime implements RuntimeClient {
   async *prompt(sessionId: string, text: string, _idempotencyKey: string): AsyncIterable<RuntimeEvent> {
     if (!this.sessions.has(sessionId)) throw new Error(`unknown session: ${sessionId}`);
     let done = false;
+    const toolNames = new Map<string, string>();
     for await (const event of this.runner.run(text, this.dshSessionIds.get(sessionId))) {
       if (event.type === 'session' && typeof event.sessionId === 'string') {
         this.dshSessionIds.set(sessionId, event.sessionId);
@@ -101,6 +108,33 @@ export class DshRuntime implements RuntimeClient {
           sessionId,
           at: new Date().toISOString(),
           text: event.text,
+        };
+        continue;
+      }
+      if (event.type === 'tool_call' && typeof event.tool === 'string') {
+        const callId = typeof event.callId === 'string' ? event.callId : '';
+        toolNames.set(callId, event.tool);
+        yield {
+          type: 'tool.call',
+          sessionId,
+          at: new Date().toISOString(),
+          tool: event.tool,
+          args:
+            typeof event.input === 'object' && event.input !== null
+              ? (event.input as Record<string, unknown>)
+              : {},
+          risk: toolRisk(event.tool),
+        };
+        continue;
+      }
+      if (event.type === 'tool_result') {
+        const callId = typeof event.callId === 'string' ? event.callId : '';
+        yield {
+          type: 'tool.result',
+          sessionId,
+          at: new Date().toISOString(),
+          tool: toolNames.get(callId) ?? 'unknown',
+          result: event.result,
         };
         continue;
       }

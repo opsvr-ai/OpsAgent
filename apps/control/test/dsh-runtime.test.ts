@@ -70,6 +70,34 @@ describe('DshRuntime', () => {
     expect(events[0]).toMatchObject({ type: 'runtime.error', code: 'error', message: 'boom' });
   });
 
+  it('maps dsh tool calls and results', async () => {
+    const runtime = new DshRuntime(
+      runner([
+        {
+          type: 'tool_call',
+          callId: 'c1',
+          tool: 'read',
+          input: { file_path: 'package.json' },
+        },
+        { type: 'tool_result', callId: 'c1', status: 'completed', result: '{}' },
+        { type: 'status', phase: 'turn_end', reason: { kind: 'completed' } },
+      ]),
+    );
+    const session = await runtime.startSession({
+      tenantId: 't-1',
+      userId: 'u-1',
+      roleView: 'tenant_admin',
+    });
+    const events = await collect(runtime.prompt(session.runtimeSessionId, 'read', 'idem-1'));
+    expect(events.map((event) => event.type)).toEqual([
+      'tool.call',
+      'tool.result',
+      'session.done',
+    ]);
+    expect(events[0]).toMatchObject({ tool: 'read', risk: 'R0' });
+    expect(events[1]).toMatchObject({ tool: 'read' });
+  });
+
   it('rejects approval decisions because headless dsh has no bridge', async () => {
     const runtime = new DshRuntime(runner([]));
     await expect(runtime.respondApproval('s', 'a', 'approve')).rejects.toThrow(

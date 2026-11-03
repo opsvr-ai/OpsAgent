@@ -24,7 +24,7 @@ export function Appearance({ onBack }: AppearanceProps) {
       subtitle="自动模式只决定解析成浅色还是深色，不改变优先级。"
       onBack={onBack}
     >
-      <section className="grid grid-2">
+      <section className="grid grid-4">
         {OPTIONS.map((option) => (
           <button
             key={option.mode}
@@ -40,12 +40,38 @@ export function Appearance({ onBack }: AppearanceProps) {
           </button>
         ))}
       </section>
-      <section className="card">
-        <div className="card-body">
-          <h2>生效优先级</h2>
-          <p className="muted">URL 参数 → 用户偏好 → 租户默认 → 系统偏好</p>
-          <p className="muted">首屏注入 data-theme，避免刷新闪烁。</p>
-        </div>
+      <section className="grid grid-2">
+        <article className="card">
+          <div className="card-body">
+            <div className="row-between">
+              <h2>时间自适应</h2>
+              <span className="badge badge-neutral">{mode === 'time' ? '已启用' : '未启用'}</span>
+            </div>
+            <div className="row-sm">
+              <label htmlFor="light-start">浅色窗口</label>
+              <input id="light-start" type="time" defaultValue="07:00" />
+              <span>至</span>
+              <input type="time" aria-label="浅色结束" defaultValue="19:00" />
+              <select aria-label="时区" defaultValue="Asia/Shanghai">
+                <option>Asia/Shanghai</option>
+                <option>UTC</option>
+              </select>
+            </div>
+            <p className="muted">窗口内使用浅色，窗口外使用深色；每分钟检查一次。</p>
+          </div>
+        </article>
+        <article className="card">
+          <div className="card-body">
+            <h2>生效优先级</h2>
+            <ol className="muted">
+              <li>当前会话临时切换</li>
+              <li>用户默认</li>
+              <li>租户默认</li>
+              <li>平台默认</li>
+            </ol>
+            <p className="muted">自动模式只决定解析成浅色还是深色，不改变优先级。</p>
+          </div>
+        </article>
       </section>
     </DesignShell>
   );

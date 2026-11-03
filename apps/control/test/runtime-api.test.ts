@@ -112,6 +112,11 @@ describe('session API', () => {
     const approval = await readEvent();
     expect(approval.type).toBe('approval.request');
 
+    const listed = await fetch(`${baseUrl}/api/approvals`, { headers: { cookie } });
+    expect(listed.status).toBe(200);
+    const approvals = (await listed.json()) as Array<{ id: string }>;
+    expect(approvals.some((item) => item.id === approval.approvalId)).toBe(true);
+
     const decision = await fetch(`${baseUrl}/api/approvals/${String(approval.approvalId)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },

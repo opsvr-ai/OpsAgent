@@ -124,9 +124,65 @@ func main() {
 	}
 	log.Printf("registered agent %s", registered.Agent.ID)
 
+	beat := func() {
+		var memory runtime.MemStats
+		runtime.ReadMemStats(&memory)
+		metrics := hostMetrics()
+		metrics["cpuCores"] = runtime.NumCPU()
+		metrics["goroutines"] = runtime.NumGoroutine()
+		metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
+		metrics["uptimeSec"] = int64(time.Since(started).Seconds())
+		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
+			AgentKey: registered.AgentKey,
+			Metrics:  metrics,
+		}, nil); err != nil {
+			log.Printf("heartbeat: %v", err)
+		}
+
+		commandURL := controlURL + "/api/agents/" + registered.Agent.ID + "/commands/pending?agentKey=" + url.QueryEscape(registered.AgentKey)
+		var command agentCommand
+		status, err := getJSON(commandURL, &command)
+		if err != nil {
+			log.Printf("command poll: %v", err)
+		} else if status == http.StatusOK && command.ID != "" {
+			result := map[string]any{"type": command.Type, "ok": true}
+			switch command.Type {
+			case "diagnostics":
+				result["metrics"] = metrics
+			case "disk_check":
+				result["diskTotalGB"] = metrics["diskTotalGB"]
+				result["diskFreeGB"] = metrics["diskFreeGB"]
+			case "memory_check":
+				result["memTotalGB"] = metrics["memTotalGB"]
+				result["memAvailableGB"] = metrics["memAvailableGB"]
+				result["memLoadPct"] = metrics["memLoadPct"]
+			case "ai_diagnose":
+				analysis, err := aiDiagnose(metrics)
+				if err != nil {
+					result["ok"] = false
+					result["error"] = err.Error()
+				} else {
+					result["analysis"] = analysis
+				}
+			default:
+				result["ok"] = false
+				result["error"] = "unsupported_command"
+			}
+			if err := post(
+				controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
+				nil,
+				map[string]any{"agentKey": registered.AgentKey, "result": result},
+				nil,
+			); err != nil {
+				log.Printf("command complete: %v", err)
+			}
+		}
+	}
+
+	beat()
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -134,58 +190,7 @@ func main() {
 			log.Print("agent stopping")
 			return
 		case <-ticker.C:
-			var memory runtime.MemStats
-			runtime.ReadMemStats(&memory)
-			metrics := hostMetrics()
-			metrics["cpuCores"] = runtime.NumCPU()
-			metrics["goroutines"] = runtime.NumGoroutine()
-			metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
-			metrics["uptimeSec"] = int64(time.Since(started).Seconds())
-			if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
-				AgentKey: registered.AgentKey,
-				Metrics:  metrics,
-			}, nil); err != nil {
-				log.Printf("heartbeat: %v", err)
-			}
-
-			commandURL := controlURL + "/api/agents/" + registered.Agent.ID + "/commands/pending?agentKey=" + url.QueryEscape(registered.AgentKey)
-			var command agentCommand
-			status, err := getJSON(commandURL, &command)
-			if err != nil {
-				log.Printf("command poll: %v", err)
-			} else if status == http.StatusOK && command.ID != "" {
-				result := map[string]any{"type": command.Type, "ok": true}
-				switch command.Type {
-				case "diagnostics":
-					result["metrics"] = metrics
-				case "disk_check":
-					result["diskTotalGB"] = metrics["diskTotalGB"]
-					result["diskFreeGB"] = metrics["diskFreeGB"]
-				case "memory_check":
-					result["memTotalGB"] = metrics["memTotalGB"]
-					result["memAvailableGB"] = metrics["memAvailableGB"]
-					result["memLoadPct"] = metrics["memLoadPct"]
-				case "ai_diagnose":
-					analysis, err := aiDiagnose(metrics)
-					if err != nil {
-						result["ok"] = false
-						result["error"] = err.Error()
-					} else {
-						result["analysis"] = analysis
-					}
-				default:
-					result["ok"] = false
-					result["error"] = "unsupported_command"
-				}
-				if err := post(
-					controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
-					nil,
-					map[string]any{"agentKey": registered.AgentKey, "result": result},
-					nil,
-				); err != nil {
-					log.Printf("command complete: %v", err)
-				}
-			}
+			beat()
 		}
 	}
 }

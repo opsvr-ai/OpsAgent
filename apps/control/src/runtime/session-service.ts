@@ -177,11 +177,11 @@ export class SessionService {
       details: Record<string, unknown>;
       created_at: Date;
     }>(
-      `SELECT a.id, a.action, a.risk, a.session_id, a.details, a.created_at
+      `SELECT a.id, a.action, a.risk, a.session_id, a.details, a.requested_at AS created_at
        FROM approvals a
        JOIN runtime_sessions s ON s.id = a.session_id
        WHERE a.tenant_id = $1 AND s.user_id = $2 AND a.status = 'pending'
-       ORDER BY a.created_at DESC`,
+       ORDER BY a.requested_at DESC`,
       [tenantId, userId],
     );
     return result.rows.map((row) => ({

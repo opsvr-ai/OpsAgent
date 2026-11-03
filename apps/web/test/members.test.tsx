@@ -35,8 +35,11 @@ describe('Members', () => {
     });
     render(<Members onBack={vi.fn()} />);
     expect(await screen.findByText(/SRE DBA/)).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('dba'));
+    fireEvent.click(screen.getByRole('button', { name: '编辑角色' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /container_platform/ }));
     fireEvent.click(screen.getByRole('button', { name: '保存角色' }));
-    await waitFor(() => expect(saveMock).toHaveBeenCalledWith('u-1', ['sre_duty', 'dba']));
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith('u-1', ['sre_duty', 'container_platform']),
+    );
   });
 });

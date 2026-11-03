@@ -51,8 +51,15 @@ export class ModelProviderService {
     return this.map(result.rows[0]);
   }
 
-  async resolve(tenantId: string): Promise<ResolvedModelProvider | null> {
-    const result = await this.pool.query<{
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM model_providers WHERE tenant_id = $1 AND id = $2',
+      [tenantId, id],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async resolve(tenantId: string): Promise<ResolvedModelProvider | null> {    const result = await this.pool.query<{
       provider: string;
       base_url: string;
       model: string;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createModel, listModels, type ModelProvider } from '../api/client.js';
+import { createModel, deleteModel, listModels, type ModelProvider } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 
 export interface ModelsProps {
@@ -42,6 +42,16 @@ export function Models({ onBack }: ModelsProps) {
     }
   }
 
+  async function remove(id: string) {
+    setError(null);
+    try {
+      await deleteModel(id);
+      setModels((current) => current?.filter((item) => item.id !== id) ?? current);
+    } catch {
+      setError('删除失败');
+    }
+  }
+
   return (
     <DesignShell
       active="models"
@@ -77,6 +87,7 @@ export function Models({ onBack }: ModelsProps) {
               <h3>{item.name}</h3>
               <p className="muted mono">{item.model}</p>
               <p className="muted">{item.baseUrl}</p>
+              <button type="button" className="btn btn-outline" onClick={() => void remove(item.id)}>删除</button>
             </div>
           </article>
         ))}

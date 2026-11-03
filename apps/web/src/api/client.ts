@@ -269,7 +269,6 @@ export interface ApprovalSummary {
 export async function listApprovals(): Promise<ApprovalSummary[]> {
   return request<ApprovalSummary[]>('/api/approvals');
 }
-
 export interface ConnectorSummary {
   readonly id: string;
   readonly name: string;
@@ -452,4 +451,8 @@ export async function createModel(input: {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export async function deleteModel(id: string): Promise<void> {
+  await request<{ ok: true }>(`/api/models/${id}`, { method: 'DELETE' });
 }

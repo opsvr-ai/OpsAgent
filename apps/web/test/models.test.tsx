@@ -6,6 +6,7 @@ import { listModels } from '../src/api/client.js';
 vi.mock('../src/api/client.js', () => ({
   listModels: vi.fn(),
   createModel: vi.fn(),
+  deleteModel: vi.fn(),
 }));
 
 const listMock = vi.mocked(listModels);

@@ -66,6 +66,14 @@ describe('model provider configuration', () => {
 
     const list = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie } });
     expect(list.json()).toMatchObject([{ name: 'deepseek-prod', provider: 'deepseek' }]);
+
+    const createdId = (created.json() as { id: string }).id;
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/models/${createdId}`,
+      headers: { cookie },
+    });
+    expect(removed.statusCode).toBe(200);
     await app.close();
   });
 

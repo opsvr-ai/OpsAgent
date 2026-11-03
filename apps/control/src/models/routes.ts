@@ -81,4 +81,25 @@ export function registerModelRoutes(
     });
     return reply.code(201).send(provider);
   });
+
+  app.delete<{ Params: { id: string } }>('/api/models/:id', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const removed = await models.delete(ctx.tenantId, request.params.id);
+    if (!removed) return reply.code(404).send({ error: 'model_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'model.delete',
+      resource: request.params.id,
+      result: 'success',
+    });
+    return reply.send({ ok: true });
+  });
 }

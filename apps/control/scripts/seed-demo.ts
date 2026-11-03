@@ -28,6 +28,10 @@ const ids = {
   snapshot2: '70000000-0000-4000-8000-000000000002',
   task1: '80000000-0000-4000-8000-000000000001',
   task2: '80000000-0000-4000-8000-000000000002',
+  approvalSession1: '90000000-0000-4000-8000-000000000001',
+  approvalSession2: '90000000-0000-4000-8000-000000000002',
+  approval1: 'a0000000-0000-4000-8000-000000000001',
+  approval2: 'a0000000-0000-4000-8000-000000000002',
 };
 
 const pool = new Pool({ connectionString: databaseUrl });
@@ -148,6 +152,24 @@ async function main(): Promise<void> {
          ($5, $2, '数据库连接池巡检', $6, 'success', $4)
        ON CONFLICT (id) DO NOTHING`,
       [ids.task1, tenant, ids.scenarioCheck, admin, ids.task2, ids.scenarioDb],
+    );
+
+    await client.query(
+      `INSERT INTO runtime_sessions (id, tenant_id, user_id, status, runtime_session_id, role_view)
+       VALUES
+         ($1, $2, $3, 'active', 'demo-session-approval-1', 'tenant_admin'),
+         ($4, $2, $3, 'active', 'demo-session-approval-2', 'tenant_admin')
+       ON CONFLICT (id) DO NOTHING`,
+      [ids.approvalSession1, tenant, admin, ids.approvalSession2],
+    );
+    await client.query(
+      `INSERT INTO approvals
+         (id, tenant_id, session_id, runtime_approval_id, action, risk, status, details)
+       VALUES
+         ($1, $2, $3, 'demo-call-uptime', 'ssh.read uptime', 'R2', 'pending', '{"check":"uptime"}'::jsonb),
+         ($4, $2, $5, 'demo-call-pg', 'postgres_query pg_stat_activity', 'R2', 'pending', '{"sql":"SELECT count(*) FROM pg_stat_activity"}'::jsonb)
+       ON CONFLICT (id) DO NOTHING`,
+      [ids.approval1, tenant, ids.approvalSession1, ids.approval2, ids.approvalSession2],
     );
 
     await client.query('COMMIT');

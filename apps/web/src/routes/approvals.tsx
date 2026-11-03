@@ -56,7 +56,14 @@ export function Approvals({ onBack }: ApprovalsProps) {
               </div>
               <h3>{approval.action}</h3>
               {Object.keys(approval.details).length > 0 ? (
-                <pre className="code-block">{JSON.stringify(approval.details, null, 2)}</pre>
+                <div className="metric-grid">
+                  {Object.entries(approval.details).map(([key, value]) => (
+                    <div key={key} className="metric-item">
+                      <span>{key}</span>
+                      <strong title={String(value)}>{String(value)}</strong>
+                    </div>
+                  ))}
+                </div>
               ) : null}
               <div className="row-sm">
                 <button type="button" className="btn btn-primary" onClick={() => void decide(approval.id, 'approve')}>批准</button>

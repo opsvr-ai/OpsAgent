@@ -21,6 +21,15 @@ export interface DshEventRunner {
   ): AsyncIterable<Record<string, unknown>>;
 }
 
+export interface DshModelProvider {
+  readonly provider: string;
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly apiKey: string;
+}
+
+export type DshModelResolver = (tenantId: string) => Promise<DshModelProvider | null>;
+
 function toolRisk(tool: string): 'R0' | 'R1' | 'R2' {
   if (tool === 'read' || tool.endsWith('_read') || tool.endsWith('_query')) return 'R0';
   if (tool === 'search' || tool === 'list' || tool === 'glob') return 'R1';
@@ -127,7 +136,10 @@ export class DshRuntime implements RuntimeClient {
   private readonly sessions = new Map<string, RuntimeSession>();
   private readonly dshSessionIds = new Map<string, string>();
 
-  constructor(private readonly runner: DshEventRunner = new DshJsonRunner()) {}
+  constructor(
+    private readonly runner: DshEventRunner = new DshJsonRunner(),
+    private readonly modelResolver?: DshModelResolver,
+  ) {}
 
   async startSession(input: StartSessionInput): Promise<RuntimeSession> {
     const session: RuntimeSession = {
@@ -144,7 +156,17 @@ export class DshRuntime implements RuntimeClient {
     if (!runtimeSession) throw new Error(`unknown session: ${sessionId}`);
     let done = false;
     const toolNames = new Map<string, string>();
+    const model = this.modelResolver ? await this.modelResolver(runtimeSession.tenantId) : null;
+    const modelEnv =
+      model && model.provider === 'deepseek'
+        ? {
+            DEEPSEEK_API_KEY: model.apiKey,
+            DEEPSEEK_BASE_URL: model.baseUrl,
+            DEEPSEEK_MODEL: model.model,
+          }
+        : {};
     for await (const event of this.runner.run(text, this.dshSessionIds.get(sessionId), {
+      ...modelEnv,
       OPSAGENT_TENANT_ID: runtimeSession.tenantId,
       OPSAGENT_SESSION_ID: sessionId,
       OPSAGENT_CONTROL_URL: process.env.OPSAGENT_CONTROL_URL ?? 'http://127.0.0.1:8080',

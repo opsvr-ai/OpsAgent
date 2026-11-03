@@ -5,6 +5,7 @@ import { ScenarioService } from './scenarios/service.js';
 import { ScenarioScheduler } from './scenarios/scheduler.js';
 import { DshHeadlessGenerator } from './studio/dsh-generator.js';
 import { DshRuntime } from './runtime/dsh.js';
+import { ModelProviderService } from './models/service.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
 const pool = new Pool({
@@ -12,6 +13,10 @@ const pool = new Pool({
     process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent',
 });
 const tools = new ConnectorToolResolver(pool);
+const modelService = new ModelProviderService(
+  pool,
+  process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
+);
 
 const app = buildServer({
   pool,
@@ -20,7 +25,9 @@ const app = buildServer({
     username: process.env.LOCAL_ADMIN_USERNAME ?? 'tenant-admin',
   },
   scenarioTools: tools,
-  ...(process.env.DSH_RUNTIME_ENABLED === 'false' ? {} : { runtime: new DshRuntime() }),
+  ...(process.env.DSH_RUNTIME_ENABLED === 'false'
+    ? {}
+    : { runtime: new DshRuntime(undefined, (tenantId) => modelService.resolve(tenantId)) }),
   ...(process.env.OPSAGENT_INTERNAL_TOKEN
     ? { internalToken: process.env.OPSAGENT_INTERNAL_TOKEN }
     : {}),

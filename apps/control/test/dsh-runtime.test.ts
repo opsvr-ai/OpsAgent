@@ -98,6 +98,33 @@ describe('DshRuntime', () => {
     expect(events[1]).toMatchObject({ tool: 'read' });
   });
 
+  it('passes tenant model credentials to dsh', async () => {
+    const run = vi.fn().mockImplementation(async function* () {
+      yield { type: 'status', phase: 'turn_end', reason: { kind: 'completed' } };
+    });
+    const runtime = new DshRuntime({ run }, async () => ({
+      provider: 'deepseek',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+      apiKey: 'tenant-key',
+    }));
+    const session = await runtime.startSession({
+      tenantId: 't-1',
+      userId: 'u-1',
+      roleView: 'tenant_admin',
+    });
+    await collect(runtime.prompt(session.runtimeSessionId, 'hi', 'idem-1'));
+    expect(run).toHaveBeenCalledWith(
+      'hi',
+      undefined,
+      expect.objectContaining({
+        DEEPSEEK_API_KEY: 'tenant-key',
+        DEEPSEEK_BASE_URL: 'https://api.deepseek.com',
+        DEEPSEEK_MODEL: 'deepseek-chat',
+      }),
+    );
+  });
+
   it('rejects approval decisions because headless dsh has no bridge', async () => {
     const runtime = new DshRuntime(runner([]));
     await expect(runtime.respondApproval('s', 'a', 'approve')).rejects.toThrow(

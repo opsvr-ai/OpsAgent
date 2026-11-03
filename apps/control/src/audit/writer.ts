@@ -15,7 +15,9 @@ export type AuditAction =
   | 'scenario.create'
   | 'scenario.run'
   | 'scenario.publish'
-  | 'scenario.schedule';
+  | 'scenario.schedule'
+  | 'scenario.share'
+  | 'scenario.share.review';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

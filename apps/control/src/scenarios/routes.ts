@@ -6,6 +6,7 @@ import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext, type TenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { ScenarioService, type ScenarioDefinition, type ToolResolver } from './service.js';
+import { ScenarioShareService } from './shares.js';
 
 interface CreateScenarioBody {
   name?: unknown;
@@ -31,6 +32,7 @@ export function registerScenarioRoutes(
   tools: ToolResolver,
 ): void {
   const scenarios = new ScenarioService(pool, tools);
+  const shares = new ScenarioShareService(pool);
 
   app.get('/api/scenarios', async (request, reply) => {
     const ctx = await context(pool, request);
@@ -192,5 +194,82 @@ export function registerScenarioRoutes(
     const run = await scenarios.getRun(ctx.tenantId, request.params.id);
     if (!run) return reply.code(404).send({ error: 'scenario_run_not_found' });
     return reply.send(run);
+  });
+
+  app.post<{ Params: { id: string } }>('/api/scenarios/:id/share', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.publish');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { scope?: unknown } | undefined;
+    if (body?.scope !== 'tenant' && body?.scope !== 'platform') {
+      return reply.code(400).send({ error: 'invalid_scope' });
+    }
+    const scenario = await scenarios.get(ctx.tenantId, request.params.id);
+    if (!scenario) return reply.code(404).send({ error: 'scenario_not_found' });
+
+    const share = await shares.request({
+      tenantId: ctx.tenantId,
+      scenarioId: scenario.id,
+      requestedBy: ctx.userId,
+      scope: body.scope,
+    });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'scenario.share',
+      resource: share.id,
+      result: 'success',
+      metadata: { scope: share.scope },
+    });
+    return reply.code(201).send(share);
+  });
+
+  app.get('/api/shares', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.publish');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await shares.list(ctx.tenantId));
+  });
+
+  app.post<{ Params: { id: string } }>('/api/shares/:id/review', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.publish');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { decision?: unknown; reason?: unknown } | undefined;
+    if (body?.decision !== 'approve' && body?.decision !== 'reject') {
+      return reply.code(400).send({ error: 'invalid_decision' });
+    }
+    const share = await shares.review({
+      tenantId: ctx.tenantId,
+      shareId: request.params.id,
+      reviewerId: ctx.userId,
+      decision: body.decision,
+      ...(typeof body.reason === 'string' ? { reason: body.reason } : {}),
+    });
+    if (!share) return reply.code(404).send({ error: 'share_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'scenario.share.review',
+      resource: share.id,
+      result: 'success',
+      metadata: { decision: body.decision, scope: share.scope },
+    });
+    return reply.send(share);
   });
 }

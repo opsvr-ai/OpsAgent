@@ -5,6 +5,7 @@ export interface LongTaskRecord {
   readonly id: string;
   readonly title: string;
   readonly scenarioId: string;
+  readonly scenarioName?: string | null;
   readonly status: string;
   readonly runId: string | null;
   readonly error: string | null;
@@ -43,8 +44,9 @@ export class LongTaskService {
   }
 
   async list(tenantId: string): Promise<LongTaskRecord[]> {    const result = await this.pool.query(
-      `SELECT id, title, scenario_id, status, run_id, error FROM long_tasks
-       WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100`,
+      `SELECT t.id, t.title, t.scenario_id, t.status, t.run_id, t.error, s.name AS scenario_name
+       FROM long_tasks t LEFT JOIN scenarios s ON s.id = t.scenario_id
+       WHERE t.tenant_id = $1 ORDER BY t.created_at DESC LIMIT 100`,
       [tenantId],
     );
     return result.rows.map((row) => this.map(row));
@@ -131,11 +133,13 @@ export class LongTaskService {
     status: string;
     run_id: string | null;
     error: string | null;
+    scenario_name?: string | null;
   }): LongTaskRecord {
     return {
       id: row.id,
       title: row.title,
       scenarioId: row.scenario_id,
+      scenarioName: row.scenario_name ?? null,
       status: row.status,
       runId: row.run_id,
       error: row.error,

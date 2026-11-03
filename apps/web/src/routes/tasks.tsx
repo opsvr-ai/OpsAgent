@@ -80,7 +80,7 @@ export function Tasks({ onBack }: TasksProps) {
                 <span className="badge badge-neutral">{task.status}</span>
               </div>
               <h3>{task.title}</h3>
-              <p className="muted mono">{task.scenarioId}</p>
+              <p className="muted">{task.scenarioName ?? task.scenarioId}</p>
               {task.error ? <p role="alert">{task.error}</p> : null}
               {task.status === 'awaiting_approval' ? (
                 <div className="row-sm">

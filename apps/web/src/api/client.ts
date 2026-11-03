@@ -164,6 +164,7 @@ export async function listAudit(
 export interface ScenarioShare {
   readonly id: string;
   readonly scenarioId: string;
+  readonly scenarioName?: string | null;
   readonly scope: string;
   readonly status: string;
   readonly requestedBy: string;
@@ -428,6 +429,7 @@ export interface TaskSummary {
   readonly id: string;
   readonly title: string;
   readonly scenarioId: string;
+  readonly scenarioName?: string | null;
   readonly status: string;
   readonly runId: string | null;
   readonly error: string | null;

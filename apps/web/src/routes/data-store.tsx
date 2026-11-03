@@ -13,6 +13,18 @@ export interface DataStoreProps {
   readonly onBack: () => void;
 }
 
+function formatBytes(value: number): string {
+  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1)} GB`;
+  if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${value} B`;
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return '暂无';
+  return new Date(value).toLocaleString('zh-CN', { hour12: false });
+}
+
 export function DataStore({ onBack }: DataStoreProps) {
   const [stats, setStats] = useState<DataStoreStats | null>(null);
   const [settings, setSettings] = useState<DataStoreSettings | null>(null);
@@ -72,13 +84,13 @@ export function DataStore({ onBack }: DataStoreProps) {
           <div className="card-body">
             <div className="eyebrow">存储占用</div>
             <h3>{stats?.usagePct ?? 0}%</h3>
-            <p className="muted mono">{(stats?.bytes ?? 0)} / {(stats?.quotaBytes ?? 0)} bytes</p>
+            <p className="muted mono">{formatBytes(stats?.bytes ?? 0)} / {formatBytes(stats?.quotaBytes ?? 0)}</p>
           </div>
         </article>
         <article className="card">
           <div className="card-body">
             <div className="eyebrow">最新同步</div>
-            <h3 className="mono">{stats?.newest ?? '暂无'}</h3>
+            <h3 className="mono">{formatTime(stats?.newest ?? null)}</h3>
           </div>
         </article>
         <article className="card">
@@ -106,8 +118,8 @@ export function DataStore({ onBack }: DataStoreProps) {
                   <tr key={item.tool}>
                     <td className="mono">{item.tool}</td>
                     <td>{item.count}</td>
-                    <td>{item.bytes} bytes</td>
-                    <td className="mono">{item.lastSync ?? '暂无'}</td>
+                    <td>{formatBytes(item.bytes)}</td>
+                    <td className="mono">{formatTime(item.lastSync)}</td>
                     <td>30 天</td>
                   </tr>
                 ))}
@@ -182,8 +194,8 @@ export function DataStore({ onBack }: DataStoreProps) {
           {stats?.recent.map((item) => (
             <div key={item.id} className="row-between">
               <span className="mono">{item.tool}</span>
-              <span className="muted">{item.bytes} bytes</span>
-              <span className="muted mono">{item.createdAt}</span>
+              <span className="muted">{formatBytes(item.bytes)}</span>
+              <span className="muted mono">{formatTime(item.createdAt)}</span>
             </div>
           ))}
         </div>

@@ -55,7 +55,7 @@ export function Shares({ onBack }: SharesProps) {
                   <span className="badge badge-neutral">{share.scope}</span>
                   <span className="badge badge-neutral">{share.status}</span>
                 </div>
-                <h3 className="mono">{share.scenarioId}</h3>
+                <h3 className="mono">{share.scenarioName ?? share.scenarioId}</h3>
               {share.status === 'pending' ? (
                 <div className="row-sm">
                   <button type="button" className="btn btn-primary" onClick={() => void review(share.id, 'approve')}>

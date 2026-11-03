@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 export interface ScenarioShareRecord {
   readonly id: string;
   readonly scenarioId: string;
+  readonly scenarioName?: string | null;
   readonly scope: string;
   readonly status: string;
   readonly requestedBy: string;
@@ -30,8 +31,10 @@ export class ScenarioShareService {
 
   async list(tenantId: string): Promise<ScenarioShareRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, scenario_id, scope, status, requested_by, reviewer_id, reason
-       FROM scenario_shares WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT sh.id, sh.scenario_id, sh.scope, sh.status, sh.requested_by, sh.reviewer_id, sh.reason,
+              s.name AS scenario_name
+       FROM scenario_shares sh LEFT JOIN scenarios s ON s.id = sh.scenario_id
+       WHERE sh.tenant_id = $1 ORDER BY sh.created_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => this.map(row));
@@ -71,10 +74,12 @@ export class ScenarioShareService {
     requested_by: string;
     reviewer_id: string | null;
     reason: string | null;
+    scenario_name?: string | null;
   }): ScenarioShareRecord {
     return {
       id: row.id,
       scenarioId: row.scenario_id,
+      scenarioName: row.scenario_name ?? null,
       scope: row.scope,
       status: row.status,
       requestedBy: row.requested_by,

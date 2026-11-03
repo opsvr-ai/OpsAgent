@@ -31,7 +31,7 @@ describe('Chat', () => {
 
     expect(await screen.findByText('checking')).toBeInTheDocument();
     expect(screen.getAllByText(/mock\.echo/).length).toBeGreaterThan(0);
-    expect(await screen.findByText('完成')).toBeInTheDocument();
+    expect((await screen.findAllByText('完成')).length).toBeGreaterThan(0);
   });
 
   it('asks for approval and submits the decision', async () => {

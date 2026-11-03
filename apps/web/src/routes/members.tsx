@@ -106,11 +106,17 @@ export function Members({ onBack }: MembersProps) {
           {members === null ? <p className="muted">加载中…</p> : null}
           {members && members.length > 0 ? (
             <table className="table">
-              <thead><tr><th>成员</th><th>账号</th><th>状态</th><th>角色</th><th /></tr></thead>
+              <thead><tr><th>成员</th><th>来源</th><th>账号</th><th>状态</th><th>角色</th><th /></tr></thead>
               <tbody>
                 {members.map((member) => (
                   <tr key={member.userId} className={editing === member.userId ? 'is-clickable' : ''}>
-                    <td className="cell-main">{member.displayName}</td>
+                    <td className="cell-main">
+                      <span className="row-title">
+                        <span className="avatar is-green">{member.displayName.slice(0, 1)}</span>
+                        <span>{member.displayName}<span className="cell-sub">{member.userId.slice(0, 8)}</span></span>
+                      </span>
+                    </td>
+                    <td><span className="badge badge-neutral">本地</span></td>
                     <td className="mono">{member.username}</td>
                     <td><span className="badge badge-neutral">{member.status}</span></td>
                     <td>

@@ -139,10 +139,14 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
           <div className="chat-main">
             <header className="chat-head">
               <div>
-                <div className="eyebrow">Session</div>
+                <div className="eyebrow">Session · {roleView}</div>
                 <h2>运维会话</h2>
               </div>
-              <span className="badge badge-neutral mono">{sessionId.slice(0, 12)}</span>
+              <div className="row-sm">
+                <span className="badge badge-ok">已连接</span>
+                <span className="badge badge-neutral mono">{sessionId.slice(0, 12)}</span>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => void navigator.clipboard?.writeText(sessionId)}>复制会话 ID</button>
+              </div>
             </header>
 
             <div className="chat-log">
@@ -254,6 +258,23 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             </div>
           </div>
           <aside className="chat-aside">
+            <div className="aside-block">
+              <div className="eyebrow">运行轨迹</div>
+              <div className="stack-sm" style={{ marginTop: 10 }}>
+                {events.length === 0 ? <p className="muted">等待第一条指令</p> : null}
+                {events
+                  .filter((item) => item.type === 'tool.call' || item.type === 'tool.result' || item.type === 'approval.request')
+                  .slice(-6)
+                  .map((item, index) => (
+                    <div key={index} className="aside-row">
+                      <span>{item.type === 'approval.request' ? '审批请求' : item.type === 'tool.result' ? '工具返回' : `工具调用 · ${item.tool}`}</span>
+                      <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : 'badge-ok'}`}>
+                        {item.type === 'approval.request' ? '待确认' : '完成'}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
             <div className="aside-block">
               <div className="eyebrow">当前会话</div>
               <div className="stack-sm" style={{ marginTop: 10 }}>

@@ -9,6 +9,7 @@ import { registerTenantRoutes } from './tenancy/routes.js';
 import { registerRuntimeRoutes } from './runtime/routes.js';
 import { registerConnectorRoutes } from './connectors/routes.js';
 import { ProbeRegistry } from './connectors/probe.js';
+import { createDefaultProbeRegistry } from './connectors/http-probes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -41,7 +42,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       app,
       options.pool,
       audit,
-      options.connectorProbes ?? new ProbeRegistry(),
+      options.connectorProbes ?? createDefaultProbeRegistry(),
     );
   }
 

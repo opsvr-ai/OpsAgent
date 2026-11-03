@@ -135,6 +135,10 @@ export function Tasks({ onBack }: TasksProps) {
           <section className="card">
             <div className="card-head"><h2>运行分析</h2></div>
             <div className="card-body stack-sm">
+              <div className="task-gauge" style={{ ['--value' as string]: `${tasks && tasks.length > 0 ? Math.round((success / tasks.length) * 100) : 0}%` }}>
+                <strong>{tasks && tasks.length > 0 ? Math.round((success / tasks.length) * 100) : 0}%</strong>
+                <span>成功率</span>
+              </div>
               <div className="aside-row"><span>今日运行</span><span className="mono">{tasks?.length ?? 0}</span></div>
               <div className="aside-row"><span>成功</span><span className="mono">{success}</span></div>
               <div className="aside-row"><span>待审批</span><span className="mono">{awaiting}</span></div>

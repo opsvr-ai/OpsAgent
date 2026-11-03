@@ -4,6 +4,7 @@ import type { HomeResponse, MeResponse } from '@opsagent/contracts';
 export interface SessionContextValue {
   readonly me: MeResponse;
   readonly home: HomeResponse | null;
+  readonly switchTenant?: (tenantId: string) => Promise<void>;
 }
 
 export const SessionContext = createContext<SessionContextValue | null>(null);

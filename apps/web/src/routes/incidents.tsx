@@ -199,6 +199,33 @@ export function Incidents({ onBack }: IncidentsProps) {
                       </div>
                     ))}
                   </div>
+                  <h3 style={{ marginTop: 18 }}>处置任务</h3>
+                  <table className="table">
+                    <thead><tr><th>任务</th><th>负责人</th><th>状态</th></tr></thead>
+                    <tbody>
+                      <tr><td>确认影响范围与用户反馈</td><td>值班 SRE</td><td><span className="badge badge-ok">完成</span></td></tr>
+                      <tr><td>检查数据库连接池与等待事件</td><td>DBA</td><td><span className="badge badge-warn">进行中</span></td></tr>
+                      <tr><td>核对最近发布与配置变更</td><td>SRE</td><td><span className="badge badge-neutral">待办</span></td></tr>
+                      <tr><td>输出根因与复盘材料</td><td>指挥人</td><td><span className="badge badge-neutral">待办</span></td></tr>
+                    </tbody>
+                  </table>
+                  <div className="grid grid-2" style={{ marginTop: 14 }}>
+                    <div className="card">
+                      <div className="card-body">
+                        <strong>处理团队</strong>
+                        <div className="aside-row"><span>值班 SRE</span><span className="mono">on-call</span></div>
+                        <div className="aside-row"><span>DBA</span><span className="mono">dba</span></div>
+                        <div className="aside-row"><span>平台 SRE</span><span className="mono">platform</span></div>
+                      </div>
+                    </div>
+                    <div className="card">
+                      <div className="card-body">
+                        <strong>待审批</strong>
+                        <p className="muted">SSH 只读查询 · db-01</p>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'approvals' }))}>打开审批中心</button>
+                      </div>
+                    </div>
+                  </div>
                 </>
               ) : <p className="muted">选择一条事件</p>}
             </div>

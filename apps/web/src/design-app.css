@@ -1473,3 +1473,16 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .approval-card { margin: 12px 0; padding: 13px; border: 1px solid var(--warn-line, #efd7a8); border-radius: 9px; background: var(--warn-soft, #fff9ec); }
 .approval-card p { margin: 9px 0; }
 .login-tenant { padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--muted); font-size: var(--fs-12); }
+.tenant-menu { margin: 2px 8px 8px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-md, 0 4px 16px rgba(15,23,42,.08)); }
+.tenant-menu .nav-label { padding: 4px 6px 6px; }
+.tenant-option { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.tenant-option:hover { background: var(--surface-2); }
+.tenant-option.is-active { background: var(--primary-soft); }
+.tenant-option .grow { display: flex; flex-direction: column; min-width: 0; }
+.tenant-option .grow strong { font-size: var(--fs-12); }
+.tenant-option .grow span { font-size: 10px; color: var(--faint); }
+.task-gauge { width: 92px; height: 92px; margin: 2px auto 10px; border-radius: 50%; display: grid; place-content: center; text-align: center; background: conic-gradient(var(--ok) var(--value), var(--surface-3) 0); position: relative; }
+.task-gauge::after { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--surface); }
+.task-gauge strong, .task-gauge span { position: relative; z-index: 1; }
+.task-gauge strong { font-size: var(--fs-20); }
+.task-gauge span { font-size: 10px; color: var(--faint); }

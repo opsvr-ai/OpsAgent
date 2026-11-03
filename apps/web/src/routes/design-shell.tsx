@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ThemeToggle } from '../theme/use-theme.js';
 import { GlobalSearch } from './global-search.js';
 import { useSession } from '../session-context.js';
@@ -21,6 +21,7 @@ export interface DesignShellProps {
 
 export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, platform = false, children }: DesignShellProps) {
   const session = useSession();
+  const [tenantMenu, setTenantMenu] = useState(false);
   const navItems = platform
     ? [{ id: 'home' as const, label: '租户管理', icon: 'building' }]
     : NAV;
@@ -51,13 +52,45 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
             <span className="brand-sub">AIOps Control Plane</span>
           </div>
         </div>
-        <button type="button" className="tenant-switch" onClick={onBack}>
+        <button
+          type="button"
+          className="tenant-switch"
+          aria-expanded={tenantMenu}
+          onClick={() => {
+            if (platform) onBack();
+            else setTenantMenu((current) => !current);
+          }}
+        >
           <span className="avatar">{platform ? 'P' : (tenant?.name ?? '开发租户').slice(0, 1)}</span>
           <span className="tenant-meta">
             <strong>{platform ? '平台控制台' : (tenant?.name ?? '开发租户')}</strong>
             <span>{platform ? 'platform-admin · 平台管理员' : `${tenant?.slug ?? 'tenant-demo'} · 本地开发`}</span>
           </span>
         </button>
+        {tenantMenu && !platform ? (
+          <div className="tenant-menu">
+            <div className="nav-label">切换租户</div>
+            {(session?.me.tenants ?? []).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`tenant-option${item.id === tenant?.id ? ' is-active' : ''}`}
+                onClick={() => {
+                  setTenantMenu(false);
+                  void session?.switchTenant?.(item.id).then(onBack).catch(() => undefined);
+                }}
+              >
+                <span className="avatar">{item.name.slice(0, 1)}</span>
+                <span className="grow">
+                  <strong>{item.name}</strong>
+                  <span>{item.slug}</span>
+                </span>
+                {item.id === tenant?.id ? <span className="badge badge-ok">当前</span> : null}
+              </button>
+            ))}
+            {(session?.me.tenants ?? []).length === 0 ? <p className="muted">暂无可用租户</p> : null}
+          </div>
+        ) : null}
         <nav className="nav">
           <div className="nav-group">
             <div className="nav-label">{platform ? '平台管理' : '工作空间'}</div>

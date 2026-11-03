@@ -95,7 +95,7 @@ export function App() {
   }
 
   const withSession = (node: ReactNode) => (
-    <SessionContext.Provider value={{ me, home }}>{node}</SessionContext.Provider>
+    <SessionContext.Provider value={{ me, home, switchTenant }}>{node}</SessionContext.Provider>
   );
 
   if (sessionId) {

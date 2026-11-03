@@ -63,6 +63,14 @@ describe('incident API', () => {
 
     const list = await app.inject({ method: 'GET', url: '/api/incidents', headers: { cookie } });
     expect(list.json()).toMatchObject([{ id, severity: 'P1' }]);
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${id}`,
+      headers: { cookie },
+    });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({ incident: { id }, events: [{}, {}] });
     await app.close();
   });
 

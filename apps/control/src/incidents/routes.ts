@@ -67,6 +67,20 @@ export function registerIncidentRoutes(
     return reply.code(201).send(incident);
   });
 
+  app.get<{ Params: { id: string } }>('/api/incidents/:id', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const detail = await incidents.getWithEvents(ctx.tenantId, request.params.id);
+    if (!detail) return reply.code(404).send({ error: 'incident_not_found' });
+    return reply.send(detail);
+  });
+
   app.patch<{ Params: { id: string } }>('/api/incidents/:id', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

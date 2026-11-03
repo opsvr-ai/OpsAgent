@@ -241,6 +241,22 @@ export async function updateIncident(
   });
 }
 
+export interface IncidentEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+}
+
+export interface IncidentDetail {
+  readonly incident: IncidentSummary;
+  readonly events: readonly IncidentEvent[];
+}
+
+export async function getIncident(id: string): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/api/incidents/${id}`);
+}
+
 export interface ApprovalSummary {
   readonly id: string;
   readonly action: string;

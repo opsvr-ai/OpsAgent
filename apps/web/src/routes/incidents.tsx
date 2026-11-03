@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   createIncident,
+  getIncident,
   listIncidents,
   updateIncident,
+  type IncidentDetail,
   type IncidentSummary,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
@@ -16,6 +18,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [title, setTitle] = useState('');
   const [severity, setSeverity] = useState('P2');
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<IncidentDetail | null>(null);
 
   useEffect(() => {
     void listIncidents()
@@ -45,6 +48,15 @@ export function Incidents({ onBack }: IncidentsProps) {
       setIncidents((current) => current?.map((item) => (item.id === id ? updated : item)) ?? current);
     } catch {
       setError('状态更新失败');
+    }
+  }
+
+  async function openDetail(id: string) {
+    setError(null);
+    try {
+      setDetail(await getIncident(id));
+    } catch {
+      setError('事件详情加载失败');
     }
   }
 
@@ -85,6 +97,7 @@ export function Incidents({ onBack }: IncidentsProps) {
               </div>
               <h3>{incident.title}</h3>
               <div className="row-sm">
+                <button type="button" className="btn btn-outline" onClick={() => void openDetail(incident.id)}>时间线</button>
                 {incident.status === 'open' ? (
                   <button type="button" className="btn btn-primary" onClick={() => void advance(incident.id, 'investigating')}>开始排查</button>
                 ) : null}
@@ -102,6 +115,25 @@ export function Incidents({ onBack }: IncidentsProps) {
           </article>
         ))}
       </section>
+      {detail ? (
+        <section className="card">
+          <div className="card-body">
+            <div className="row-between">
+              <h2>时间线 · {detail.incident.title}</h2>
+              <button type="button" className="btn btn-outline" onClick={() => setDetail(null)}>关闭</button>
+            </div>
+            <div className="stack-sm">
+              {detail.events.map((event) => (
+                <div key={event.id} className="row-between">
+                  <span className="mono">{event.createdAt}</span>
+                  <span>{event.type}</span>
+                  <span className="muted mono">{JSON.stringify(event.payload)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </DesignShell>
   );
 }

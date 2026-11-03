@@ -64,6 +64,33 @@ export class IncidentService {
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
 
+  async getWithEvents(tenantId: string, id: string): Promise<{
+    incident: IncidentRecord;
+    events: Array<{ id: string; type: string; payload: Record<string, unknown>; createdAt: string }>;
+  } | null> {
+    const incident = await this.get(tenantId, id);
+    if (!incident) return null;
+    const events = await this.pool.query<{
+      id: string;
+      type: string;
+      payload: Record<string, unknown>;
+      created_at: Date;
+    }>(
+      `SELECT id, type, payload, created_at FROM incident_events
+       WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
+      [tenantId, id],
+    );
+    return {
+      incident,
+      events: events.rows.map((row) => ({
+        id: row.id,
+        type: row.type,
+        payload: row.payload,
+        createdAt: row.created_at.toISOString(),
+      })),
+    };
+  }
+
   async update(input: {
     tenantId: string;
     id: string;

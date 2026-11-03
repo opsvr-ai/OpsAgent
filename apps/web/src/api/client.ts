@@ -466,3 +466,24 @@ export async function deleteModel(id: string): Promise<void> {
 export async function selectTenant(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/tenants/${id}/select`, { method: 'POST' });
 }
+
+export interface PlatformTenant {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly status: string;
+}
+
+export async function listPlatformTenants(): Promise<PlatformTenant[]> {
+  return request<PlatformTenant[]>('/api/platform/tenants');
+}
+
+export async function createPlatformTenant(input: {
+  name: string;
+  slug: string;
+}): Promise<PlatformTenant> {
+  return request<PlatformTenant>('/api/platform/tenants', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}

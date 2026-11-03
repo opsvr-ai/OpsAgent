@@ -18,6 +18,7 @@ import { Tasks } from './routes/tasks.js';
 import { Sessions } from './routes/sessions.js';
 import { Members } from './routes/members.js';
 import { Models } from './routes/models.js';
+import { Platform } from './routes/platform.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
@@ -28,7 +29,13 @@ export function App() {
   async function refresh() {
     const current = await getMe();
     setMe(current);
-    if (current) setHome(await getHome());
+    if (current) {
+      try {
+        setHome(await getHome());
+      } catch {
+        setHome(null);
+      }
+    }
   }
 
   async function startSession() {
@@ -48,6 +55,9 @@ export function App() {
 
   if (me === undefined) return <div className="loading">加载中…</div>;
   if (me === null) return <Login onSuccess={() => void refresh()} />;
+  if (me.tenants.length === 0 && !home) {
+    return <Platform onRefresh={() => void refresh()} />;
+  }
   if (sessionId) {
     return (
       <Chat

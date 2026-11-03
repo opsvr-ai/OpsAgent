@@ -32,6 +32,13 @@ export async function loginLocalAdmin(username: string, password: string): Promi
   });
 }
 
+export async function loginLdap(username: string, password: string): Promise<void> {
+  await request<{ ok: true }>('/api/auth/ldap', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+}
+
 export async function getMe(): Promise<MeResponse | null> {
   try {
     return await request<MeResponse>('/api/me');

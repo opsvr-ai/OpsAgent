@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { loginLocalAdmin } from '../api/client.js';
+import { loginLdap, loginLocalAdmin } from '../api/client.js';
 
 export interface LoginProps {
   readonly onSuccess: () => void;
@@ -10,16 +10,21 @@ export function Login({ onSuccess }: LoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<'local' | 'ldap'>('local');
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await loginLocalAdmin(username, password);
+      if (mode === 'ldap') {
+        await loginLdap(username, password);
+      } else {
+        await loginLocalAdmin(username, password);
+      }
       onSuccess();
     } catch {
-      setError('用户名或密码错误');
+      setError(mode === 'ldap' ? 'LDAP 未配置或用户名密码错误' : '用户名或密码错误');
     } finally {
       setBusy(false);
     }
@@ -69,10 +74,12 @@ export function Login({ onSuccess }: LoginProps) {
 
       <section className="login-form-side">
         <form className="login-form" onSubmit={submit}>
-          <div className="eyebrow">企业账号登录</div>
+          <div className="eyebrow">{mode === 'ldap' ? '企业账号登录' : '本地管理员登录'}</div>
           <h2>登录 OpsAgent</h2>
           <p className="sub">
-            使用本地管理员账号进入开发环境；生产环境通过 LDAP 登录，租户与角色由平台管理员分配。
+            {mode === 'ldap'
+              ? '使用企业 LDAP 账号登录，租户与角色由平台管理员分配。'
+              : '开发环境使用本地管理员账号；生产环境推荐 LDAP 登录。'}
           </p>
 
           <div className="field">
@@ -101,7 +108,18 @@ export function Login({ onSuccess }: LoginProps) {
           {error ? <p role="alert">{error}</p> : null}
 
           <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy ? '登录中…' : '登录'}
+            {busy ? '登录中…' : mode === 'ldap' ? '通过 LDAP 登录' : '登录'}
+          </button>
+          <button
+            className="btn btn-ghost"
+            type="button"
+            style={{ marginTop: 8 }}
+            onClick={() => {
+              setMode((current) => (current === 'local' ? 'ldap' : 'local'));
+              setError(null);
+            }}
+          >
+            {mode === 'local' ? '使用企业 LDAP 登录' : '使用本地管理员登录'}
           </button>
 
           <div className="login-help">

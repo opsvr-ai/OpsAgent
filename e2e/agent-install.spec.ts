@@ -4,7 +4,7 @@ test('agent page generates one-click install commands', async ({ page }) => {
   await page.goto('/');
   await page.locator('input').nth(0).fill('tenant-admin');
   await page.locator('input').nth(1).fill('opsagent-dev');
-  await page.getByRole('button', { name: '登录' }).click();
+  await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByText('tenant_admin').first()).toBeVisible();
 
   await page.locator('.sidebar .nav-item').filter({ hasText: '服务器 Agent' }).click();

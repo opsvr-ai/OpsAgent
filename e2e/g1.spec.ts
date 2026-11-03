@@ -7,7 +7,7 @@ async function login(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/');
   await page.getByLabel('用户名').fill(username);
   await page.getByLabel('密码').fill(password);
-  await page.getByRole('button', { name: '登录' }).click();
+  await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByText('tenant_admin').first()).toBeVisible();
 }
 

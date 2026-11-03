@@ -10,12 +10,15 @@ import { registerRuntimeRoutes } from './runtime/routes.js';
 import { registerConnectorRoutes } from './connectors/routes.js';
 import { ProbeRegistry } from './connectors/probe.js';
 import { createDefaultProbeRegistry } from './connectors/http-probes.js';
+import { registerScenarioRoutes } from './scenarios/routes.js';
+import type { ToolResolver } from './scenarios/service.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
   readonly localAdmin?: LocalAdminConfig;
   readonly ldap?: LdapAuthenticator;
   readonly connectorProbes?: ProbeRegistry;
+  readonly scenarioTools?: ToolResolver;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -43,6 +46,12 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       options.pool,
       audit,
       options.connectorProbes ?? createDefaultProbeRegistry(),
+    );
+    registerScenarioRoutes(
+      app,
+      options.pool,
+      audit,
+      options.scenarioTools ?? { resolve: () => undefined },
     );
   }
 

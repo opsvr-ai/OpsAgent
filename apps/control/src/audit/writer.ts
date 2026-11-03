@@ -11,7 +11,9 @@ export type AuditAction =
   | 'tool.call'
   | 'approval.decide'
   | 'connector.create'
-  | 'connector.test';
+  | 'connector.test'
+  | 'scenario.create'
+  | 'scenario.run';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

@@ -7,6 +7,8 @@ import type { LdapAuthenticator } from './auth/ldap.js';
 import { PgAuditWriter } from './audit/writer.js';
 import { registerTenantRoutes } from './tenancy/routes.js';
 import { registerRuntimeRoutes } from './runtime/routes.js';
+import { FakeRuntime } from './runtime/fake.js';
+import type { RuntimeClient } from '@opsagent/contracts';
 import { registerConnectorRoutes } from './connectors/routes.js';
 import { ProbeRegistry } from './connectors/probe.js';
 import { createDefaultProbeRegistry } from './connectors/http-probes.js';
@@ -24,6 +26,7 @@ export interface BuildServerOptions {
   readonly connectorProbes?: ProbeRegistry;
   readonly scenarioTools?: ToolResolver;
   readonly studioGenerator?: StudioGenerator;
+  readonly runtime?: RuntimeClient;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -45,7 +48,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       options.ldap,
     );
     registerTenantRoutes(app, options.pool, audit);
-    registerRuntimeRoutes(app, options.pool, audit);
+    registerRuntimeRoutes(app, options.pool, audit, options.runtime ?? new FakeRuntime());
     registerConnectorRoutes(
       app,
       options.pool,

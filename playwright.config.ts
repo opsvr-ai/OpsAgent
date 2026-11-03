@@ -29,6 +29,8 @@ export default defineConfig({
         LOCAL_ADMIN_ENABLED: 'true',
         LOCAL_ADMIN_USERNAME: 'tenant-admin',
         LOCAL_ADMIN_PASSWORD: 'opsagent-dev',
+        DSH_RUNTIME_ENABLED: 'false',
+        STUDIO_DSH_ENABLED: 'false',
       },
     },
     {

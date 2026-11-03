@@ -75,6 +75,7 @@ services:
       # The host dsh install is intentionally not visible here. Enable Studio
       # generation only after installing/configuring dsh inside the container.
       STUDIO_DSH_ENABLED: "false"
+      DSH_RUNTIME_ENABLED: "false"
       PORT: "8080"
     ports:
       - "8080:8080"

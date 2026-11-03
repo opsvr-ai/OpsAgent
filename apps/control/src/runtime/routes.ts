@@ -1,11 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { RuntimeClient } from '@opsagent/contracts';
 import type { ServerResponse } from 'node:http';
 import type { Pool } from 'pg';
 import type { AuditWriter } from '../audit/writer.js';
 import { SESSION_COOKIE, readSession } from '../auth/session.js';
 import { resolveTenantContext } from '../tenancy/context.js';
 import { createMembershipRepository } from '../tenancy/db-repo.js';
-import { FakeRuntime } from './fake.js';
+
 import { ApprovalNotFoundError, SessionNotFoundError, SessionService } from './session-service.js';
 
 interface CreateSessionBody {
@@ -48,8 +49,13 @@ function sseWrite(raw: ServerResponse, event: unknown): void {
   raw.write(`data: ${JSON.stringify(event)}\n\n`);
 }
 
-export function registerRuntimeRoutes(app: FastifyInstance, pool: Pool, audit: AuditWriter): void {
-  const sessions = new SessionService(pool, new FakeRuntime(), audit);
+export function registerRuntimeRoutes(
+  app: FastifyInstance,
+  pool: Pool,
+  audit: AuditWriter,
+  runtime: RuntimeClient,
+): void {
+  const sessions = new SessionService(pool, runtime, audit);
 
   app.post('/api/sessions', async (request, reply) => {
     const auth = await authContext(pool, request);

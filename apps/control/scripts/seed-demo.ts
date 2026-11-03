@@ -32,6 +32,9 @@ const ids = {
   approvalSession2: '90000000-0000-4000-8000-000000000002',
   approval1: 'a0000000-0000-4000-8000-000000000001',
   approval2: 'a0000000-0000-4000-8000-000000000002',
+  agentDemo: 'b0000000-0000-4000-8000-000000000001',
+  studio1: 'c0000000-0000-4000-8000-000000000001',
+  studio2: 'c0000000-0000-4000-8000-000000000002',
 };
 
 const pool = new Pool({ connectionString: databaseUrl });
@@ -170,6 +173,27 @@ async function main(): Promise<void> {
          ($4, $2, $5, 'demo-call-pg', 'postgres_query pg_stat_activity', 'R2', 'pending', '{"sql":"SELECT count(*) FROM pg_stat_activity"}'::jsonb)
        ON CONFLICT (id) DO NOTHING`,
       [ids.approval1, tenant, ids.approvalSession1, ids.approval2, ids.approvalSession2],
+    );
+
+    await client.query(
+      `INSERT INTO agents
+         (id, tenant_id, name, hostname, os, arch, version, status, capabilities, agent_key, last_seen, metrics)
+       VALUES ($1, $2, 'prod-web-01', 'prod-web-01', 'linux', 'amd64', '0.1.0', 'online',
+               '["cpu","memory","disk"]'::jsonb, 'demo-agent-key', now(),
+               '{"cpuCores":8,"heapMB":24,"goroutines":12,"uptimeSec":86400,"memTotalGB":16,"memAvailableGB":9.2,"memLoadPct":42,"diskTotalGB":200,"diskFreeGB":128}'::jsonb)
+       ON CONFLICT (id) DO NOTHING`,
+      [ids.agentDemo, tenant],
+    );
+
+    await client.query(
+      `INSERT INTO studio_sessions (id, tenant_id, requested_by, goal, platform, status, bundle)
+       VALUES
+         ($1, $2, $3, '生成蓝鲸 CMDB 连接器', 'blueking', 'generated',
+          '{"goal":"生成蓝鲸 CMDB 连接器","files":["cordis.patch.yml","connector.ts","manifest.json"],"manifest":{"id":"blueking-cmdb","risk":"R1"}}'::jsonb),
+         ($4, $2, $3, '生成 Zabbix 告警同步连接器', 'zabbix', 'pending_review',
+          '{"goal":"生成 Zabbix 告警同步连接器","files":["cordis.patch.yml","manifest.json"],"manifest":{"id":"zabbix-alert","risk":"R2"}}'::jsonb)
+       ON CONFLICT (id) DO NOTHING`,
+      [ids.studio1, tenant, admin, ids.studio2],
     );
 
     await client.query('COMMIT');

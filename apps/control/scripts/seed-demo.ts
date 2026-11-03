@@ -18,6 +18,9 @@ const ids = {
   scenarioCheck: '20000000-0000-4000-8000-000000000001',
   scenarioDb: '20000000-0000-4000-8000-000000000002',
   scenarioDisk: '20000000-0000-4000-8000-000000000003',
+  scenarioCache: '20000000-0000-4000-8000-000000000004',
+  scenarioK8s: '20000000-0000-4000-8000-000000000005',
+  scenarioPay: '20000000-0000-4000-8000-000000000006',
   incident5xx: '30000000-0000-4000-8000-000000000001',
   incidentDb: '30000000-0000-4000-8000-000000000002',
   incidentDisk: '30000000-0000-4000-8000-000000000003',
@@ -32,8 +35,14 @@ const ids = {
   message4: '50000000-0000-4000-8000-000000000004',
   message5: '50000000-0000-4000-8000-000000000005',
   share1: '60000000-0000-4000-8000-000000000001',
+  share2: '60000000-0000-4000-8000-000000000002',
+  share3: '60000000-0000-4000-8000-000000000003',
+  share4: '60000000-0000-4000-8000-000000000004',
   snapshot1: '70000000-0000-4000-8000-000000000001',
   snapshot2: '70000000-0000-4000-8000-000000000002',
+  snapshot3: '70000000-0000-4000-8000-000000000003',
+  snapshot4: '70000000-0000-4000-8000-000000000004',
+  snapshot5: '70000000-0000-4000-8000-000000000005',
   task1: '80000000-0000-4000-8000-000000000001',
   task2: '80000000-0000-4000-8000-000000000002',
   task3: '80000000-0000-4000-8000-000000000003',
@@ -98,6 +107,15 @@ async function main(): Promise<void> {
       ]],
       [ids.scenarioDisk, '主机磁盘巡检', '检查磁盘使用率并生成报告', [
         { name: '磁盘', tool: 'ssh_read', input: { check: 'disk' } },
+      ]],
+      [ids.scenarioCache, '缓存命中率下降排查', '检查 Redis 命中率、慢日志和键空间', [
+        { name: '缓存', tool: 'redis_info', input: { section: 'stats' } },
+      ]],
+      [ids.scenarioK8s, 'K8s 节点磁盘压力', '检查节点磁盘压力与可回收镜像', [
+        { name: '节点', tool: 'k8s_node_status', input: { condition: 'DiskPressure' } },
+      ]],
+      [ids.scenarioPay, '支付链路黄金指标', '检查支付网关错误率与延迟', [
+        { name: '黄金指标', tool: 'promql_query', input: { query: 'rate(pay_gateway_errors_total[5m])' } },
       ]],
     ] as const;
     for (const [id, name, description, steps] of scenarios) {
@@ -174,18 +192,25 @@ async function main(): Promise<void> {
 
     await client.query(
       `INSERT INTO scenario_shares (id, tenant_id, scenario_id, requested_by, scope, status, reason)
-       VALUES ($1, $2, $3, $4, 'tenant', 'pending', '跨租户共享排查流程')
+       VALUES
+         ($1, $2, $3, $4, 'tenant', 'pending', '跨租户共享排查流程'),
+         ($5, $2, $6, $4, 'platform', 'pending', '共享给平台支撑团队'),
+         ($7, $2, $8, $4, 'tenant', 'approved', '同产品线复用缓存排查流程'),
+         ($9, $2, $10, $4, 'tenant', 'rejected', '支付链路暂不共享')
        ON CONFLICT (id) DO NOTHING`,
-      [ids.share1, tenant, ids.scenarioCheck, admin],
+      [ids.share1, tenant, ids.scenarioCheck, admin, ids.share2, ids.scenarioCache, ids.share3, ids.scenarioK8s, ids.share4, ids.scenarioPay],
     );
 
     await client.query(
       `INSERT INTO data_snapshots (id, tenant_id, connector_id, tool, cache_key, payload, bytes)
        VALUES
          ($1, $2, $3, 'promql_query', 'demo-prom-1', '{"result":"up"}'::jsonb, 12),
-         ($4, $2, $5, 'postgres_query', 'demo-pg-1', '{"rows":1}'::jsonb, 18)
+         ($4, $2, $5, 'postgres_query', 'demo-pg-1', '{"rows":1}'::jsonb, 18),
+         ($6, $2, $7, 'clickhouse_query', 'demo-ch-1', '{"rows":128}'::jsonb, 4096),
+         ($8, $2, $9, 'grafana_dashboard', 'demo-gf-1', '{"dashboards":12}'::jsonb, 2048),
+         ($10, $2, $11, 'zabbix_problem_get', 'demo-zb-1', '{"problems":2}'::jsonb, 512)
        ON CONFLICT (id) DO NOTHING`,
-      [ids.snapshot1, tenant, ids.prometheus, ids.snapshot2, ids.postgres],
+      [ids.snapshot1, tenant, ids.prometheus, ids.snapshot2, ids.postgres, ids.snapshot3, ids.clickhouse, ids.snapshot4, ids.grafana, ids.snapshot5, ids.zabbix],
     );
 
     await client.query(

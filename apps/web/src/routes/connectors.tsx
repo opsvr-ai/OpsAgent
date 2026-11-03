@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   createConnector,
+  getConnector,
   listConnectors,
+  saveConnectorCredentials,
   testConnector,
+  type ConnectorDetail,
   type ConnectorSummary,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
@@ -20,6 +23,8 @@ export function Connectors({ onBack }: ConnectorsProps) {
   const [baseUrl, setBaseUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [probe, setProbe] = useState<Record<string, string>>({});
+  const [detail, setDetail] = useState<ConnectorDetail | null>(null);
+  const [credentialsText, setCredentialsText] = useState('');
 
   useEffect(() => {
     void listConnectors()
@@ -54,6 +59,29 @@ export function Connectors({ onBack }: ConnectorsProps) {
       setProbe((current) => ({ ...current, [id]: `${result.status} · ${result.latencyMs}ms` }));
     } catch {
       setProbe((current) => ({ ...current, [id]: '探测失败' }));
+    }
+  }
+
+  async function openDetail(id: string) {
+    setError(null);
+    try {
+      setDetail(await getConnector(id));
+      setCredentialsText('');
+    } catch {
+      setError('连接器详情加载失败');
+    }
+  }
+
+  async function saveCredentials() {
+    if (!detail) return;
+    setError(null);
+    try {
+      const parsed = JSON.parse(credentialsText) as Record<string, unknown>;
+      await saveConnectorCredentials(detail.id, parsed);
+      setDetail({ ...detail, hasCredentials: true });
+      setCredentialsText('');
+    } catch {
+      setError('凭据保存失败，需为 JSON 对象');
     }
   }
 
@@ -94,10 +122,30 @@ export function Connectors({ onBack }: ConnectorsProps) {
               <h3>{connector.name}</h3>
               {probe[connector.id] ? <p className="muted">{probe[connector.id]}</p> : null}
               <button type="button" className="btn btn-outline" onClick={() => void test(connector.id)}>测试连接</button>
+              <button type="button" className="btn btn-outline" onClick={() => void openDetail(connector.id)}>详情</button>
             </div>
           </article>
         ))}
       </section>
+      {detail ? (
+        <section className="card">
+          <div className="card-body">
+            <div className="row-between">
+              <h2>{detail.name}</h2>
+              <span className="badge badge-neutral">{detail.hasCredentials ? '已配置凭据' : '无凭据'}</span>
+            </div>
+            <p className="muted mono">{JSON.stringify(detail.config)}</p>
+            <label htmlFor="connector-credentials">凭据 JSON（保存后不可回读）</label>
+            <textarea
+              id="connector-credentials"
+              value={credentialsText}
+              onChange={(event) => setCredentialsText(event.target.value)}
+              rows={4}
+            />
+            <button type="button" className="btn btn-primary" onClick={() => void saveCredentials()}>保存凭据</button>
+          </div>
+        </section>
+      ) : null}
     </DesignShell>
   );
 }

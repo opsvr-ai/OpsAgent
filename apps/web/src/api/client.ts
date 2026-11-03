@@ -288,6 +288,24 @@ export async function listConnectors(): Promise<ConnectorSummary[]> {
   return request<ConnectorSummary[]>('/api/connectors');
 }
 
+export interface ConnectorDetail extends ConnectorSummary {
+  readonly hasCredentials: boolean;
+}
+
+export async function getConnector(id: string): Promise<ConnectorDetail> {
+  return request<ConnectorDetail>(`/api/connectors/${id}`);
+}
+
+export async function saveConnectorCredentials(
+  id: string,
+  credentials: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  await request<{ ok: true }>(`/api/connectors/${id}/credentials`, {
+    method: 'PUT',
+    body: JSON.stringify({ credentials }),
+  });
+}
+
 export async function createConnector(input: {
   connectorType: string;
   name: string;

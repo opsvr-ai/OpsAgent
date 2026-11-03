@@ -66,6 +66,13 @@ describe('connector credentials', () => {
     );
     expect(row.rows[0]?.encrypted_payload).not.toContain('postgres://localhost/none');
 
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/connectors/${id}`,
+      headers: { cookie },
+    });
+    expect(detail.json()).toMatchObject({ id, hasCredentials: true });
+
     const resolver = new ConnectorToolResolver(pool, 'test-secret');
     expect(await resolver.resolve('00000000-0000-4000-8000-000000000001', 'postgres_query')).toBeDefined();
     await app.close();

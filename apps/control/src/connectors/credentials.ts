@@ -50,6 +50,14 @@ export class ConnectorCredentialService {
     return true;
   }
 
+  async has(tenantId: string, connectorId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'SELECT 1 FROM connector_credentials WHERE tenant_id = $1 AND connector_id = $2',
+      [tenantId, connectorId],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async get(
     tenantId: string,
     connectorId: string,

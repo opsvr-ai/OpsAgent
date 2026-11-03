@@ -49,6 +49,23 @@ export function registerConnectorRoutes(
     return reply.send(await connectors.list(ctx.tenantId));
   });
 
+  app.get<{ Params: { id: string } }>('/api/connectors/:id', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'connector.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const connector = await connectors.get(ctx.tenantId, request.params.id);
+    if (!connector) return reply.code(404).send({ error: 'connector_not_found' });
+    return reply.send({
+      ...connector,
+      hasCredentials: await credentials.has(ctx.tenantId, connector.id),
+    });
+  });
+
   app.post('/api/connectors', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

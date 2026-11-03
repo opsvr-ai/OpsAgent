@@ -13,12 +13,13 @@ import { Approvals } from './routes/approvals.js';
 import { Connectors } from './routes/connectors.js';
 import { Knowledge } from './routes/knowledge.js';
 import { Messages } from './routes/messages.js';
+import { Agents } from './routes/agents.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -56,6 +57,7 @@ export function App() {
   if (view === 'connectors') return <Connectors onBack={() => setView('home')} />;
   if (view === 'knowledge') return <Knowledge onBack={() => setView('home')} />;
   if (view === 'messages') return <Messages onBack={() => setView('home')} />;
+  if (view === 'agents') return <Agents onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -71,6 +73,7 @@ export function App() {
       onOpenConnectors={() => setView('connectors')}
       onOpenKnowledge={() => setView('knowledge')}
       onOpenMessages={() => setView('messages')}
+      onOpenAgents={() => setView('agents')}
     />
   );
 }

@@ -329,3 +329,18 @@ export async function listMessages(): Promise<MessageSummary[]> {
 export async function markMessageRead(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/messages/${id}/read`, { method: 'POST' });
 }
+
+export interface AgentSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly hostname: string;
+  readonly os: string;
+  readonly arch: string;
+  readonly version: string;
+  readonly status: string;
+  readonly lastSeen: string;
+}
+
+export async function listAgents(): Promise<AgentSummary[]> {
+  return request<AgentSummary[]>('/api/agents');
+}

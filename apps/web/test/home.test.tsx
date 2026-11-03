@@ -44,6 +44,7 @@ describe('Home', () => {
         onOpenConnectors={vi.fn()}
         onOpenKnowledge={vi.fn()}
         onOpenMessages={vi.fn()}
+        onOpenAgents={vi.fn()}
       />,
     );
 

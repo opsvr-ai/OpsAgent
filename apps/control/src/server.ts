@@ -21,6 +21,7 @@ import { registerIncidentRoutes } from './incidents/routes.js';
 import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
+import { registerAgentRoutes } from './agents/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -31,6 +32,7 @@ export interface BuildServerOptions {
   readonly studioGenerator?: StudioGenerator;
   readonly runtime?: RuntimeClient;
   readonly internalToken?: string;
+  readonly agentEnrollmentToken?: string;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -69,6 +71,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerInternalApprovalRoutes(app, options.pool, options.internalToken);
     registerKnowledgeRoutes(app, options.pool, audit);
     registerMessageRoutes(app, options.pool);
+    registerAgentRoutes(app, options.pool, options.agentEnrollmentToken);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit);
   }

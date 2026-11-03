@@ -24,6 +24,9 @@ const app = buildServer({
   ...(process.env.OPSAGENT_INTERNAL_TOKEN
     ? { internalToken: process.env.OPSAGENT_INTERNAL_TOKEN }
     : {}),
+  ...(process.env.OPSAGENT_AGENT_ENROLLMENT_TOKEN
+    ? { agentEnrollmentToken: process.env.OPSAGENT_AGENT_ENROLLMENT_TOKEN }
+    : {}),
   ...(process.env.STUDIO_DSH_ENABLED === 'false'
     ? {}
     : { studioGenerator: new DshHeadlessGenerator() }),

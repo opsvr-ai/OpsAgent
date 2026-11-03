@@ -3,6 +3,7 @@ import { buildServer } from './server.js';
 import { ConnectorToolResolver } from './connectors/runtime.js';
 import { ScenarioService } from './scenarios/service.js';
 import { ScenarioScheduler } from './scenarios/scheduler.js';
+import { DshHeadlessGenerator } from './studio/dsh-generator.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
 const pool = new Pool({
@@ -18,6 +19,9 @@ const app = buildServer({
     username: process.env.LOCAL_ADMIN_USERNAME ?? 'tenant-admin',
   },
   scenarioTools: tools,
+  ...(process.env.STUDIO_DSH_ENABLED === 'false'
+    ? {}
+    : { studioGenerator: new DshHeadlessGenerator() }),
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
 

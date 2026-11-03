@@ -92,8 +92,10 @@ export interface ScenarioSummary {
 }
 
 export interface ScenarioRunSummary {
-  readonly status: 'success' | 'failed';
+  readonly status: 'success' | 'failed' | 'awaiting_approval';
+  readonly runId: string;
   readonly results: readonly unknown[];
+  readonly approvalId?: string;
   readonly error?: string;
 }
 
@@ -105,6 +107,16 @@ export async function runScenario(id: string): Promise<ScenarioRunSummary> {
   return request<ScenarioRunSummary>(`/api/scenarios/${id}/run`, {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+export async function approveScenarioRun(
+  runId: string,
+  decision: 'approve' | 'reject',
+): Promise<ScenarioRunSummary> {
+  return request<ScenarioRunSummary>(`/api/scenario-runs/${runId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ decision }),
   });
 }
 

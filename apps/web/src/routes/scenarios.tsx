@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DesignShell } from './design-shell.js';
 import {
+  approveScenarioRun,
   listScenarios,
   runScenario,
   setScenarioSchedule,
@@ -23,6 +24,16 @@ export function Scenarios({ onBack }: ScenariosProps) {
       .then(setScenarios)
       .catch(() => setError('场景加载失败'));
   }, []);
+
+  async function decide(decision: 'approve' | 'reject') {
+    if (!result?.runId) return;
+    setError(null);
+    try {
+      setResult(await approveScenarioRun(result.runId, decision));
+    } catch {
+      setError('审批失败');
+    }
+  }
 
   async function run(id: string) {
     setError(null);
@@ -106,6 +117,12 @@ export function Scenarios({ onBack }: ScenariosProps) {
             <div className="card-body">
             <h2>运行结果</h2>
             <p>{result.status}</p>
+            {result.status === 'awaiting_approval' ? (
+              <div className="row-sm">
+                <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
+                <button type="button" className="btn btn-outline" onClick={() => void decide('reject')}>拒绝</button>
+              </div>
+            ) : null}
             {result.error ? <p role="alert">{result.error}</p> : null}
             </div>
           </section>

@@ -16,7 +16,7 @@ test('design shell: light default, sidebar navigation, data and appearance pages
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   await page.getByRole('button', { name: '数据沉淀' }).click();
-  await expect(page.getByRole('heading', { name: '插件数据沉淀' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '数据沉淀' })).toBeVisible();
   await expect(page.getByText('存储占用')).toBeVisible();
   await expect(page.getByText('数据存储加载失败')).toHaveCount(0);
 

@@ -87,7 +87,11 @@ export function App() {
   if (me === undefined) return <div className="loading">加载中…</div>;
   if (me === null) return <Login onSuccess={() => void refresh()} />;
   if (me.tenants.length === 0 && !home) {
-    return <Platform onRefresh={() => void refresh()} />;
+    return (
+      <SessionContext.Provider value={{ me, home }}>
+        <Platform onRefresh={() => void refresh()} />
+      </SessionContext.Provider>
+    );
   }
 
   const withSession = (node: ReactNode) => (

@@ -15,11 +15,15 @@ export interface DesignShellProps {
   readonly subtitle?: string;
   readonly onBack: () => void;
   readonly actions?: ReactNode;
+  readonly platform?: boolean;
   readonly children: ReactNode;
 }
 
-export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, children }: DesignShellProps) {
+export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, platform = false, children }: DesignShellProps) {
   const session = useSession();
+  const navItems = platform
+    ? [{ id: 'home' as const, label: '租户管理', icon: 'building' }]
+    : NAV;
   const tenant = session?.home
     ? session.me.tenants.find((item) => item.id === session.home?.tenantId)
     : session?.me.tenants[0];
@@ -48,16 +52,16 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
           </div>
         </div>
         <button type="button" className="tenant-switch" onClick={onBack}>
-          <span className="avatar">{(tenant?.name ?? '开发租户').slice(0, 1)}</span>
+          <span className="avatar">{platform ? 'P' : (tenant?.name ?? '开发租户').slice(0, 1)}</span>
           <span className="tenant-meta">
-            <strong>{tenant?.name ?? '开发租户'}</strong>
-            <span>{tenant?.slug ?? 'tenant-demo'} · 本地开发</span>
+            <strong>{platform ? '平台控制台' : (tenant?.name ?? '开发租户')}</strong>
+            <span>{platform ? 'platform-admin · 平台管理员' : `${tenant?.slug ?? 'tenant-demo'} · 本地开发`}</span>
           </span>
         </button>
         <nav className="nav">
           <div className="nav-group">
-            <div className="nav-label">工作空间</div>
-            {NAV.map((item) => (
+            <div className="nav-label">{platform ? '平台管理' : '工作空间'}</div>
+            {navItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -82,15 +86,15 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
           <div className="runtime-card">
             <span className="dot dot-ok" />
             <div>
-              <strong>开发运行时</strong>
-              <span>单节点 · 本地容器</span>
+              <strong>{platform ? '平台控制台' : '开发运行时'}</strong>
+              <span>{platform ? '多租户治理 · 本地开发' : '单节点 · 本地容器'}</span>
             </div>
           </div>
           <button type="button" className="user-chip" onClick={onBack}>
             <span className="avatar is-green">{userName.slice(0, 1)}</span>
             <span className="grow">
               <strong>{userName}</strong>
-              <span>{roleView}</span>
+              <span>{platform ? '平台管理员' : roleView}</span>
             </span>
           </button>
           <button type="button" className="logout-link" onClick={() => window.dispatchEvent(new Event('opsagent:logout'))}>退出登录</button>
@@ -100,12 +104,12 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
       <section className="main">
         <header className="topbar">
           <div className="crumbs">
-            <button type="button" className="crumbs-link" onClick={onBack}>工作台</button>
+            <button type="button" className="crumbs-link" onClick={onBack}>{platform ? '平台' : '工作台'}</button>
             <span className="sep">/</span>
             <span className="current">{title}</span>
           </div>
           <div className="topbar-spacer" />
-          <GlobalSearch />
+          {platform ? null : <GlobalSearch />}
           <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>

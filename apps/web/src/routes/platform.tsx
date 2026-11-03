@@ -47,6 +47,7 @@ export function Platform({ onRefresh }: PlatformProps) {
       title="平台租户管理"
       subtitle="平台管理员治理租户；不读取租户会话正文。"
       onBack={onRefresh}
+      platform
     >
       {error ? <p role="alert">{error}</p> : null}
       <div className="status-strip" style={{ marginBottom: 20 }}>

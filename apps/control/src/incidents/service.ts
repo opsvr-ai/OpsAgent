@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { sendWebhook } from '../messages/webhook.js';
 
 export const INCIDENT_STATUSES = [
   'open',
@@ -43,6 +44,11 @@ export class IncidentService {
        VALUES ($1, $2, $3, 'warning')`,
       [input.tenantId, `新事件 ${input.severity}`, input.title],
     );
+    void sendWebhook({
+      title: `新事件 ${input.severity}`,
+      body: input.title,
+      severity: 'warning',
+    });
     return this.map(row);
   }
 

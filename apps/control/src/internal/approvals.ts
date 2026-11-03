@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
+import { sendWebhook } from '../messages/webhook.js';
 
 interface CreateBody {
   tenantId?: unknown;
@@ -55,6 +56,11 @@ export function registerInternalApprovalRoutes(
        VALUES ($1, $2, $3, 'warning')`,
       [body.tenantId, '待审批的运行时操作', `${body.tool} 需要审批`],
     );
+    void sendWebhook({
+      title: '待审批的运行时操作',
+      body: `${body.tool} 需要审批`,
+      severity: 'warning',
+    });
     return reply.code(201).send({ id: approval.rows[0]?.id });
   });
 

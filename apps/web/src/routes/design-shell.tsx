@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'approvals' | 'connectors' | 'knowledge' | 'shares' | 'studio' | 'audit';
+export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'shares' | 'studio' | 'audit';
 
 export interface DesignShellProps {
   readonly active: DesignNav;
@@ -18,6 +18,7 @@ const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
   { id: 'approvals', label: '待审批', icon: 'check' },
   { id: 'connectors', label: '集成与连接器', icon: 'plug' },
   { id: 'knowledge', label: '知识中心', icon: 'book' },
+  { id: 'messages', label: '消息中心', icon: 'bell' },
   { id: 'scenarios', label: '场景中心', icon: 'bolt' },
   { id: 'shares', label: '共享审批', icon: 'share' },
   { id: 'studio', label: '创造模式', icon: 'wand' },

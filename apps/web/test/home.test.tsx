@@ -43,6 +43,7 @@ describe('Home', () => {
         onOpenApprovals={vi.fn()}
         onOpenConnectors={vi.fn()}
         onOpenKnowledge={vi.fn()}
+        onOpenMessages={vi.fn()}
       />,
     );
 

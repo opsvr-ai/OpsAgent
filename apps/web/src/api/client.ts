@@ -312,3 +312,20 @@ export async function createKnowledge(input: {
 export async function publishKnowledge(id: string): Promise<KnowledgeDocument> {
   return request<KnowledgeDocument>(`/api/knowledge/${id}/publish`, { method: 'POST' });
 }
+
+export interface MessageSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly severity: string;
+  readonly readAt: string | null;
+  readonly createdAt: string;
+}
+
+export async function listMessages(): Promise<MessageSummary[]> {
+  return request<MessageSummary[]>('/api/messages');
+}
+
+export async function markMessageRead(id: string): Promise<void> {
+  await request<{ ok: true }>(`/api/messages/${id}/read`, { method: 'POST' });
+}

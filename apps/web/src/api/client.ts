@@ -509,3 +509,33 @@ export async function createPlatformTenant(input: {
     body: JSON.stringify(input),
   });
 }
+
+export interface DataStoreSnapshot {
+  readonly id: string;
+  readonly tool: string;
+  readonly bytes: number;
+  readonly createdAt: string;
+  readonly expiresAt: string | null;
+}
+
+export interface DataStoreStats {
+  readonly count: number;
+  readonly bytes: number;
+  readonly oldest: string | null;
+  readonly newest: string | null;
+  readonly recent: readonly DataStoreSnapshot[];
+}
+
+export async function getDataStore(): Promise<DataStoreStats> {
+  return request<DataStoreStats>('/api/data-store');
+}
+
+export async function cleanupDataStore(
+  beforeDays: number,
+  dryRun: boolean,
+): Promise<{ count: number; bytes: number; dryRun: boolean }> {
+  return request<{ count: number; bytes: number; dryRun: boolean }>('/api/data-store/cleanup', {
+    method: 'POST',
+    body: JSON.stringify({ beforeDays, dryRun }),
+  });
+}

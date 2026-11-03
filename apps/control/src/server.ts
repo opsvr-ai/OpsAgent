@@ -26,6 +26,7 @@ import { registerAgentRoutes } from './agents/routes.js';
 import { registerMemberRoutes } from './members/routes.js';
 import { registerModelRoutes } from './models/routes.js';
 import { registerPlatformRoutes } from './platform/routes.js';
+import { registerDataStoreRoutes } from './data-store/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -83,6 +84,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerMemberRoutes(app, options.pool, audit);
     registerModelRoutes(app, options.pool, audit, options.modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret');
     registerPlatformRoutes(app, options.pool);
+    registerDataStoreRoutes(app, options.pool, audit);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit);
   }

@@ -27,6 +27,7 @@ export type AuditAction =
   | 'knowledge.publish'
   | 'task.create'
   | 'task.approve'
+  | 'data.cleanup'
   | 'member.roles.update'
   | 'model.create'
   | 'model.delete'

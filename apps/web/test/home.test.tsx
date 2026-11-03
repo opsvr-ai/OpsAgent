@@ -49,6 +49,7 @@ describe('Home', () => {
         onOpenSessions={vi.fn()}
         onOpenMembers={vi.fn()}
         onOpenModels={vi.fn()}
+        onOpenData={vi.fn()}
         onSwitchTenant={vi.fn()}
       />,
     );

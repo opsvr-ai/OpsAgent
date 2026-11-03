@@ -17,6 +17,7 @@ export const PERMISSIONS = [
   'task.manage',
   'model.configure',
   'catalog.manage',
+  'data.manage',
   'platform.admin',
 ] as const;
 

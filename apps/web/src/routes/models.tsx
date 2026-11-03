@@ -61,6 +61,12 @@ export function Models({ onBack }: ModelsProps) {
       onBack={onBack}
     >
       {error ? <p role="alert">{error}</p> : null}
+      <div className="status-strip" style={{ marginBottom: 18 }}>
+        <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-shield" /></svg></span><div><strong>模型配置</strong><span>{models?.length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>已启用</strong><span>{models?.filter((item) => item.status === 'active').length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-grid" /></svg></span><div><strong>供应商</strong><span>{new Set((models ?? []).map((item) => item.provider)).size} 种</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-lock" /></svg></span><div><strong>密钥存储</strong><span>AES-256-GCM</span></div></div>
+      </div>
       <section className="card">
         <div className="card-head"><h2>新增模型</h2><span className="muted">仅当前租户可用</span></div>
         <div className="card-body">

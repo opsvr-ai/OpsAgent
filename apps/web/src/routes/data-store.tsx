@@ -28,13 +28,19 @@ export function DataStore({ onBack }: DataStoreProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void Promise.all([getDataStore(), getDataStoreSettings()])
-      .then(([nextStats, nextSettings]) => {
-        setStats(nextStats);
-        setSettings(nextSettings);
-      })
-      .catch(() => setError('数据存储加载失败'));
+    void refresh();
   }, []);
+
+  async function refresh() {
+    setError(null);
+    try {
+      const [nextStats, nextSettings] = await Promise.all([getDataStore(), getDataStoreSettings()]);
+      setStats(nextStats);
+      setSettings(nextSettings);
+    } catch {
+      setError('数据存储加载失败');
+    }
+  }
 
   async function saveSettings() {
     if (!settings) return;
@@ -64,6 +70,7 @@ export function DataStore({ onBack }: DataStoreProps) {
       title="插件数据沉淀"
       subtitle="本地快照、同步与回源、保留策略和配额。"
       onBack={onBack}
+      actions={<button type="button" className="btn btn-primary" onClick={() => void refresh()}>刷新数据</button>}
     >
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p className="muted">{message}</p> : null}

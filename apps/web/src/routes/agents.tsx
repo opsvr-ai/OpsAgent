@@ -98,10 +98,14 @@ export function Agents({ onBack }: AgentsProps) {
       title="服务器 Agent"
       subtitle="出站注册、心跳与能力发现；Agent 不开放入站端口。"
       onBack={onBack}
+      actions={<button type="button" className="btn btn-primary" onClick={() => void openInstall()}>一键安装 Agent</button>}
     >
       {error ? <p role="alert">{error}</p> : null}
-      <div className="row-sm" style={{ marginBottom: 16 }}>
-        <button type="button" className="btn btn-primary" onClick={() => void openInstall()}>一键安装 Agent</button>
+      <div className="status-strip" style={{ marginBottom: 18 }}>
+        <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-server" /></svg></span><div><strong>Agent 总数</strong><span>{agents?.length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>在线</strong><span>{agents?.filter((agent) => agent.status === 'online').length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>离线</strong><span>{agents?.filter((agent) => agent.status !== 'online').length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-clock" /></svg></span><div><strong>最近命令</strong><span>{Object.values(commands).length} 条</span></div></div>
       </div>
       {install ? (
         <section className="card">

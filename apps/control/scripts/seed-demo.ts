@@ -10,6 +10,11 @@ const ids = {
   postgres: '10000000-0000-4000-8000-000000000002',
   zabbix: '10000000-0000-4000-8000-000000000003',
   redis: '10000000-0000-4000-8000-000000000004',
+  grafana: '10000000-0000-4000-8000-000000000005',
+  alertmanager: '10000000-0000-4000-8000-000000000006',
+  clickhouse: '10000000-0000-4000-8000-000000000007',
+  ssh: '10000000-0000-4000-8000-000000000008',
+  http: '10000000-0000-4000-8000-000000000009',
   scenarioCheck: '20000000-0000-4000-8000-000000000001',
   scenarioDb: '20000000-0000-4000-8000-000000000002',
   scenarioDisk: '20000000-0000-4000-8000-000000000003',
@@ -19,15 +24,20 @@ const ids = {
   knowledge1: '40000000-0000-4000-8000-000000000001',
   knowledge2: '40000000-0000-4000-8000-000000000002',
   knowledge3: '40000000-0000-4000-8000-000000000003',
+  knowledge4: '40000000-0000-4000-8000-000000000004',
+  knowledge5: '40000000-0000-4000-8000-000000000005',
   message1: '50000000-0000-4000-8000-000000000001',
   message2: '50000000-0000-4000-8000-000000000002',
   message3: '50000000-0000-4000-8000-000000000003',
   message4: '50000000-0000-4000-8000-000000000004',
+  message5: '50000000-0000-4000-8000-000000000005',
   share1: '60000000-0000-4000-8000-000000000001',
   snapshot1: '70000000-0000-4000-8000-000000000001',
   snapshot2: '70000000-0000-4000-8000-000000000002',
   task1: '80000000-0000-4000-8000-000000000001',
   task2: '80000000-0000-4000-8000-000000000002',
+  task3: '80000000-0000-4000-8000-000000000003',
+  task4: '80000000-0000-4000-8000-000000000004',
   approvalSession1: '90000000-0000-4000-8000-000000000001',
   approvalSession2: '90000000-0000-4000-8000-000000000002',
   approval1: 'a0000000-0000-4000-8000-000000000001',
@@ -64,6 +74,11 @@ async function main(): Promise<void> {
       [ids.postgres, 'postgres', 'pg-orders', { database: 'orders' }, 'active'],
       [ids.zabbix, 'zabbix', 'zabbix-prod', { baseUrl: 'http://zabbix.monitoring' }, 'active'],
       [ids.redis, 'redis', 'redis-cache', { host: 'redis', port: 6379 }, 'active'],
+      [ids.grafana, 'grafana', 'grafana-main', { baseUrl: 'http://grafana.monitoring:3000' }, 'active'],
+      [ids.alertmanager, 'alertmanager', 'alertmanager-prod', { baseUrl: 'http://alertmanager.monitoring:9093' }, 'active'],
+      [ids.clickhouse, 'clickhouse', 'clickhouse-logs', { host: 'clickhouse', port: 8123 }, 'active'],
+      [ids.ssh, 'ssh', 'prod-host-readonly', { host: 'db-01', port: 22 }, 'active'],
+      [ids.http, 'http', 'gateway-health', { baseUrl: 'https://pay-gateway.internal/health' }, 'active'],
     ] as const;
     for (const [id, type, name, config, status] of connectors) {
       await client.query(
@@ -129,6 +144,8 @@ async function main(): Promise<void> {
       [ids.knowledge1, 'MySQL 连接池排障手册', '检查 max_connections、wait_timeout、连接泄漏和慢查询。', 'published'],
       [ids.knowledge2, '订单服务 5xx 排查路径', '先看错误率与发布记录，再检查下游数据库连接池。', 'published'],
       [ids.knowledge3, '日志盘告警处置', '清理过期日志、检查 logrotate、评估保留期。', 'draft'],
+      [ids.knowledge4, '订单服务 5xx 根因复盘', '连接池耗尽导致 5xx；扩容连接池并增加等待队列告警。', 'published'],
+      [ids.knowledge5, 'Zabbix 告警收敛手册', '按服务与主机维度聚合告警，抑制重复通知，保留根因事件。', 'published'],
     ] as const;
     for (const [id, title, body, status] of knowledge) {
       await client.query(
@@ -144,6 +161,7 @@ async function main(): Promise<void> {
       [ids.message2, 'SSH 只读查询待确认', '场景步骤需要审批后执行。', 'warning'],
       [ids.message3, '日志盘使用率恢复', '磁盘使用率已回到 62%。', 'info'],
       [ids.message4, '场景发布成功', '订单服务 5xx 快速检查已发布。', 'info'],
+      [ids.message5, '数据库连接池恢复正常', '连接数回落到 62%，等待事件消失。', 'info'],
     ] as const;
     for (const [id, title, body, severity] of messages) {
       await client.query(
@@ -174,9 +192,11 @@ async function main(): Promise<void> {
       `INSERT INTO long_tasks (id, tenant_id, title, scenario_id, status, created_by)
        VALUES
          ($1, $2, '夜间订单服务巡检', $3, 'queued', $4),
-         ($5, $2, '数据库连接池巡检', $6, 'success', $4)
+         ($5, $2, '数据库连接池巡检', $6, 'success', $4),
+         ($7, $2, '主机磁盘巡检', $8, 'success', $4),
+         ($9, $2, '每日告警巡检', $10, 'success', $4)
        ON CONFLICT (id) DO NOTHING`,
-      [ids.task1, tenant, ids.scenarioCheck, admin, ids.task2, ids.scenarioDb],
+      [ids.task1, tenant, ids.scenarioCheck, admin, ids.task2, ids.scenarioDb, ids.task3, ids.scenarioDisk, ids.task4, ids.scenarioCheck],
     );
 
     await client.query(

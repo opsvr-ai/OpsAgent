@@ -169,6 +169,38 @@ export function registerScenarioRoutes(
     return reply.send({ ok: true, intervalMinutes: body.intervalMinutes });
   });
 
+  app.post<{ Params: { id: string } }>('/api/scenario-runs/:id/approve', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.run');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { decision?: unknown; reason?: unknown } | undefined;
+    if (body?.decision !== 'approve' && body?.decision !== 'reject') {
+      return reply.code(400).send({ error: 'invalid_decision' });
+    }
+    const result = await scenarios.approve({
+      tenantId: ctx.tenantId,
+      runId: request.params.id,
+      userId: ctx.userId,
+      decision: body.decision,
+      ...(typeof body.reason === 'string' ? { reason: body.reason } : {}),
+    });
+    if (!result) return reply.code(404).send({ error: 'approval_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'scenario.approve',
+      resource: request.params.id,
+      result: result.status === 'failed' ? 'failure' : 'success',
+      metadata: { decision: body.decision },
+    });
+    return reply.send(result);
+  });
+
   app.get<{ Params: { id: string } }>('/api/scenarios/:id/runs', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {

@@ -16,6 +16,7 @@ export type AuditAction =
   | 'scenario.run'
   | 'scenario.publish'
   | 'scenario.schedule'
+  | 'scenario.approve'
   | 'scenario.share'
   | 'scenario.share.review'
   | 'studio.create'

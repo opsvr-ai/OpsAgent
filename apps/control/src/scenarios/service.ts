@@ -27,8 +27,10 @@ export interface ToolResolver {
 }
 
 export interface ScenarioRunResult {
-  readonly status: 'success' | 'failed';
+  readonly status: 'success' | 'failed' | 'awaiting_approval';
+  readonly runId: string;
   readonly results: readonly unknown[];
+  readonly approvalId?: string;
   readonly error?: string;
 }
 
@@ -129,20 +131,95 @@ export class ScenarioService {
     );
     const runId = inserted.rows[0]?.id;
     if (!runId) throw new Error('scenario_run_insert_failed');
+    return this.execute(tenantId, scenario, runId, 0, [], -1);
+  }
 
-    const results: unknown[] = [];
+  async approve(input: {
+    tenantId: string;
+    runId: string;
+    userId: string;
+    decision: 'approve' | 'reject';
+    reason?: string;
+  }): Promise<ScenarioRunResult | null> {
+    const approval = await this.pool.query<{
+      id: string;
+      run_id: string;
+      scenario_id: string;
+      step_index: number;
+      status: string;
+    }>(
+      `SELECT a.id, a.run_id, r.scenario_id, a.step_index, a.status
+       FROM scenario_run_approvals a
+       JOIN scenario_runs r ON r.id = a.run_id
+       WHERE a.tenant_id = $1 AND a.run_id = $2 AND a.status = 'pending'
+       ORDER BY a.requested_at DESC LIMIT 1`,
+      [input.tenantId, input.runId],
+    );
+    const row = approval.rows[0];
+    if (!row) return null;
+
+    await this.pool.query(
+      `UPDATE scenario_run_approvals
+       SET status = $1, decided_at = now(), decided_by = $2, reason = $3
+       WHERE id = $4`,
+      [input.decision === 'approve' ? 'approved' : 'rejected', input.userId, input.reason ?? null, row.id],
+    );
+
+    if (input.decision === 'reject') {
+      await this.finishRun(row.run_id, 'failed', [], 'approval_rejected');
+      return { status: 'failed', runId: row.run_id, results: [], error: 'approval_rejected' };
+    }
+
+    const scenario = await this.get(input.tenantId, row.scenario_id);
+    if (!scenario) return null;
+    return this.execute(input.tenantId, scenario, row.run_id, row.step_index, [], row.step_index);
+  }
+
+  private async execute(
+    tenantId: string,
+    scenario: ScenarioRecord,
+    runId: string,
+    start: number,
+    initialResults: unknown[],
+    approvedStep: number,
+  ): Promise<ScenarioRunResult> {
+    const results = [...initialResults];
     try {
-      for (const step of scenario.definition.steps) {
+      for (let index = start; index < scenario.definition.steps.length; index += 1) {
+        const step = scenario.definition.steps[index];
+        if (!step) continue;
         const tool = await this.tools.resolve(tenantId, step.tool);
         if (!tool) throw new Error(`tool_not_found: ${step.tool}`);
+
+        if ((tool.risk === 'R2' || tool.risk === 'R3') && index !== approvedStep) {
+          const approval = await this.pool.query<{ id: string }>(
+            `INSERT INTO scenario_run_approvals
+               (tenant_id, run_id, step_index, tool, risk)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [tenantId, runId, index, tool.name, tool.risk],
+          );
+          const approvalId = approval.rows[0]?.id;
+          if (!approvalId) throw new Error('scenario_approval_insert_failed');
+          await this.pool.query(
+            `UPDATE scenario_runs SET status = 'awaiting_approval', current_step = $1, result = $2::jsonb
+             WHERE id = $3`,
+            [index, JSON.stringify(results), runId],
+          );
+          return { status: 'awaiting_approval', runId, results, approvalId };
+        }
+
         results.push(await tool.execute(step.input, { tenantId }));
+        await this.pool.query('UPDATE scenario_runs SET current_step = $1 WHERE id = $2', [
+          index + 1,
+          runId,
+        ]);
       }
       await this.finishRun(runId, 'success', results, null);
-      return { status: 'success', results };
+      return { status: 'success', runId, results };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'scenario_failed';
       await this.finishRun(runId, 'failed', results, message);
-      return { status: 'failed', results, error: message };
+      return { status: 'failed', runId, results, error: message };
     }
   }
 

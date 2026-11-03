@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listAudit, type AuditEventSummary } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
+import { formatTime, shortId } from '../format.js';
 
 export interface AuditProps {
   readonly onBack: () => void;
@@ -71,11 +72,11 @@ export function Audit({ onBack }: AuditProps) {
                 <tbody>
                   {events.map((event) => (
                     <tr key={event.id}>
-                      <td className="mono">{event.createdAt}</td>
+                      <td className="mono">{formatTime(event.createdAt)}</td>
                       <td>{event.action}</td>
                       <td>{event.result}</td>
-                      <td className="mono">{event.actorId ?? '—'}</td>
-                      <td className="mono">{event.resource ?? '—'}</td>
+                      <td className="mono" title={event.actorId ?? ''}>{shortId(event.actorId ?? '—', 10)}</td>
+                      <td className="mono" title={event.resource ?? ''}>{shortId(event.resource ?? '—', 18)}</td>
                     </tr>
                   ))}
                 </tbody>

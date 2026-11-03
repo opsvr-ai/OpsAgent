@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listSessions, type SessionSummary } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
+import { relativeTime } from '../format.js';
 
 export interface SessionsProps {
   readonly onBack: () => void;
@@ -46,7 +47,7 @@ export function Sessions({ onBack }: SessionsProps) {
                     <td className="mono">{session.id.slice(0, 18)}</td>
                     <td><span className="badge badge-neutral">{session.status}</span></td>
                     <td>{session.roleView}</td>
-                    <td className="mono">{session.createdAt}</td>
+                    <td className="mono">{relativeTime(session.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

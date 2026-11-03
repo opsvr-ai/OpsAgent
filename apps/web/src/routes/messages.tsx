@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listMessages, markMessageRead, type MessageSummary } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
+import { formatTime } from '../format.js';
 
 export interface MessagesProps {
   readonly onBack: () => void;
@@ -86,7 +87,7 @@ export function Messages({ onBack }: MessagesProps) {
             <div className="card-body">
               {selected ? (
                 <>
-                  <div className="aside-row"><span>时间</span><span className="mono">{selected.createdAt}</span></div>
+                  <div className="aside-row"><span>时间</span><span className="mono">{formatTime(selected.createdAt)}</span></div>
                   <div className="aside-row"><span>状态</span><span>{selected.readAt ? '已读' : '未读'}</span></div>
                   <p style={{ marginTop: 16, lineHeight: 1.7 }}>{selected.body}</p>
                   {!selected.readAt ? (

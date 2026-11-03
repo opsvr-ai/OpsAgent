@@ -8,6 +8,7 @@ import {
   type DataStoreStats,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
+import { relativeTime } from '../format.js';
 
 export interface DataStoreProps {
   readonly onBack: () => void;
@@ -18,11 +19,6 @@ function formatBytes(value: number): string {
   if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1)} MB`;
   if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${value} B`;
-}
-
-function formatTime(value: string | null): string {
-  if (!value) return '暂无';
-  return new Date(value).toLocaleString('zh-CN', { hour12: false });
 }
 
 export function DataStore({ onBack }: DataStoreProps) {
@@ -90,7 +86,7 @@ export function DataStore({ onBack }: DataStoreProps) {
         <article className="card">
           <div className="card-body">
             <div className="eyebrow">最新同步</div>
-            <h3 className="mono">{formatTime(stats?.newest ?? null)}</h3>
+            <h3 className="mono">{relativeTime(stats?.newest)}</h3>
           </div>
         </article>
         <article className="card">
@@ -119,7 +115,7 @@ export function DataStore({ onBack }: DataStoreProps) {
                     <td className="mono">{item.tool}</td>
                     <td>{item.count}</td>
                     <td>{formatBytes(item.bytes)}</td>
-                    <td className="mono">{formatTime(item.lastSync)}</td>
+                    <td className="mono">{relativeTime(item.lastSync)}</td>
                     <td>30 天</td>
                   </tr>
                 ))}
@@ -132,8 +128,8 @@ export function DataStore({ onBack }: DataStoreProps) {
         <div className="card-body">
           <h2>同步与回源</h2>
           {settings ? (
-            <div className="grid grid-2">
-              <div>
+            <div className="form-grid">
+              <div className="field">
                 <label htmlFor="data-priority">查询优先策略</label>
                 <select
                   id="data-priority"
@@ -145,6 +141,8 @@ export function DataStore({ onBack }: DataStoreProps) {
                   <option value="local-only">仅本地</option>
                   <option value="live-only">仅实时</option>
                 </select>
+              </div>
+              <div className="field">
                 <label htmlFor="data-sync">同步周期</label>
                 <select
                   id="data-sync"
@@ -156,13 +154,15 @@ export function DataStore({ onBack }: DataStoreProps) {
                   <option value="1h">增量，每小时</option>
                 </select>
               </div>
-              <div>
+              <div className="field">
                 <label htmlFor="data-full-sync">全量对账时间</label>
                 <input
                   id="data-full-sync"
                   value={settings.fullSyncAt}
                   onChange={(event) => setSettings({ ...settings, fullSyncAt: event.target.value })}
                 />
+              </div>
+              <div className="field">
                 <label htmlFor="data-freshness">新鲜度阈值（秒）</label>
                 <input
                   id="data-freshness"
@@ -172,6 +172,8 @@ export function DataStore({ onBack }: DataStoreProps) {
                     setSettings({ ...settings, freshnessSec: Number(event.target.value) })
                   }
                 />
+              </div>
+              <div className="field">
                 <label htmlFor="data-retention">保留天数</label>
                 <input
                   id="data-retention"
@@ -184,7 +186,9 @@ export function DataStore({ onBack }: DataStoreProps) {
               </div>
             </div>
           ) : null}
-          <button type="button" className="btn btn-primary" onClick={() => void saveSettings()}>保存设置</button>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void saveSettings()}>保存设置</button>
+          </div>
         </div>
       </section>
       <section className="card">
@@ -195,7 +199,7 @@ export function DataStore({ onBack }: DataStoreProps) {
             <div key={item.id} className="row-between">
               <span className="mono">{item.tool}</span>
               <span className="muted">{formatBytes(item.bytes)}</span>
-              <span className="muted mono">{formatTime(item.createdAt)}</span>
+              <span className="muted mono">{relativeTime(item.createdAt)}</span>
             </div>
           ))}
         </div>

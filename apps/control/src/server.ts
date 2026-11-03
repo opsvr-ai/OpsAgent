@@ -15,6 +15,7 @@ import type { ToolResolver } from './scenarios/service.js';
 import { registerAuditRoutes } from './audit/routes.js';
 import { registerStudioRoutes } from './studio/routes.js';
 import type { StudioGenerator } from './studio/service.js';
+import { registerIncidentRoutes } from './incidents/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -59,6 +60,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     );
     registerAuditRoutes(app, options.pool);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
+    registerIncidentRoutes(app, options.pool, audit);
   }
 
   return app;

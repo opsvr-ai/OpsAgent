@@ -13,14 +13,29 @@ export interface AuditRecord {
 export class AuditService {
   constructor(private readonly pool: Pool) {}
 
-  async list(tenantId: string, limit: number): Promise<AuditRecord[]> {
+  async list(
+    tenantId: string,
+    limit: number,
+    filters: { action?: string; result?: string } = {},
+  ): Promise<AuditRecord[]> {
+    const params: unknown[] = [tenantId];
+    let where = 'tenant_id = $1';
+    if (filters.action) {
+      params.push(filters.action);
+      where += ` AND action = $${params.length}`;
+    }
+    if (filters.result) {
+      params.push(filters.result);
+      where += ` AND result = $${params.length}`;
+    }
+    params.push(limit);
     const result = await this.pool.query(
       `SELECT id, actor_id, action, resource, result, metadata, created_at
        FROM audit_events
-       WHERE tenant_id = $1
+       WHERE ${where}
        ORDER BY created_at DESC
-       LIMIT $2`,
-      [tenantId, limit],
+       LIMIT $${params.length}`,
+      params,
     );
     return result.rows.map((row) => ({
       id: row.id,

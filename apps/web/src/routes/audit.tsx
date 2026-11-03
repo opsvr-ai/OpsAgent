@@ -9,11 +9,25 @@ export interface AuditProps {
 export function Audit({ onBack }: AuditProps) {
   const [events, setEvents] = useState<AuditEventSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [action, setAction] = useState('');
+  const [result, setResult] = useState('');
+
+  async function load() {
+    setError(null);
+    try {
+      setEvents(
+        await listAudit(100, {
+          ...(action ? { action } : {}),
+          ...(result ? { result } : {}),
+        }),
+      );
+    } catch {
+      setError('审计加载失败');
+    }
+  }
 
   useEffect(() => {
-    void listAudit(100)
-      .then(setEvents)
-      .catch(() => setError('审计加载失败'));
+    void load();
   }, []);
 
   return (
@@ -26,6 +40,17 @@ export function Audit({ onBack }: AuditProps) {
     >
         <div className="row-sm" style={{ marginBottom: 16 }}>
           <a className="btn btn-outline" href="/api/audit/export" download>导出 CSV</a>
+        </div>
+        <div className="card">
+          <div className="card-body">
+            <div className="row-sm">
+              <label htmlFor="audit-action">动作</label>
+              <input id="audit-action" value={action} onChange={(event) => setAction(event.target.value)} />
+              <label htmlFor="audit-result">结果</label>
+              <input id="audit-result" value={result} onChange={(event) => setResult(event.target.value)} />
+              <button type="button" className="btn btn-primary" onClick={() => void load()}>筛选</button>
+            </div>
+          </div>
         </div>
         {error ? <p role="alert">{error}</p> : null}
         {events === null ? <p className="muted">加载中…</p> : null}

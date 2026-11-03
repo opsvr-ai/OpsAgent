@@ -20,20 +20,28 @@ async function context(pool: Pool, request: FastifyRequest): Promise<TenantConte
 export function registerAuditRoutes(app: FastifyInstance, pool: Pool): void {
   const audit = new AuditService(pool);
 
-  app.get<{ Querystring: { limit?: string } }>('/api/audit', async (request, reply) => {
-    const ctx = await context(pool, request);
-    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
-    try {
-      requirePermission(ctx, 'audit.read');
-    } catch (error) {
-      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
-      throw error;
-    }
+  app.get<{ Querystring: { limit?: string; action?: string; result?: string } }>(
+    '/api/audit',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'audit.read');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
 
-    const requested = Number.parseInt(request.query.limit ?? '50', 10);
-    const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 200) : 50;
-    return reply.send(await audit.list(ctx.tenantId, limit));
-  });
+      const requested = Number.parseInt(request.query.limit ?? '50', 10);
+      const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 200) : 50;
+      return reply.send(
+        await audit.list(ctx.tenantId, limit, {
+          ...(request.query.action ? { action: request.query.action } : {}),
+          ...(request.query.result ? { result: request.query.result } : {}),
+        }),
+      );
+    },
+  );
 
   app.get('/api/audit/export', async (request, reply) => {
     const ctx = await context(pool, request);

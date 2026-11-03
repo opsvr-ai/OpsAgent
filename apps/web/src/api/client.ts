@@ -140,8 +140,14 @@ export interface AuditEventSummary {
   readonly createdAt: string;
 }
 
-export async function listAudit(limit = 50): Promise<AuditEventSummary[]> {
-  return request<AuditEventSummary[]>(`/api/audit?limit=${limit}`);
+export async function listAudit(
+  limit = 50,
+  filters: { action?: string; result?: string } = {},
+): Promise<AuditEventSummary[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (filters.action) params.set('action', filters.action);
+  if (filters.result) params.set('result', filters.result);
+  return request<AuditEventSummary[]>(`/api/audit?${params.toString()}`);
 }
 
 export interface ScenarioShare {

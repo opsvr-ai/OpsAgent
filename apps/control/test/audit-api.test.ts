@@ -51,6 +51,13 @@ describe('audit API', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject([{ action: 'auth.login' }]);
+
+    const filtered = await app.inject({
+      method: 'GET',
+      url: '/api/audit?action=auth.login',
+      headers: { cookie },
+    });
+    expect(filtered.json()).toMatchObject([{ action: 'auth.login' }]);
     await app.close();
   });
 

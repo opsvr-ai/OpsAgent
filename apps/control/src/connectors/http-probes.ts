@@ -91,11 +91,47 @@ export function createHttpProbe(options: HttpProbeOptions = {}): ConnectorProbe 
   };
 }
 
+export function createClickHouseProbe(options: HttpProbeOptions = {}): ConnectorProbe {
+  return {
+    async probe(record) {
+      return timed(options, async (fetchImpl, signal) => {
+        const url = new URL('/', baseUrl(record));
+        url.searchParams.set('query', 'SELECT 1');
+        const response = await fetchImpl(url, { method: 'POST', signal, redirect: 'error' });
+        if (!response.ok) throw new Error(`clickhouse_http_${response.status}`);
+        return true;
+      });
+    },
+  };
+}
+
+export function createZabbixProbe(options: HttpProbeOptions = {}): ConnectorProbe {
+  return {
+    async probe(record) {
+      return timed(options, async (fetchImpl, signal) => {
+        const response = await fetchImpl(new URL('/api_jsonrpc.php', baseUrl(record)), {
+          method: 'POST',
+          signal,
+          redirect: 'error',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', method: 'apiinfo.version', params: {}, id: 1 }),
+        });
+        if (!response.ok) throw new Error(`zabbix_http_${response.status}`);
+        const body = (await response.json()) as { result?: unknown; error?: unknown };
+        if (body.error || typeof body.result !== 'string') throw new Error('zabbix_api_failed');
+        return true;
+      });
+    },
+  };
+}
+
 export function createDefaultProbeRegistry(): ProbeRegistry {
   const registry = new ProbeRegistry();
   registry.register('prometheus', createPrometheusProbe());
   registry.register('grafana', createGrafanaProbe());
   registry.register('alertmanager', createAlertmanagerProbe());
   registry.register('http', createHttpProbe());
+  registry.register('clickhouse', createClickHouseProbe());
+  registry.register('zabbix', createZabbixProbe());
   return registry;
 }

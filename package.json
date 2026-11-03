@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter @opsagent/control exec node scripts/ensure-test-db.mjs && pnpm -r test",
     "e2e": "playwright test",
     "dev:docker": "docker compose up -d postgres redis control web",
     "dev:docker:seed": "docker compose run --rm seed",

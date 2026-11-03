@@ -6,7 +6,7 @@ import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
 import type { ToolResolver } from '../src/scenarios/service.js';
 
-const databaseUrl = process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent';
+const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 let pool: Pool;
 
 beforeAll(async () => {

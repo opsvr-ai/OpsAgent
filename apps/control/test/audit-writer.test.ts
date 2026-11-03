@@ -4,7 +4,7 @@ import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
 import { PgAuditWriter } from '../src/audit/writer.js';
 
-const databaseUrl = process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent';
+const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 const demo = '00000000-0000-4000-8000-000000000001';
 const admin = '00000000-0000-4000-8000-0000000000a2';
 let pool: Pool;

@@ -6,7 +6,7 @@ import {
 import { createPostgresConnector } from '../src/connectors/postgres.js';
 import { createRedisConnector } from '../src/connectors/redis.js';
 
-const databaseUrl = process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent';
+const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
 describe.runIf(process.env.RUN_INTEGRATION === '1')('live drivers', () => {

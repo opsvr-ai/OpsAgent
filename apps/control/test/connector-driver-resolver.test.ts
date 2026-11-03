@@ -5,7 +5,7 @@ import { seed } from '../src/db/seed.js';
 import { ConnectorService } from '../src/connectors/service.js';
 import { ConnectorToolResolver } from '../src/connectors/runtime.js';
 
-const databaseUrl = process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent';
+const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 const demo = '00000000-0000-4000-8000-000000000001';
 let pool: Pool;
 

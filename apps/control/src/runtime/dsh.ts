@@ -66,14 +66,38 @@ export class DshJsonRunner implements DshEventRunner {
 
   private patch(): string | undefined {
     if (this.patchPath) return this.patchPath;
-    if (!existsSync(this.approvalPlugin ?? '')) return undefined;
+    const approvalExists = existsSync(this.approvalPlugin ?? '');
+    const accountAuth = process.env.DSH_ACCOUNT_AUTH === 'true';
+    if (!approvalExists && !accountAuth) return undefined;
     const dir = mkdtempSync(join(tmpdir(), 'opsagent-approval-'));
     const path = join(dir, 'patch.yml');
-    writeFileSync(
-      path,
-      `- insert:\n    - id: ops-approval-bridge\n      name: '${(this.approvalPlugin ?? '').replaceAll('\\', '/')}'\n`,
-      'utf8',
-    );
+    const sections: string[] = [];
+    if (accountAuth) {
+      sections.push(
+        [
+          '- id: credentials',
+          '  disabled: false',
+          '- id: authorization',
+          '  disabled: false',
+          '- id: deepseek-account',
+          '  disabled: false',
+          '- id: agent-default-model',
+          '  config:',
+          '    provider: deepseek-account',
+          `    model: ${process.env.DSH_ACCOUNT_MODEL ?? 'deepseek-flash'}`,
+        ].join('\n'),
+      );
+    }
+    if (approvalExists && this.approvalPlugin) {
+      sections.push(
+        [
+          '- insert:',
+          '    - id: ops-approval-bridge',
+          `      name: '${this.approvalPlugin.replaceAll('\\', '/')}'`,
+        ].join('\n'),
+      );
+    }
+    writeFileSync(path, `${sections.join('\n')}\n`, 'utf8');
     this.patchPath = path;
     return path;
   }
@@ -83,12 +107,12 @@ export class DshJsonRunner implements DshEventRunner {
     sessionId?: string,
     env: Readonly<Record<string, string>> = {},
   ): AsyncIterable<Record<string, unknown>> {
-    const args = ['headless'];
+    const args = ['--profile', 'headless'];
     const patch = this.patch();
     if (patch) args.push('--patch', patch);
-    args.push('--json');
+    args.push('headless', '--json');
     if (sessionId) args.push('--session-id', sessionId);
-    args.push('-');
+    args.push(prompt);
     const child =
       process.platform === 'win32'
         ? spawn(
@@ -111,7 +135,6 @@ export class DshJsonRunner implements DshEventRunner {
     const timer = setTimeout(() => child.kill(), this.timeoutMs);
     const stderr: string[] = [];
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk.toString('utf8')));
-    child.stdin.write(prompt);
     child.stdin.end();
 
     try {

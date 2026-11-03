@@ -80,17 +80,19 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     working_dir: /app
-    command: pnpm --filter @opsagent/control exec tsx watch src/index.ts
+    command: sh -lc "chmod 600 /root/.dsh/.credentials.yaml 2>/dev/null || true; exec pnpm --filter @opsagent/control exec tsx watch src/index.ts"
     environment:
       DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
       REDIS_URL: redis://redis:6379
       LOCAL_ADMIN_ENABLED: "true"
       LOCAL_ADMIN_USERNAME: tenant-admin
       LOCAL_ADMIN_USERNAMES: tenant-admin,platform-admin
-      # The host dsh install is intentionally not visible here. Enable Studio
-      # generation only after installing/configuring dsh inside the container.
-      STUDIO_DSH_ENABLED: "false"
-      DSH_RUNTIME_ENABLED: "false"
+      DSH_HOME: /root/.dsh
+      DSH_RUNTIME_ENABLED: "true"
+      DSH_ACCOUNT_AUTH: "true"
+      DSH_ACCOUNT_MODEL: deepseek-flash
+      DSH_PERMISSION_MODE: danger-full-access
+      STUDIO_DSH_ENABLED: "true"
       OPSAGENT_AGENT_ENROLLMENT_TOKEN: opsagent-local-enroll
       OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist
       OPSAGENT_PUBLIC_URL: http://127.0.0.1:8080
@@ -99,6 +101,7 @@ services:
       - "8080:8080"
     volumes:
       - .:/app
+      - ./.dsh-runtime:/root/.dsh
       - /app/node_modules
       - /app/apps/control/node_modules
       - /app/apps/web/node_modules

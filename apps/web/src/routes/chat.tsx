@@ -18,10 +18,14 @@ export interface ChatProps {
   readonly onBack: () => void;
 }
 
+type ChatTimelineEntry =
+  | { readonly kind: 'user'; readonly id: string; readonly text: string }
+  | { readonly kind: 'event'; readonly event: RuntimeEvent };
+
 export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const session = useSession();
-  const [events, setEvents] = useState<RuntimeEvent[]>([]);
-  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string }>>([]);
+  const [timeline, setTimeline] = useState<ChatTimelineEntry[]>([]);
+  const events = timeline.filter((entry): entry is { kind: 'event'; event: RuntimeEvent } => entry.kind === 'event').map((entry) => entry.event);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -48,10 +52,10 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     setInput('');
     setBusy(true);
     setError(null);
-    setUserMessages((current) => [...current, { id: crypto.randomUUID(), text }]);
+    setTimeline((current) => [...current, { kind: 'user', id: crypto.randomUUID(), text }]);
     try {
       for await (const item of promptSession(sessionId, text, crypto.randomUUID())) {
-        setEvents((current) => [...current, item]);
+        setTimeline((current) => [...current, { kind: 'event', event: item }]);
         if (item.type === 'approval.request') setPendingApproval(item);
         if (item.type === 'session.done') setBusy(false);
       }
@@ -71,6 +75,77 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   async function decideRuntime(id: string, decision: 'approve' | 'deny') {
     await decideApproval(id, decision);
     setRuntimeApprovals((current) => current.filter((item) => item.id !== id));
+  }
+
+  function renderEvent(item: RuntimeEvent, index: number) {
+    if (item.type === 'assistant.delta') {
+      return (
+        <div key={index} className="msg">
+          <div className="msg-body">
+            <div className="msg-meta"><strong>OpsAgent</strong><span>assistant</span></div>
+            <div className="msg-text"><p>{item.text}</p></div>
+          </div>
+        </div>
+      );
+    }
+    if (item.type === 'tool.call') {
+      return (
+        <div key={index} className="msg" data-testid="tool-call">
+          <div className="msg-body">
+            <div className="tool-card">
+              <div className="tool-head">
+                <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span>
+                <strong>{item.tool}</strong>
+                <span className="badge badge-neutral">{item.risk} · 调用</span>
+              </div>
+              <pre className="tool-code">{JSON.stringify(item.args, null, 2)}</pre>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (item.type === 'tool.result') {
+      return (
+        <div key={index} className="msg">
+          <div className="msg-body">
+            <div className="tool-card is-result">
+              <div className="tool-head">
+                <span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span>
+                <strong>{item.tool}</strong>
+                <span className="badge badge-ok">已返回</span>
+              </div>
+              <pre className="tool-code">{JSON.stringify(item.result, null, 2)}</pre>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (item.type === 'approval.request') {
+      return (
+        <div key={index} className="approval-card">
+          <div className="tool-head">
+            <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span>
+            <div className="grow">
+              <div className="eyebrow">需要审批 · {item.risk}</div>
+              <strong>{item.action}</strong>
+            </div>
+          </div>
+          <p className="muted">该操作需要人工确认；批准后当前 dsh 会话继续执行，拒绝则终止该工具调用。</p>
+          <div className="aside-row"><span>审批 ID</span><span className="mono">{item.approvalId.slice(0, 12)}</span></div>
+          <div className="aside-row"><span>操作</span><span className="mono">{item.action}</span></div>
+          <div className="aside-row"><span>范围</span><span>当前会话 · 租户内</span></div>
+          <div className="aside-row"><span>风险</span><span>{item.risk}</span></div>
+          <div className="row-sm">
+            <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
+            <button type="button" className="btn btn-outline" onClick={() => void decide('deny')}>拒绝</button>
+          </div>
+        </div>
+      );
+    }
+    if (item.type === 'session.done') {
+      return <p key={index} className="muted" style={{ textAlign: 'center' }}>完成</p>;
+    }
+    return <p key={index} role="alert">运行时错误：{item.code}</p>;
   }
 
   return (
@@ -109,15 +184,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             <div className="chat-log">
               <div className="chat-inner" aria-live="polite">
                 {error ? <p role="alert">{error}</p> : null}
-                {userMessages.map((message) => (
-                  <div key={message.id} className="msg is-user">
-                    <div className="msg-body">
-                      <div className="msg-meta"><strong>{session?.me.user.displayName ?? '我'}</strong><span>刚刚</span></div>
-                      <div className="msg-text"><p>{message.text}</p></div>
-                    </div>
-                  </div>
-                ))}
-                {events.length === 0 && userMessages.length === 0 ? (
+                {timeline.length === 0 ? (
                   <div className="msg">
                     <div className="msg-body">
                       <div className="msg-meta"><strong>OpsAgent</strong><span>ready</span></div>
@@ -134,77 +201,15 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                     </div>
                   </div>
                 ) : null}
-
-                {events.map((item, index) => {
-                  if (item.type === 'assistant.delta') {
-                    return (
-                      <div key={index} className="msg">
-                        <div className="msg-body">
-                          <div className="msg-meta"><strong>OpsAgent</strong><span>assistant</span></div>
-                          <div className="msg-text"><p>{item.text}</p></div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (item.type === 'tool.call') {
-                    return (
-                      <div key={index} className="msg" data-testid="tool-call">
-                        <div className="msg-body">
-                          <div className="tool-card">
-                            <div className="tool-head">
-                              <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span>
-                              <strong>{item.tool}</strong>
-                              <span className="badge badge-neutral">{item.risk} · 调用</span>
-                            </div>
-                            <pre className="tool-code">{JSON.stringify(item.args, null, 2)}</pre>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (item.type === 'tool.result') {
-                    return (
-                      <div key={index} className="msg">
-                        <div className="msg-body">
-                          <div className="tool-card is-result">
-                            <div className="tool-head">
-                              <span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span>
-                              <strong>{item.tool}</strong>
-                              <span className="badge badge-ok">已返回</span>
-                            </div>
-                            <pre className="tool-code">{JSON.stringify(item.result, null, 2)}</pre>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (item.type === 'approval.request') {
-                    return (
-                      <div key={index} className="approval-card">
-                        <div className="tool-head">
-                          <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span>
-                          <div className="grow">
-                            <div className="eyebrow">需要审批 · {item.risk}</div>
-                            <strong>{item.action}</strong>
-                          </div>
-                        </div>
-                        <p className="muted">该操作需要人工确认；批准后当前 dsh 会话继续执行，拒绝则终止该工具调用。</p>
-                        <div className="aside-row"><span>审批 ID</span><span className="mono">{item.approvalId.slice(0, 12)}</span></div>
-                        <div className="aside-row"><span>操作</span><span className="mono">{item.action}</span></div>
-                        <div className="aside-row"><span>范围</span><span>当前会话 · 租户内</span></div>
-                        <div className="aside-row"><span>风险</span><span>{item.risk}</span></div>
-                        <div className="row-sm">
-                          <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
-                          <button type="button" className="btn btn-outline" onClick={() => void decide('deny')}>拒绝</button>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (item.type === 'session.done') {
-                    return <p key={index} className="muted" style={{ textAlign: 'center' }}>完成</p>;
-                  }
-                  return <p key={index} role="alert">运行时错误：{item.code}</p>;
-                })}
+                {timeline.map((entry, index) => entry.kind === 'user' ? (
+                  <div key={entry.id} className="msg is-user">
+                    <div className="msg-body">
+                      <div className="msg-meta"><strong>{session?.me.user.displayName ?? '我'}</strong><span>刚刚</span></div>
+                      <div className="msg-text"><p>{entry.text}</p></div>
+                    </div>
+                  </div>
+                ) : renderEvent(entry.event, index))}
+                {busy ? <p className="muted" style={{ textAlign: 'center' }}>思考中…</p> : null}
               </div>
             </div>
 

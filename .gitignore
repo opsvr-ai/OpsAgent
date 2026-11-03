@@ -9,6 +9,7 @@ test-results/
 
 # External reference checkouts, not part of this product repo
 deepseek-harness/
+.dsh-runtime/
 dsh-superagent-prototype/
 agents/**/*.exe
 agents/opsagent-agent/dist/

@@ -2,27 +2,31 @@
 
 Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools + Commander + Eino-based host agents.
 
-> Status: development started. Current: G1 auth/tenant/session/approval/audit/Web, 9 connectors + config/probes, scenarios + scheduler + sharing, Studio + real dsh headless generation, Commander incident API. Dev stack runs in Docker; host dsh is intentionally not reused. Next = DshRuntime.
+> Status: development started. Current: G1 auth/tenant/session/approval/audit/Web, 9 connectors + config/probes, scenarios + scheduler + sharing, Studio + real dsh headless generation, Commander incident API. Dev stack runs in Docker; dsh is installed in the control image and uses the DeepSeek account credentials copied from the host. Next = production hardening.
 
 ## 容器化开发（推荐）
 
-服务端和 Web 都在容器里运行，宿主机上的 dsh 不会被挂载或复用：
+服务端、Web 和 dsh 运行时都在容器里运行。首次启动前，把宿主机已登录的 dsh 凭据同步到本地运行时目录：
 
 ```bash
 pnpm install
+pnpm dsh:prepare                      # 复制 ~/.dsh 凭据与 headless profile 到 .dsh-runtime/
 docker compose run --rm seed          # 首次：初始化数据库和本地管理员
-docker compose up -d control web
+docker compose up -d --build control web
 # http://localhost:5173
 # 本地管理员：tenant-admin / opsagent-dev
 ```
 
+`.dsh-runtime/` 已被 `.gitignore` 忽略，不会提交凭据。
+
 容器内：
 
-- `control`：Fastify，端口 8080
+- `control`：Fastify，端口 8080，镜像内安装 `@deepseek-ai/dsh`
 - `web`：Vite，端口 5173，代理 `/api` 到 `http://control:8080`
 - `postgres` / `redis` / `minio`
-- Studio 生成默认关闭：`STUDIO_DSH_ENABLED=false`，避免使用宿主机 dsh
-- 需要容器内生成时，在镜像内安装/配置 dsh，再把该变量改为 `true`
+- dsh 使用 `deepseek-account` 路由和 `deepseek-flash` 模型
+- `DSH_RUNTIME_ENABLED=true`、`STUDIO_DSH_ENABLED=true`
+- 本地开发使用 `DSH_PERMISSION_MODE=danger-full-access`，因为容器内没有可用的 workspace-write 沙箱后端；只应在受信任的开发环境使用
 
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 

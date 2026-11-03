@@ -9,7 +9,8 @@ export type AuditAction =
   | 'tenant.access.denied'
   | 'session.create'
   | 'tool.call'
-  | 'approval.decide';
+  | 'approval.decide'
+  | 'connector.create';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

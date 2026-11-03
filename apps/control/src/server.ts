@@ -7,6 +7,7 @@ import type { LdapAuthenticator } from './auth/ldap.js';
 import { PgAuditWriter } from './audit/writer.js';
 import { registerTenantRoutes } from './tenancy/routes.js';
 import { registerRuntimeRoutes } from './runtime/routes.js';
+import { registerConnectorRoutes } from './connectors/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -34,6 +35,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     );
     registerTenantRoutes(app, options.pool, audit);
     registerRuntimeRoutes(app, options.pool, audit);
+    registerConnectorRoutes(app, options.pool, audit);
   }
 
   return app;

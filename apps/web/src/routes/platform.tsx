@@ -48,26 +48,43 @@ export function Platform({ onRefresh }: PlatformProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新建租户</h2><span className="muted">平台级操作</span></div>
         <div className="card-body">
-          <h2>新建租户</h2>
-          <label htmlFor="tenant-name">名称</label>
-          <input id="tenant-name" value={name} onChange={(event) => setName(event.target.value)} />
-          <label htmlFor="tenant-slug">Slug</label>
-          <input id="tenant-slug" value={slug} onChange={(event) => setSlug(event.target.value)} />
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>创建租户</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="tenant-name">名称</label>
+              <input id="tenant-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 星河银行" />
+            </div>
+            <div className="field">
+              <label htmlFor="tenant-slug">Slug</label>
+              <input id="tenant-slug" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="例如 bank-demo" />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>创建租户</button>
+          </div>
         </div>
       </section>
       {tenants === null ? <p className="muted">加载中…</p> : null}
-      <section className="grid grid-3">
-        {tenants?.map((tenant) => (
-          <article key={tenant.id} className="card">
-            <div className="card-body">
-              <span className="badge badge-neutral">{tenant.status}</span>
-              <h3>{tenant.name}</h3>
-              <p className="muted mono">{tenant.slug}</p>
-            </div>
-          </article>
-        ))}
+      <section className="card">
+        <div className="card-head"><h2>租户</h2><span className="muted">{tenants?.length ?? 0} 个</span></div>
+        <div className="card-body">
+          {tenants && tenants.length > 0 ? (
+            <table className="table">
+              <thead><tr><th>租户</th><th>Slug</th><th>状态</th><th>ID</th></tr></thead>
+              <tbody>
+                {tenants.map((tenant) => (
+                  <tr key={tenant.id}>
+                    <td className="cell-main">{tenant.name}</td>
+                    <td className="mono">{tenant.slug}</td>
+                    <td><span className="badge badge-neutral">{tenant.status}</span></td>
+                    <td className="mono">{tenant.id}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="muted">暂无租户</p>}
+        </div>
       </section>
     </DesignShell>
   );

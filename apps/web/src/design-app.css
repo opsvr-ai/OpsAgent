@@ -1417,3 +1417,5 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .quick-action:hover { border-color: var(--primary-line); background: var(--primary-soft); }
 .quick-action svg { width: 15px; height: 15px; color: var(--faint); }
 .health-row .row-between { gap: 8px; }
+.search-kbd { flex: none; min-width: 26px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); color: var(--faint); font-family: var(--font-mono); font-size: 10px; text-align: center; }
+.search-result.is-active { background: var(--primary-soft); }

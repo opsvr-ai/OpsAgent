@@ -70,4 +70,35 @@ describe('connector credentials', () => {
     expect(await resolver.resolve('00000000-0000-4000-8000-000000000001', 'postgres_query')).toBeDefined();
     await app.close();
   });
+
+  it('resolves credentials from an env credential reference', async () => {
+    process.env.OPSAGENT_TEST_CONNECTOR_SECRET = JSON.stringify({
+      connectionString: 'postgres://localhost/none',
+    });
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+      modelSecret: 'test-secret',
+    });
+    const cookie = await login(app);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/connectors',
+      headers: { cookie },
+      payload: {
+        connectorType: 'postgres',
+        name: 'pg-env',
+        config: {},
+        credentialRef: 'env:OPSAGENT_TEST_CONNECTOR_SECRET',
+      },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const resolver = new ConnectorToolResolver(pool, 'test-secret');
+    expect(
+      await resolver.resolve('00000000-0000-4000-8000-000000000001', 'postgres_query'),
+    ).toBeDefined();
+    delete process.env.OPSAGENT_TEST_CONNECTOR_SECRET;
+    await app.close();
+  });
 });

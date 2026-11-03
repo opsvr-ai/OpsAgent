@@ -1,5 +1,27 @@
 import type { Pool } from 'pg';
+import { readFileSync } from 'node:fs';
 import { decryptSecret, encryptSecret } from '../secrets/crypto.js';
+
+export function resolveExternalCredential(
+  ref: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Readonly<Record<string, unknown>> | null {
+  const [scheme, ...rest] = ref.split(':');
+  const target = rest.join(':');
+  if (!target) return null;
+  try {
+    if (scheme === 'env') {
+      const raw = env[target];
+      return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+    }
+    if (scheme === 'file') {
+      return JSON.parse(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 export class ConnectorCredentialService {
   constructor(

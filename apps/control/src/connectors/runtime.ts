@@ -11,7 +11,7 @@ import { createPostgresConnector } from './postgres.js';
 import { createMysqlConnector } from './mysql.js';
 import { createRedisConnector } from './redis.js';
 import { createSshConnector } from './ssh.js';
-import { ConnectorCredentialService } from './credentials.js';
+import { ConnectorCredentialService, resolveExternalCredential } from './credentials.js';
 import {
   createMysqlQuery,
   createPostgresQuery,
@@ -130,13 +130,16 @@ export class ConnectorToolResolver {
       credential_ref: string | null;
       status: string;
     }>) {
-      const credentials = await this.credentials.get(row.tenant_id, row.id);
+      const stored = await this.credentials.get(row.tenant_id, row.id);
+      const external = row.credential_ref
+        ? resolveExternalCredential(row.credential_ref)
+        : null;
       const record: ConnectorRecord = {
         id: row.id,
         tenantId: row.tenant_id,
         connectorType: row.connector_type,
         name: row.name,
-        config: { ...row.config, ...(credentials ?? {}) },
+        config: { ...row.config, ...(external ?? {}), ...(stored ?? {}) },
         credentialRef: row.credential_ref,
         status: row.status,
       };

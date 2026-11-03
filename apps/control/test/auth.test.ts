@@ -55,6 +55,12 @@ describe('local admin authentication', () => {
       tenants: [{ slug: 'tenant-demo', roles: ['tenant_admin'] }],
     });
 
+    const audit = await pool.query<{ action: string; metadata: Record<string, unknown> }>(
+      `SELECT action, metadata FROM audit_events WHERE action = 'auth.login' ORDER BY created_at DESC LIMIT 1`,
+    );
+    expect(audit.rows[0]?.metadata).toMatchObject({ method: 'local_admin' });
+    expect(JSON.stringify(audit.rows[0]?.metadata)).not.toContain('correct horse');
+
     await app.close();
   });
 

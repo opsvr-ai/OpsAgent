@@ -22,6 +22,9 @@ importers:
       fastify:
         specifier: ^5.6.2
         version: 5.12.8
+      ldapts:
+        specifier: ^9.2.0
+        version: 9.2.0
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -650,6 +653,10 @@ packages:
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
+  ldapts@9.2.0:
+    resolution: {integrity: sha512-5mDg3OT5fDP9DUXga9dCLW8cMW24OTOKT4pv/Qj+f2zCV3qxb+gkZLCzMAqzVTOANoycidKkYpPvkclUQU2aXw==}
+    engines: {node: '>=22'}
+
   light-my-request@6.8.0:
     resolution: {integrity: sha512-5Q8PjoSEdtGIB8fikZsTem5vgRo4F2mR6vUKTDW/H1g6MtAt8e3duQbg/QxL5yzg6BZhor2KOUm3hhWMWLTZwg==}
 
@@ -816,6 +823,9 @@ packages:
 
   std-env@3.9.0:
     resolution: {integrity: sha512-UGvjygr6F6tpH7o2qyqR6QYpwraIjKSdtzyBdyytFOHmPZY917kwdwLG0RbOjWOnKmnm3PeHjaoLLMie7kPLQw==}
+
+  strict-event-emitter-types@2.0.0:
+    resolution: {integrity: sha512-Nk/brWYpD85WlOgzw5h173aci0Teyv8YdIAEtV+N88nDB0dLlazZyJMIsN6eo1/AR61l+p6CJTG1JIyFaoNEEA==}
 
   strip-literal@3.0.0:
     resolution: {integrity: sha512-TcccoMhJOM3OebGhSBEmp3UZ2SfDMZUEBdRA/9ynfLi8yYajyWX3JiXArcJt4Umh4vISpspkQIY8ZZoCqjbviA==}
@@ -1405,6 +1415,10 @@ snapshots:
 
   json-schema-traverse@1.0.0: {}
 
+  ldapts@9.2.0:
+    dependencies:
+      strict-event-emitter-types: 2.0.0
+
   light-my-request@6.8.0:
     dependencies:
       '@fastify/deepmerge': 3.2.4
@@ -1575,6 +1589,8 @@ snapshots:
   stackback@0.0.2: {}
 
   std-env@3.9.0: {}
+
+  strict-event-emitter-types@2.0.0: {}
 
   strip-literal@3.0.0:
     dependencies:

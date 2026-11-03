@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
+import type { AuditWriter } from '../audit/writer.js';
 import {
   SESSION_COOKIE,
   hashSessionToken,
@@ -15,7 +16,11 @@ function sessionToken(request: FastifyRequest): string | undefined {
   return request.cookies[SESSION_COOKIE];
 }
 
-export function registerTenantRoutes(app: FastifyInstance, pool: Pool): void {
+export function registerTenantRoutes(
+  app: FastifyInstance,
+  pool: Pool,
+  audit: AuditWriter,
+): void {
   const memberships = createMembershipRepository(pool);
 
   app.post<{ Params: { id: string } }>('/api/tenants/:id/select', async (request, reply) => {
@@ -32,6 +37,14 @@ export function registerTenantRoutes(app: FastifyInstance, pool: Pool): void {
       );
     } catch (error) {
       if (error instanceof TenantAccessDeniedError) {
+        await audit.write({
+          tenantId: request.params.id,
+          actorId: session.user.id,
+          action: 'tenant.access.denied',
+          resource: request.params.id,
+          result: 'denied',
+          metadata: { source: 'tenant_select' },
+        });
         return reply.code(403).send({ error: 'tenant_access_denied' });
       }
       throw error;
@@ -41,6 +54,14 @@ export function registerTenantRoutes(app: FastifyInstance, pool: Pool): void {
       'UPDATE auth_sessions SET selected_tenant_id = $1 WHERE token_hash = $2',
       [request.params.id, hashSessionToken(token)],
     );
+    await audit.write({
+      tenantId: request.params.id,
+      actorId: session.user.id,
+      action: 'tenant.select',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { source: 'api' },
+    });
     return reply.send({ ok: true, tenantId: request.params.id });
   });
 

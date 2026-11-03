@@ -1,6 +1,8 @@
-import { permissionsFor, isRoleId, type RoleId } from '@opsagent/contracts';
+import { isRoleId, permissionsFor, type RoleId } from '@opsagent/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
+import type { AuditWriter } from '../audit/writer.js';
+import type { LdapAuthenticator } from './ldap.js';
 import {
   LocalAdminDisabledError,
   authenticateLocalAdmin,
@@ -84,7 +86,44 @@ export function registerAuthRoutes(
   app: FastifyInstance,
   pool: Pool,
   localAdmin: LocalAdminConfig,
+  audit: AuditWriter,
+  ldap?: LdapAuthenticator,
 ): void {
+  app.post('/api/auth/login', async (request, reply) => {
+    if (!ldap) return reply.code(503).send({ error: 'ldap_not_configured' });
+    const body = request.body as LoginBody | undefined;
+    if (typeof body?.username !== 'string' || typeof body.password !== 'string') {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+
+    const ldapUser = await ldap.authenticate(body.username, body.password);
+    if (!ldapUser) return reply.code(401).send({ error: 'invalid_credentials' });
+
+    const result = await pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE username = $1 AND status = 'active'`,
+      [ldapUser.username],
+    );
+    const user = result.rows[0];
+    if (!user) return reply.code(401).send({ error: 'invalid_credentials' });
+
+    const membership = await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM memberships WHERE user_id = $1 ORDER BY created_at LIMIT 1',
+      [user.id],
+    );
+    const tenantId = membership.rows[0]?.tenant_id ?? null;
+    const session = await issueSession(pool, user.id, tenantId);
+    await audit.write({
+      tenantId,
+      actorId: user.id,
+      action: 'auth.login',
+      resource: 'ldap',
+      result: 'success',
+      metadata: { method: 'ldap', dn: ldapUser.dn },
+    });
+    reply.setCookie(SESSION_COOKIE, session.token, cookieOptions());
+    return reply.send({ ok: true });
+  });
+
   app.post('/api/auth/local-admin', async (request, reply) => {
     const body = request.body as LoginBody | undefined;
     if (typeof body?.username !== 'string' || typeof body.password !== 'string') {
@@ -99,7 +138,16 @@ export function registerAuthRoutes(
         'SELECT tenant_id FROM memberships WHERE user_id = $1 ORDER BY created_at LIMIT 1',
         [user.id],
       );
-      const session = await issueSession(pool, user.id, membership.rows[0]?.tenant_id ?? null);
+      const tenantId = membership.rows[0]?.tenant_id ?? null;
+      const session = await issueSession(pool, user.id, tenantId);
+      await audit.write({
+        tenantId,
+        actorId: user.id,
+        action: 'auth.login',
+        resource: 'local-admin',
+        result: 'success',
+        metadata: { method: 'local_admin' },
+      });
       reply.setCookie(SESSION_COOKIE, session.token, cookieOptions());
       return reply.send({ ok: true });
     } catch (error) {

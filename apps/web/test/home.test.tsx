@@ -47,6 +47,7 @@ describe('Home', () => {
         onOpenAgents={vi.fn()}
         onOpenTasks={vi.fn()}
         onOpenSessions={vi.fn()}
+        onOpenMembers={vi.fn()}
       />,
     );
 

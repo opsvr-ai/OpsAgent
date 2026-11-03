@@ -389,3 +389,25 @@ export interface SessionSummary {
 export async function listSessions(): Promise<SessionSummary[]> {
   return request<SessionSummary[]>('/api/sessions');
 }
+
+export interface MemberSummary {
+  readonly userId: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly status: string;
+  readonly roles: readonly string[];
+}
+
+export async function listMembers(): Promise<MemberSummary[]> {
+  return request<MemberSummary[]>('/api/members');
+}
+
+export async function setMemberRoles(
+  userId: string,
+  roleIds: readonly string[],
+): Promise<MemberSummary> {
+  return request<MemberSummary>(`/api/members/${userId}/roles`, {
+    method: 'PATCH',
+    body: JSON.stringify({ roleIds }),
+  });
+}

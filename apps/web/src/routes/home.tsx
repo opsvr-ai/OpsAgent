@@ -17,9 +17,10 @@ export interface HomeProps {
   readonly onOpenAgents: () => void;
   readonly onOpenTasks: () => void;
   readonly onOpenSessions: () => void;
+  readonly onOpenMembers: () => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge, onOpenMessages, onOpenAgents, onOpenTasks, onOpenSessions }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge, onOpenMessages, onOpenAgents, onOpenTasks, onOpenSessions, onOpenMembers }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
 
@@ -61,6 +62,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <button type="button" className="nav-item" onClick={onOpenAgents}><svg><use href="/icons.svg#i-server" /></svg><span>服务器 Agent</span></button>
             <button type="button" className="nav-item" onClick={onOpenTasks}><svg><use href="/icons.svg#i-clock" /></svg><span>长任务</span></button>
             <button type="button" className="nav-item" onClick={onOpenSessions}><svg><use href="/icons.svg#i-message" /></svg><span>会话历史</span></button>
+            <button type="button" className="nav-item" onClick={onOpenMembers}><svg><use href="/icons.svg#i-users" /></svg><span>成员与角色</span></button>
             <button type="button" className="nav-item" onClick={onOpenShares}><svg><use href="/icons.svg#i-share" /></svg><span>共享审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenStudio}><svg><use href="/icons.svg#i-wand" /></svg><span>创造模式</span></button>
             <button type="button" className="nav-item" onClick={onOpenAudit}><svg><use href="/icons.svg#i-shield" /></svg><span>审计</span></button>

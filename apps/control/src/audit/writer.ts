@@ -26,6 +26,7 @@ export type AuditAction =
   | 'knowledge.publish'
   | 'task.create'
   | 'task.approve'
+  | 'member.roles.update'
   | 'incident.create'
   | 'incident.update';
 

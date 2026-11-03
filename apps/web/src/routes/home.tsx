@@ -1,4 +1,5 @@
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
+import { ThemeToggle } from '../theme/use-theme.js';
 
 export interface HomeProps {
   readonly me: MeResponse;
@@ -88,6 +89,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <span className="current">总览</span>
           </div>
           <div className="topbar-spacer" />
+          <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>
 

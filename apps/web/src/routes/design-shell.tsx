@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ThemeToggle } from '../theme/use-theme.js';
 
 export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'shares' | 'studio' | 'audit';
 
@@ -91,6 +92,7 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
             <span className="current">{title}</span>
           </div>
           <div className="topbar-spacer" />
+          <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>
         <main className="page">

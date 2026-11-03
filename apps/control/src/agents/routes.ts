@@ -104,7 +104,10 @@ export function registerAgentRoutes(
       throw error;
     }
     const body = request.body as { type?: unknown } | undefined;
-    if (typeof body?.type !== 'string') {
+    if (
+      typeof body?.type !== 'string' ||
+      !['diagnostics', 'disk_check', 'memory_check'].includes(body.type)
+    ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
     const command = await commands.create({

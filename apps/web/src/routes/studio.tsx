@@ -77,6 +77,14 @@ export function Studio({ onBack }: StudioProps) {
       onBack={onBack}
     >
       {error ? <p role="alert">{error}</p> : null}
+      {selected ? (
+        <div className="status-strip" style={{ marginBottom: 18 }}>
+          <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-wand" /></svg></span><div><strong>目标</strong><span>{selected.goal}</span></div></div>
+          <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-plug" /></svg></span><div><strong>平台</strong><span>{selected.platform}</span></div></div>
+          <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>生成文件</strong><span>{selected.bundle?.files.length ?? 0} 个</span></div></div>
+          <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span><div><strong>状态</strong><span>{selected.status}</span></div></div>
+        </div>
+      ) : null}
       <div className="studio-grid">
         <section className="studio-pane">
           <div className="studio-pane-head">

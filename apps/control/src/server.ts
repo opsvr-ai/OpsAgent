@@ -13,6 +13,8 @@ import { createDefaultProbeRegistry } from './connectors/http-probes.js';
 import { registerScenarioRoutes } from './scenarios/routes.js';
 import type { ToolResolver } from './scenarios/service.js';
 import { registerAuditRoutes } from './audit/routes.js';
+import { registerStudioRoutes } from './studio/routes.js';
+import type { StudioGenerator } from './studio/service.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -20,6 +22,7 @@ export interface BuildServerOptions {
   readonly ldap?: LdapAuthenticator;
   readonly connectorProbes?: ProbeRegistry;
   readonly scenarioTools?: ToolResolver;
+  readonly studioGenerator?: StudioGenerator;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -55,6 +58,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       options.scenarioTools ?? { resolve: async () => undefined },
     );
     registerAuditRoutes(app, options.pool);
+    registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
   }
 
   return app;

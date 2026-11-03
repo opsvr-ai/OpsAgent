@@ -3,9 +3,10 @@ import type { HomeResponse, MeResponse } from '@opsagent/contracts';
 export interface HomeProps {
   readonly me: MeResponse;
   readonly home: HomeResponse;
+  readonly onStartSession: () => void;
 }
 
-export function Home({ me, home }: HomeProps) {
+export function Home({ me, home, onStartSession }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   return (
     <div className="shell">
@@ -27,6 +28,9 @@ export function Home({ me, home }: HomeProps) {
           <div className="eyebrow">Role view</div>
           <h1>{home.roleView}</h1>
           <span className="muted">{me.user.displayName}</span>
+          <div style={{ marginTop: 16 }}>
+            <button type="button" onClick={onStartSession}>进入会话</button>
+          </div>
         </header>
         <section className="cards">
           {home.cards.map((card) => (

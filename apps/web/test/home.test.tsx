@@ -1,9 +1,11 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { Home } from '../src/routes/home.js';
 
 describe('Home', () => {
-  it('shows the role view and home cards', () => {
+  it('shows the role view and starts a session', () => {
+    const onStartSession = vi.fn();
     render(
       <Home
         me={{
@@ -23,10 +25,13 @@ describe('Home', () => {
           roleView: 'tenant_admin',
           cards: [{ id: 'incidents', title: '事件指挥' }],
         }}
+        onStartSession={onStartSession}
       />,
     );
 
     expect(screen.getByText('tenant_admin')).toBeInTheDocument();
     expect(screen.getAllByText('事件指挥').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '进入会话' }));
+    expect(onStartSession).toHaveBeenCalledOnce();
   });
 });

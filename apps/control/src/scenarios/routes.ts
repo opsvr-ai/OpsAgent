@@ -105,4 +105,32 @@ export function registerScenarioRoutes(
     });
     return reply.send(result);
   });
+
+  app.get<{ Params: { id: string } }>('/api/scenarios/:id/runs', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.run');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const scenario = await scenarios.get(ctx.tenantId, request.params.id);
+    if (!scenario) return reply.code(404).send({ error: 'scenario_not_found' });
+    return reply.send(await scenarios.listRuns(ctx.tenantId, request.params.id));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/scenario-runs/:id', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.run');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const run = await scenarios.getRun(ctx.tenantId, request.params.id);
+    if (!run) return reply.code(404).send({ error: 'scenario_run_not_found' });
+    return reply.send(run);
+  });
 }

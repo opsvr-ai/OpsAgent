@@ -31,6 +31,16 @@ export interface ScenarioRunResult {
   readonly error?: string;
 }
 
+export interface ScenarioRunRecord {
+  readonly id: string;
+  readonly scenarioId: string;
+  readonly status: string;
+  readonly results: readonly unknown[];
+  readonly error: string | null;
+  readonly startedAt: string;
+  readonly finishedAt: string | null;
+}
+
 export class ScenarioService {
   constructor(
     private readonly pool: Pool,
@@ -101,6 +111,27 @@ export class ScenarioService {
     }
   }
 
+  async listRuns(tenantId: string, scenarioId: string): Promise<ScenarioRunRecord[]> {
+    const result = await this.pool.query(
+      `SELECT id, scenario_id, status, result, error, started_at, finished_at
+       FROM scenario_runs
+       WHERE tenant_id = $1 AND scenario_id = $2
+       ORDER BY started_at DESC`,
+      [tenantId, scenarioId],
+    );
+    return result.rows.map((row) => this.mapRun(row));
+  }
+
+  async getRun(tenantId: string, runId: string): Promise<ScenarioRunRecord | null> {
+    const result = await this.pool.query(
+      `SELECT id, scenario_id, status, result, error, started_at, finished_at
+       FROM scenario_runs WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, runId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapRun(row) : null;
+  }
+
   private async finishRun(
     runId: string,
     status: string,
@@ -113,6 +144,26 @@ export class ScenarioService {
        WHERE id = $4`,
       [status, JSON.stringify(results), error, runId],
     );
+  }
+
+  private mapRun(row: {
+    id: string;
+    scenario_id: string;
+    status: string;
+    result: unknown[] | null;
+    error: string | null;
+    started_at: Date;
+    finished_at: Date | null;
+  }): ScenarioRunRecord {
+    return {
+      id: row.id,
+      scenarioId: row.scenario_id,
+      status: row.status,
+      results: row.result ?? [],
+      error: row.error,
+      startedAt: row.started_at.toISOString(),
+      finishedAt: row.finished_at?.toISOString() ?? null,
+    };
   }
 
   private map(row: {

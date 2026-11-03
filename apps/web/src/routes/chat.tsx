@@ -61,7 +61,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             }
             if (item.type === 'tool.call') {
               return (
-                <div key={index} className="event">
+                <div key={index} className="event" data-testid="tool-call">
                   <strong>{item.tool}</strong>
                   <span className="muted"> · {item.risk} · 调用</span>
                 </div>

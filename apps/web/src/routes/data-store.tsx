@@ -42,12 +42,25 @@ export function DataStore({ onBack }: DataStoreProps) {
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p className="muted">{message}</p> : null}
       {stats === null ? <p className="muted">加载中…</p> : null}
-      <section className="grid grid-3">
+      <section className="grid grid-4">
         <article className="card">
           <div className="card-body">
-            <div className="eyebrow">数据集</div>
-            <h3>{stats?.count ?? 0} 条快照</h3>
-            <p className="muted mono">{stats?.bytes ?? 0} bytes</p>
+            <div className="eyebrow">本地数据集</div>
+            <h3>{stats?.datasets.length ?? 0} 个数据集</h3>
+            <p className="muted mono">{stats?.count ?? 0} 条快照</p>
+          </div>
+        </article>
+        <article className="card">
+          <div className="card-body">
+            <div className="eyebrow">存储占用</div>
+            <h3>{stats?.usagePct ?? 0}%</h3>
+            <p className="muted mono">{(stats?.bytes ?? 0)} / {(stats?.quotaBytes ?? 0)} bytes</p>
+          </div>
+        </article>
+        <article className="card">
+          <div className="card-body">
+            <div className="eyebrow">最新同步</div>
+            <h3 className="mono">{stats?.newest ?? '暂无'}</h3>
           </div>
         </article>
         <article className="card">
@@ -57,13 +70,33 @@ export function DataStore({ onBack }: DataStoreProps) {
             <button type="button" className="btn btn-outline" onClick={() => void dryRun()}>清理 dry-run</button>
           </div>
         </article>
-        <article className="card">
-          <div className="card-body">
-            <div className="eyebrow">同步窗口</div>
-            <p className="muted">最新：{stats?.newest ?? '暂无'}</p>
-            <p className="muted">最早：{stats?.oldest ?? '暂无'}</p>
+      </section>
+      <section className="card">
+        <div className="card-body">
+          <div className="row-between">
+            <h2>数据集</h2>
+            <span className="muted">按能力聚合</span>
           </div>
-        </article>
+          {stats?.datasets.length === 0 ? <p className="muted">暂无数据集</p> : null}
+          {stats && stats.datasets.length > 0 ? (
+            <table className="table">
+              <thead>
+                <tr><th>数据集</th><th>快照数</th><th>大小</th><th>最后同步</th><th>保留</th></tr>
+              </thead>
+              <tbody>
+                {stats.datasets.map((item) => (
+                  <tr key={item.tool}>
+                    <td className="mono">{item.tool}</td>
+                    <td>{item.count}</td>
+                    <td>{item.bytes} bytes</td>
+                    <td className="mono">{item.lastSync ?? '暂无'}</td>
+                    <td>30 天</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </div>
       </section>
       <section className="card">
         <div className="card-body">

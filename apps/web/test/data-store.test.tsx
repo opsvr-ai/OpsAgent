@@ -21,6 +21,11 @@ describe('DataStore', () => {
       bytes: 30,
       oldest: '2026-10-01T00:00:00.000Z',
       newest: '2026-11-03T00:00:00.000Z',
+      quotaBytes: 100,
+      usagePct: 30,
+      datasets: [
+        { tool: 'promql_query', count: 2, bytes: 30, lastSync: '2026-11-03T00:00:00.000Z' },
+      ],
       recent: [
         {
           id: 's-1',
@@ -33,6 +38,6 @@ describe('DataStore', () => {
     });
     render(<DataStore onBack={vi.fn()} />);
     expect(await screen.findByText('2 条快照')).toBeInTheDocument();
-    expect(screen.getByText('promql_query')).toBeInTheDocument();
+    expect(screen.getAllByText('promql_query').length).toBeGreaterThan(0);
   });
 });

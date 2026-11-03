@@ -8,11 +8,21 @@ export interface DataStoreSnapshot {
   readonly expiresAt: string | null;
 }
 
+export interface DataStoreDataset {
+  readonly tool: string;
+  readonly count: number;
+  readonly bytes: number;
+  readonly lastSync: string | null;
+}
+
 export interface DataStoreStats {
   readonly count: number;
   readonly bytes: number;
   readonly oldest: string | null;
   readonly newest: string | null;
+  readonly quotaBytes: number;
+  readonly usagePct: number;
+  readonly datasets: readonly DataStoreDataset[];
   readonly recent: readonly DataStoreSnapshot[];
 }
 
@@ -44,12 +54,34 @@ export class DataStoreService {
        WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20`,
       [tenantId],
     );
+    const datasets = await this.pool.query<{
+      tool: string;
+      count: string;
+      bytes: string;
+      last_sync: Date;
+    }>(
+      `SELECT tool, count(*)::text AS count, COALESCE(sum(bytes), 0)::text AS bytes,
+              max(created_at) AS last_sync
+       FROM data_snapshots WHERE tenant_id = $1
+       GROUP BY tool ORDER BY max(created_at) DESC`,
+      [tenantId],
+    );
     const row = aggregate.rows[0];
+    const quotaBytes = Number(process.env.OPSAGENT_DATA_QUOTA_BYTES ?? 5 * 1024 * 1024 * 1024);
+    const bytes = Number(row?.bytes ?? 0);
     return {
       count: Number(row?.count ?? 0),
-      bytes: Number(row?.bytes ?? 0),
+      bytes,
       oldest: row?.oldest?.toISOString() ?? null,
       newest: row?.newest?.toISOString() ?? null,
+      quotaBytes,
+      usagePct: quotaBytes > 0 ? Math.round((bytes / quotaBytes) * 1000) / 10 : 0,
+      datasets: datasets.rows.map((item) => ({
+        tool: item.tool,
+        count: Number(item.count),
+        bytes: Number(item.bytes),
+        lastSync: item.last_sync.toISOString(),
+      })),
       recent: recent.rows.map((item) => ({
         id: item.id,
         tool: item.tool,

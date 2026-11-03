@@ -536,11 +536,21 @@ export interface DataStoreSnapshot {
   readonly expiresAt: string | null;
 }
 
+export interface DataStoreDataset {
+  readonly tool: string;
+  readonly count: number;
+  readonly bytes: number;
+  readonly lastSync: string | null;
+}
+
 export interface DataStoreStats {
   readonly count: number;
   readonly bytes: number;
   readonly oldest: string | null;
   readonly newest: string | null;
+  readonly quotaBytes: number;
+  readonly usagePct: number;
+  readonly datasets: readonly DataStoreDataset[];
   readonly recent: readonly DataStoreSnapshot[];
 }
 

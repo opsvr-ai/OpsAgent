@@ -7,6 +7,16 @@ import { createGrafanaConnector } from './grafana.js';
 import { createHttpConnector } from './http.js';
 import { createPrometheusConnector } from './prometheus.js';
 import { createZabbixConnector } from './zabbix.js';
+import { createPostgresConnector } from './postgres.js';
+import { createMysqlConnector } from './mysql.js';
+import { createRedisConnector } from './redis.js';
+import { createSshConnector } from './ssh.js';
+import {
+  createMysqlQuery,
+  createPostgresQuery,
+  createRedisClient,
+  createSshExec,
+} from './drivers.js';
 
 function baseUrl(record: ConnectorRecord): string {
   const value = record.config.baseUrl;
@@ -19,6 +29,40 @@ function hostOf(url: string): string {
 }
 
 function buildConnector(record: ConnectorRecord): Connector | null {
+  if (record.connectorType === 'postgres') {
+    const dsn = record.config.connectionString;
+    if (typeof dsn !== 'string') return null;
+    return createPostgresConnector({ query: createPostgresQuery(dsn) });
+  }
+  if (record.connectorType === 'mysql') {
+    const url = record.config.url;
+    if (typeof url !== 'string') return null;
+    return createMysqlConnector({ query: createMysqlQuery(url) });
+  }
+  if (record.connectorType === 'redis') {
+    const url = record.config.url;
+    if (typeof url !== 'string') return null;
+    return createRedisConnector({ client: createRedisClient(url) });
+  }
+  if (record.connectorType === 'ssh') {
+    const host = record.config.host;
+    const username = record.config.username;
+    if (typeof host !== 'string' || typeof username !== 'string') return null;
+    return createSshConnector({
+      exec: createSshExec({
+        host,
+        username,
+        ...(typeof record.config.port === 'number' ? { port: record.config.port } : {}),
+        ...(typeof record.config.password === 'string'
+          ? { password: record.config.password }
+          : {}),
+        ...(typeof record.config.privateKey === 'string'
+          ? { privateKey: record.config.privateKey }
+          : {}),
+      }),
+    });
+  }
+
   const url = baseUrl(record);
   const allowHosts = [hostOf(url)];
   switch (record.connectorType) {

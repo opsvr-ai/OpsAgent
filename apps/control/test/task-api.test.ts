@@ -4,7 +4,8 @@ import { Pool } from 'pg';
 import { buildServer } from '../src/server.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
-import type { ToolResolver } from '../src/scenarios/service.js';
+import { ScenarioService, type ToolResolver } from '../src/scenarios/service.js';
+import { LongTaskService } from '../src/tasks/service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 let pool: Pool;
@@ -118,5 +119,28 @@ describe('long task API', () => {
     expect(approved.statusCode).toBe(200);
     expect(approved.json()).toMatchObject({ status: 'success' });
     await app.close();
+  });
+
+  it('marks interrupted running tasks as failed on recovery', async () => {
+    const admin = await pool.query<{ id: string }>(
+      "SELECT id FROM users WHERE username = 'tenant-admin'",
+    );
+    const scenario = await pool.query<{ id: string }>(
+      `INSERT INTO scenarios (tenant_id, name, definition)
+       VALUES ('00000000-0000-4000-8000-000000000001', 'recover-scenario', '{"steps":[]}'::jsonb)
+       RETURNING id`,
+    );
+    const task = await pool.query<{ id: string }>(
+      `INSERT INTO long_tasks (tenant_id, title, scenario_id, status, created_by)
+       VALUES ($1, 'interrupted', $2, 'running', $3) RETURNING id`,
+      ['00000000-0000-4000-8000-000000000001', scenario.rows[0]?.id, admin.rows[0]?.id],
+    );
+    const service = new LongTaskService(pool, new ScenarioService(pool, { resolve: async () => undefined }));
+    expect(await service.recoverInterrupted()).toBeGreaterThanOrEqual(1);
+    const row = await pool.query<{ status: string; error: string }>(
+      'SELECT status, error FROM long_tasks WHERE id = $1',
+      [task.rows[0]?.id],
+    );
+    expect(row.rows[0]).toMatchObject({ status: 'failed', error: 'interrupted' });
   });
 });

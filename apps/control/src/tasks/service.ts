@@ -33,8 +33,16 @@ export class LongTaskService {
     return task;
   }
 
-  async list(tenantId: string): Promise<LongTaskRecord[]> {
+  async recoverInterrupted(): Promise<number> {
     const result = await this.pool.query(
+      `UPDATE long_tasks
+       SET status = 'failed', error = 'interrupted', updated_at = now()
+       WHERE status = 'running'`,
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async list(tenantId: string): Promise<LongTaskRecord[]> {    const result = await this.pool.query(
       `SELECT id, title, scenario_id, status, run_id, error FROM long_tasks
        WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100`,
       [tenantId],

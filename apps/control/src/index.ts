@@ -7,6 +7,7 @@ import { DshHeadlessGenerator } from './studio/dsh-generator.js';
 import { DshRuntime } from './runtime/dsh.js';
 import { ModelProviderService } from './models/service.js';
 import { AuditService } from './audit/service.js';
+import { LongTaskService } from './tasks/service.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
 const pool = new Pool({
@@ -41,6 +42,10 @@ const app = buildServer({
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
 const auditRetention = new AuditService(pool);
+const taskService = new LongTaskService(pool, new ScenarioService(pool, tools));
+void taskService.recoverInterrupted().catch((error) => {
+  console.error('long task recovery failed', error);
+});
 const retentionTimer = setInterval(() => {
   void auditRetention.purgeOlderThan(180).catch((error) => {
     console.error('audit retention failed', error);

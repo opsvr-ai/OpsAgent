@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DesignShell } from './design-shell.js';
 import {
   listScenarios,
   runScenario,
@@ -53,27 +54,21 @@ export function Scenarios({ onBack }: ScenariosProps) {
   }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">OpsAgent</div>
-        <div className="tenant">
-          <strong>场景中心</strong>
-          <span>可复用运维流程</span>
-        </div>
-        <button type="button" onClick={onBack}>返回工作台</button>
-      </aside>
-      <main className="page">
-        <header>
-          <div className="eyebrow">Scenarios</div>
-          <h1>场景中心</h1>
-        </header>
+    <DesignShell
+      active="scenarios"
+      eyebrow="Scenarios"
+      title="场景中心"
+      subtitle="可复用的运维流程：执行、定时与审计。"
+      onBack={onBack}
+    >
         {error ? <p role="alert">{error}</p> : null}
         {scenarios === null ? <p className="muted">加载中…</p> : null}
         {scenarios?.length === 0 ? <p className="muted">暂无场景</p> : null}
-        <section className="cards">
+        <section className="grid grid-3">
           {scenarios?.map((scenario) => (
             <article key={scenario.id} className="card">
-              <h2>{scenario.name}</h2>
+              <div className="card-body">
+              <h3>{scenario.name}</h3>
               <p className="muted">{scenario.description ?? '—'}</p>
               <p className="muted">
                 {scenario.status} · v{scenario.version} · {scenario.definition.steps.length} steps
@@ -102,17 +97,19 @@ export function Scenarios({ onBack }: ScenariosProps) {
                 </button>
               </div>
               <button type="button" onClick={() => void run(scenario.id)}>运行</button>
+              </div>
             </article>
           ))}
         </section>
         {result ? (
           <section className="card" style={{ marginTop: 16 }}>
+            <div className="card-body">
             <h2>运行结果</h2>
             <p>{result.status}</p>
             {result.error ? <p role="alert">{result.error}</p> : null}
+            </div>
           </section>
         ) : null}
-      </main>
-    </div>
+    </DesignShell>
   );
 }

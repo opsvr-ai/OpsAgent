@@ -462,3 +462,7 @@ export async function createModel(input: {
 export async function deleteModel(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/models/${id}`, { method: 'DELETE' });
 }
+
+export async function selectTenant(id: string): Promise<void> {
+  await request<{ ok: true }>(`/api/tenants/${id}/select`, { method: 'POST' });
+}

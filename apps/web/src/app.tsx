@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
-import { createSession, getHome, getMe } from './api/client.js';
+import { createSession, getHome, getMe, selectTenant } from './api/client.js';
 import { Login } from './routes/login.js';
 import { Home } from './routes/home.js';
 import { Chat } from './routes/chat.js';
@@ -35,6 +35,11 @@ export function App() {
     if (!home) return;
     const session = await createSession(home.tenantId, home.roleView);
     setSessionId(session.sessionId);
+  }
+
+  async function switchTenant(tenantId: string) {
+    await selectTenant(tenantId);
+    setHome(await getHome());
   }
 
   useEffect(() => {
@@ -86,6 +91,7 @@ export function App() {
       onOpenSessions={() => setView('sessions')}
       onOpenMembers={() => setView('members')}
       onOpenModels={() => setView('models')}
+      onSwitchTenant={(tenantId) => void switchTenant(tenantId)}
     />
   );
 }

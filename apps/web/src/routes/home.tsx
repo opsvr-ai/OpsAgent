@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
 import { ThemeToggle } from '../theme/use-theme.js';
 
@@ -19,9 +20,11 @@ export interface HomeProps {
   readonly onOpenSessions: () => void;
   readonly onOpenMembers: () => void;
   readonly onOpenModels: () => void;
+  readonly onSwitchTenant: (tenantId: string) => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge, onOpenMessages, onOpenAgents, onOpenTasks, onOpenSessions, onOpenMembers, onOpenModels }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors, onOpenKnowledge, onOpenMessages, onOpenAgents, onOpenTasks, onOpenSessions, onOpenMembers, onOpenModels, onSwitchTenant }: HomeProps) {
+  const [switchOpen, setSwitchOpen] = useState(false);
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
 
@@ -41,13 +44,32 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
           </div>
         </div>
 
-        <button type="button" className="tenant-switch" onClick={onStartSession}>
+        <button type="button" className="tenant-switch" onClick={() => setSwitchOpen((open) => !open)}>
           <span className="avatar">{(tenant?.name ?? '租').slice(0, 1)}</span>
           <span className="tenant-meta">
             <strong>{tenant?.name ?? home.tenantId}</strong>
             <span>{tenant?.slug ?? 'tenant'} · 本地开发</span>
           </span>
         </button>
+        {switchOpen ? (
+          <div className="card" style={{ marginBottom: 8 }}>
+            <div className="card-body">
+              {me.tenants.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="nav-item"
+                  onClick={() => {
+                    setSwitchOpen(false);
+                    onSwitchTenant(item.id);
+                  }}
+                >
+                  {item.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <nav className="nav">
           <div className="nav-group">

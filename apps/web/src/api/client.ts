@@ -367,6 +367,28 @@ export async function listAgents(): Promise<AgentSummary[]> {
   return request<AgentSummary[]>('/api/agents');
 }
 
+export interface AgentCommandSummary {
+  readonly id: string;
+  readonly agentId: string;
+  readonly type: string;
+  readonly status: string;
+  readonly result: unknown;
+}
+
+export async function listAgentCommands(agentId: string): Promise<AgentCommandSummary[]> {
+  return request<AgentCommandSummary[]>(`/api/agents/${agentId}/commands`);
+}
+
+export async function createAgentCommand(
+  agentId: string,
+  type: string,
+): Promise<AgentCommandSummary> {
+  return request<AgentCommandSummary>(`/api/agents/${agentId}/commands`, {
+    method: 'POST',
+    body: JSON.stringify({ type }),
+  });
+}
+
 export interface TaskSummary {
   readonly id: string;
   readonly title: string;

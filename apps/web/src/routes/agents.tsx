@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { listAgents, type AgentSummary } from '../api/client.js';
+import {
+  createAgentCommand,
+  listAgents,
+  type AgentCommandSummary,
+  type AgentSummary,
+} from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 
 export interface AgentsProps {
@@ -9,12 +14,23 @@ export interface AgentsProps {
 export function Agents({ onBack }: AgentsProps) {
   const [agents, setAgents] = useState<AgentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [commands, setCommands] = useState<Record<string, AgentCommandSummary>>({});
 
   useEffect(() => {
     void listAgents()
       .then(setAgents)
       .catch(() => setError('Agent 加载失败'));
   }, []);
+
+  async function runDiagnostics(id: string) {
+    setError(null);
+    try {
+      const command = await createAgentCommand(id, 'diagnostics');
+      setCommands((current) => ({ ...current, [id]: command }));
+    } catch {
+      setError('命令下发失败');
+    }
+  }
 
   return (
     <DesignShell
@@ -41,6 +57,10 @@ export function Agents({ onBack }: AgentsProps) {
               {Object.keys(agent.metrics).length > 0 ? (
                 <p className="muted mono">{JSON.stringify(agent.metrics)}</p>
               ) : null}
+              {commands[agent.id] ? (
+                <p className="muted">诊断命令：{commands[agent.id]?.status}</p>
+              ) : null}
+              <button type="button" className="btn btn-outline" onClick={() => void runDiagnostics(agent.id)}>执行诊断</button>
             </div>
           </article>
         ))}

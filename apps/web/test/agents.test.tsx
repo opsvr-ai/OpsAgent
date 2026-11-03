@@ -1,13 +1,17 @@
 import { render, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Agents } from '../src/routes/agents.js';
-import { listAgents } from '../src/api/client.js';
+import { createAgentCommand, listAgents } from '../src/api/client.js';
 
 vi.mock('../src/api/client.js', () => ({
   listAgents: vi.fn(),
+  createAgentCommand: vi.fn(),
+  listAgentCommands: vi.fn(),
 }));
 
 const listMock = vi.mocked(listAgents);
+const commandMock = vi.mocked(createAgentCommand);
 
 describe('Agents', () => {
   beforeEach(() => {
@@ -31,6 +35,15 @@ describe('Agents', () => {
     render(<Agents onBack={vi.fn()} />);
     expect((await screen.findAllByText('prod-host-1')).length).toBeGreaterThan(0);
     expect(screen.getByText('online')).toBeInTheDocument();
+    commandMock.mockResolvedValue({
+      id: 'c-1',
+      agentId: 'a-1',
+      type: 'diagnostics',
+      status: 'pending',
+      result: null,
+    });
+    fireEvent.click(screen.getByRole('button', { name: '执行诊断' }));
+    expect(await screen.findByText(/诊断命令/)).toBeInTheDocument();
   });
 
   it('shows an empty state', async () => {

@@ -20,12 +20,13 @@ import { Members } from './routes/members.js';
 import { Models } from './routes/models.js';
 import { Platform } from './routes/platform.js';
 import { DataStore } from './routes/data-store.js';
+import { Appearance } from './routes/appearance.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -83,6 +84,7 @@ export function App() {
   if (view === 'members') return <Members onBack={() => setView('home')} />;
   if (view === 'models') return <Models onBack={() => setView('home')} />;
   if (view === 'data') return <DataStore onBack={() => setView('home')} />;
+  if (view === 'appearance') return <Appearance onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -104,6 +106,7 @@ export function App() {
       onOpenMembers={() => setView('members')}
       onOpenModels={() => setView('models')}
       onOpenData={() => setView('data')}
+      onOpenAppearance={() => setView('appearance')}
       onSwitchTenant={(tenantId) => void switchTenant(tenantId)}
     />
   );

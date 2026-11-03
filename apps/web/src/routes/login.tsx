@@ -107,8 +107,10 @@ export function Login({ onSuccess }: LoginProps) {
             />
           </div>
           <div className="field">
-            <label>租户</label>
-            <div className="login-tenant">登录后按账号权限选择租户</div>
+            <label htmlFor="login-tenant">租户</label>
+            <select id="login-tenant" defaultValue="auto">
+              <option value="auto">自动选择（按账号权限）</option>
+            </select>
           </div>
           {error ? <p role="alert">{error}</p> : null}
 

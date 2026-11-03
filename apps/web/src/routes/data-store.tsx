@@ -105,16 +105,13 @@ export function DataStore({ onBack }: DataStoreProps) {
         </article>
       </section>
       <section className="card">
+        <div className="card-head"><h2>数据集</h2><span className="muted">按能力聚合 · 本地快照</span></div>
         <div className="card-body">
-          <div className="row-between">
-            <h2>数据集</h2>
-            <span className="muted">按能力聚合</span>
-          </div>
           {stats?.datasets?.length === 0 ? <p className="muted">暂无数据集</p> : null}
           {stats?.datasets && stats.datasets.length > 0 ? (
             <table className="table">
               <thead>
-                <tr><th>数据集</th><th>快照数</th><th>大小</th><th>最后同步</th><th>保留</th></tr>
+                <tr><th>数据集</th><th>快照数</th><th>大小</th><th>最后同步</th><th>保留</th><th>存储</th></tr>
               </thead>
               <tbody>
                 {stats.datasets.map((item) => (
@@ -123,7 +120,8 @@ export function DataStore({ onBack }: DataStoreProps) {
                     <td>{item.count}</td>
                     <td>{formatBytes(item.bytes)}</td>
                     <td className="mono">{relativeTime(item.lastSync)}</td>
-                    <td>30 天</td>
+                    <td>{settings?.retentionDays ?? 30} 天</td>
+                    <td><span className="badge badge-neutral">本地</span></td>
                   </tr>
                 ))}
               </tbody>

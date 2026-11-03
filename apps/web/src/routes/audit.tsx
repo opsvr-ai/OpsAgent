@@ -27,6 +27,19 @@ export function Audit({ onBack }: AuditProps) {
     }
   }
 
+  async function filterBy(next: string) {
+    setResult(next);
+    setError(null);
+    try {
+      setEvents(await listAudit(100, {
+        ...(action ? { action } : {}),
+        ...(next ? { result: next } : {}),
+      }));
+    } catch {
+      setError('审计加载失败');
+    }
+  }
+
   useEffect(() => {
     void load();
   }, []);
@@ -46,6 +59,11 @@ export function Audit({ onBack }: AuditProps) {
           <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>成功</strong><span>{events?.filter((event) => event.result === 'success').length ?? 0} 条</span></div></div>
           <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>失败</strong><span>{events?.filter((event) => event.result !== 'success').length ?? 0} 条</span></div></div>
           <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-grid" /></svg></span><div><strong>动作类型</strong><span>{new Set((events ?? []).map((event) => event.action)).size} 类</span></div></div>
+        </div>
+        <div className="tabs" style={{ marginBottom: 14 }}>
+          <button type="button" className={`tab${result === '' ? ' is-active' : ''}`} onClick={() => void filterBy('')}>全部<span className="count">{events?.length ?? 0}</span></button>
+          <button type="button" className={`tab${result === 'success' ? ' is-active' : ''}`} onClick={() => void filterBy('success')}>成功</button>
+          <button type="button" className={`tab${result === 'failure' ? ' is-active' : ''}`} onClick={() => void filterBy('failure')}>失败</button>
         </div>
         <div className="card">
           <div className="card-body">

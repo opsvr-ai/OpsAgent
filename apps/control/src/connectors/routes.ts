@@ -6,6 +6,7 @@ import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext, type TenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { ConnectorService } from './service.js';
+import type { ProbeRegistry } from './probe.js';
 
 interface CreateConnectorBody {
   connectorType?: unknown;
@@ -29,6 +30,7 @@ export function registerConnectorRoutes(
   app: FastifyInstance,
   pool: Pool,
   audit: AuditWriter,
+  probes: ProbeRegistry,
 ): void {
   const connectors = new ConnectorService(pool);
 
@@ -88,5 +90,34 @@ export function registerConnectorRoutes(
       }
       throw error;
     }
+  });
+
+  app.post<{ Params: { id: string } }>('/api/connectors/:id/test', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'connector.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+
+    const connector = await connectors.get(ctx.tenantId, request.params.id);
+    if (!connector) return reply.code(404).send({ error: 'connector_not_found' });
+    const probe = probes.get(connector.connectorType);
+    if (!probe) return reply.code(501).send({ error: 'probe_not_implemented' });
+
+    const result = await probe.probe(connector);
+    const status = result.ok ? 'healthy' : 'unhealthy';
+    await connectors.updateStatus(ctx.tenantId, connector.id, status);
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'connector.test',
+      resource: connector.id,
+      result: result.ok ? 'success' : 'failure',
+      metadata: { connectorType: connector.connectorType, latencyMs: result.latencyMs },
+    });
+    return reply.send({ status, latencyMs: result.latencyMs });
   });
 }

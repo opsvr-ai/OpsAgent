@@ -8,11 +8,13 @@ import { PgAuditWriter } from './audit/writer.js';
 import { registerTenantRoutes } from './tenancy/routes.js';
 import { registerRuntimeRoutes } from './runtime/routes.js';
 import { registerConnectorRoutes } from './connectors/routes.js';
+import { ProbeRegistry } from './connectors/probe.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
   readonly localAdmin?: LocalAdminConfig;
   readonly ldap?: LdapAuthenticator;
+  readonly connectorProbes?: ProbeRegistry;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -35,7 +37,12 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     );
     registerTenantRoutes(app, options.pool, audit);
     registerRuntimeRoutes(app, options.pool, audit);
-    registerConnectorRoutes(app, options.pool, audit);
+    registerConnectorRoutes(
+      app,
+      options.pool,
+      audit,
+      options.connectorProbes ?? new ProbeRegistry(),
+    );
   }
 
   return app;

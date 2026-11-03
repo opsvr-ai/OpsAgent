@@ -38,6 +38,8 @@ export function Platform({ onRefresh }: PlatformProps) {
     }
   }
 
+  const activeTenants = tenants?.filter((tenant) => tenant.status === 'active').length ?? 0;
+
   return (
     <DesignShell
       active="home"
@@ -47,6 +49,11 @@ export function Platform({ onRefresh }: PlatformProps) {
       onBack={onRefresh}
     >
       {error ? <p role="alert">{error}</p> : null}
+      <div className="status-strip" style={{ marginBottom: 20 }}>
+        <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-building" /></svg></span><div><strong>租户</strong><span>{tenants?.length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>已激活</strong><span>{activeTenants} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>待激活</strong><span>{Math.max(0, (tenants?.length ?? 0) - activeTenants)} 个</span></div></div>
+      </div>
       <section className="card">
         <div className="card-head"><h2>新建租户</h2><span className="muted">平台级操作</span></div>
         <div className="card-body">

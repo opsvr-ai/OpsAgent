@@ -1,22 +1,42 @@
 import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import type { StudioBundle, StudioGenerator } from './service.js';
 
 export interface HeadlessRunner {
   run(prompt: string): Promise<string>;
 }
 
+export interface HeadlessRunnerOptions {
+  readonly command?: string;
+  readonly timeoutMs?: number;
+  readonly cwd?: string;
+}
+
 export class DshHeadlessRunner implements HeadlessRunner {
-  constructor(
-    private readonly command = process.env.DSH_HEADLESS_COMMAND ?? 'dsh',
-    private readonly timeoutMs = 120_000,
-  ) {}
+  private readonly command: string;
+  private readonly timeoutMs: number;
+  private readonly cwd: string;
+
+  constructor(options: HeadlessRunnerOptions = {}) {
+    this.command = options.command ?? process.env.DSH_HEADLESS_COMMAND ?? 'dsh';
+    this.timeoutMs = options.timeoutMs ?? 120_000;
+    this.cwd = options.cwd ?? tmpdir();
+  }
 
   run(prompt: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const child = spawn(this.command, ['headless', prompt], {
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const child =
+        process.platform === 'win32'
+          ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `${this.command} headless -`], {
+              cwd: this.cwd,
+              windowsHide: true,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            })
+          : spawn(this.command, ['headless', '-'], {
+              cwd: this.cwd,
+              windowsHide: true,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
       let stdout = '';
       let stderr = '';
       const timer = setTimeout(() => {
@@ -41,6 +61,8 @@ export class DshHeadlessRunner implements HeadlessRunner {
         }
         resolve(stdout);
       });
+      child.stdin.write(prompt);
+      child.stdin.end();
     });
   }
 }
@@ -61,7 +83,7 @@ export class DshHeadlessGenerator implements StudioGenerator {
     const prompt = [
       'You are generating an OpsAgent connector bundle.',
       'Return ONLY JSON: {"files":["..."],"manifest":{}}.',
-      'No prose, no markdown.',
+      'Do not use tools. Do not create or modify any files. No prose, no markdown.',
       `Platform: ${input.platform}`,
       `Goal: ${input.goal}`,
     ].join('\n');

@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
+import { useEffect } from 'react';
 import type { ApprovalRequestEvent, RuntimeEvent } from '@opsagent/contracts';
-import { decideApproval, promptSession } from '../api/client.js';
+import {
+  decideApproval,
+  listApprovals,
+  promptSession,
+  type ApprovalSummary,
+} from '../api/client.js';
 
 export interface ChatProps {
   readonly sessionId: string;
@@ -13,6 +19,20 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequestEvent | null>(null);
+  const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
+
+  useEffect(() => {
+    if (!busy) {
+      setRuntimeApprovals([]);
+      return;
+    }
+    const timer = setInterval(() => {
+      void listApprovals()
+        .then(setRuntimeApprovals)
+        .catch(() => undefined);
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [busy]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -35,6 +55,11 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     if (!pendingApproval) return;
     await decideApproval(pendingApproval.approvalId, decision);
     setPendingApproval(null);
+  }
+
+  async function decideRuntime(id: string, decision: 'approve' | 'deny') {
+    await decideApproval(id, decision);
+    setRuntimeApprovals((current) => current.filter((item) => item.id !== id));
   }
 
   return (
@@ -154,6 +179,23 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                 })}
               </div>
             </div>
+
+            {runtimeApprovals.length > 0 ? (
+              <div className="card" style={{ margin: '8px 24px' }}>
+                <div className="card-body">
+                  <div className="eyebrow">运行时审批</div>
+                  {runtimeApprovals.map((approval) => (
+                    <div key={approval.id} className="row-between">
+                      <span>{approval.action} · {approval.risk}</span>
+                      <span className="row-sm">
+                        <button type="button" className="btn btn-primary" onClick={() => void decideRuntime(approval.id, 'approve')}>批准</button>
+                        <button type="button" className="btn btn-outline" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="composer-wrap">
               <form className="composer" onSubmit={send}>

@@ -6,6 +6,7 @@ import { decideApproval, promptSession } from '../src/api/client.js';
 vi.mock('../src/api/client.js', () => ({
   promptSession: vi.fn(),
   decideApproval: vi.fn(),
+  listApprovals: vi.fn().mockResolvedValue([]),
 }));
 
 const promptMock = vi.mocked(promptSession);

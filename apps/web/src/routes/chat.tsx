@@ -132,6 +132,8 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
           <div className="topbar-spacer" />
           <GlobalSearch />
           <ThemeToggle />
+          <button type="button" className="topbar-icon" aria-label="消息中心" onClick={() => window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'messages' }))}><svg><use href="/icons.svg#i-bell" /></svg>{(session?.home?.metrics.messagesUnread ?? 0) > 0 ? <span className="topbar-badge">{session?.home?.metrics.messagesUnread}</span> : null}</button>
+          <button type="button" className="topbar-icon" aria-label="待审批" onClick={() => window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'approvals' }))}><svg><use href="/icons.svg#i-check" /></svg>{(session?.home?.metrics.pendingApprovals ?? 0) > 0 ? <span className="topbar-badge">{session?.home?.metrics.pendingApprovals}</span> : null}</button>
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />{roleView}</span>
         </header>
 

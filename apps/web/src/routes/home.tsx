@@ -163,6 +163,8 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
           <div className="topbar-spacer" />
           <GlobalSearch />
           <ThemeToggle />
+          <button type="button" className="topbar-icon" aria-label="消息中心" onClick={onOpenMessages}><svg><use href="/icons.svg#i-bell" /></svg>{home.metrics.messagesUnread > 0 ? <span className="topbar-badge">{home.metrics.messagesUnread}</span> : null}</button>
+          <button type="button" className="topbar-icon" aria-label="待审批" onClick={onOpenApprovals}><svg><use href="/icons.svg#i-check" /></svg>{home.metrics.pendingApprovals > 0 ? <span className="topbar-badge">{home.metrics.pendingApprovals}</span> : null}</button>
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>
 

@@ -1460,3 +1460,7 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .priority-list li span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--surface-3); color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
 .knowledge-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--space-4); align-items: start; }
 @media (max-width: 1000px) { .knowledge-layout { grid-template-columns: 1fr; } }
+.topbar-icon { position: relative; display: inline-grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--muted); cursor: pointer; }
+.topbar-icon:hover { color: var(--text); border-color: var(--primary-line); }
+.topbar-icon svg { width: 15px; height: 15px; }
+.topbar-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px; display: grid; place-items: center; border-radius: 999px; background: var(--danger); color: #fff; font-size: 9px; font-family: var(--font-mono); }

@@ -4,11 +4,13 @@ import { createSession, getHome, getMe } from './api/client.js';
 import { Login } from './routes/login.js';
 import { Home } from './routes/home.js';
 import { Chat } from './routes/chat.js';
+import { Scenarios } from './routes/scenarios.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [view, setView] = useState<'home' | 'scenarios'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -37,6 +39,14 @@ export function App() {
       />
     );
   }
+  if (view === 'scenarios') return <Scenarios onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
-  return <Home me={me} home={home} onStartSession={() => void startSession()} />;
+  return (
+    <Home
+      me={me}
+      home={home}
+      onStartSession={() => void startSession()}
+      onOpenScenarios={() => setView('scenarios')}
+    />
+  );
 }

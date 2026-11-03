@@ -26,6 +26,7 @@ describe('Home', () => {
           cards: [{ id: 'incidents', title: '事件指挥' }],
         }}
         onStartSession={onStartSession}
+        onOpenScenarios={vi.fn()}
       />,
     );
 

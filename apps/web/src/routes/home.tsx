@@ -4,9 +4,10 @@ export interface HomeProps {
   readonly me: MeResponse;
   readonly home: HomeResponse;
   readonly onStartSession: () => void;
+  readonly onOpenScenarios: () => void;
 }
 
-export function Home({ me, home, onStartSession }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   return (
     <div className="shell">
@@ -30,6 +31,7 @@ export function Home({ me, home, onStartSession }: HomeProps) {
           <span className="muted">{me.user.displayName}</span>
           <div style={{ marginTop: 16 }}>
             <button type="button" onClick={onStartSession}>进入会话</button>
+            <button type="button" onClick={onOpenScenarios} style={{ marginLeft: 8 }}>场景中心</button>
           </div>
         </header>
         <section className="cards">

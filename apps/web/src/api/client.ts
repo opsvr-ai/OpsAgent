@@ -80,3 +80,29 @@ export async function decideApproval(
     body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
   });
 }
+
+export interface ScenarioSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly status: string;
+  readonly version: number;
+  readonly definition: { readonly steps: readonly unknown[] };
+}
+
+export interface ScenarioRunSummary {
+  readonly status: 'success' | 'failed';
+  readonly results: readonly unknown[];
+  readonly error?: string;
+}
+
+export async function listScenarios(): Promise<ScenarioSummary[]> {
+  return request<ScenarioSummary[]>('/api/scenarios');
+}
+
+export async function runScenario(id: string): Promise<ScenarioRunSummary> {
+  return request<ScenarioRunSummary>(`/api/scenarios/${id}/run`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}

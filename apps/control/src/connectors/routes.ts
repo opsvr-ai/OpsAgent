@@ -7,6 +7,7 @@ import { resolveTenantContext, type TenantContext } from '../tenancy/context.js'
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { ConnectorService } from './service.js';
 import type { ProbeRegistry } from './probe.js';
+import { ConnectorCredentialService } from './credentials.js';
 
 interface CreateConnectorBody {
   connectorType?: unknown;
@@ -31,8 +32,10 @@ export function registerConnectorRoutes(
   pool: Pool,
   audit: AuditWriter,
   probes: ProbeRegistry,
+  secret: string,
 ): void {
   const connectors = new ConnectorService(pool);
+  const credentials = new ConnectorCredentialService(pool, secret);
 
   app.get('/api/connectors', async (request, reply) => {
     const ctx = await context(pool, request);
@@ -119,5 +122,38 @@ export function registerConnectorRoutes(
       metadata: { connectorType: connector.connectorType, latencyMs: result.latencyMs },
     });
     return reply.send({ status, latencyMs: result.latencyMs });
+  });
+
+  app.put<{ Params: { id: string } }>('/api/connectors/:id/credentials', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'connector.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { credentials?: unknown } | undefined;
+    if (
+      typeof body?.credentials !== 'object' ||
+      body.credentials === null ||
+      Array.isArray(body.credentials)
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const saved = await credentials.set(
+      ctx.tenantId,
+      request.params.id,
+      body.credentials as Record<string, unknown>,
+    );
+    if (!saved) return reply.code(404).send({ error: 'connector_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'connector.credentials',
+      resource: request.params.id,
+      result: 'success',
+    });
+    return reply.send({ ok: true });
   });
 }

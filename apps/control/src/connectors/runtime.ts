@@ -11,6 +11,7 @@ import { createPostgresConnector } from './postgres.js';
 import { createMysqlConnector } from './mysql.js';
 import { createRedisConnector } from './redis.js';
 import { createSshConnector } from './ssh.js';
+import { ConnectorCredentialService } from './credentials.js';
 import {
   createMysqlQuery,
   createPostgresQuery,
@@ -94,7 +95,11 @@ function buildConnector(record: ConnectorRecord): Connector | null {
 export class ConnectorToolResolver {
   private readonly cache = new Map<string, Map<string, ConnectorTool>>();
 
-  constructor(private readonly pool: Pool) {}
+  private readonly credentials: ConnectorCredentialService;
+
+  constructor(private readonly pool: Pool, secret = process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret') {
+    this.credentials = new ConnectorCredentialService(pool, secret);
+  }
 
   async resolve(tenantId: string, name: string): Promise<ConnectorTool | undefined> {
     let tools = this.cache.get(tenantId);
@@ -125,12 +130,13 @@ export class ConnectorToolResolver {
       credential_ref: string | null;
       status: string;
     }>) {
+      const credentials = await this.credentials.get(row.tenant_id, row.id);
       const record: ConnectorRecord = {
         id: row.id,
         tenantId: row.tenant_id,
         connectorType: row.connector_type,
         name: row.name,
-        config: row.config,
+        config: { ...row.config, ...(credentials ?? {}) },
         credentialRef: row.credential_ref,
         status: row.status,
       };

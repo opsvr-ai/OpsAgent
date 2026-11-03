@@ -12,6 +12,7 @@ export type AuditAction =
   | 'approval.decide'
   | 'connector.create'
   | 'connector.test'
+  | 'connector.credentials'
   | 'scenario.create'
   | 'scenario.run'
   | 'scenario.publish'

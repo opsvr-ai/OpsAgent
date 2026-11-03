@@ -65,6 +65,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       options.pool,
       audit,
       options.connectorProbes ?? createDefaultProbeRegistry(),
+      options.modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
     );
     const scenarioTools = options.scenarioTools ?? { resolve: async () => undefined };
     registerScenarioRoutes(

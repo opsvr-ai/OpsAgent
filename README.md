@@ -2,7 +2,7 @@
 
 Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools + Commander + Eino-based host agents.
 
-> Status: development started. Current increment = P1 Sprint 1 scaffold (workspace, contracts, control health, local infra). No auth/DB/runtime yet.
+> Status: development started. Current increment = P1 Sprint 1 scaffold (workspace, contracts, control health, tenant/audit primitives, local infra). Next = DB/RLS, auth, runtime, web.
 
 ## Quick start
 

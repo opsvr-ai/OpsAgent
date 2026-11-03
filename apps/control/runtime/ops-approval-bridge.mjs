@@ -36,8 +36,10 @@ async function createApproval(tool, callId, reason, details) {
 }
 
 async function waitForDecision(id, signal) {
+  const deadline = Date.now() + Number(process.env.OPS_APPROVAL_TIMEOUT_MS ?? 900_000);
   for (;;) {
     if (signal?.aborted) return 'cancelled';
+    if (Date.now() > deadline) return 'cancelled';
     const response = await fetch(`${CONTROL_URL}/internal/approvals/${id}`, {
       headers: headers(),
       signal,

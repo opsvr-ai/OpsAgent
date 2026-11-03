@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
 import { ThemeToggle } from '../theme/use-theme.js';
+import { GlobalSearch } from './global-search.js';
 
 export interface HomeProps {
   readonly me: MeResponse;
@@ -157,6 +158,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <span className="current">总览</span>
           </div>
           <div className="topbar-spacer" />
+          <GlobalSearch />
           <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>

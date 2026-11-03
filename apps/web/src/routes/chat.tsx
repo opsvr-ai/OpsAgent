@@ -8,6 +8,7 @@ import {
   type ApprovalSummary,
 } from '../api/client.js';
 import { NAV } from './design-shell.js';
+import { GlobalSearch } from './global-search.js';
 import { ThemeToggle } from '../theme/use-theme.js';
 
 export interface ChatProps {
@@ -118,6 +119,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             <span className="current mono">{sessionId.slice(0, 18)}</span>
           </div>
           <div className="topbar-spacer" />
+          <GlobalSearch />
           <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />{roleView}</span>
         </header>

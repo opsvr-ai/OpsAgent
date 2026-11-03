@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { ThemeToggle } from '../theme/use-theme.js';
+import { GlobalSearch } from './global-search.js';
 
-export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'shares' | 'studio' | 'audit' | 'help';
+import { NAV, type DesignNav } from './nav.js';
+
+export { NAV };
+export type { DesignNav };
 
 export interface DesignShellProps {
   readonly active: DesignNav;
@@ -12,27 +16,6 @@ export interface DesignShellProps {
   readonly actions?: ReactNode;
   readonly children: ReactNode;
 }
-
-export const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
-  { id: 'home', label: '工作台', icon: 'grid' },
-  { id: 'incidents', label: '事件指挥', icon: 'activity' },
-  { id: 'approvals', label: '待审批', icon: 'check' },
-  { id: 'connectors', label: '集成与连接器', icon: 'plug' },
-  { id: 'knowledge', label: '知识中心', icon: 'book' },
-  { id: 'messages', label: '消息中心', icon: 'bell' },
-  { id: 'agents', label: '服务器 Agent', icon: 'server' },
-  { id: 'tasks', label: '长任务', icon: 'clock' },
-  { id: 'sessions', label: '会话历史', icon: 'message' },
-  { id: 'members', label: '成员与角色', icon: 'users' },
-  { id: 'models', label: '模型配置', icon: 'shield' },
-  { id: 'data', label: '数据沉淀', icon: 'database' },
-  { id: 'appearance', label: '外观与主题', icon: 'sun' },
-  { id: 'scenarios', label: '场景中心', icon: 'bolt' },
-  { id: 'shares', label: '共享审批', icon: 'share' },
-  { id: 'studio', label: '创造模式', icon: 'wand' },
-  { id: 'audit', label: '审计', icon: 'shield' },
-  { id: 'help', label: '用户手册', icon: 'book' },
-];
 
 export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, children }: DesignShellProps) {
   return (
@@ -106,6 +89,7 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
             <span className="current">{title}</span>
           </div>
           <div className="topbar-spacer" />
+          <GlobalSearch />
           <ThemeToggle />
           <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>

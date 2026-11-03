@@ -26,6 +26,12 @@ export function Sessions({ onBack }: SessionsProps) {
       onBack={onBack}
     >
       {error ? <p role="alert">{error}</p> : null}
+      <div className="status-strip" style={{ marginBottom: 18 }}>
+        <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-message" /></svg></span><div><strong>会话总数</strong><span>{sessions?.length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>进行中</strong><span>{sessions?.filter((session) => session.status === 'active').length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>已结束</strong><span>{sessions?.filter((session) => session.status !== 'active').length ?? 0} 个</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-users" /></svg></span><div><strong>角色视角</strong><span>{new Set((sessions ?? []).map((session) => session.roleView)).size} 种</span></div></div>
+      </div>
       {sessions === null ? <p className="muted">加载中…</p> : null}
       {sessions?.length === 0 ? (
         <section className="card">
@@ -38,6 +44,7 @@ export function Sessions({ onBack }: SessionsProps) {
       ) : null}
       {sessions && sessions.length > 0 ? (
         <section className="card">
+          <div className="card-head"><h2>全部会话</h2><span className="muted">最近 100 条</span></div>
           <div className="card-body">
             <table className="table">
               <thead><tr><th>会话</th><th>状态</th><th>角色视角</th><th>创建时间</th></tr></thead>

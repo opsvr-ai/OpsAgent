@@ -38,9 +38,14 @@ export function Audit({ onBack }: AuditProps) {
       title="审计事件"
       subtitle="最近 100 条租户审计记录，工具调用与审批决策均不可篡改。"
       onBack={onBack}
+      actions={<a className="btn btn-outline" href="/api/audit/export" download>导出 CSV</a>}
     >
-        <div className="row-sm" style={{ marginBottom: 16 }}>
-          <a className="btn btn-outline" href="/api/audit/export" download>导出 CSV</a>
+        {error ? <p role="alert">{error}</p> : null}
+        <div className="status-strip" style={{ marginBottom: 18 }}>
+          <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-shield" /></svg></span><div><strong>审计事件</strong><span>{events?.length ?? 0} 条</span></div></div>
+          <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>成功</strong><span>{events?.filter((event) => event.result === 'success').length ?? 0} 条</span></div></div>
+          <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>失败</strong><span>{events?.filter((event) => event.result !== 'success').length ?? 0} 条</span></div></div>
+          <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-grid" /></svg></span><div><strong>动作类型</strong><span>{new Set((events ?? []).map((event) => event.action)).size} 类</span></div></div>
         </div>
         <div className="card">
           <div className="card-body">

@@ -190,10 +190,26 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             </div>
 
             <div className="status-strip" style={{ marginBottom: 24 }}>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Agent 运行</strong><span>{home.metrics.agentsOnline} / {home.metrics.agentsTotal} 在线</span></div></div>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>连接器</strong><span>{home.metrics.connectors} 个已配置</span></div></div>
-              <div className="status-cell"><span className="dot dot-warn" /><div><strong>待处置事件</strong><span>{home.metrics.incidentsOpen} 个</span></div></div>
-              <div className="status-cell"><span className="dot dot-warn" /><div><strong>待审批</strong><span>{home.metrics.pendingApprovals} 项</span></div></div>
+              <div className="status-cell">
+                <span className="icon-tile is-green"><svg><use href="/icons.svg#i-server" /></svg></span>
+                <div><strong>Agent 运行</strong><span>{home.metrics.agentsOnline} / {home.metrics.agentsTotal} 在线</span></div>
+                <span className="cell-end">{home.metrics.agentsTotal > 0 ? Math.round((home.metrics.agentsOnline / home.metrics.agentsTotal) * 100) : 0}%</span>
+              </div>
+              <div className="status-cell">
+                <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-plug" /></svg></span>
+                <div><strong>连接器</strong><span>{home.metrics.connectors} 个已配置</span></div>
+                <span className="cell-end">{home.metrics.connectors}</span>
+              </div>
+              <div className="status-cell">
+                <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span>
+                <div><strong>待处置事件</strong><span>{home.metrics.incidentsOpen} 个未关闭</span></div>
+                <span className="cell-end">{home.metrics.incidentsOpen}</span>
+              </div>
+              <div className="status-cell">
+                <span className="icon-tile"><svg><use href="/icons.svg#i-check" /></svg></span>
+                <div><strong>待审批</strong><span>{home.metrics.pendingApprovals} 项</span></div>
+                <span className="cell-end">{home.metrics.pendingApprovals}</span>
+              </div>
             </div>
 
             <div className="grid grid-main-side">

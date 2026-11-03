@@ -11,4 +11,3 @@ test-results/
 deepseek-harness/
 dsh-superagent-prototype/
 agents/**/*.exe
-agents/**/opsagent-agent

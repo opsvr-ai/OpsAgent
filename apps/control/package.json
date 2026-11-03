@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@opsagent/contracts": "workspace:*",
-    "fastify": "^5.6.2"
+    "fastify": "^5.6.2",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

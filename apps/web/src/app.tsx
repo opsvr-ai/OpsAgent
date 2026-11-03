@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
 import { createSession, getHome, getMe, logout, selectTenant } from './api/client.js';
@@ -29,7 +29,9 @@ export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [startingSession, setStartingSession] = useState(false);
   const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
+  const navEpoch = useRef(0);
 
   async function refresh() {
     const current = await getMe();
@@ -45,8 +47,14 @@ export function App() {
 
   async function startSession() {
     if (!home) return;
-    const session = await createSession(home.tenantId, home.roleView);
-    setSessionId(session.sessionId);
+    const epoch = navEpoch.current;
+    setStartingSession(true);
+    try {
+      const session = await createSession(home.tenantId, home.roleView);
+      if (navEpoch.current === epoch) setSessionId(session.sessionId);
+    } finally {
+      setStartingSession(false);
+    }
   }
 
   async function switchTenant(tenantId: string) {
@@ -73,16 +81,22 @@ export function App() {
   useEffect(() => {
     const handler = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
+      if (id === 'chat') {
+        void startSession();
+        return;
+      }
       const allowed = new Set([
         'home', 'scenarios', 'audit', 'shares', 'studio', 'incidents', 'approvals',
         'connectors', 'knowledge', 'messages', 'agents', 'tasks', 'sessions',
         'members', 'models', 'data', 'appearance', 'help',
       ]);
       if (allowed.has(id)) setView(id as typeof view);
+      navEpoch.current += 1;
+      setSessionId(null);
     };
     window.addEventListener('opsagent:navigate', handler);
     return () => window.removeEventListener('opsagent:navigate', handler);
-  }, []);
+  }, [home]);
 
   if (me === undefined) return <div className="loading">加载中…</div>;
   if (me === null) return <Login onSuccess={() => void refresh()} />;
@@ -98,9 +112,11 @@ export function App() {
     <SessionContext.Provider value={{ me, home, switchTenant }}>{node}</SessionContext.Provider>
   );
 
+  if (startingSession) return <div className="loading">正在创建会话…</div>;
   if (sessionId) {
     return withSession(
       <Chat
+        key={sessionId}
         sessionId={sessionId}
         roleView={home?.roleView ?? 'default'}
         onBack={() => setSessionId(null)}

@@ -7,7 +7,7 @@ import {
   promptSession,
   type ApprovalSummary,
 } from '../api/client.js';
-import { NAV } from './design-shell.js';
+import { AppSidebar } from './app-sidebar.js';
 import { GlobalSearch } from './global-search.js';
 import { ThemeToggle } from '../theme/use-theme.js';
 import { useSession } from '../session-context.js';
@@ -21,6 +21,8 @@ export interface ChatProps {
 export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const session = useSession();
   const [events, setEvents] = useState<RuntimeEvent[]>([]);
+  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequestEvent | null>(null);
@@ -45,12 +47,16 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     const text = input;
     setInput('');
     setBusy(true);
+    setError(null);
+    setUserMessages((current) => [...current, { id: crypto.randomUUID(), text }]);
     try {
       for await (const item of promptSession(sessionId, text, crypto.randomUUID())) {
         setEvents((current) => [...current, item]);
         if (item.type === 'approval.request') setPendingApproval(item);
         if (item.type === 'session.done') setBusy(false);
       }
+    } catch {
+      setError('会话请求失败，请检查模型配置或运行时状态');
     } finally {
       setBusy(false);
     }
@@ -69,58 +75,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 7l5 5-5 5" />
-              <path d="M12 17h8" />
-            </svg>
-          </div>
-          <div>
-            <div className="brand-name">OpsAgent</div>
-            <span className="brand-sub">AIOps Control Plane</span>
-          </div>
-        </div>
-        <button type="button" className="tenant-switch" onClick={onBack}>
-          <span className="avatar">会</span>
-          <span className="tenant-meta">
-            <strong>智能体会话</strong>
-            <span>{roleView}</span>
-          </span>
-        </button>
-        <nav className="nav">
-          <div className="nav-group">
-            <div className="nav-label">工作空间</div>
-            {NAV.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`nav-item${item.id === 'sessions' ? ' is-active' : ''}`}
-                onClick={() => {
-                  if (item.id === 'home') {
-                    onBack();
-                    return;
-                  }
-                  window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: item.id }));
-                }}
-              >
-                <svg><use href={`/icons.svg#i-${item.icon}`} /></svg>
-                <span>{item.label}</span>
-                {item.id === 'messages' && (session?.home?.metrics.messagesUnread ?? 0) > 0 ? (
-                  <span className="nav-badge is-alert">{session?.home?.metrics.messagesUnread}</span>
-                ) : null}
-                {item.id === 'approvals' && (session?.home?.metrics.pendingApprovals ?? 0) > 0 ? (
-                  <span className="nav-badge is-alert">{session?.home?.metrics.pendingApprovals}</span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </nav>
-        <div className="sidebar-foot">
-          <button type="button" className="logout-link" onClick={() => window.dispatchEvent(new Event('opsagent:logout'))}>退出登录</button>
-        </div>
-      </aside>
+      <AppSidebar active="chat" onHome={onBack} />
 
       <section className="main">
         <header className="topbar">
@@ -142,7 +97,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             <header className="chat-head">
               <div>
                 <div className="eyebrow">Session · {roleView}</div>
-                <h2>运维会话</h2>
+                <h1>运维会话</h1>
               </div>
               <div className="row-sm">
                 <span className="badge badge-ok">已连接</span>
@@ -153,7 +108,16 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
 
             <div className="chat-log">
               <div className="chat-inner" aria-live="polite">
-                {events.length === 0 ? (
+                {error ? <p role="alert">{error}</p> : null}
+                {userMessages.map((message) => (
+                  <div key={message.id} className="msg is-user">
+                    <div className="msg-body">
+                      <div className="msg-meta"><strong>{session?.me.user.displayName ?? '我'}</strong><span>刚刚</span></div>
+                      <div className="msg-text"><p>{message.text}</p></div>
+                    </div>
+                  </div>
+                ))}
+                {events.length === 0 && userMessages.length === 0 ? (
                   <div className="msg">
                     <div className="msg-body">
                       <div className="msg-meta"><strong>OpsAgent</strong><span>ready</span></div>

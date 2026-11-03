@@ -1,5 +1,6 @@
 export type DesignNav =
   | 'home'
+  | 'chat'
   | 'incidents'
   | 'scenarios'
   | 'approvals'
@@ -20,6 +21,7 @@ export type DesignNav =
 
 export const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
   { id: 'home', label: '工作台', icon: 'grid' },
+  { id: 'chat', label: '智能体会话', icon: 'message' },
   { id: 'incidents', label: '事件指挥', icon: 'activity' },
   { id: 'approvals', label: '待审批', icon: 'check' },
   { id: 'connectors', label: '集成与连接器', icon: 'plug' },

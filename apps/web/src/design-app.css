@@ -1493,3 +1493,7 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .connector-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--space-4); align-items: start; }
 @media (max-width: 1000px) { .connector-detail-layout { grid-template-columns: 1fr; } }
 .connector-detail-layout textarea { width: 100%; min-height: 88px; }
+.sidebar { position: relative; }
+.tenant-menu { position: absolute; top: 76px; left: 8px; right: 8px; z-index: 70; margin: 0; }
+.msg.is-user { justify-content: flex-end; }
+.msg.is-user .msg-body { margin-left: auto; background: var(--primary-soft); border-color: var(--primary-line); }

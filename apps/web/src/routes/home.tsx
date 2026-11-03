@@ -149,6 +149,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
               <span>{home.roleView}</span>
             </span>
           </button>
+          <button type="button" className="logout-link" onClick={() => window.dispatchEvent(new Event('opsagent:logout'))}>退出登录</button>
         </div>
       </aside>
 

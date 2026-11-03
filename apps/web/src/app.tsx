@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
-import { createSession, getHome, getMe, selectTenant } from './api/client.js';
+import { createSession, getHome, getMe, logout, selectTenant } from './api/client.js';
 import { Login } from './routes/login.js';
 import { Home } from './routes/home.js';
 import { Chat } from './routes/chat.js';
@@ -56,6 +56,18 @@ export function App() {
 
   useEffect(() => {
     void refresh().catch(() => setMe(null));
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      void logout().finally(() => {
+        setMe(null);
+        setHome(null);
+        setSessionId(null);
+      });
+    };
+    window.addEventListener('opsagent:logout', handler);
+    return () => window.removeEventListener('opsagent:logout', handler);
   }, []);
 
   useEffect(() => {

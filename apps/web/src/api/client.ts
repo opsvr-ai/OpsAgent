@@ -39,6 +39,10 @@ export async function loginLdap(username: string, password: string): Promise<voi
   });
 }
 
+export async function logout(): Promise<void> {
+  await request<{ ok: true }>('/api/auth/logout', { method: 'POST' });
+}
+
 export async function getMe(): Promise<MeResponse | null> {
   try {
     return await request<MeResponse>('/api/me');

@@ -93,6 +93,7 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
               <span>{roleView}</span>
             </span>
           </button>
+          <button type="button" className="logout-link" onClick={() => window.dispatchEvent(new Event('opsagent:logout'))}>退出登录</button>
         </div>
       </aside>
 

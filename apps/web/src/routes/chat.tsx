@@ -117,6 +117,9 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             ))}
           </div>
         </nav>
+        <div className="sidebar-foot">
+          <button type="button" className="logout-link" onClick={() => window.dispatchEvent(new Event('opsagent:logout'))}>退出登录</button>
+        </div>
       </aside>
 
       <section className="main">

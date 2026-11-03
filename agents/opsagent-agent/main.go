@@ -165,6 +165,14 @@ func main() {
 					result["memTotalGB"] = metrics["memTotalGB"]
 					result["memAvailableGB"] = metrics["memAvailableGB"]
 					result["memLoadPct"] = metrics["memLoadPct"]
+				case "ai_diagnose":
+					analysis, err := aiDiagnose(metrics)
+					if err != nil {
+						result["ok"] = false
+						result["error"] = err.Error()
+					} else {
+						result["analysis"] = analysis
+					}
 				default:
 					result["ok"] = false
 					result["error"] = "unsupported_command"

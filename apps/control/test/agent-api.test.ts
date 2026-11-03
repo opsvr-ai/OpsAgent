@@ -86,6 +86,14 @@ describe('agent registry API', () => {
     });
     expect(invalid.statusCode).toBe(400);
 
+    const ai = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/commands`,
+      headers: { cookie },
+      payload: { type: 'ai_diagnose' },
+    });
+    expect(ai.statusCode).toBe(201);
+
     const pending = await app.inject({
       method: 'GET',
       url: `/api/agents/${body.agent.id}/commands/pending?agentKey=${body.agentKey}`,

@@ -32,6 +32,16 @@ export function Agents({ onBack }: AgentsProps) {
     }
   }
 
+  async function runAiDiagnosis(id: string) {
+    setError(null);
+    try {
+      const command = await createAgentCommand(id, 'ai_diagnose');
+      setCommands((current) => ({ ...current, [id]: command }));
+    } catch {
+      setError('AI 诊断下发失败');
+    }
+  }
+
   return (
     <DesignShell
       active="agents"
@@ -61,6 +71,7 @@ export function Agents({ onBack }: AgentsProps) {
                 <p className="muted">诊断命令：{commands[agent.id]?.status}</p>
               ) : null}
               <button type="button" className="btn btn-outline" onClick={() => void runDiagnostics(agent.id)}>执行诊断</button>
+              <button type="button" className="btn btn-primary" onClick={() => void runAiDiagnosis(agent.id)}>AI 诊断</button>
             </div>
           </article>
         ))}

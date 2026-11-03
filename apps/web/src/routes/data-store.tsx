@@ -46,7 +46,7 @@ export function DataStore({ onBack }: DataStoreProps) {
         <article className="card">
           <div className="card-body">
             <div className="eyebrow">本地数据集</div>
-            <h3>{stats?.datasets.length ?? 0} 个数据集</h3>
+            <h3>{stats?.datasets?.length ?? 0} 个数据集</h3>
             <p className="muted mono">{stats?.count ?? 0} 条快照</p>
           </div>
         </article>
@@ -77,8 +77,8 @@ export function DataStore({ onBack }: DataStoreProps) {
             <h2>数据集</h2>
             <span className="muted">按能力聚合</span>
           </div>
-          {stats?.datasets.length === 0 ? <p className="muted">暂无数据集</p> : null}
-          {stats && stats.datasets.length > 0 ? (
+          {stats?.datasets?.length === 0 ? <p className="muted">暂无数据集</p> : null}
+          {stats?.datasets && stats.datasets.length > 0 ? (
             <table className="table">
               <thead>
                 <tr><th>数据集</th><th>快照数</th><th>大小</th><th>最后同步</th><th>保留</th></tr>

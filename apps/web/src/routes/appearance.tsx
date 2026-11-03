@@ -18,7 +18,7 @@ export function Appearance({ onBack }: AppearanceProps) {
 
   return (
     <DesignShell
-      active="home"
+      active="appearance"
       eyebrow="Preferences · 用户偏好"
       title="外观与主题"
       subtitle="自动模式只决定解析成浅色还是深色，不改变优先级。"

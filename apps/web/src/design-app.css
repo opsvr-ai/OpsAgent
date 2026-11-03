@@ -1408,3 +1408,12 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 @media (max-width: 900px) { .split-grid { grid-template-columns: 1fr; } }
 .incident-grid { grid-template-columns: 360px minmax(0, 1fr); }
 @media (max-width: 900px) { .incident-grid { grid-template-columns: 1fr; } }
+.health-row { margin-bottom: 12px; }
+.health-bar { height: 6px; margin-top: 6px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.health-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.health-bar.is-green > span { background: var(--ok); }
+.health-bar.is-amber > span { background: var(--warn); }
+.quick-action { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 7px; background: var(--surface-2); color: var(--text); font-size: var(--fs-12); text-align: left; cursor: pointer; }
+.quick-action:hover { border-color: var(--primary-line); background: var(--primary-soft); }
+.quick-action svg { width: 15px; height: 15px; color: var(--faint); }
+.health-row .row-between { gap: 8px; }

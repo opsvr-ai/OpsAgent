@@ -193,60 +193,103 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             </div>
 
             <div className="grid grid-main-side">
-              <section className="card">
-                <div className="card-head"><h2>最近事件</h2><span className="muted">{home.metrics.activeSessions} 个进行中会话</span></div>
-                <div className="card-body">
-                  {home.recentIncidents.length === 0 ? <p className="muted">暂无事件</p> : (
-                    <table className="table">
-                      <thead><tr><th>等级</th><th>事件</th><th>状态</th></tr></thead>
-                      <tbody>
-                        {home.recentIncidents.map((incident) => (
-                          <tr key={incident.id}>
-                            <td><span className="badge badge-neutral">{incident.severity}</span></td>
-                            <td>{incident.title}</td>
-                            <td>{incident.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </section>
-
-              <section className="card">
-                <div className="card-head"><h2>最近会话</h2></div>
-                <div className="card-body">
-                  {home.recentSessions.length === 0 ? <p className="muted">暂无会话</p> : (
-                    <div className="stack-sm">
-                      {home.recentSessions.map((session) => (
-                        <div key={session.id} className="session-row">
-                          <span className="mono session-id">{session.id.slice(0, 18)}</span>
-                          <span className="badge badge-neutral">{session.roleView}</span>
-                          <span className="muted">{session.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-
-            <div className="grid grid-3">
-              {home.cards.map((card) => (
-                <button key={card.id} type="button" className="card scenario-card home-card" onClick={cardActions[card.id] ?? onStartSession}>
+              <div className="stack">
+                <section className="card">
+                  <div className="card-head"><h2>需要关注</h2><span className="muted">{home.metrics.incidentsOpen} 个未关闭</span></div>
                   <div className="card-body">
-                    <div className="scenario-top">
-                      <span className="icon-tile is-blue">
-                        <svg><use href={`/icons.svg#i-${cardIcons[card.id] ?? 'grid'}`} /></svg>
-                      </span>
-                      <span className="badge badge-neutral">{home.roleView}</span>
-                    </div>
-                    <h3>{card.title}</h3>
-                    <p className="muted">{cardCopy[card.id] ?? `${tenant?.name ?? home.tenantId} 的工作区`}</p>
-                    <span className="home-card-link">进入 →</span>
+                    {home.recentIncidents.length === 0 ? <p className="muted">暂无事件</p> : (
+                      <table className="table">
+                        <thead><tr><th>等级</th><th>事件</th><th>状态</th><th /></tr></thead>
+                        <tbody>
+                          {home.recentIncidents.map((incident) => (
+                            <tr key={incident.id}>
+                              <td><span className="badge badge-neutral">{incident.severity}</span></td>
+                              <td className="cell-main">{incident.title}</td>
+                              <td>{incident.status}</td>
+                              <td className="actions-cell">
+                                <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenIncidents}>处理</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
-                </button>
-              ))}
+                </section>
+
+                <section className="card">
+                  <div className="card-head">
+                    <h2>最近会话</h2>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenSessions}>全部会话</button>
+                  </div>
+                  <div className="card-body">
+                    {home.recentSessions.length === 0 ? <p className="muted">暂无会话</p> : (
+                      <table className="table">
+                        <thead><tr><th>会话</th><th>视角</th><th>状态</th></tr></thead>
+                        <tbody>
+                          {home.recentSessions.map((session) => (
+                            <tr key={session.id}>
+                              <td className="mono">{session.id.slice(0, 18)}</td>
+                              <td><span className="badge badge-neutral">{session.roleView}</span></td>
+                              <td>{session.status}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </section>
+
+                <div className="grid grid-3">
+                  {home.cards.map((card) => (
+                    <button key={card.id} type="button" className="card scenario-card home-card" onClick={cardActions[card.id] ?? onStartSession}>
+                      <div className="card-body">
+                        <div className="scenario-top">
+                          <span className="icon-tile is-blue">
+                            <svg><use href={`/icons.svg#i-${cardIcons[card.id] ?? 'grid'}`} /></svg>
+                          </span>
+                          <span className="badge badge-neutral">{home.roleView}</span>
+                        </div>
+                        <h3>{card.title}</h3>
+                        <p className="muted">{cardCopy[card.id] ?? `${tenant?.name ?? home.tenantId} 的工作区`}</p>
+                        <span className="home-card-link">进入 →</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="stack">
+                <section className="card">
+                  <div className="card-head"><h2>租户运行健康</h2><span className="badge badge-ok">正常</span></div>
+                  <div className="card-body">
+                    <div className="health-row">
+                      <div className="row-between"><span className="muted">连接器配置</span><span className="mono">{home.metrics.connectors} / 9</span></div>
+                      <div className="health-bar"><span style={{ width: `${Math.min(100, Math.round((home.metrics.connectors / 9) * 100))}%` }} /></div>
+                    </div>
+                    <div className="health-row">
+                      <div className="row-between"><span className="muted">场景</span><span className="mono">{home.metrics.scenarios}</span></div>
+                      <div className="health-bar is-green"><span style={{ width: `${Math.min(100, home.metrics.scenarios * 10)}%` }} /></div>
+                    </div>
+                    <div className="health-row">
+                      <div className="row-between"><span className="muted">待审批</span><span className="mono">{home.metrics.pendingApprovals}</span></div>
+                      <div className="health-bar is-amber"><span style={{ width: `${Math.min(100, home.metrics.pendingApprovals * 12)}%` }} /></div>
+                    </div>
+                    <div className="aside-row" style={{ marginTop: 12 }}><span>进行中会话</span><span className="mono">{home.metrics.activeSessions}</span></div>
+                    <div className="aside-row"><span>当前视角</span><span>{home.roleView}</span></div>
+                  </div>
+                </section>
+
+                <section className="card">
+                  <div className="card-head"><h2>快速指令</h2></div>
+                  <div className="card-body stack-sm">
+                    <button type="button" className="quick-action" onClick={onStartSession}><svg><use href="/icons.svg#i-message" /></svg>开始新会话</button>
+                    <button type="button" className="quick-action" onClick={onOpenScenarios}><svg><use href="/icons.svg#i-bolt" /></svg>运行场景</button>
+                    <button type="button" className="quick-action" onClick={onOpenConnectors}><svg><use href="/icons.svg#i-plug" /></svg>接入连接器</button>
+                    <button type="button" className="quick-action" onClick={onOpenHelp}><svg><use href="/icons.svg#i-book" /></svg>查看用户手册</button>
+                  </div>
+                </section>
+              </div>
             </div>
           </div>
         </main>

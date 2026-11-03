@@ -1464,3 +1464,11 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .topbar-icon:hover { color: var(--text); border-color: var(--primary-line); }
 .topbar-icon svg { width: 15px; height: 15px; }
 .topbar-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px; display: grid; place-items: center; border-radius: 999px; background: var(--danger); color: #fff; font-size: 9px; font-family: var(--font-mono); }
+.tool-card { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); overflow: hidden; }
+.tool-card.is-result { background: var(--surface-2); }
+.tool-head { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+.tool-head .grow { min-width: 0; }
+.tool-head strong { font-size: var(--fs-12); }
+.tool-code { margin: 0; padding: 10px 12px; background: var(--surface-2); color: var(--text-soft); font-family: var(--font-mono); font-size: 11px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.approval-card { margin: 12px 0; padding: 13px; border: 1px solid var(--warn-line, #efd7a8); border-radius: 9px; background: var(--warn-soft, #fff9ec); }
+.approval-card p { margin: 9px 0; }

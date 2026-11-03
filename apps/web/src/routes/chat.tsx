@@ -186,8 +186,14 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                     return (
                       <div key={index} className="msg" data-testid="tool-call">
                         <div className="msg-body">
-                          <div className="msg-meta"><strong>{item.tool}</strong><span className="badge badge-neutral">{item.risk} · 调用</span></div>
-                          <div className="msg-text"><p>调用参数：{JSON.stringify(item.args)}</p></div>
+                          <div className="tool-card">
+                            <div className="tool-head">
+                              <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span>
+                              <strong>{item.tool}</strong>
+                              <span className="badge badge-neutral">{item.risk} · 调用</span>
+                            </div>
+                            <pre className="tool-code">{JSON.stringify(item.args, null, 2)}</pre>
+                          </div>
                         </div>
                       </div>
                     );
@@ -196,22 +202,32 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                     return (
                       <div key={index} className="msg">
                         <div className="msg-body">
-                          <div className="msg-meta"><strong>{item.tool}</strong><span>已返回</span></div>
-                          <div className="msg-text"><p>{JSON.stringify(item.result)}</p></div>
+                          <div className="tool-card is-result">
+                            <div className="tool-head">
+                              <span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span>
+                              <strong>{item.tool}</strong>
+                              <span className="badge badge-ok">已返回</span>
+                            </div>
+                            <pre className="tool-code">{JSON.stringify(item.result, null, 2)}</pre>
+                          </div>
                         </div>
                       </div>
                     );
                   }
                   if (item.type === 'approval.request') {
                     return (
-                      <div key={index} className="card" style={{ margin: '12px 0' }}>
-                        <div className="card-body">
-                          <div className="eyebrow">需要审批 · {item.risk}</div>
-                          <h3>{item.action}</h3>
-                          <div className="row-sm">
-                            <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
-                            <button type="button" className="btn btn-outline" onClick={() => void decide('deny')}>拒绝</button>
+                      <div key={index} className="approval-card">
+                        <div className="tool-head">
+                          <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span>
+                          <div className="grow">
+                            <div className="eyebrow">需要审批 · {item.risk}</div>
+                            <strong>{item.action}</strong>
                           </div>
+                        </div>
+                        <p className="muted">该操作需要人工确认；批准后当前 dsh 会话继续执行，拒绝则终止该工具调用。</p>
+                        <div className="row-sm">
+                          <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
+                          <button type="button" className="btn btn-outline" onClick={() => void decide('deny')}>拒绝</button>
                         </div>
                       </div>
                     );

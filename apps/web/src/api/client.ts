@@ -88,6 +88,7 @@ export interface ScenarioSummary {
   readonly status: string;
   readonly version: number;
   readonly definition: { readonly steps: readonly unknown[] };
+  readonly scheduleIntervalMinutes?: number | null;
 }
 
 export interface ScenarioRunSummary {
@@ -104,5 +105,15 @@ export async function runScenario(id: string): Promise<ScenarioRunSummary> {
   return request<ScenarioRunSummary>(`/api/scenarios/${id}/run`, {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+export async function setScenarioSchedule(
+  id: string,
+  intervalMinutes: number | null,
+): Promise<void> {
+  await request<{ ok: true }>(`/api/scenarios/${id}/schedule`, {
+    method: 'PATCH',
+    body: JSON.stringify({ intervalMinutes }),
   });
 }

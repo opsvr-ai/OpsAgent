@@ -19,6 +19,7 @@ export interface ScenarioRecord {
   readonly definition: ScenarioDefinition;
   readonly status: string;
   readonly version: number;
+  readonly scheduleIntervalMinutes: number | null;
 }
 
 export interface ToolResolver {
@@ -49,7 +50,7 @@ export class ScenarioService {
 
   async list(tenantId: string): Promise<ScenarioRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, tenant_id, name, description, definition, status, version
+      `SELECT id, tenant_id, name, description, definition, status, version, schedule_interval_minutes
        FROM scenarios WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
@@ -65,7 +66,7 @@ export class ScenarioService {
     const result = await this.pool.query(
       `INSERT INTO scenarios (tenant_id, name, description, definition)
        VALUES ($1, $2, $3, $4::jsonb)
-       RETURNING id, tenant_id, name, description, definition, status, version`,
+       RETURNING id, tenant_id, name, description, definition, status, version, schedule_interval_minutes`,
       [input.tenantId, input.name, input.description ?? null, JSON.stringify(input.definition)],
     );
     const row = result.rows[0];
@@ -75,7 +76,7 @@ export class ScenarioService {
 
   async get(tenantId: string, id: string): Promise<ScenarioRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, tenant_id, name, description, definition, status, version
+      `SELECT id, tenant_id, name, description, definition, status, version, schedule_interval_minutes
        FROM scenarios WHERE tenant_id = $1 AND id = $2`,
       [tenantId, id],
     );
@@ -87,7 +88,7 @@ export class ScenarioService {
     const result = await this.pool.query(
       `UPDATE scenarios SET status = $1, updated_at = now()
        WHERE tenant_id = $2 AND id = $3
-       RETURNING id, tenant_id, name, description, definition, status, version`,
+       RETURNING id, tenant_id, name, description, definition, status, version, schedule_interval_minutes`,
       [status, tenantId, id],
     );
     const row = result.rows[0];
@@ -105,7 +106,7 @@ export class ScenarioService {
 
   async listDue(now: Date): Promise<ScenarioRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, tenant_id, name, description, definition, status, version
+      `SELECT id, tenant_id, name, description, definition, status, version, schedule_interval_minutes
        FROM scenarios
        WHERE schedule_enabled = true
          AND schedule_interval_minutes IS NOT NULL
@@ -208,6 +209,7 @@ export class ScenarioService {
     definition: ScenarioDefinition;
     status: string;
     version: number;
+    schedule_interval_minutes: number | null;
   }): ScenarioRecord {
     return {
       id: row.id,
@@ -217,6 +219,7 @@ export class ScenarioService {
       definition: row.definition,
       status: row.status,
       version: row.version,
+      scheduleIntervalMinutes: row.schedule_interval_minutes,
     };
   }
 }

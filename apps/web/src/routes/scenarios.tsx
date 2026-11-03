@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   listScenarios,
   runScenario,
+  setScenarioSchedule,
   type ScenarioRunSummary,
   type ScenarioSummary,
 } from '../api/client.js';
@@ -14,6 +15,7 @@ export function Scenarios({ onBack }: ScenariosProps) {
   const [scenarios, setScenarios] = useState<ScenarioSummary[] | null>(null);
   const [result, setResult] = useState<ScenarioRunSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleDraft, setScheduleDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void listScenarios()
@@ -27,6 +29,26 @@ export function Scenarios({ onBack }: ScenariosProps) {
       setResult(await runScenario(id));
     } catch {
       setError('场景运行失败');
+    }
+  }
+
+  async function saveSchedule(id: string) {
+    const raw = scheduleDraft[id] ?? '';
+    const interval = raw.trim() === '' ? null : Number.parseInt(raw, 10);
+    if (interval !== null && (!Number.isInteger(interval) || interval < 1)) {
+      setError('定时分钟必须是正整数');
+      return;
+    }
+    setError(null);
+    try {
+      await setScenarioSchedule(id, interval);
+      setScenarios((current) =>
+        current?.map((scenario) =>
+          scenario.id === id ? { ...scenario, scheduleIntervalMinutes: interval } : scenario,
+        ) ?? current,
+      );
+    } catch {
+      setError('定时设置失败');
     }
   }
 
@@ -56,6 +78,29 @@ export function Scenarios({ onBack }: ScenariosProps) {
               <p className="muted">
                 {scenario.status} · v{scenario.version} · {scenario.definition.steps.length} steps
               </p>
+              {scenario.scheduleIntervalMinutes ? (
+                <p className="muted">每 {scenario.scheduleIntervalMinutes} 分钟</p>
+              ) : null}
+              <div className="schedule-row">
+                <label htmlFor={`schedule-${scenario.id}`}>定时分钟</label>
+                <input
+                  id={`schedule-${scenario.id}`}
+                  inputMode="numeric"
+                  value={
+                    scheduleDraft[scenario.id] ??
+                    (scenario.scheduleIntervalMinutes?.toString() ?? '')
+                  }
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      [scenario.id]: event.target.value,
+                    }))
+                  }
+                />
+                <button type="button" onClick={() => void saveSchedule(scenario.id)}>
+                  设置定时
+                </button>
+              </div>
               <button type="button" onClick={() => void run(scenario.id)}>运行</button>
             </article>
           ))}

@@ -8,12 +8,13 @@ import { Scenarios } from './routes/scenarios.js';
 import { Audit } from './routes/audit.js';
 import { Shares } from './routes/shares.js';
 import { Studio } from './routes/studio.js';
+import { Incidents } from './routes/incidents.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -46,6 +47,7 @@ export function App() {
   if (view === 'audit') return <Audit onBack={() => setView('home')} />;
   if (view === 'shares') return <Shares onBack={() => setView('home')} />;
   if (view === 'studio') return <Studio onBack={() => setView('home')} />;
+  if (view === 'incidents') return <Incidents onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -56,6 +58,7 @@ export function App() {
       onOpenAudit={() => setView('audit')}
       onOpenShares={() => setView('shares')}
       onOpenStudio={() => setView('studio')}
+      onOpenIncidents={() => setView('incidents')}
     />
   );
 }

@@ -30,6 +30,7 @@ describe('Home', () => {
         onOpenAudit={vi.fn()}
         onOpenShares={vi.fn()}
         onOpenStudio={vi.fn()}
+        onOpenIncidents={vi.fn()}
       />,
     );
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type DesignNav = 'home' | 'scenarios' | 'shares' | 'studio' | 'audit';
+export type DesignNav = 'home' | 'incidents' | 'scenarios' | 'shares' | 'studio' | 'audit';
 
 export interface DesignShellProps {
   readonly active: DesignNav;
@@ -14,6 +14,7 @@ export interface DesignShellProps {
 
 const NAV: Array<{ id: DesignNav; label: string }> = [
   { id: 'home', label: '工作台' },
+  { id: 'incidents', label: '事件指挥' },
   { id: 'scenarios', label: '场景中心' },
   { id: 'shares', label: '共享审批' },
   { id: 'studio', label: '创造模式' },

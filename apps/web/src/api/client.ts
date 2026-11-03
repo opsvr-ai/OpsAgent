@@ -196,3 +196,35 @@ export async function reviewStudioSession(
     body: JSON.stringify({ decision }),
   });
 }
+
+export interface IncidentSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly severity: string;
+  readonly status: string;
+  readonly commanderId: string | null;
+}
+
+export async function listIncidents(): Promise<IncidentSummary[]> {
+  return request<IncidentSummary[]>('/api/incidents');
+}
+
+export async function createIncident(input: {
+  title: string;
+  severity: string;
+}): Promise<IncidentSummary> {
+  return request<IncidentSummary>('/api/incidents', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateIncident(
+  id: string,
+  patch: { status?: string; commanderId?: string | null },
+): Promise<IncidentSummary> {
+  return request<IncidentSummary>(`/api/incidents/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}

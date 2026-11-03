@@ -24,6 +24,7 @@ import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
 import { registerAgentRoutes } from './agents/routes.js';
 import { registerMemberRoutes } from './members/routes.js';
+import { registerModelRoutes } from './models/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -35,6 +36,7 @@ export interface BuildServerOptions {
   readonly runtime?: RuntimeClient;
   readonly internalToken?: string;
   readonly agentEnrollmentToken?: string;
+  readonly modelSecret?: string;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -77,6 +79,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerMessageRoutes(app, options.pool);
     registerAgentRoutes(app, options.pool, options.agentEnrollmentToken);
     registerMemberRoutes(app, options.pool, audit);
+    registerModelRoutes(app, options.pool, audit, options.modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret');
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit);
   }

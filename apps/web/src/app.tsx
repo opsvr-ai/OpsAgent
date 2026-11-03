@@ -17,12 +17,13 @@ import { Agents } from './routes/agents.js';
 import { Tasks } from './routes/tasks.js';
 import { Sessions } from './routes/sessions.js';
 import { Members } from './routes/members.js';
+import { Models } from './routes/models.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -64,6 +65,7 @@ export function App() {
   if (view === 'tasks') return <Tasks onBack={() => setView('home')} />;
   if (view === 'sessions') return <Sessions onBack={() => setView('home')} />;
   if (view === 'members') return <Members onBack={() => setView('home')} />;
+  if (view === 'models') return <Models onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -83,6 +85,7 @@ export function App() {
       onOpenTasks={() => setView('tasks')}
       onOpenSessions={() => setView('sessions')}
       onOpenMembers={() => setView('members')}
+      onOpenModels={() => setView('models')}
     />
   );
 }

@@ -411,3 +411,29 @@ export async function setMemberRoles(
     body: JSON.stringify({ roleIds }),
   });
 }
+
+export interface ModelProvider {
+  readonly id: string;
+  readonly name: string;
+  readonly provider: string;
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly status: string;
+}
+
+export async function listModels(): Promise<ModelProvider[]> {
+  return request<ModelProvider[]>('/api/models');
+}
+
+export async function createModel(input: {
+  name: string;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+}): Promise<ModelProvider> {
+  return request<ModelProvider>('/api/models', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}

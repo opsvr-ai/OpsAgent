@@ -27,6 +27,7 @@ export type AuditAction =
   | 'task.create'
   | 'task.approve'
   | 'member.roles.update'
+  | 'model.create'
   | 'incident.create'
   | 'incident.update';
 

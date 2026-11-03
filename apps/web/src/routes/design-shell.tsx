@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ThemeToggle } from '../theme/use-theme.js';
 import { GlobalSearch } from './global-search.js';
+import { useSession } from '../session-context.js';
 
 import { NAV, type DesignNav } from './nav.js';
 
@@ -18,6 +19,13 @@ export interface DesignShellProps {
 }
 
 export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, children }: DesignShellProps) {
+  const session = useSession();
+  const tenant = session?.home
+    ? session.me.tenants.find((item) => item.id === session.home?.tenantId)
+    : session?.me.tenants[0];
+  const userName = session?.me.user.displayName ?? '开发管理员';
+  const roleView = session?.home?.roleView ?? 'tenant_admin';
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -34,10 +42,10 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
           </div>
         </div>
         <button type="button" className="tenant-switch" onClick={onBack}>
-          <span className="avatar">开</span>
+          <span className="avatar">{(tenant?.name ?? '开发租户').slice(0, 1)}</span>
           <span className="tenant-meta">
-            <strong>开发租户</strong>
-            <span>本地容器 · 单节点</span>
+            <strong>{tenant?.name ?? '开发租户'}</strong>
+            <span>{tenant?.slug ?? 'tenant-demo'} · 本地开发</span>
           </span>
         </button>
         <nav className="nav">
@@ -72,10 +80,10 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
             </div>
           </div>
           <button type="button" className="user-chip" onClick={onBack}>
-            <span className="avatar is-green">开</span>
+            <span className="avatar is-green">{userName.slice(0, 1)}</span>
             <span className="grow">
-              <strong>开发管理员</strong>
-              <span>tenant_admin</span>
+              <strong>{userName}</strong>
+              <span>{roleView}</span>
             </span>
           </button>
         </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { HomeResponse, MeResponse } from '@opsagent/contracts';
 import { createSession, getHome, getMe, selectTenant } from './api/client.js';
 import { Login } from './routes/login.js';
@@ -22,6 +23,7 @@ import { Platform } from './routes/platform.js';
 import { DataStore } from './routes/data-store.js';
 import { Appearance } from './routes/appearance.js';
 import { Help } from './routes/help.js';
+import { SessionContext } from './session-context.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
@@ -75,34 +77,39 @@ export function App() {
   if (me.tenants.length === 0 && !home) {
     return <Platform onRefresh={() => void refresh()} />;
   }
+
+  const withSession = (node: ReactNode) => (
+    <SessionContext.Provider value={{ me, home }}>{node}</SessionContext.Provider>
+  );
+
   if (sessionId) {
-    return (
+    return withSession(
       <Chat
         sessionId={sessionId}
         roleView={home?.roleView ?? 'default'}
         onBack={() => setSessionId(null)}
-      />
+      />,
     );
   }
-  if (view === 'scenarios') return <Scenarios onBack={() => setView('home')} />;
-  if (view === 'audit') return <Audit onBack={() => setView('home')} />;
-  if (view === 'shares') return <Shares onBack={() => setView('home')} />;
-  if (view === 'studio') return <Studio onBack={() => setView('home')} />;
-  if (view === 'incidents') return <Incidents onBack={() => setView('home')} />;
-  if (view === 'approvals') return <Approvals onBack={() => setView('home')} />;
-  if (view === 'connectors') return <Connectors onBack={() => setView('home')} />;
-  if (view === 'knowledge') return <Knowledge onBack={() => setView('home')} />;
-  if (view === 'messages') return <Messages onBack={() => setView('home')} />;
-  if (view === 'agents') return <Agents onBack={() => setView('home')} />;
-  if (view === 'tasks') return <Tasks onBack={() => setView('home')} />;
-  if (view === 'sessions') return <Sessions onBack={() => setView('home')} />;
-  if (view === 'members') return <Members onBack={() => setView('home')} />;
-  if (view === 'models') return <Models onBack={() => setView('home')} />;
-  if (view === 'data') return <DataStore onBack={() => setView('home')} />;
-  if (view === 'appearance') return <Appearance onBack={() => setView('home')} />;
-  if (view === 'help') return <Help onBack={() => setView('home')} />;
+  if (view === 'scenarios') return withSession(<Scenarios onBack={() => setView('home')} />);
+  if (view === 'audit') return withSession(<Audit onBack={() => setView('home')} />);
+  if (view === 'shares') return withSession(<Shares onBack={() => setView('home')} />);
+  if (view === 'studio') return withSession(<Studio onBack={() => setView('home')} />);
+  if (view === 'incidents') return withSession(<Incidents onBack={() => setView('home')} />);
+  if (view === 'approvals') return withSession(<Approvals onBack={() => setView('home')} />);
+  if (view === 'connectors') return withSession(<Connectors onBack={() => setView('home')} />);
+  if (view === 'knowledge') return withSession(<Knowledge onBack={() => setView('home')} />);
+  if (view === 'messages') return withSession(<Messages onBack={() => setView('home')} />);
+  if (view === 'agents') return withSession(<Agents onBack={() => setView('home')} />);
+  if (view === 'tasks') return withSession(<Tasks onBack={() => setView('home')} />);
+  if (view === 'sessions') return withSession(<Sessions onBack={() => setView('home')} />);
+  if (view === 'members') return withSession(<Members onBack={() => setView('home')} />);
+  if (view === 'models') return withSession(<Models onBack={() => setView('home')} />);
+  if (view === 'data') return withSession(<DataStore onBack={() => setView('home')} />);
+  if (view === 'appearance') return withSession(<Appearance onBack={() => setView('home')} />);
+  if (view === 'help') return withSession(<Help onBack={() => setView('home')} />);
   if (!home) return <div className="loading">加载工作台…</div>;
-  return (
+  return withSession(
     <Home
       me={me}
       home={home}

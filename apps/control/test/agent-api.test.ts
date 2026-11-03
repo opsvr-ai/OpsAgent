@@ -69,6 +69,28 @@ describe('agent registry API', () => {
     expect(heartbeat.json()).toMatchObject({ metrics: { cpuCores: 8, heapMB: 3 } });
 
     const cookie = await login(app);
+    const command = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/commands`,
+      headers: { cookie },
+      payload: { type: 'diagnostics' },
+    });
+    expect(command.statusCode).toBe(201);
+    const commandId = (command.json() as { id: string }).id;
+
+    const pending = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${body.agent.id}/commands/pending?agentKey=${body.agentKey}`,
+    });
+    expect(pending.json()).toMatchObject({ id: commandId, type: 'diagnostics' });
+
+    const completed = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/commands/${commandId}/complete`,
+      payload: { agentKey: body.agentKey, result: { ok: true } },
+    });
+    expect(completed.json()).toMatchObject({ status: 'completed' });
+
     const list = await app.inject({ method: 'GET', url: '/api/agents', headers: { cookie } });
     expect(list.json()).toMatchObject([{ hostname: 'prod-host-1', status: 'online' }]);
     await app.close();

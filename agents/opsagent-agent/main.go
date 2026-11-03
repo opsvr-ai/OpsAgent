@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
@@ -33,6 +34,27 @@ type registerResponse struct {
 type heartbeatRequest struct {
 	AgentKey string         `json:"agentKey"`
 	Metrics  map[string]any `json:"metrics"`
+}
+
+type agentCommand struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+}
+
+func getJSON(url string, target any) (int, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
+	response, err := client.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNoContent {
+		return response.StatusCode, nil
+	}
+	if response.StatusCode >= 300 {
+		return response.StatusCode, fmt.Errorf("GET %s returned %d", url, response.StatusCode)
+	}
+	return response.StatusCode, json.NewDecoder(response.Body).Decode(target)
 }
 
 func env(key, fallback string) string {
@@ -124,6 +146,26 @@ func main() {
 				Metrics:  metrics,
 			}, nil); err != nil {
 				log.Printf("heartbeat: %v", err)
+			}
+
+			commandURL := controlURL + "/api/agents/" + registered.Agent.ID + "/commands/pending?agentKey=" + url.QueryEscape(registered.AgentKey)
+			var command agentCommand
+			status, err := getJSON(commandURL, &command)
+			if err != nil {
+				log.Printf("command poll: %v", err)
+			} else if status == http.StatusOK && command.ID != "" {
+				result := map[string]any{"type": command.Type, "ok": true}
+				if command.Type == "diagnostics" {
+					result["metrics"] = metrics
+				}
+				if err := post(
+					controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
+					nil,
+					map[string]any{"agentKey": registered.AgentKey, "result": result},
+					nil,
+				); err != nil {
+					log.Printf("command complete: %v", err)
+				}
 			}
 		}
 	}

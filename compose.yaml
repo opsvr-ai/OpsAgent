@@ -39,6 +39,88 @@ services:
     volumes:
       - minio-data:/data
 
+  # One-shot database reset/seed for local development:
+  #   docker compose run --rm seed
+  seed:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: pnpm --filter @opsagent/control seed:dev
+    environment:
+      DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
+      LOCAL_ADMIN_USERNAME: tenant-admin
+      LOCAL_ADMIN_PASSWORD: opsagent-dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/control/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/contracts/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  control:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    command: pnpm --filter @opsagent/control exec tsx watch src/index.ts
+    environment:
+      DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
+      REDIS_URL: redis://redis:6379
+      LOCAL_ADMIN_ENABLED: "true"
+      LOCAL_ADMIN_USERNAME: tenant-admin
+      # The host dsh install is intentionally not visible here. Enable Studio
+      # generation only after installing/configuring dsh inside the container.
+      STUDIO_DSH_ENABLED: "false"
+      PORT: "8080"
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/control/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/contracts/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    command: pnpm --filter @opsagent/web exec vite --host 0.0.0.0 --port 5173
+    environment:
+      VITE_API_PROXY: http://control:8080
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/control/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/contracts/node_modules
+    depends_on:
+      control:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   minio-data:

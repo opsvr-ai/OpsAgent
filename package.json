@@ -3,12 +3,15 @@
   "private": true,
   "packageManager": "pnpm@11.4.0",
   "engines": {
-    "node": ">=24.9"
+    "node": ">=22.23"
   },
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "e2e": "playwright test",
+    "dev:docker": "docker compose up -d postgres redis control web",
+    "dev:docker:seed": "docker compose run --rm seed",
+    "dev:docker:down": "docker compose down",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

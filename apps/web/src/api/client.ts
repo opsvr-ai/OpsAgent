@@ -240,3 +240,15 @@ export async function updateIncident(
     body: JSON.stringify(patch),
   });
 }
+
+export interface ApprovalSummary {
+  readonly id: string;
+  readonly action: string;
+  readonly risk: string;
+  readonly sessionId: string;
+  readonly createdAt: string;
+}
+
+export async function listApprovals(): Promise<ApprovalSummary[]> {
+  return request<ApprovalSummary[]>('/api/approvals');
+}

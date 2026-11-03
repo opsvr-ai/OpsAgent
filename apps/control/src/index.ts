@@ -21,6 +21,9 @@ const app = buildServer({
   },
   scenarioTools: tools,
   ...(process.env.DSH_RUNTIME_ENABLED === 'false' ? {} : { runtime: new DshRuntime() }),
+  ...(process.env.OPSAGENT_INTERNAL_TOKEN
+    ? { internalToken: process.env.OPSAGENT_INTERNAL_TOKEN }
+    : {}),
   ...(process.env.STUDIO_DSH_ENABLED === 'false'
     ? {}
     : { studioGenerator: new DshHeadlessGenerator() }),

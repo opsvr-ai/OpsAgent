@@ -18,6 +18,7 @@ import { registerAuditRoutes } from './audit/routes.js';
 import { registerStudioRoutes } from './studio/routes.js';
 import type { StudioGenerator } from './studio/service.js';
 import { registerIncidentRoutes } from './incidents/routes.js';
+import { registerInternalApprovalRoutes } from './internal/approvals.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -27,6 +28,7 @@ export interface BuildServerOptions {
   readonly scenarioTools?: ToolResolver;
   readonly studioGenerator?: StudioGenerator;
   readonly runtime?: RuntimeClient;
+  readonly internalToken?: string;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -62,6 +64,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       options.scenarioTools ?? { resolve: async () => undefined },
     );
     registerAuditRoutes(app, options.pool);
+    registerInternalApprovalRoutes(app, options.pool, options.internalToken);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit);
   }

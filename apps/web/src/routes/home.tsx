@@ -9,9 +9,10 @@ export interface HomeProps {
   readonly onOpenShares: () => void;
   readonly onOpenStudio: () => void;
   readonly onOpenIncidents: () => void;
+  readonly onOpenApprovals: () => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
 
@@ -46,6 +47,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <button type="button" className="nav-item" onClick={onStartSession}><span>智能体会话</span></button>
             <button type="button" className="nav-item" onClick={onOpenScenarios}><span>场景中心</span></button>
             <button type="button" className="nav-item" onClick={onOpenIncidents}><span>事件指挥</span></button>
+            <button type="button" className="nav-item" onClick={onOpenApprovals}><span>待审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenShares}><span>共享审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenStudio}><span>创造模式</span></button>
             <button type="button" className="nav-item" onClick={onOpenAudit}><span>审计</span></button>

@@ -40,6 +40,7 @@ describe('Home', () => {
         onOpenShares={vi.fn()}
         onOpenStudio={vi.fn()}
         onOpenIncidents={vi.fn()}
+        onOpenApprovals={vi.fn()}
       />,
     );
 

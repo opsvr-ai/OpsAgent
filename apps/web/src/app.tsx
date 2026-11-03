@@ -9,12 +9,13 @@ import { Audit } from './routes/audit.js';
 import { Shares } from './routes/shares.js';
 import { Studio } from './routes/studio.js';
 import { Incidents } from './routes/incidents.js';
+import { Approvals } from './routes/approvals.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -48,6 +49,7 @@ export function App() {
   if (view === 'shares') return <Shares onBack={() => setView('home')} />;
   if (view === 'studio') return <Studio onBack={() => setView('home')} />;
   if (view === 'incidents') return <Incidents onBack={() => setView('home')} />;
+  if (view === 'approvals') return <Approvals onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -59,6 +61,7 @@ export function App() {
       onOpenShares={() => setView('shares')}
       onOpenStudio={() => setView('studio')}
       onOpenIncidents={() => setView('incidents')}
+      onOpenApprovals={() => setView('approvals')}
     />
   );
 }

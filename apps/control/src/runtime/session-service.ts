@@ -137,6 +137,36 @@ export class SessionService {
     }
   }
 
+  async listApprovals(tenantId: string, userId: string): Promise<Array<{
+    id: string;
+    action: string;
+    risk: string;
+    sessionId: string;
+    createdAt: string;
+  }>> {
+    const result = await this.pool.query<{
+      id: string;
+      action: string;
+      risk: string;
+      session_id: string;
+      created_at: Date;
+    }>(
+      `SELECT a.id, a.action, a.risk, a.session_id, a.created_at
+       FROM approvals a
+       JOIN runtime_sessions s ON s.id = a.session_id
+       WHERE a.tenant_id = $1 AND s.user_id = $2 AND a.status = 'pending'
+       ORDER BY a.created_at DESC`,
+      [tenantId, userId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      action: row.action,
+      risk: row.risk,
+      sessionId: row.session_id,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
   async respondApproval(input: ApprovalDecisionInput): Promise<void> {
     const result = await this.pool.query<ApprovalRow>(
       `SELECT a.id, a.tenant_id, a.session_id, a.runtime_approval_id, a.action, a.risk, a.status,
@@ -149,12 +179,21 @@ export class SessionService {
     const approval = result.rows[0];
     if (!approval || approval.status !== 'pending') throw new ApprovalNotFoundError();
 
-    await this.runtime.respondApproval(
-      approval.runtime_session_id,
-      approval.runtime_approval_id,
-      input.decision,
-      input.reason,
-    );
+    try {
+      await this.runtime.respondApproval(
+        approval.runtime_session_id,
+        approval.runtime_approval_id,
+        input.decision,
+        input.reason,
+      );
+    } catch (error) {
+      // The dsh approval bridge is poll-based: the plugin watches the DB row,
+      // so persisting the decision below is the signal. Native headless
+      // runtimes have no in-process response channel.
+      if (!(error instanceof Error) || error.message !== 'dsh_runtime_approval_not_supported') {
+        throw error;
+      }
+    }
 
     await this.pool.query(
       `UPDATE approvals

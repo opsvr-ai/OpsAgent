@@ -52,7 +52,7 @@ describe('DshRuntime', () => {
     });
     await collect(runtime.prompt(session.runtimeSessionId, 'one', 'idem-1'));
     await collect(runtime.prompt(session.runtimeSessionId, 'two', 'idem-2'));
-    expect(run).toHaveBeenNthCalledWith(2, 'two', 'dsh-real-2');
+    expect(run).toHaveBeenNthCalledWith(2, 'two', 'dsh-real-2', expect.any(Object));
   });
 
   it('emits runtime.error for a failed turn', async () => {

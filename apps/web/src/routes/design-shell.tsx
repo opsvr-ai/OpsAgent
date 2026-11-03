@@ -12,15 +12,15 @@ export interface DesignShellProps {
   readonly children: ReactNode;
 }
 
-const NAV: Array<{ id: DesignNav; label: string }> = [
-  { id: 'home', label: '工作台' },
-  { id: 'incidents', label: '事件指挥' },
-  { id: 'approvals', label: '待审批' },
-  { id: 'connectors', label: '集成与连接器' },
-  { id: 'scenarios', label: '场景中心' },
-  { id: 'shares', label: '共享审批' },
-  { id: 'studio', label: '创造模式' },
-  { id: 'audit', label: '审计' },
+const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
+  { id: 'home', label: '工作台', icon: 'grid' },
+  { id: 'incidents', label: '事件指挥', icon: 'activity' },
+  { id: 'approvals', label: '待审批', icon: 'check' },
+  { id: 'connectors', label: '集成与连接器', icon: 'plug' },
+  { id: 'scenarios', label: '场景中心', icon: 'bolt' },
+  { id: 'shares', label: '共享审批', icon: 'share' },
+  { id: 'studio', label: '创造模式', icon: 'wand' },
+  { id: 'audit', label: '审计', icon: 'shield' },
 ];
 
 export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions, children }: DesignShellProps) {
@@ -56,6 +56,7 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
                 className={`nav-item${item.id === active ? ' is-active' : ''}`}
                 onClick={item.id === 'home' ? onBack : undefined}
               >
+                <svg><use href={`/icons.svg#i-${item.icon}`} /></svg>
                 {item.label}
               </button>
             ))}

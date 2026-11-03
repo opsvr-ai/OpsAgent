@@ -44,15 +44,15 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
         <nav className="nav">
           <div className="nav-group">
             <div className="nav-label">工作空间</div>
-            <button type="button" className="nav-item is-active"><span>工作台</span></button>
-            <button type="button" className="nav-item" onClick={onStartSession}><span>智能体会话</span></button>
-            <button type="button" className="nav-item" onClick={onOpenScenarios}><span>场景中心</span></button>
-            <button type="button" className="nav-item" onClick={onOpenIncidents}><span>事件指挥</span></button>
-            <button type="button" className="nav-item" onClick={onOpenApprovals}><span>待审批</span></button>
-            <button type="button" className="nav-item" onClick={onOpenConnectors}><span>集成与连接器</span></button>
-            <button type="button" className="nav-item" onClick={onOpenShares}><span>共享审批</span></button>
-            <button type="button" className="nav-item" onClick={onOpenStudio}><span>创造模式</span></button>
-            <button type="button" className="nav-item" onClick={onOpenAudit}><span>审计</span></button>
+            <button type="button" className="nav-item is-active"><svg><use href="/icons.svg#i-grid" /></svg><span>工作台</span></button>
+            <button type="button" className="nav-item" onClick={onStartSession}><svg><use href="/icons.svg#i-message" /></svg><span>智能体会话</span></button>
+            <button type="button" className="nav-item" onClick={onOpenScenarios}><svg><use href="/icons.svg#i-bolt" /></svg><span>场景中心</span></button>
+            <button type="button" className="nav-item" onClick={onOpenIncidents}><svg><use href="/icons.svg#i-activity" /></svg><span>事件指挥</span></button>
+            <button type="button" className="nav-item" onClick={onOpenApprovals}><svg><use href="/icons.svg#i-check" /></svg><span>待审批</span></button>
+            <button type="button" className="nav-item" onClick={onOpenConnectors}><svg><use href="/icons.svg#i-plug" /></svg><span>集成与连接器</span></button>
+            <button type="button" className="nav-item" onClick={onOpenShares}><svg><use href="/icons.svg#i-share" /></svg><span>共享审批</span></button>
+            <button type="button" className="nav-item" onClick={onOpenStudio}><svg><use href="/icons.svg#i-wand" /></svg><span>创造模式</span></button>
+            <button type="button" className="nav-item" onClick={onOpenAudit}><svg><use href="/icons.svg#i-shield" /></svg><span>审计</span></button>
           </div>
         </nav>
 
@@ -77,7 +77,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
       <section className="main">
         <header className="topbar">
           <div className="crumbs">
-            <span>工作台</span>
+            <svg><use href="/icons.svg#i-grid" /></svg><span>工作台</span>
             <span className="sep">/</span>
             <span className="current">总览</span>
           </div>

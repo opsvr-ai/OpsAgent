@@ -25,6 +25,10 @@ const app = buildServer({
   localAdmin: {
     enabled: process.env.LOCAL_ADMIN_ENABLED === 'true',
     username: process.env.LOCAL_ADMIN_USERNAME ?? 'tenant-admin',
+    usernames: (process.env.LOCAL_ADMIN_USERNAMES ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
   },
   scenarioTools: tools,
   ...(process.env.DSH_RUNTIME_ENABLED === 'false'

@@ -15,9 +15,9 @@ beforeAll(async () => {
   await migrate(pool);
   await seed(pool);
   const passwordHash = await hash('correct horse battery staple');
-  await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [
+  await pool.query('UPDATE users SET password_hash = $1 WHERE username = ANY($2::text[])', [
     passwordHash,
-    'tenant-admin',
+    ['tenant-admin', 'platform-admin'],
   ]);
 });
 
@@ -64,8 +64,25 @@ describe('local admin authentication', () => {
     await app.close();
   });
 
-  it('rejects a wrong password without a session', async () => {
+  it('allows an additional configured local admin', async () => {
     const app = buildServer({
+      pool,
+      localAdmin: {
+        enabled: true,
+        username: 'tenant-admin',
+        usernames: ['platform-admin'],
+      },
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/local-admin',
+      payload: { username: 'platform-admin', password: 'correct horse battery staple' },
+    });
+    expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('rejects a wrong password without a session', async () => {    const app = buildServer({
       pool,
       localAdmin: { enabled: true, username: 'tenant-admin' },
     });

@@ -31,6 +31,7 @@ export default defineConfig({
         TEST_DATABASE_URL: 'postgres://opsagent:opsagent@localhost:5432/opsagent_e2e',
         LOCAL_ADMIN_ENABLED: 'true',
         LOCAL_ADMIN_USERNAME: 'tenant-admin',
+        LOCAL_ADMIN_USERNAMES: 'tenant-admin,platform-admin',
         LOCAL_ADMIN_PASSWORD: 'opsagent-dev',
         DSH_RUNTIME_ENABLED: 'false',
         STUDIO_DSH_ENABLED: 'false',

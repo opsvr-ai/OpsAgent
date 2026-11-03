@@ -5,6 +5,11 @@ import type { AuthUser } from './session.js';
 export interface LocalAdminConfig {
   readonly enabled: boolean;
   readonly username: string;
+  readonly usernames?: readonly string[];
+}
+
+function allowed(config: LocalAdminConfig, username: string): boolean {
+  return username === config.username || (config.usernames ?? []).includes(username);
 }
 
 export class LocalAdminDisabledError extends Error {
@@ -22,7 +27,7 @@ export async function authenticateLocalAdmin(
   username: string,
   password: string,
 ): Promise<AuthUser | null> {
-  if (!config.enabled || username !== config.username) {
+  if (!config.enabled || !allowed(config, username)) {
     if (!config.enabled) throw new LocalAdminDisabledError();
     return null;
   }

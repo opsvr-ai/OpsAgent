@@ -86,6 +86,7 @@ services:
       REDIS_URL: redis://redis:6379
       LOCAL_ADMIN_ENABLED: "true"
       LOCAL_ADMIN_USERNAME: tenant-admin
+      LOCAL_ADMIN_USERNAMES: tenant-admin,platform-admin
       # The host dsh install is intentionally not visible here. Enable Studio
       # generation only after installing/configuring dsh inside the container.
       STUDIO_DSH_ENABLED: "false"

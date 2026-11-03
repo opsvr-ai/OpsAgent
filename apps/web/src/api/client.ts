@@ -131,3 +131,28 @@ export interface AuditEventSummary {
 export async function listAudit(limit = 50): Promise<AuditEventSummary[]> {
   return request<AuditEventSummary[]>(`/api/audit?limit=${limit}`);
 }
+
+export interface ScenarioShare {
+  readonly id: string;
+  readonly scenarioId: string;
+  readonly scope: string;
+  readonly status: string;
+  readonly requestedBy: string;
+  readonly reviewerId: string | null;
+  readonly reason: string | null;
+}
+
+export async function listShares(): Promise<ScenarioShare[]> {
+  return request<ScenarioShare[]>('/api/shares');
+}
+
+export async function reviewShare(
+  id: string,
+  decision: 'approve' | 'reject',
+  reason?: string,
+): Promise<ScenarioShare> {
+  return request<ScenarioShare>(`/api/shares/${id}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
+  });
+}

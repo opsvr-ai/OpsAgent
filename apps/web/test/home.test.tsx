@@ -28,6 +28,7 @@ describe('Home', () => {
         onStartSession={onStartSession}
         onOpenScenarios={vi.fn()}
         onOpenAudit={vi.fn()}
+        onOpenShares={vi.fn()}
       />,
     );
 

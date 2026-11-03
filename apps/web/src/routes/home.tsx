@@ -6,9 +6,10 @@ export interface HomeProps {
   readonly onStartSession: () => void;
   readonly onOpenScenarios: () => void;
   readonly onOpenAudit: () => void;
+  readonly onOpenShares: () => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   return (
     <div className="shell">
@@ -34,6 +35,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit }:
             <button type="button" onClick={onStartSession}>进入会话</button>
             <button type="button" onClick={onOpenScenarios} style={{ marginLeft: 8 }}>场景中心</button>
             <button type="button" onClick={onOpenAudit} style={{ marginLeft: 8 }}>审计</button>
+            <button type="button" onClick={onOpenShares} style={{ marginLeft: 8 }}>共享审批</button>
           </div>
         </header>
         <section className="cards">

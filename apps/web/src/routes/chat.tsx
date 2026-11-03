@@ -225,6 +225,10 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                           </div>
                         </div>
                         <p className="muted">该操作需要人工确认；批准后当前 dsh 会话继续执行，拒绝则终止该工具调用。</p>
+                        <div className="aside-row"><span>审批 ID</span><span className="mono">{item.approvalId.slice(0, 12)}</span></div>
+                        <div className="aside-row"><span>操作</span><span className="mono">{item.action}</span></div>
+                        <div className="aside-row"><span>范围</span><span>当前会话 · 租户内</span></div>
+                        <div className="aside-row"><span>风险</span><span>{item.risk}</span></div>
                         <div className="row-sm">
                           <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
                           <button type="button" className="btn btn-outline" onClick={() => void decide('deny')}>拒绝</button>

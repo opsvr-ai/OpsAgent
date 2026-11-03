@@ -88,6 +88,7 @@ export function DataStore({ onBack }: DataStoreProps) {
             <div className="eyebrow">存储占用</div>
             <h3>{stats?.usagePct ?? 0}%</h3>
             <p className="muted mono">{formatBytes(stats?.bytes ?? 0)} / {formatBytes(stats?.quotaBytes ?? 0)}</p>
+            <div className="health-bar"><span style={{ width: `${Math.min(100, stats?.usagePct ?? 0)}%` }} /></div>
           </div>
         </article>
         <article className="card">

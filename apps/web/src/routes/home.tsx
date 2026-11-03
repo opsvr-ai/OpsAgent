@@ -187,7 +187,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
                 </div>
               </div>
               <div className="page-actions">
-                <button type="button" className="btn btn-outline" onClick={onOpenScenarios}>场景中心</button>
+                <button type="button" className="btn btn-outline" onClick={onOpenScenarios}>运行巡检</button>
                 <button type="button" className="btn btn-primary" onClick={onStartSession}>新建会话</button>
               </div>
             </div>

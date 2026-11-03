@@ -134,6 +134,39 @@ export function registerScenarioRoutes(
     return reply.send(scenario);
   });
 
+  app.patch<{ Params: { id: string } }>('/api/scenarios/:id/schedule', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'scenario.publish');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+
+    const body = request.body as { intervalMinutes?: unknown } | undefined;
+    if (
+      body?.intervalMinutes !== null &&
+      (typeof body?.intervalMinutes !== 'number' ||
+        !Number.isInteger(body.intervalMinutes) ||
+        body.intervalMinutes < 1 ||
+        body.intervalMinutes > 10_080)
+    ) {
+      return reply.code(400).send({ error: 'invalid_interval' });
+    }
+
+    await scenarios.setSchedule(ctx.tenantId, request.params.id, body.intervalMinutes);
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'scenario.schedule',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { intervalMinutes: body.intervalMinutes },
+    });
+    return reply.send({ ok: true, intervalMinutes: body.intervalMinutes });
+  });
+
   app.get<{ Params: { id: string } }>('/api/scenarios/:id/runs', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {

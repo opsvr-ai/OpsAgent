@@ -94,9 +94,32 @@ export class ScenarioService {
     return row ? this.map(row) : null;
   }
 
+  async setSchedule(tenantId: string, id: string, intervalMinutes: number | null): Promise<void> {
+    await this.pool.query(
+      `UPDATE scenarios
+       SET schedule_interval_minutes = $1, schedule_enabled = $2, updated_at = now()
+       WHERE tenant_id = $3 AND id = $4`,
+      [intervalMinutes, intervalMinutes !== null, tenantId, id],
+    );
+  }
+
+  async listDue(now: Date): Promise<ScenarioRecord[]> {
+    const result = await this.pool.query(
+      `SELECT id, tenant_id, name, description, definition, status, version
+       FROM scenarios
+       WHERE schedule_enabled = true
+         AND schedule_interval_minutes IS NOT NULL
+         AND (last_run_at IS NULL OR last_run_at <= $1::timestamptz - (schedule_interval_minutes || ' minutes')::interval)
+       ORDER BY created_at ASC`,
+      [now.toISOString()],
+    );
+    return result.rows.map((row) => this.map(row));
+  }
+
   async run(tenantId: string, id: string): Promise<ScenarioRunResult | null> {
     const scenario = await this.get(tenantId, id);
     if (!scenario) return null;
+    await this.pool.query('UPDATE scenarios SET last_run_at = now() WHERE id = $1', [id]);
 
     const inserted = await this.pool.query<{ id: string }>(
       `INSERT INTO scenario_runs (tenant_id, scenario_id, status)

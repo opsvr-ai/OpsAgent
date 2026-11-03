@@ -92,4 +92,31 @@ describe('scenario publishing', () => {
     expect(response.statusCode).toBe(400);
     await app.close();
   });
+
+  it('sets a schedule interval', async () => {
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+    });
+    const cookie = await login(app);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/scenarios',
+      headers: { cookie },
+      payload: {
+        name: 'schedule-check',
+        definition: { steps: [{ name: 'x', tool: 'mock.echo', input: {} }] },
+      },
+    });
+    const id = (created.json() as { id: string }).id;
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/scenarios/${id}/schedule`,
+      headers: { cookie },
+      payload: { intervalMinutes: 60 },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ intervalMinutes: 60 });
+    await app.close();
+  });
 });

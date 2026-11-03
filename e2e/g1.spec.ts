@@ -33,3 +33,15 @@ test('G1: mock.restart requires approval', async ({ page }) => {
   await expect(page.getByText('mock.restart').first()).toBeVisible();
   await expect(page.getByText('完成')).toBeVisible();
 });
+
+test('G1: denied restart does not execute the tool', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: '进入会话' }).click();
+  await page.getByLabel('输入').fill('restart service');
+  await page.getByRole('button', { name: '发送' }).click();
+
+  await expect(page.getByRole('button', { name: '拒绝' })).toBeVisible();
+  await page.getByRole('button', { name: '拒绝' }).click();
+  await expect(page.getByText('完成')).toBeVisible();
+  await expect(page.getByTestId('tool-call')).toHaveCount(0);
+});

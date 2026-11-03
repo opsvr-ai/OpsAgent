@@ -29,7 +29,7 @@ describe('Messages', () => {
     ]);
     readMock.mockResolvedValue(undefined);
     render(<Messages onBack={vi.fn()} />);
-    expect(await screen.findByText('巡检失败')).toBeInTheDocument();
+    expect((await screen.findAllByText('巡检失败')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '标记已读' }));
     await waitFor(() => expect(readMock).toHaveBeenCalledWith('m-1'));
     expect(await screen.findByText('已读')).toBeInTheDocument();

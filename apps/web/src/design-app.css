@@ -1395,3 +1395,14 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .search-result svg { width: 14px; height: 14px; color: var(--faint); }
 .search-empty { padding: 12px; color: var(--faint); font-size: 11px; }
 @media (max-width: 1100px) { .global-search { width: 150px; } }
+.split-grid { display: grid; grid-template-columns: 360px minmax(0, 1fr) 280px; gap: var(--space-4); align-items: start; }
+.split-side { min-width: 0; }
+.inbox-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 11px 12px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.inbox-item:hover { background: var(--surface-2); }
+.inbox-item.is-active { background: var(--primary-soft); box-shadow: inset 2px 0 0 var(--primary); }
+.inbox-item .grow { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.inbox-item strong { font-size: var(--fs-12); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-item .grow span { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-item .dot { margin-top: 5px; flex: none; }
+@media (max-width: 1200px) { .split-grid { grid-template-columns: 320px minmax(0, 1fr); } .split-side { grid-column: 1 / -1; } }
+@media (max-width: 900px) { .split-grid { grid-template-columns: 1fr; } }

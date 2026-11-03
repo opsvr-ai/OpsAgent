@@ -25,6 +25,7 @@ describe('Agents', () => {
         version: '0.1.0',
         status: 'online',
         lastSeen: '2026-11-03T00:00:00.000Z',
+        metrics: { cpuCores: 8 },
       },
     ]);
     render(<Agents onBack={vi.fn()} />);

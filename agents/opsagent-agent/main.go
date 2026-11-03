@@ -31,7 +31,8 @@ type registerResponse struct {
 }
 
 type heartbeatRequest struct {
-	AgentKey string `json:"agentKey"`
+	AgentKey string         `json:"agentKey"`
+	Metrics  map[string]any `json:"metrics"`
 }
 
 func env(key, fallback string) string {
@@ -87,6 +88,7 @@ func main() {
 		headers["x-opsagent-enrollment-token"] = token
 	}
 	registered := registerResponse{}
+	started := time.Now()
 	if err := post(controlURL+"/api/agents/register", headers, registerRequest{
 		TenantID:     tenantID,
 		Name:         name,
@@ -110,8 +112,16 @@ func main() {
 			log.Print("agent stopping")
 			return
 		case <-ticker.C:
+			var memory runtime.MemStats
+			runtime.ReadMemStats(&memory)
 			if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
 				AgentKey: registered.AgentKey,
+				Metrics: map[string]any{
+					"cpuCores":   runtime.NumCPU(),
+					"goroutines": runtime.NumGoroutine(),
+					"heapMB":     float64(memory.HeapAlloc) / 1024 / 1024,
+					"uptimeSec":  int64(time.Since(started).Seconds()),
+				},
 			}, nil); err != nil {
 				log.Printf("heartbeat: %v", err)
 			}

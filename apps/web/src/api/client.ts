@@ -339,6 +339,7 @@ export interface AgentSummary {
   readonly version: string;
   readonly status: string;
   readonly lastSeen: string;
+  readonly metrics: Readonly<Record<string, unknown>>;
 }
 
 export async function listAgents(): Promise<AgentSummary[]> {

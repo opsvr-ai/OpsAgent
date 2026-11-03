@@ -10,6 +10,7 @@ export interface AgentRecord {
   readonly version: string;
   readonly status: string;
   readonly lastSeen: string;
+  readonly metrics: Readonly<Record<string, unknown>>;
 }
 
 export class AgentService {
@@ -38,7 +39,7 @@ export class AgentService {
          capabilities = EXCLUDED.capabilities,
          agent_key = EXCLUDED.agent_key,
          last_seen = now()
-       RETURNING id, name, hostname, os, arch, version, status, last_seen, agent_key`,
+       RETURNING id, name, hostname, os, arch, version, status, last_seen, metrics, agent_key`,
       [
         input.tenantId,
         input.name,
@@ -54,12 +55,17 @@ export class AgentService {
     return { agent: this.map(row), agentKey: row.agent_key as string };
   }
 
-  async heartbeat(id: string, key: string): Promise<AgentRecord | null> {
+  async heartbeat(
+    id: string,
+    key: string,
+    metrics?: Readonly<Record<string, unknown>>,
+  ): Promise<AgentRecord | null> {
     const result = await this.pool.query(
-      `UPDATE agents SET last_seen = now(), status = 'online'
+      `UPDATE agents
+       SET last_seen = now(), status = 'online', metrics = COALESCE($3::jsonb, metrics)
        WHERE id = $1 AND agent_key = $2
-       RETURNING id, name, hostname, os, arch, version, status, last_seen`,
-      [id, key],
+       RETURNING id, name, hostname, os, arch, version, status, last_seen, metrics`,
+      [id, key, metrics ? JSON.stringify(metrics) : null],
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
@@ -68,7 +74,7 @@ export class AgentService {
     const result = await this.pool.query(
       `SELECT id, name, hostname, os, arch, version,
               CASE WHEN last_seen < now() - interval '90 seconds' THEN 'offline' ELSE status END AS status,
-              last_seen
+              last_seen, metrics
        FROM agents WHERE tenant_id = $1 ORDER BY last_seen DESC`,
       [tenantId],
     );
@@ -84,6 +90,7 @@ export class AgentService {
     version: string;
     status: string;
     last_seen: Date;
+    metrics: Record<string, unknown> | null;
   }): AgentRecord {
     return {
       id: row.id,
@@ -94,6 +101,7 @@ export class AgentService {
       version: row.version,
       status: row.status,
       lastSeen: row.last_seen.toISOString(),
+      metrics: row.metrics ?? {},
     };
   }
 }

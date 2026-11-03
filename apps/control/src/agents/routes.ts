@@ -55,11 +55,15 @@ export function registerAgentRoutes(
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/heartbeat', async (request, reply) => {
-    const body = request.body as { agentKey?: unknown } | undefined;
+    const body = request.body as { agentKey?: unknown; metrics?: unknown } | undefined;
     if (typeof body?.agentKey !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
-    const agent = await agents.heartbeat(request.params.id, body.agentKey);
+    const metrics =
+      typeof body.metrics === 'object' && body.metrics !== null && !Array.isArray(body.metrics)
+        ? (body.metrics as Record<string, unknown>)
+        : undefined;
+    const agent = await agents.heartbeat(request.params.id, body.agentKey, metrics);
     if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
     return reply.send(agent);
   });

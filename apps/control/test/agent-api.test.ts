@@ -63,9 +63,10 @@ describe('agent registry API', () => {
     const heartbeat = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/heartbeat`,
-      payload: { agentKey: body.agentKey },
+      payload: { agentKey: body.agentKey, metrics: { cpuCores: 8, heapMB: 3 } },
     });
     expect(heartbeat.statusCode).toBe(200);
+    expect(heartbeat.json()).toMatchObject({ metrics: { cpuCores: 8, heapMB: 3 } });
 
     const cookie = await login(app);
     const list = await app.inject({ method: 'GET', url: '/api/agents', headers: { cookie } });

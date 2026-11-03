@@ -38,6 +38,9 @@ export function Agents({ onBack }: AgentsProps) {
               <h3>{agent.name}</h3>
               <p className="muted">{agent.hostname}</p>
               <p className="muted">{agent.os}/{agent.arch} · v{agent.version}</p>
+              {Object.keys(agent.metrics).length > 0 ? (
+                <p className="muted mono">{JSON.stringify(agent.metrics)}</p>
+              ) : null}
             </div>
           </article>
         ))}

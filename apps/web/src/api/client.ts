@@ -156,3 +156,43 @@ export async function reviewShare(
     body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
   });
 }
+
+export interface StudioSession {
+  readonly id: string;
+  readonly goal: string;
+  readonly platform: string;
+  readonly status: string;
+  readonly bundle: {
+    readonly goal: string;
+    readonly files: readonly string[];
+    readonly manifest: Readonly<Record<string, unknown>>;
+  } | null;
+}
+
+export async function listStudioSessions(): Promise<StudioSession[]> {
+  return request<StudioSession[]>('/api/studio/sessions');
+}
+
+export async function createStudioSession(input: {
+  goal: string;
+  platform: string;
+}): Promise<StudioSession> {
+  return request<StudioSession>('/api/studio/sessions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function submitStudioSession(id: string): Promise<StudioSession> {
+  return request<StudioSession>(`/api/studio/sessions/${id}/submit`, { method: 'POST' });
+}
+
+export async function reviewStudioSession(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<StudioSession> {
+  return request<StudioSession>(`/api/studio/sessions/${id}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ decision }),
+  });
+}

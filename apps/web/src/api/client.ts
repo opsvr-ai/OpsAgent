@@ -117,3 +117,17 @@ export async function setScenarioSchedule(
     body: JSON.stringify({ intervalMinutes }),
   });
 }
+
+export interface AuditEventSummary {
+  readonly id: string;
+  readonly action: string;
+  readonly actorId: string | null;
+  readonly resource: string | null;
+  readonly result: string;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+}
+
+export async function listAudit(limit = 50): Promise<AuditEventSummary[]> {
+  return request<AuditEventSummary[]>(`/api/audit?limit=${limit}`);
+}

@@ -5,12 +5,13 @@ import { Login } from './routes/login.js';
 import { Home } from './routes/home.js';
 import { Chat } from './routes/chat.js';
 import { Scenarios } from './routes/scenarios.js';
+import { Audit } from './routes/audit.js';
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'scenarios'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit'>('home');
 
   async function refresh() {
     const current = await getMe();
@@ -40,6 +41,7 @@ export function App() {
     );
   }
   if (view === 'scenarios') return <Scenarios onBack={() => setView('home')} />;
+  if (view === 'audit') return <Audit onBack={() => setView('home')} />;
   if (!home) return <div className="loading">加载工作台…</div>;
   return (
     <Home
@@ -47,6 +49,7 @@ export function App() {
       home={home}
       onStartSession={() => void startSession()}
       onOpenScenarios={() => setView('scenarios')}
+      onOpenAudit={() => setView('audit')}
     />
   );
 }

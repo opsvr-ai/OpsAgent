@@ -52,7 +52,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       app,
       options.pool,
       audit,
-      options.scenarioTools ?? { resolve: () => undefined },
+      options.scenarioTools ?? { resolve: async () => undefined },
     );
     registerAuditRoutes(app, options.pool);
   }

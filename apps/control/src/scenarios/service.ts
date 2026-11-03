@@ -23,7 +23,7 @@ export interface ScenarioRecord {
 }
 
 export interface ToolResolver {
-  resolve(name: string): ConnectorTool | undefined;
+  resolve(tenantId: string, name: string): Promise<ConnectorTool | undefined>;
 }
 
 export interface ScenarioRunResult {
@@ -133,7 +133,7 @@ export class ScenarioService {
     const results: unknown[] = [];
     try {
       for (const step of scenario.definition.steps) {
-        const tool = this.tools.resolve(step.tool);
+        const tool = await this.tools.resolve(tenantId, step.tool);
         if (!tool) throw new Error(`tool_not_found: ${step.tool}`);
         results.push(await tool.execute(step.input, { tenantId }));
       }

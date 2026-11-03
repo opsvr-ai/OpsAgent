@@ -37,7 +37,7 @@ async function login(app: ReturnType<typeof buildServer>): Promise<string> {
 }
 
 const tools: ToolResolver = {
-  resolve(name) {
+  resolve(_tenantId, name) {
     if (name !== 'mock.echo') return undefined;
     return { name, risk: 'R0', execute: async (input) => ({ echoed: input.text }) };
   },

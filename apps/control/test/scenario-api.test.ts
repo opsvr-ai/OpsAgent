@@ -40,7 +40,7 @@ describe('scenario API', () => {
   it('creates and runs a scenario with a resolved tool', async () => {
     const execute = vi.fn().mockResolvedValue({ ok: true });
     const tools: ToolResolver = {
-      resolve(name) {
+      async resolve(_tenantId, name) {
         if (name !== 'mock.echo') return undefined;
         return { name, risk: 'R0', execute };
       },

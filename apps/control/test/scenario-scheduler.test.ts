@@ -7,7 +7,7 @@ import { seed } from '../src/db/seed.js';
 
 const databaseUrl = process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent';
 const tools: ToolResolver = {
-  resolve(name) {
+  async resolve(_tenantId, name) {
     if (name !== 'mock.echo') return undefined;
     return { name, risk: 'R0', execute: async () => ({ ok: true }) };
   },

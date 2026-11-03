@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { redactConfig } from './redact.js';
 
 export interface ConnectorRecord {
   readonly id: string;
@@ -73,7 +74,7 @@ export class ConnectorService {
       tenantId: row.tenant_id,
       connectorType: row.connector_type,
       name: row.name,
-      config: row.config,
+      config: redactConfig(row.config),
       credentialRef: row.credential_ref,
       status: row.status,
     };

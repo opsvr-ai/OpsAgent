@@ -52,11 +52,16 @@ describe('connector configuration API', () => {
       payload: {
         connectorType: 'prometheus',
         name: 'prod-prometheus',
-        config: { baseUrl: 'http://prometheus.internal:9090' },
+        config: {
+          baseUrl: 'http://prometheus.internal:9090',
+          password: 'super-secret',
+        },
         credentialRef: 'vault:tenants/demo/prometheus',
       },
     });
     expect(created.statusCode).toBe(201);
+    expect(created.body).not.toContain('super-secret');
+    expect(created.json()).toMatchObject({ config: { password: '[redacted]' } });
 
     const list = await app.inject({ method: 'GET', url: '/api/connectors', headers: { cookie } });
     expect(list.statusCode).toBe(200);

@@ -58,6 +58,27 @@ describe('data store API', () => {
     expect(stats.statusCode).toBe(200);
     expect(stats.json()).toMatchObject({ count: 2, bytes: 30 });
 
+    const settings = await app.inject({
+      method: 'GET',
+      url: '/api/data-store/settings',
+      headers: { cookie },
+    });
+    expect(settings.json()).toMatchObject({ retentionDays: 30, priority: 'local-first' });
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/api/data-store/settings',
+      headers: { cookie },
+      payload: {
+        priority: 'live-first',
+        syncInterval: '10m',
+        fullSyncAt: '03:00',
+        freshnessSec: 120,
+        retentionDays: 7,
+      },
+    });
+    expect(saved.json()).toMatchObject({ priority: 'live-first', retentionDays: 7 });
+
     const dryRun = await app.inject({
       method: 'POST',
       url: '/api/data-store/cleanup',

@@ -26,6 +26,22 @@ export interface DataStoreStats {
   readonly recent: readonly DataStoreSnapshot[];
 }
 
+export interface DataStoreSettings {
+  readonly priority: string;
+  readonly syncInterval: string;
+  readonly fullSyncAt: string;
+  readonly freshnessSec: number;
+  readonly retentionDays: number;
+}
+
+const DEFAULT_SETTINGS: DataStoreSettings = {
+  priority: 'local-first',
+  syncInterval: '5m',
+  fullSyncAt: '02:00',
+  freshnessSec: 600,
+  retentionDays: 30,
+};
+
 export class DataStoreService {
   constructor(private readonly pool: Pool) {}
 
@@ -90,6 +106,53 @@ export class DataStoreService {
         expiresAt: item.expires_at?.toISOString() ?? null,
       })),
     };
+  }
+
+  async getSettings(tenantId: string): Promise<DataStoreSettings> {
+    const result = await this.pool.query<{
+      priority: string;
+      sync_interval: string;
+      full_sync_at: string;
+      freshness_sec: number;
+      retention_days: number;
+    }>(
+      `SELECT priority, sync_interval, full_sync_at, freshness_sec, retention_days
+       FROM data_store_settings WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const row = result.rows[0];
+    if (!row) return DEFAULT_SETTINGS;
+    return {
+      priority: row.priority,
+      syncInterval: row.sync_interval,
+      fullSyncAt: row.full_sync_at,
+      freshnessSec: row.freshness_sec,
+      retentionDays: row.retention_days,
+    };
+  }
+
+  async saveSettings(tenantId: string, input: DataStoreSettings): Promise<DataStoreSettings> {
+    await this.pool.query(
+      `INSERT INTO data_store_settings
+         (tenant_id, priority, sync_interval, full_sync_at, freshness_sec, retention_days)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (tenant_id) DO UPDATE SET
+         priority = EXCLUDED.priority,
+         sync_interval = EXCLUDED.sync_interval,
+         full_sync_at = EXCLUDED.full_sync_at,
+         freshness_sec = EXCLUDED.freshness_sec,
+         retention_days = EXCLUDED.retention_days,
+         updated_at = now()`,
+      [
+        tenantId,
+        input.priority,
+        input.syncInterval,
+        input.fullSyncAt,
+        Math.max(1, Math.trunc(input.freshnessSec)),
+        Math.max(1, Math.trunc(input.retentionDays)),
+      ],
+    );
+    return this.getSettings(tenantId);
   }
 
   async cleanup(input: {

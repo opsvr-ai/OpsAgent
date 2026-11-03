@@ -37,6 +37,54 @@ export function registerDataStoreRoutes(
     return reply.send(await data.stats(ctx.tenantId));
   });
 
+  app.get('/api/data-store/settings', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'data.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await data.getSettings(ctx.tenantId));
+  });
+
+  app.put('/api/data-store/settings', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'data.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      priority?: unknown;
+      syncInterval?: unknown;
+      fullSyncAt?: unknown;
+      freshnessSec?: unknown;
+      retentionDays?: unknown;
+    } | undefined;
+    if (
+      typeof body?.priority !== 'string' ||
+      typeof body.syncInterval !== 'string' ||
+      typeof body.fullSyncAt !== 'string' ||
+      typeof body.freshnessSec !== 'number' ||
+      typeof body.retentionDays !== 'number'
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    return reply.send(
+      await data.saveSettings(ctx.tenantId, {
+        priority: body.priority,
+        syncInterval: body.syncInterval,
+        fullSyncAt: body.fullSyncAt,
+        freshnessSec: body.freshnessSec,
+        retentionDays: body.retentionDays,
+      }),
+    );
+  });
+
   app.post('/api/data-store/cleanup', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

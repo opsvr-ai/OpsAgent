@@ -558,6 +558,27 @@ export async function getDataStore(): Promise<DataStoreStats> {
   return request<DataStoreStats>('/api/data-store');
 }
 
+export interface DataStoreSettings {
+  readonly priority: string;
+  readonly syncInterval: string;
+  readonly fullSyncAt: string;
+  readonly freshnessSec: number;
+  readonly retentionDays: number;
+}
+
+export async function getDataStoreSettings(): Promise<DataStoreSettings> {
+  return request<DataStoreSettings>('/api/data-store/settings');
+}
+
+export async function saveDataStoreSettings(
+  input: DataStoreSettings,
+): Promise<DataStoreSettings> {
+  return request<DataStoreSettings>('/api/data-store/settings', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function cleanupDataStore(
   beforeDays: number,
   dryRun: boolean,

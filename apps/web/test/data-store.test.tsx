@@ -5,6 +5,14 @@ import { getDataStore } from '../src/api/client.js';
 
 vi.mock('../src/api/client.js', () => ({
   getDataStore: vi.fn(),
+  getDataStoreSettings: vi.fn().mockResolvedValue({
+    priority: 'local-first',
+    syncInterval: '5m',
+    fullSyncAt: '02:00',
+    freshnessSec: 600,
+    retentionDays: 30,
+  }),
+  saveDataStoreSettings: vi.fn(),
   cleanupDataStore: vi.fn(),
 }));
 

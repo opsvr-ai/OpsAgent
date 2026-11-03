@@ -25,17 +25,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function loginLocalAdmin(username: string, password: string): Promise<void> {
+export async function loginLocalAdmin(username: string, password: string, remember = false): Promise<void> {
   await request<{ ok: true }>('/api/auth/local-admin', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, remember }),
   });
 }
 
-export async function loginLdap(username: string, password: string): Promise<void> {
+export async function loginLdap(username: string, password: string, remember = false): Promise<void> {
   await request<{ ok: true }>('/api/auth/ldap', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, remember }),
   });
 }
 

@@ -1472,3 +1472,4 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .tool-code { margin: 0; padding: 10px 12px; background: var(--surface-2); color: var(--text-soft); font-family: var(--font-mono); font-size: 11px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .approval-card { margin: 12px 0; padding: 13px; border: 1px solid var(--warn-line, #efd7a8); border-radius: 9px; background: var(--warn-soft, #fff9ec); }
 .approval-card p { margin: 9px 0; }
+.login-tenant { padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--muted); font-size: var(--fs-12); }

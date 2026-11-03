@@ -11,6 +11,7 @@ export function Login({ onSuccess }: LoginProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'local' | 'ldap'>('local');
+  const [remember, setRemember] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -18,9 +19,9 @@ export function Login({ onSuccess }: LoginProps) {
     setError(null);
     try {
       if (mode === 'ldap') {
-        await loginLdap(username, password);
+        await loginLdap(username, password, remember);
       } else {
-        await loginLocalAdmin(username, password);
+        await loginLocalAdmin(username, password, remember);
       }
       onSuccess();
     } catch {
@@ -105,8 +106,16 @@ export function Login({ onSuccess }: LoginProps) {
               required
             />
           </div>
+          <div className="field">
+            <label>租户</label>
+            <div className="login-tenant">登录后按账号权限选择租户</div>
+          </div>
           {error ? <p role="alert">{error}</p> : null}
 
+          <label className="checkline" style={{ marginBottom: 12 }}>
+            <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+            记住此设备 7 天
+          </label>
           <button className="btn btn-primary" type="submit" disabled={busy}>
             {busy ? '登录中…' : mode === 'ldap' ? '通过 LDAP 登录' : '登录'}
           </button>

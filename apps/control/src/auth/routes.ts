@@ -9,6 +9,7 @@ import {
   type LocalAdminConfig,
 } from './local-admin.js';
 import {
+  REMEMBER_TTL_SECONDS,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   issueSession,
@@ -19,15 +20,16 @@ import {
 interface LoginBody {
   username?: unknown;
   password?: unknown;
+  remember?: unknown;
 }
 
-function cookieOptions() {
+function cookieOptions(maxAge = SESSION_TTL_SECONDS) {
   return {
     httpOnly: true,
     sameSite: 'lax' as const,
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge,
   };
 }
 
@@ -95,6 +97,7 @@ export function registerAuthRoutes(
     if (typeof body?.username !== 'string' || typeof body.password !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    const ttlSeconds = body.remember === true ? REMEMBER_TTL_SECONDS : SESSION_TTL_SECONDS;
 
     const ldapUser = await ldap.authenticate(body.username, body.password);
     if (!ldapUser) return reply.code(401).send({ error: 'invalid_credentials' });
@@ -111,7 +114,7 @@ export function registerAuthRoutes(
       [user.id],
     );
     const tenantId = membership.rows[0]?.tenant_id ?? null;
-    const session = await issueSession(pool, user.id, tenantId);
+    const session = await issueSession(pool, user.id, tenantId, ttlSeconds);
     await audit.write({
       tenantId,
       actorId: user.id,
@@ -120,7 +123,7 @@ export function registerAuthRoutes(
       result: 'success',
       metadata: { method: 'ldap', dn: ldapUser.dn },
     });
-    reply.setCookie(SESSION_COOKIE, session.token, cookieOptions());
+    reply.setCookie(SESSION_COOKIE, session.token, cookieOptions(ttlSeconds));
     return reply.send({ ok: true });
   });
 
@@ -129,6 +132,7 @@ export function registerAuthRoutes(
     if (typeof body?.username !== 'string' || typeof body.password !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    const ttlSeconds = body.remember === true ? REMEMBER_TTL_SECONDS : SESSION_TTL_SECONDS;
 
     try {
       const user = await authenticateLocalAdmin(pool, localAdmin, body.username, body.password);
@@ -139,7 +143,7 @@ export function registerAuthRoutes(
         [user.id],
       );
       const tenantId = membership.rows[0]?.tenant_id ?? null;
-      const session = await issueSession(pool, user.id, tenantId);
+      const session = await issueSession(pool, user.id, tenantId, ttlSeconds);
       await audit.write({
         tenantId,
         actorId: user.id,
@@ -148,7 +152,7 @@ export function registerAuthRoutes(
         result: 'success',
         metadata: { method: 'local_admin' },
       });
-      reply.setCookie(SESSION_COOKIE, session.token, cookieOptions());
+      reply.setCookie(SESSION_COOKIE, session.token, cookieOptions(ttlSeconds));
       return reply.send({ ok: true });
     } catch (error) {
       if (error instanceof LocalAdminDisabledError) {

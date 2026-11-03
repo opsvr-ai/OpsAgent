@@ -82,6 +82,25 @@ describe('local admin authentication', () => {
     await app.close();
   });
 
+  it('issues a seven day cookie when remember is set', async () => {
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/local-admin',
+      payload: {
+        username: 'tenant-admin',
+        password: 'correct horse battery staple',
+        remember: true,
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['set-cookie']).toContain('Max-Age=604800');
+    await app.close();
+  });
+
   it('rejects a wrong password without a session', async () => {    const app = buildServer({
       pool,
       localAdmin: { enabled: true, username: 'tenant-admin' },

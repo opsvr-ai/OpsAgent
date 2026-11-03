@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 
 export const SESSION_COOKIE = 'opsagent_session';
 export const SESSION_TTL_SECONDS = 8 * 60 * 60;
+export const REMEMBER_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 export interface AuthUser {
   readonly id: string;
@@ -25,10 +26,11 @@ export async function issueSession(
   pool: Pool,
   userId: string,
   selectedTenantId: string | null,
+  ttlSeconds = SESSION_TTL_SECONDS,
 ): Promise<IssuedSession> {
   const token = randomBytes(32).toString('base64url');
   const tokenHash = hashSessionToken(token);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
   await pool.query(
     `INSERT INTO auth_sessions (user_id, selected_tenant_id, token_hash, expires_at)

@@ -1486,3 +1486,10 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .task-gauge strong, .task-gauge span { position: relative; z-index: 1; }
 .task-gauge strong { font-size: var(--fs-20); }
 .task-gauge span { font-size: 10px; color: var(--faint); }
+.detail-hero { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.detail-icon { width: 54px; height: 54px; border-radius: 12px; }
+.detail-icon svg { width: 24px; height: 24px; }
+.detail-hero h1 { font-size: var(--fs-26); margin: 0 0 8px; letter-spacing: var(--tracking-tight); }
+.connector-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--space-4); align-items: start; }
+@media (max-width: 1000px) { .connector-detail-layout { grid-template-columns: 1fr; } }
+.connector-detail-layout textarea { width: 100%; min-height: 88px; }

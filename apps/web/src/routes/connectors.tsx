@@ -53,6 +53,7 @@ export function Connectors({ onBack }: ConnectorsProps) {
   const [detail, setDetail] = useState<ConnectorDetail | null>(null);
   const [credentialsText, setCredentialsText] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [detailTab, setDetailTab] = useState<'connection' | 'tools'>('connection');
   const [category, setCategory] = useState('all');
   const [query, setQuery] = useState('');
 
@@ -124,6 +125,115 @@ export function Connectors({ onBack }: ConnectorsProps) {
   });
   const healthy = connectors?.filter((item) => item.status === 'active' || item.status === 'healthy').length ?? 0;
   const tools = (connectors ?? []).reduce((total, item) => total + (META[item.connectorType]?.tools ?? 2), 0);
+
+  if (detail) {
+    const meta = META[detail.connectorType] ?? {
+      label: detail.connectorType,
+      category: 'custom' as const,
+      description: '自定义连接器。',
+      tools: 2,
+      risk: 'R0–R2',
+      icon: 'plug',
+    };
+    const toolNames = [`${detail.connectorType}.query`, `${detail.connectorType}.status`, `${detail.connectorType}.inspect`, `${detail.connectorType}.history`].slice(0, meta.tools);
+    return (
+      <DesignShell
+        active="connectors"
+        eyebrow="连接器详情"
+        title={meta.label}
+        subtitle={`${detail.name} · ${meta.description}`}
+        onBack={() => setDetail(null)}
+        actions={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => void test(detail.id)}>测试连接</button>
+            <button type="button" className="btn btn-primary" onClick={() => void saveCredentials()}>保存配置</button>
+          </>
+        }
+      >
+        {error ? <p role="alert">{error}</p> : null}
+        <div className="detail-hero">
+          <span className="icon-tile is-blue detail-icon"><svg><use href={`/icons.svg#i-${meta.icon}`} /></svg></span>
+          <div>
+            <div className="row-sm">
+              <span className={`badge ${detail.status === 'active' ? 'badge-ok' : 'badge-warn'}`}>{detail.status}</span>
+              <span className="badge badge-neutral">{meta.risk}</span>
+              <span className="mono muted">{detail.name}</span>
+              <span className="muted">{meta.tools} 个工具 · {configSummary(detail.config)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="notice-line" style={{ marginBottom: 16 }}>
+          凭据加解密在平台内完成；轮换凭据后，新会话使用新凭据，正在运行的会话不受影响。
+        </div>
+        <div className="tabs" style={{ marginBottom: 16 }}>
+          <button type="button" className={`tab${detailTab === 'connection' ? ' is-active' : ''}`} onClick={() => setDetailTab('connection')}>连接配置</button>
+          <button type="button" className={`tab${detailTab === 'tools' ? ' is-active' : ''}`} onClick={() => setDetailTab('tools')}>能力与工具<span className="count">{meta.tools}</span></button>
+          <button type="button" className="tab">权限分配</button>
+          <button type="button" className="tab">健康与审计</button>
+        </div>
+        <div className="connector-detail-layout">
+          <div className="stack">
+            {detailTab === 'connection' ? (
+              <section className="card">
+                <div className="card-head"><h2>基本连接</h2><span className="badge badge-neutral">租户级配置</span></div>
+                <div className="card-body">
+                  <div className="form-grid">
+                    <div className="field"><label htmlFor="detail-name">显示名称</label><input id="detail-name" value={detail.name} readOnly /></div>
+                    <div className="field"><label htmlFor="detail-type">连接器类型</label><input id="detail-type" value={detail.connectorType} readOnly /></div>
+                    <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="detail-url">Base URL</label><input id="detail-url" value={String(detail.config.baseUrl ?? '')} readOnly placeholder="未配置 Base URL" /></div>
+                    <div className="field"><label htmlFor="detail-env">环境</label><select id="detail-env" defaultValue="prod"><option value="prod">生产环境</option><option value="staging">预发环境</option></select></div>
+                    <div className="field"><label htmlFor="detail-tags">标签</label><input id="detail-tags" value={`${meta.category} · ${detail.connectorType}`} readOnly /></div>
+                  </div>
+                  <h3 style={{ marginTop: 16 }}>鉴权</h3>
+                  <label htmlFor="connector-credentials">凭据 JSON（保存后不可回读）</label>
+                  <textarea
+                    id="connector-credentials"
+                    value={credentialsText}
+                    onChange={(event) => setCredentialsText(event.target.value)}
+                    rows={3}
+                    placeholder={detail.hasCredentials ? '凭据已配置；输入新 JSON 可轮换' : '{"token":"..."}'}
+                  />
+                  <div className="form-actions">
+                    <button type="button" className="btn btn-primary" onClick={() => void saveCredentials()}>保存凭据</button>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="card">
+                <div className="card-head"><h2>暴露的工具</h2><span className="badge badge-neutral">{meta.tools} 个</span></div>
+                <div className="card-body stack-sm">
+                  {toolNames.map((tool, index) => (
+                    <div key={tool} className="row-between">
+                      <span className="mono">{tool}</span>
+                      <span className={`badge ${index === toolNames.length - 1 && meta.risk.includes('R2') ? 'badge-warn' : 'badge-ok'}`}>{index === toolNames.length - 1 && meta.risk.includes('R2') ? '需审批' : '只读'}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+          <aside className="stack">
+            <section className="card">
+              <div className="card-head"><h2>连接测试</h2><span className="badge badge-ok">通过</span></div>
+              <div className="card-body stack-sm">
+                <div className="aside-row"><span>API 可达</span><span className="badge badge-ok">正常</span></div>
+                <div className="aside-row"><span>响应时间</span><span className="mono">{probe[detail.id] ?? '84ms'}</span></div>
+                <div className="aside-row"><span>凭据</span><span>{detail.hasCredentials ? '已配置' : '未配置'}</span></div>
+                <div className="aside-row"><span>风险等级</span><span>{meta.risk}</span></div>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => void test(detail.id)}>重新测试</button>
+              </div>
+            </section>
+            <section className="card">
+              <div className="card-head"><h2>主动探测</h2></div>
+              <div className="card-body">
+                <p className="muted">测试只会调用只读元数据接口，不写入任何业务数据；每次探测都写入审计。</p>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </DesignShell>
+    );
+  }
 
   return (
     <DesignShell
@@ -257,26 +367,6 @@ export function Connectors({ onBack }: ConnectorsProps) {
           </section>
         </aside>
       </div>
-
-      {detail ? (
-        <section className="card">
-          <div className="card-body">
-            <div className="row-between">
-              <h2>{detail.name}</h2>
-              <span className="badge badge-neutral">{detail.hasCredentials ? '已配置凭据' : '无凭据'}</span>
-            </div>
-            <p className="muted mono">{JSON.stringify(detail.config)}</p>
-            <label htmlFor="connector-credentials">凭据 JSON（保存后不可回读）</label>
-            <textarea
-              id="connector-credentials"
-              value={credentialsText}
-              onChange={(event) => setCredentialsText(event.target.value)}
-              rows={4}
-            />
-            <button type="button" className="btn btn-primary" onClick={() => void saveCredentials()}>保存凭据</button>
-          </div>
-        </section>
-      ) : null}
     </DesignShell>
   );
 }

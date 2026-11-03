@@ -6,6 +6,7 @@ export interface AgentCommandRecord {
   readonly type: string;
   readonly status: string;
   readonly result: unknown;
+  readonly createdAt: string;
 }
 
 export class AgentCommandService {
@@ -24,7 +25,7 @@ export class AgentCommandService {
     const result = await this.pool.query(
       `INSERT INTO agent_commands (tenant_id, agent_id, type)
        VALUES ($1, $2, $3)
-       RETURNING id, agent_id, type, status, result`,
+       RETURNING id, agent_id, type, status, result, created_at`,
       [input.tenantId, input.agentId, input.type],
     );
     return this.map(result.rows[0]);
@@ -32,7 +33,7 @@ export class AgentCommandService {
 
   async list(tenantId: string, agentId: string): Promise<AgentCommandRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, agent_id, type, status, result FROM agent_commands
+      `SELECT id, agent_id, type, status, result, created_at FROM agent_commands
        WHERE tenant_id = $1 AND agent_id = $2 ORDER BY created_at DESC LIMIT 50`,
       [tenantId, agentId],
     );
@@ -52,7 +53,7 @@ export class AgentCommandService {
          WHERE agent_id = $1 AND status = 'pending'
          ORDER BY created_at ASC LIMIT 1
        )
-       RETURNING id, agent_id, type, status, result`,
+       RETURNING id, agent_id, type, status, result, created_at`,
       [agentId],
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
@@ -73,7 +74,7 @@ export class AgentCommandService {
       `UPDATE agent_commands
        SET status = 'completed', result = $1::jsonb, completed_at = now()
        WHERE id = $2 AND agent_id = $3
-       RETURNING id, agent_id, type, status, result`,
+       RETURNING id, agent_id, type, status, result, created_at`,
       [JSON.stringify(input.result), input.commandId, input.agentId],
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
@@ -85,6 +86,7 @@ export class AgentCommandService {
     type: string;
     status: string;
     result: unknown;
+    created_at: string;
   }): AgentCommandRecord {
     return {
       id: row.id,
@@ -92,6 +94,8 @@ export class AgentCommandService {
       type: row.type,
       status: row.status,
       result: row.result,
+      createdAt: row.created_at,
     };
   }
 }
+

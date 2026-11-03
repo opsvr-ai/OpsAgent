@@ -414,6 +414,7 @@ export interface AgentCommandSummary {
   readonly type: string;
   readonly status: string;
   readonly result: unknown;
+  readonly createdAt: string;
 }
 
 export async function listAgentCommands(agentId: string): Promise<AgentCommandSummary[]> {

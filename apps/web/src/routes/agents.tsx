@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   createAgentCommand,
   getAgentInstallCommand,
+  listAgentCommands,
   listAgents,
   type AgentCommandSummary,
   type AgentSummary,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
+import { relativeTime } from '../format.js';
 
 export interface AgentsProps {
   readonly onBack: () => void;
@@ -35,6 +37,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [agents, setAgents] = useState<AgentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [commands, setCommands] = useState<Record<string, AgentCommandSummary>>({});
+  const [history, setHistory] = useState<Record<string, AgentCommandSummary[]>>({});
   const [install, setInstall] = useState<{ linux: string; windows: string } | null>(null);
 
   useEffect(() => {
@@ -43,11 +46,22 @@ export function Agents({ onBack }: AgentsProps) {
       .catch(() => setError('Agent 加载失败'));
   }, []);
 
+  async function openHistory(id: string) {
+    setError(null);
+    try {
+      const items = await listAgentCommands(id);
+      setHistory((current) => ({ ...current, [id]: items.slice(0, 5) }));
+    } catch {
+      setError('命令历史加载失败');
+    }
+  }
+
   async function runDiagnostics(id: string) {
     setError(null);
     try {
       const command = await createAgentCommand(id, 'diagnostics');
       setCommands((current) => ({ ...current, [id]: command }));
+      setHistory((current) => ({ ...current, [id]: [command, ...(current[id] ?? [])].slice(0, 5) }));
     } catch {
       setError('命令下发失败');
     }
@@ -58,6 +72,7 @@ export function Agents({ onBack }: AgentsProps) {
     try {
       const command = await createAgentCommand(id, 'ai_diagnose');
       setCommands((current) => ({ ...current, [id]: command }));
+      setHistory((current) => ({ ...current, [id]: [command, ...(current[id] ?? [])].slice(0, 5) }));
     } catch {
       setError('AI 诊断下发失败');
     }
@@ -129,7 +144,20 @@ export function Agents({ onBack }: AgentsProps) {
               <div className="row-sm">
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => void runDiagnostics(agent.id)}>执行诊断</button>
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => void runAiDiagnosis(agent.id)}>AI 诊断</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => void openHistory(agent.id)}>命令历史</button>
               </div>
+              {history[agent.id] ? (
+                <div className="stack-sm" style={{ marginTop: 12, borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
+                  {history[agent.id]?.length === 0 ? <p className="muted">暂无命令</p> : null}
+                  {(history[agent.id] ?? []).map((command) => (
+                    <div key={command.id} className="row-between">
+                      <span className="mono">{command.type === 'ai_diagnose' ? 'AI 诊断' : '主机诊断'}</span>
+                      <span className={`badge ${command.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{command.status}</span>
+                      <span className="muted">{relativeTime(command.createdAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </article>
         ))}

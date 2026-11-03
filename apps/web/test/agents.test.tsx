@@ -45,6 +45,7 @@ describe('Agents', () => {
       type: 'diagnostics',
       status: 'pending',
       result: null,
+      createdAt: new Date().toISOString(),
     });
     fireEvent.click(screen.getByRole('button', { name: '执行诊断' }));
     expect(await screen.findByText(/诊断命令/)).toBeInTheDocument();

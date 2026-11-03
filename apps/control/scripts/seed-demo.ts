@@ -35,6 +35,8 @@ const ids = {
   agentDemo: 'b0000000-0000-4000-8000-000000000001',
   studio1: 'c0000000-0000-4000-8000-000000000001',
   studio2: 'c0000000-0000-4000-8000-000000000002',
+  command1: 'd0000000-0000-4000-8000-000000000001',
+  command2: 'd0000000-0000-4000-8000-000000000002',
 };
 
 const pool = new Pool({ connectionString: databaseUrl });
@@ -184,10 +186,19 @@ async function main(): Promise<void> {
       `INSERT INTO agents
          (id, tenant_id, name, hostname, os, arch, version, status, capabilities, agent_key, last_seen, metrics)
        VALUES ($1, $2, 'prod-web-01', 'prod-web-01', 'linux', 'amd64', '0.1.0', 'online',
-               '["cpu","memory","disk"]'::jsonb, 'demo-agent-key', now(),
+               '["cpu","memory","disk"]'::jsonb, 'demo-agent-key', now() + interval '1 day',
                '{"cpuCores":8,"heapMB":24,"goroutines":12,"uptimeSec":86400,"memTotalGB":16,"memAvailableGB":9.2,"memLoadPct":42,"diskTotalGB":200,"diskFreeGB":128}'::jsonb)
-       ON CONFLICT (id) DO NOTHING`,
+       ON CONFLICT (id) DO UPDATE SET status = 'online', last_seen = now() + interval '1 day', metrics = EXCLUDED.metrics`,
       [ids.agentDemo, tenant],
+    );
+
+    await client.query(
+      `INSERT INTO agent_commands (id, tenant_id, agent_id, type, status, result, created_at, dispatched_at, completed_at)
+       VALUES
+         ($1, $2, $3, 'diagnostics', 'completed', '{"host":"prod-web-01","cpu":"ok","memory":"ok"}'::jsonb, now() - interval '18 minutes', now() - interval '18 minutes', now() - interval '17 minutes'),
+         ($4, $2, $3, 'ai_diagnose', 'completed', '{"summary":"磁盘与内存健康，建议继续观察 5xx 错误率"}'::jsonb, now() - interval '9 minutes', now() - interval '9 minutes', now() - interval '8 minutes')
+       ON CONFLICT (id) DO NOTHING`,
+      [ids.command1, tenant, ids.agentDemo, ids.command2],
     );
 
     await client.query(

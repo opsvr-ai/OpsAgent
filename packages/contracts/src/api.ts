@@ -28,6 +28,10 @@ export interface HomeResponse {
     readonly scenarios: number;
     readonly pendingApprovals: number;
     readonly activeSessions: number;
+    readonly agentsOnline: number;
+    readonly agentsTotal: number;
+    readonly tasksActive: number;
+    readonly messagesUnread: number;
   };
   readonly recentIncidents: readonly {
     readonly id: string;

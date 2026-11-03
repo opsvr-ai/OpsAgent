@@ -64,6 +64,8 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
     tasks: 'clock',
     audit: 'shield',
   };
+  const now = new Date();
+  const today = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 · ${now.toLocaleDateString('zh-CN', { weekday: 'long' })}`;
 
   return (
     <div className="app">
@@ -168,6 +170,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <div className="page-head">
               <div>
                 <div className="eyebrow">OpsAgent · AIOps Control Plane</div>
+                <div className="muted" style={{ marginTop: 4 }}>{today}</div>
                 <h1 style={{ marginTop: 8 }}>早上好，{name}</h1>
                 <p className="sub">
                   当前租户 {tenant?.name ?? home.tenantId}，视角 {home.roleView}。
@@ -186,16 +189,16 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             </div>
 
             <div className="status-strip" style={{ marginBottom: 24 }}>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Agent 运行</strong><span>{home.metrics.agentsOnline} / {home.metrics.agentsTotal} 在线</span></div></div>
               <div className="status-cell"><span className="dot dot-ok" /><div><strong>连接器</strong><span>{home.metrics.connectors} 个已配置</span></div></div>
               <div className="status-cell"><span className="dot dot-warn" /><div><strong>待处置事件</strong><span>{home.metrics.incidentsOpen} 个</span></div></div>
-              <div className="status-cell"><span className="dot dot-ok" /><div><strong>场景</strong><span>{home.metrics.scenarios} 个</span></div></div>
               <div className="status-cell"><span className="dot dot-warn" /><div><strong>待审批</strong><span>{home.metrics.pendingApprovals} 项</span></div></div>
             </div>
 
             <div className="grid grid-main-side">
               <div className="stack">
                 <section className="card">
-                  <div className="card-head"><h2>需要关注</h2><span className="muted">{home.metrics.incidentsOpen} 个未关闭</span></div>
+                  <div className="card-head"><h2>最近事件</h2><span className="muted">{home.recentIncidents.length} 条</span></div>
                   <div className="card-body">
                     {home.recentIncidents.length === 0 ? <p className="muted">暂无事件</p> : (
                       <table className="table">
@@ -276,6 +279,8 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
                       <div className="health-bar is-amber"><span style={{ width: `${Math.min(100, home.metrics.pendingApprovals * 12)}%` }} /></div>
                     </div>
                     <div className="aside-row" style={{ marginTop: 12 }}><span>进行中会话</span><span className="mono">{home.metrics.activeSessions}</span></div>
+                    <div className="aside-row"><span>活跃长任务</span><span className="mono">{home.metrics.tasksActive}</span></div>
+                    <div className="aside-row"><span>未读消息</span><span className="mono">{home.metrics.messagesUnread}</span></div>
                     <div className="aside-row"><span>当前视角</span><span>{home.roleView}</span></div>
                   </div>
                 </section>

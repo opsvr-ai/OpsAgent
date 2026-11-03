@@ -92,13 +92,21 @@ export function registerTenantRoutes(
           scenarios: string;
           pending_approvals: string;
           active_sessions: string;
+          agents_online: string;
+          agents_total: string;
+          tasks_active: string;
+          messages_unread: string;
         }>(
           `SELECT
              (SELECT count(*) FROM connectors WHERE tenant_id = $1) AS connectors,
              (SELECT count(*) FROM incidents WHERE tenant_id = $1 AND status NOT IN ('resolved', 'closed')) AS incidents_open,
              (SELECT count(*) FROM scenarios WHERE tenant_id = $1) AS scenarios,
              (SELECT count(*) FROM approvals WHERE tenant_id = $1 AND status = 'pending') AS pending_approvals,
-             (SELECT count(*) FROM runtime_sessions WHERE tenant_id = $1 AND status = 'active') AS active_sessions`,
+             (SELECT count(*) FROM runtime_sessions WHERE tenant_id = $1 AND status = 'active') AS active_sessions,
+             (SELECT count(*) FROM agents WHERE tenant_id = $1 AND status = 'online') AS agents_online,
+             (SELECT count(*) FROM agents WHERE tenant_id = $1) AS agents_total,
+             (SELECT count(*) FROM long_tasks WHERE tenant_id = $1 AND status IN ('queued', 'running', 'awaiting_approval')) AS tasks_active,
+             (SELECT count(*) FROM messages WHERE tenant_id = $1 AND read_at IS NULL) AS messages_unread`,
           [context.tenantId],
         ),
         pool.query<{ id: string; title: string; severity: string; status: string }>(
@@ -128,6 +136,10 @@ export function registerTenantRoutes(
           scenarios: Number(row?.scenarios ?? 0),
           pendingApprovals: Number(row?.pending_approvals ?? 0),
           activeSessions: Number(row?.active_sessions ?? 0),
+          agentsOnline: Number(row?.agents_online ?? 0),
+          agentsTotal: Number(row?.agents_total ?? 0),
+          tasksActive: Number(row?.tasks_active ?? 0),
+          messagesUnread: Number(row?.messages_unread ?? 0),
         },
         recentIncidents: incidents.rows,
         recentSessions: sessions.rows.map((item) => ({

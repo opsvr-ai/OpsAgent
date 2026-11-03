@@ -253,3 +253,35 @@ export interface ApprovalSummary {
 export async function listApprovals(): Promise<ApprovalSummary[]> {
   return request<ApprovalSummary[]>('/api/approvals');
 }
+
+export interface ConnectorSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly connectorType: string;
+  readonly status: string;
+  readonly config: Readonly<Record<string, unknown>>;
+  readonly credentialRef: string | null;
+}
+
+export async function listConnectors(): Promise<ConnectorSummary[]> {
+  return request<ConnectorSummary[]>('/api/connectors');
+}
+
+export async function createConnector(input: {
+  connectorType: string;
+  name: string;
+  config: Readonly<Record<string, unknown>>;
+}): Promise<ConnectorSummary> {
+  return request<ConnectorSummary>('/api/connectors', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function testConnector(
+  id: string,
+): Promise<{ status: string; latencyMs: number }> {
+  return request<{ status: string; latencyMs: number }>(`/api/connectors/${id}/test`, {
+    method: 'POST',
+  });
+}

@@ -41,6 +41,7 @@ describe('Home', () => {
         onOpenStudio={vi.fn()}
         onOpenIncidents={vi.fn()}
         onOpenApprovals={vi.fn()}
+        onOpenConnectors={vi.fn()}
       />,
     );
 

@@ -10,9 +10,10 @@ export interface HomeProps {
   readonly onOpenStudio: () => void;
   readonly onOpenIncidents: () => void;
   readonly onOpenApprovals: () => void;
+  readonly onOpenConnectors: () => void;
 }
 
-export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals }: HomeProps) {
+export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio, onOpenIncidents, onOpenApprovals, onOpenConnectors }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
   const name = me.user.displayName || me.user.username;
 
@@ -48,6 +49,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
             <button type="button" className="nav-item" onClick={onOpenScenarios}><span>场景中心</span></button>
             <button type="button" className="nav-item" onClick={onOpenIncidents}><span>事件指挥</span></button>
             <button type="button" className="nav-item" onClick={onOpenApprovals}><span>待审批</span></button>
+            <button type="button" className="nav-item" onClick={onOpenConnectors}><span>集成与连接器</span></button>
             <button type="button" className="nav-item" onClick={onOpenShares}><span>共享审批</span></button>
             <button type="button" className="nav-item" onClick={onOpenStudio}><span>创造模式</span></button>
             <button type="button" className="nav-item" onClick={onOpenAudit}><span>审计</span></button>

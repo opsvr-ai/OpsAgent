@@ -64,7 +64,14 @@ export function DesignShell({ active, eyebrow, title, subtitle, onBack, actions,
                 key={item.id}
                 type="button"
                 className={`nav-item${item.id === active ? ' is-active' : ''}`}
-                onClick={item.id === 'home' ? onBack : undefined}
+                onClick={() => {
+                  if (item.id === active) return;
+                  if (item.id === 'home') {
+                    onBack();
+                    return;
+                  }
+                  window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: item.id }));
+                }}
               >
                 <svg><use href={`/icons.svg#i-${item.icon}`} /></svg>
                 {item.label}

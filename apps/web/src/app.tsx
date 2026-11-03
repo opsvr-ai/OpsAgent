@@ -55,6 +55,20 @@ export function App() {
     void refresh().catch(() => setMe(null));
   }, []);
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      const allowed = new Set([
+        'home', 'scenarios', 'audit', 'shares', 'studio', 'incidents', 'approvals',
+        'connectors', 'knowledge', 'messages', 'agents', 'tasks', 'sessions',
+        'members', 'models', 'data', 'appearance',
+      ]);
+      if (allowed.has(id)) setView(id as typeof view);
+    };
+    window.addEventListener('opsagent:navigate', handler);
+    return () => window.removeEventListener('opsagent:navigate', handler);
+  }, []);
+
   if (me === undefined) return <div className="loading">加载中…</div>;
   if (me === null) return <Login onSuccess={() => void refresh()} />;
   if (me.tenants.length === 0 && !home) {

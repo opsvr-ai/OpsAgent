@@ -38,74 +38,143 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   }
 
   return (
-    <div className="shell">
+    <div className="app">
       <aside className="sidebar">
-        <div className="brand">OpsAgent</div>
-        <div className="tenant">
-          <strong>智能体会话</strong>
-          <span>{roleView}</span>
+        <div className="brand">
+          <div className="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7l5 5-5 5" />
+              <path d="M12 17h8" />
+            </svg>
+          </div>
+          <div>
+            <div className="brand-name">OpsAgent</div>
+            <span className="brand-sub">AIOps Control Plane</span>
+          </div>
         </div>
-        <button type="button" onClick={onBack}>返回工作台</button>
+        <button type="button" className="tenant-switch" onClick={onBack}>
+          <span className="avatar">会</span>
+          <span className="tenant-meta">
+            <strong>智能体会话</strong>
+            <span>{roleView}</span>
+          </span>
+        </button>
+        <nav className="nav">
+          <div className="nav-group">
+            <div className="nav-label">工作空间</div>
+            <button type="button" className="nav-item" onClick={onBack}>工作台</button>
+            <button type="button" className="nav-item is-active">智能体会话</button>
+          </div>
+        </nav>
       </aside>
-      <main className="page">
-        <header>
-          <div className="eyebrow">Session</div>
-          <h1>运维会话</h1>
-          <span className="muted mono">{sessionId}</span>
+
+      <section className="main">
+        <header className="topbar">
+          <div className="crumbs">
+            <span>智能体会话</span>
+            <span className="sep">/</span>
+            <span className="current mono">{sessionId.slice(0, 18)}</span>
+          </div>
+          <div className="topbar-spacer" />
+          <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />{roleView}</span>
         </header>
 
-        <section className="events" aria-live="polite">
-          {events.map((item, index) => {
-            if (item.type === 'assistant.delta') {
-              return <p key={index}>{item.text}</p>;
-            }
-            if (item.type === 'tool.call') {
-              return (
-                <div key={index} className="event" data-testid="tool-call">
-                  <strong>{item.tool}</strong>
-                  <span className="muted"> · {item.risk} · 调用</span>
-                </div>
-              );
-            }
-            if (item.type === 'tool.result') {
-              return (
-                <div key={index} className="event">
-                  <strong>{item.tool}</strong>
-                  <span className="muted"> · 已返回</span>
-                </div>
-              );
-            }
-            if (item.type === 'approval.request') {
-              return (
-                <div key={index} className="event approval">
-                  <strong>需要审批：{item.action}</strong>
-                  <span className="muted"> · {item.risk}</span>
-                  <div className="actions">
-                    <button type="button" onClick={() => void decide('approve')}>批准</button>
-                    <button type="button" onClick={() => void decide('deny')}>拒绝</button>
-                  </div>
-                </div>
-              );
-            }
-            if (item.type === 'session.done') {
-              return <p key={index} className="done">完成</p>;
-            }
-            return <p key={index} className="muted">运行时错误：{item.code}</p>;
-          })}
-        </section>
+        <main className="chat-layout">
+          <div className="chat-main">
+            <header className="chat-head">
+              <div>
+                <div className="eyebrow">Session</div>
+                <h2>运维会话</h2>
+              </div>
+              <span className="badge badge-neutral mono">{sessionId.slice(0, 12)}</span>
+            </header>
 
-        <form className="composer" onSubmit={send}>
-          <label htmlFor="prompt">输入</label>
-          <textarea
-            id="prompt"
-            rows={3}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={busy}
-          />
-          <button type="submit" disabled={busy}>发送</button>
-        </form>
-      </main>
+            <div className="chat-log">
+              <div className="chat-inner" aria-live="polite">
+                {events.length === 0 ? (
+                  <div className="msg">
+                    <div className="msg-body">
+                      <div className="msg-meta"><strong>OpsAgent</strong><span>ready</span></div>
+                      <div className="msg-text">
+                        <p>描述告警、服务或主机问题。R2/R3 操作会先请求审批，所有工具调用写入审计。</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {events.map((item, index) => {
+                  if (item.type === 'assistant.delta') {
+                    return (
+                      <div key={index} className="msg">
+                        <div className="msg-body">
+                          <div className="msg-meta"><strong>OpsAgent</strong><span>assistant</span></div>
+                          <div className="msg-text"><p>{item.text}</p></div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (item.type === 'tool.call') {
+                    return (
+                      <div key={index} className="msg" data-testid="tool-call">
+                        <div className="msg-body">
+                          <div className="msg-meta"><strong>{item.tool}</strong><span className="badge badge-neutral">{item.risk} · 调用</span></div>
+                          <div className="msg-text"><p>调用参数：{JSON.stringify(item.args)}</p></div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (item.type === 'tool.result') {
+                    return (
+                      <div key={index} className="msg">
+                        <div className="msg-body">
+                          <div className="msg-meta"><strong>{item.tool}</strong><span>已返回</span></div>
+                          <div className="msg-text"><p>{JSON.stringify(item.result)}</p></div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (item.type === 'approval.request') {
+                    return (
+                      <div key={index} className="card" style={{ margin: '12px 0' }}>
+                        <div className="card-body">
+                          <div className="eyebrow">需要审批 · {item.risk}</div>
+                          <h3>{item.action}</h3>
+                          <div className="row-sm">
+                            <button type="button" className="btn btn-primary" onClick={() => void decide('approve')}>批准</button>
+                            <button type="button" className="btn btn-outline" onClick={() => void decide('deny')}>拒绝</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (item.type === 'session.done') {
+                    return <p key={index} className="muted" style={{ textAlign: 'center' }}>完成</p>;
+                  }
+                  return <p key={index} role="alert">运行时错误：{item.code}</p>;
+                })}
+              </div>
+            </div>
+
+            <div className="composer-wrap">
+              <form className="composer" onSubmit={send}>
+                <label htmlFor="prompt" className="eyebrow">输入</label>
+                <textarea
+                  id="prompt"
+                  rows={3}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  disabled={busy}
+                  placeholder="例如：订单服务 5xx 升高，先确认数据库连接池与最近变更"
+                />
+                <div className="composer-bar">
+                  <span className="composer-hint">工具调用受租户与角色约束</span>
+                  <button className="btn btn-primary" type="submit" disabled={busy}>发送</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </main>
+      </section>
     </div>
   );
 }

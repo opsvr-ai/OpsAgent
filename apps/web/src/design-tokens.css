@@ -1,0 +1,225 @@
+/* OpsAgent design tokens — control-room dark
+   One source of truth for color, type, spacing, radius and elevation. */
+
+:root {
+  color-scheme: dark;
+
+  /* Canvas & surfaces */
+  --bg: #0a0c0f;
+  --bg-subtle: #0d1014;
+  --surface: #11151a;
+  --surface-2: #161b21;
+  --surface-3: #1c222a;
+  --surface-hover: #1a2028;
+  --line: #232a33;
+  --line-soft: rgba(255, 255, 255, 0.06);
+  --line-strong: #303a46;
+
+  /* Text */
+  --text: #e9edf2;
+  --text-soft: #c2c9d2;
+  --muted: #929ca9;
+  --faint: #7f8b99;
+
+  /* Brand & semantics */
+  --primary: #5b8cff;
+  --primary-hover: #7ba3ff;
+  --primary-ink: #07101f;
+  --primary-soft: rgba(91, 140, 255, 0.13);
+  --primary-line: rgba(91, 140, 255, 0.4);
+  --accent: #ffb020;
+  --accent-soft: rgba(255, 176, 32, 0.12);
+  --ok: #2fd08a;
+  --ok-soft: rgba(47, 208, 138, 0.12);
+  --warn: #ffb020;
+  --warn-soft: rgba(255, 176, 32, 0.12);
+  --danger: #ff5d5d;
+  --danger-soft: rgba(255, 93, 93, 0.12);
+  --info: #5b8cff;
+  --info-soft: rgba(91, 140, 255, 0.12);
+  --neutral-soft: rgba(255, 255, 255, 0.05);
+  --blue-text: #85aaff;
+  --row-hover: rgba(255, 255, 255, 0.022);
+  --topbar-bg: rgba(10, 12, 15, 0.72);
+  --scroll-thumb: #2a323d;
+  --scroll-thumb-hover: #3a4553;
+  --stage-bg: #060709;
+  --grid-line: rgba(255, 255, 255, 0.028);
+  --cmd-bg: rgba(0, 0, 0, 0.3);
+  --code-inline: #c9d6ff;
+  --code-text: #b9c4d4;
+  --code-key: #7aa2ff;
+  --code-string: #9ee6b8;
+  --code-number: #ffc46b;
+  --code-comment: #8b95a3;
+  --code-punct: #c4b5fd;
+
+  /* Type */
+  --font-sans: "Inter", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --fs-11: 12px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --fs-26: 26px;
+  --fs-34: 34px;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.45;
+  --lh-body: 1.65;
+
+  --tracking-label: 0.08em;
+  --tracking-tight: -0.02em;
+
+  /* Spacing — 4px scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shape */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* Elevation — dark surfaces separate by tone, shadows only for popovers */
+  --shadow-1: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+
+  /* Layout */
+  --sidebar-w: 236px;
+  --topbar-h: 56px;
+  --content-max: 1360px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur: 180ms;
+}
+
+/* Light is the platform default. The resolved theme (light/dark) is chosen by
+   the client for system/time-adaptive modes; dark is opt-in via data-theme. */
+:root {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --bg-subtle: #fbfbfc;
+  --surface: #ffffff;
+  --surface-2: #f4f6f8;
+  --surface-3: #eaeef3;
+  --surface-hover: #f0f3f7;
+  --line: #e1e6ec;
+  --line-soft: rgba(15, 23, 42, 0.07);
+  --line-strong: #cbd4de;
+
+  --text: #17202b;
+  --text-soft: #394452;
+  --muted: #5f6b7a;
+  --faint: #64707f;
+
+  --primary: #245bdb;
+  --primary-hover: #1e4fc4;
+  --primary-ink: #ffffff;
+  --primary-soft: rgba(36, 91, 219, 0.09);
+  --primary-line: rgba(36, 91, 219, 0.35);
+  --accent: #8a5300;
+  --accent-soft: rgba(138, 83, 0, 0.1);
+  --ok: #087a52;
+  --ok-soft: rgba(8, 122, 82, 0.1);
+  --warn: #8a5300;
+  --warn-soft: rgba(138, 83, 0, 0.1);
+  --danger: #b42318;
+  --danger-soft: rgba(180, 35, 24, 0.08);
+  --info: #245bdb;
+  --info-soft: rgba(36, 91, 219, 0.08);
+  --neutral-soft: rgba(15, 23, 42, 0.05);
+
+  --blue-text: #1d4ed8;
+  --row-hover: rgba(15, 23, 42, 0.025);
+  --topbar-bg: rgba(246, 247, 249, 0.84);
+  --scroll-thumb: #c7d0da;
+  --scroll-thumb-hover: #aebac7;
+  --stage-bg: #eef2f6;
+  --grid-line: rgba(15, 23, 42, 0.05);
+  --cmd-bg: #f1f4f8;
+
+  --code-inline: #1d4ed8;
+  --code-text: #334155;
+  --code-key: #1d4ed8;
+  --code-string: #047857;
+  --code-number: #b45309;
+  --code-comment: #64748b;
+  --code-punct: #7c3aed;
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 30px -22px rgba(16, 24, 40, 0.22);
+  --shadow-pop: 0 24px 60px -24px rgba(16, 24, 40, 0.25);
+}
+
+/* Explicit dark theme. Used by the theme preference "深色" and by
+   time/system-adaptive modes when they resolve to dark. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0c0f;
+  --bg-subtle: #0d1014;
+  --surface: #11151a;
+  --surface-2: #161b21;
+  --surface-3: #1c222a;
+  --surface-hover: #1a2028;
+  --line: #232a33;
+  --line-soft: rgba(255, 255, 255, 0.06);
+  --line-strong: #303a46;
+
+  --text: #e9edf2;
+  --text-soft: #c2c9d2;
+  --muted: #929ca9;
+  --faint: #7f8b99;
+
+  --primary: #5b8cff;
+  --primary-hover: #7ba3ff;
+  --primary-ink: #07101f;
+  --primary-soft: rgba(91, 140, 255, 0.13);
+  --primary-line: rgba(91, 140, 255, 0.4);
+  --accent: #ffb020;
+  --accent-soft: rgba(255, 176, 32, 0.12);
+  --ok: #2fd08a;
+  --ok-soft: rgba(47, 208, 138, 0.12);
+  --warn: #ffb020;
+  --warn-soft: rgba(255, 176, 32, 0.12);
+  --danger: #ff5d5d;
+  --danger-soft: rgba(255, 93, 93, 0.12);
+  --info: #5b8cff;
+  --info-soft: rgba(91, 140, 255, 0.12);
+  --neutral-soft: rgba(255, 255, 255, 0.05);
+
+  --blue-text: #85aaff;
+  --row-hover: rgba(255, 255, 255, 0.022);
+  --topbar-bg: rgba(10, 12, 15, 0.72);
+  --scroll-thumb: #2a323d;
+  --scroll-thumb-hover: #3a4553;
+  --stage-bg: #060709;
+  --grid-line: rgba(255, 255, 255, 0.028);
+  --cmd-bg: rgba(0, 0, 0, 0.3);
+
+  --code-inline: #c9d6ff;
+  --code-text: #b9c4d4;
+  --code-key: #7aa2ff;
+  --code-string: #9ee6b8;
+  --code-number: #ffc46b;
+  --code-comment: #8b95a3;
+  --code-punct: #c4b5fd;
+
+  --shadow-1: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+}

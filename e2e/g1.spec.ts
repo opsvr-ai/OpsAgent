@@ -8,12 +8,12 @@ async function login(page: import('@playwright/test').Page): Promise<void> {
   await page.getByLabel('用户名').fill(username);
   await page.getByLabel('密码').fill(password);
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: 'tenant_admin' })).toBeVisible();
+  await expect(page.getByText('tenant_admin').first()).toBeVisible();
 }
 
 test('G1: login -> home -> session -> mock echo', async ({ page }) => {
   await login(page);
-  await page.getByRole('button', { name: '进入会话' }).click();
+  await page.getByRole('button', { name: '新建会话' }).click();
   await page.getByLabel('输入').fill('echo hello');
   await page.getByRole('button', { name: '发送' }).click();
 
@@ -24,7 +24,7 @@ test('G1: login -> home -> session -> mock echo', async ({ page }) => {
 
 test('G1: mock.restart requires approval', async ({ page }) => {
   await login(page);
-  await page.getByRole('button', { name: '进入会话' }).click();
+  await page.getByRole('button', { name: '新建会话' }).click();
   await page.getByLabel('输入').fill('restart service');
   await page.getByRole('button', { name: '发送' }).click();
 
@@ -36,7 +36,7 @@ test('G1: mock.restart requires approval', async ({ page }) => {
 
 test('G1: denied restart does not execute the tool', async ({ page }) => {
   await login(page);
-  await page.getByRole('button', { name: '进入会话' }).click();
+  await page.getByRole('button', { name: '新建会话' }).click();
   await page.getByLabel('输入').fill('restart service');
   await page.getByRole('button', { name: '发送' }).click();
 

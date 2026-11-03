@@ -33,9 +33,9 @@ describe('Home', () => {
       />,
     );
 
-    expect(screen.getByText('tenant_admin')).toBeInTheDocument();
+    expect(screen.getAllByText('tenant_admin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('事件指挥').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: '进入会话' }));
+    fireEvent.click(screen.getByRole('button', { name: '新建会话' }));
     expect(onStartSession).toHaveBeenCalledOnce();
   });
 });

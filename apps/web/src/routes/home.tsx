@@ -12,43 +12,119 @@ export interface HomeProps {
 
 export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, onOpenShares, onOpenStudio }: HomeProps) {
   const tenant = me.tenants.find((item) => item.id === home.tenantId);
+  const name = me.user.displayName || me.user.username;
+
   return (
-    <div className="shell">
+    <div className="app">
       <aside className="sidebar">
-        <div className="brand">OpsAgent</div>
-        <div className="tenant">
-          <strong>{tenant?.name ?? home.tenantId}</strong>
-          <span>{tenant?.slug ?? 'tenant'}</span>
-        </div>
-        <nav>
-          <a href="#home" className="active">工作台</a>
-          <a href="#incidents">事件指挥</a>
-          <a href="#agents">服务器 Agent</a>
-          <a href="#knowledge">知识中心</a>
-        </nav>
-      </aside>
-      <main className="page">
-        <header>
-          <div className="eyebrow">Role view</div>
-          <h1>{home.roleView}</h1>
-          <span className="muted">{me.user.displayName}</span>
-          <div style={{ marginTop: 16 }}>
-            <button type="button" onClick={onStartSession}>进入会话</button>
-            <button type="button" onClick={onOpenScenarios} style={{ marginLeft: 8 }}>场景中心</button>
-            <button type="button" onClick={onOpenAudit} style={{ marginLeft: 8 }}>审计</button>
-            <button type="button" onClick={onOpenShares} style={{ marginLeft: 8 }}>共享审批</button>
-            <button type="button" onClick={onOpenStudio} style={{ marginLeft: 8 }}>创造模式</button>
+        <div className="brand">
+          <div className="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7l5 5-5 5" />
+              <path d="M12 17h8" />
+            </svg>
           </div>
+          <div>
+            <div className="brand-name">OpsAgent</div>
+            <span className="brand-sub">AIOps Control Plane</span>
+          </div>
+        </div>
+
+        <button type="button" className="tenant-switch" onClick={onStartSession}>
+          <span className="avatar">{(tenant?.name ?? '租').slice(0, 1)}</span>
+          <span className="tenant-meta">
+            <strong>{tenant?.name ?? home.tenantId}</strong>
+            <span>{tenant?.slug ?? 'tenant'} · 本地开发</span>
+          </span>
+        </button>
+
+        <nav className="nav">
+          <div className="nav-group">
+            <div className="nav-label">工作空间</div>
+            <button type="button" className="nav-item is-active"><span>工作台</span></button>
+            <button type="button" className="nav-item" onClick={onStartSession}><span>智能体会话</span></button>
+            <button type="button" className="nav-item" onClick={onOpenScenarios}><span>场景中心</span></button>
+            <button type="button" className="nav-item" onClick={onOpenShares}><span>共享审批</span></button>
+            <button type="button" className="nav-item" onClick={onOpenStudio}><span>创造模式</span></button>
+            <button type="button" className="nav-item" onClick={onOpenAudit}><span>审计</span></button>
+          </div>
+        </nav>
+
+        <div className="sidebar-foot">
+          <div className="runtime-card">
+            <span className="dot dot-ok" />
+            <div>
+              <strong>开发运行时</strong>
+              <span>单节点 · 本地容器</span>
+            </div>
+          </div>
+          <button type="button" className="user-chip">
+            <span className="avatar is-green">{name.slice(0, 1)}</span>
+            <span className="grow">
+              <strong>{name}</strong>
+              <span>{home.roleView}</span>
+            </span>
+          </button>
+        </div>
+      </aside>
+
+      <section className="main">
+        <header className="topbar">
+          <div className="crumbs">
+            <span>工作台</span>
+            <span className="sep">/</span>
+            <span className="current">总览</span>
+          </div>
+          <div className="topbar-spacer" />
+          <span className="env-pill"><span className="dot dot-ok" style={{ width: 5, height: 5 }} />本地开发</span>
         </header>
-        <section className="cards">
-          {home.cards.map((card) => (
-            <article key={card.id} className="card">
-              <h2>{card.title}</h2>
-              <p className="muted">当前租户 · {tenant?.name ?? home.tenantId}</p>
-            </article>
-          ))}
-        </section>
-      </main>
+
+        <main className="page">
+          <div className="page-inner">
+            <div className="page-head">
+              <div>
+                <div className="eyebrow">OpsAgent · AIOps Control Plane</div>
+                <h1 style={{ marginTop: 8 }}>早上好，{name}</h1>
+                <p className="sub">
+                  当前租户 {tenant?.name ?? home.tenantId}，视角 {home.roleView}。
+                  从这里进入会话、场景、连接器与审计。
+                </p>
+                <div className="row-sm" style={{ marginTop: 10 }}>
+                  <span className="eyebrow">当前视角</span>
+                  <span className="tag is-active">{home.roleView}</span>
+                  <span className="hint">切换视角调整导航与首屏模块，权限不放大。</span>
+                </div>
+              </div>
+              <div className="page-actions">
+                <button type="button" className="btn btn-outline" onClick={onOpenScenarios}>场景中心</button>
+                <button type="button" className="btn btn-primary" onClick={onStartSession}>新建会话</button>
+              </div>
+            </div>
+
+            <div className="status-strip" style={{ marginBottom: 24 }}>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Control Plane</strong><span>healthy</span></div></div>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>PostgreSQL</strong><span>RLS enforced</span></div></div>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Connectors</strong><span>9 类已注册</span></div></div>
+              <div className="status-cell"><span className="dot dot-ok" /><div><strong>Audit</strong><span>streaming</span></div></div>
+            </div>
+
+            <div className="grid grid-3">
+              {home.cards.map((card) => (
+                <button key={card.id} type="button" className="card scenario-card" onClick={onStartSession}>
+                  <div className="card-body">
+                    <div className="scenario-top">
+                      <span className="icon-tile is-blue">◆</span>
+                      <span className="badge badge-neutral">{home.roleView}</span>
+                    </div>
+                    <h3>{card.title}</h3>
+                    <p className="muted">{tenant?.name ?? home.tenantId} · {card.id}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </section>
     </div>
   );
 }

@@ -77,6 +77,10 @@ async function main(): Promise<void> {
       [ids.incidentDb, '数据库连接池接近上限', 'P2', 'open', '连接数持续升高，等待事件增加。'],
       [ids.incidentDisk, '日志盘使用率 86%', 'P3', 'resolved', '已清理过期日志并调整轮转策略。'],
     ] as const;
+    await client.query(
+      `DELETE FROM incident_events WHERE tenant_id = $1 AND payload->>'source' = 'demo'`,
+      [tenant],
+    );
     for (const [id, title, severity, status] of incidents) {
       await client.query(
         `INSERT INTO incidents (id, tenant_id, title, severity, status, created_by)

@@ -1406,3 +1406,5 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .inbox-item .dot { margin-top: 5px; flex: none; }
 @media (max-width: 1200px) { .split-grid { grid-template-columns: 320px minmax(0, 1fr); } .split-side { grid-column: 1 / -1; } }
 @media (max-width: 900px) { .split-grid { grid-template-columns: 1fr; } }
+.incident-grid { grid-template-columns: 360px minmax(0, 1fr); }
+@media (max-width: 900px) { .incident-grid { grid-template-columns: 1fr; } }

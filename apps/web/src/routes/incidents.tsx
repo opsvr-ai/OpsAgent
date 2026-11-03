@@ -8,6 +8,7 @@ import {
   type IncidentSummary,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
+import { formatTime } from '../format.js';
 
 export interface IncidentsProps {
   readonly onBack: () => void;
@@ -15,16 +16,30 @@ export interface IncidentsProps {
 
 export function Incidents({ onBack }: IncidentsProps) {
   const [incidents, setIncidents] = useState<IncidentSummary[] | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<IncidentDetail | null>(null);
   const [title, setTitle] = useState('');
   const [severity, setSeverity] = useState('P2');
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<IncidentDetail | null>(null);
 
   useEffect(() => {
     void listIncidents()
-      .then(setIncidents)
+      .then((items) => {
+        setIncidents(items);
+        setSelectedId(items[0]?.id ?? null);
+      })
       .catch(() => setError('事件加载失败'));
   }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    void getIncident(selectedId)
+      .then(setDetail)
+      .catch(() => setError('事件详情加载失败'));
+  }, [selectedId]);
 
   async function create() {
     if (!title.trim()) {
@@ -35,6 +50,7 @@ export function Incidents({ onBack }: IncidentsProps) {
     try {
       const incident = await createIncident({ title: title.trim(), severity });
       setIncidents((current) => [incident, ...(current ?? [])]);
+      setSelectedId(incident.id);
       setTitle('');
     } catch {
       setError('创建失败');
@@ -46,18 +62,28 @@ export function Incidents({ onBack }: IncidentsProps) {
     try {
       const updated = await updateIncident(id, { status });
       setIncidents((current) => current?.map((item) => (item.id === id ? updated : item)) ?? current);
+      setDetail((current) => (current ? { ...current, incident: updated } : current));
     } catch {
       setError('状态更新失败');
     }
   }
 
-  async function openDetail(id: string) {
-    setError(null);
-    try {
-      setDetail(await getIncident(id));
-    } catch {
-      setError('事件详情加载失败');
+  const selected = detail?.incident ?? incidents?.find((item) => item.id === selectedId) ?? null;
+
+  function statusActions(incident: IncidentSummary) {
+    if (incident.status === 'open') {
+      return <button type="button" className="btn btn-primary btn-sm" onClick={() => void advance(incident.id, 'investigating')}>开始排查</button>;
     }
+    if (incident.status === 'investigating') {
+      return <button type="button" className="btn btn-primary btn-sm" onClick={() => void advance(incident.id, 'mitigated')}>已缓解</button>;
+    }
+    if (incident.status === 'mitigated') {
+      return <button type="button" className="btn btn-primary btn-sm" onClick={() => void advance(incident.id, 'resolved')}>已解决</button>;
+    }
+    if (incident.status === 'resolved') {
+      return <button type="button" className="btn btn-outline btn-sm" onClick={() => void advance(incident.id, 'closed')}>关闭</button>;
+    }
+    return null;
   }
 
   return (
@@ -94,53 +120,67 @@ export function Incidents({ onBack }: IncidentsProps) {
       </section>
 
       {incidents === null ? <p className="muted">加载中…</p> : null}
-      {incidents?.length === 0 ? <p className="muted">暂无事件</p> : null}
-      <section className="grid grid-3">
-        {incidents?.map((incident) => (
-          <article key={incident.id} className="card">
-            <div className="card-body">
-              <div className="scenario-top">
-                <span className="badge badge-neutral">{incident.severity}</span>
-                <span className="badge badge-neutral">{incident.status}</span>
-              </div>
-              <h3>{incident.title}</h3>
-              <div className="row-sm">
-                <button type="button" className="btn btn-outline" onClick={() => void openDetail(incident.id)}>时间线</button>
-                {incident.status === 'open' ? (
-                  <button type="button" className="btn btn-primary" onClick={() => void advance(incident.id, 'investigating')}>开始排查</button>
-                ) : null}
-                {incident.status === 'investigating' ? (
-                  <button type="button" className="btn btn-primary" onClick={() => void advance(incident.id, 'mitigated')}>已缓解</button>
-                ) : null}
-                {incident.status === 'mitigated' ? (
-                  <button type="button" className="btn btn-primary" onClick={() => void advance(incident.id, 'resolved')}>已解决</button>
-                ) : null}
-                {incident.status === 'resolved' ? (
-                  <button type="button" className="btn btn-outline" onClick={() => void advance(incident.id, 'closed')}>关闭</button>
-                ) : null}
-              </div>
-            </div>
-          </article>
-        ))}
-      </section>
-      {detail ? (
+      {incidents?.length === 0 ? (
         <section className="card">
-          <div className="card-body">
-            <div className="row-between">
-              <h2>时间线 · {detail.incident.title}</h2>
-              <button type="button" className="btn btn-outline" onClick={() => setDetail(null)}>关闭</button>
-            </div>
-            <div className="stack-sm">
-              {detail.events.map((event) => (
-                <div key={event.id} className="row-between">
-                  <span className="mono">{event.createdAt}</span>
-                  <span>{event.type}</span>
-                  <span className="muted mono">{JSON.stringify(event.payload)}</span>
-                </div>
-              ))}
-            </div>
+          <div className="card-body empty-state">
+            <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span>
+            <h3>暂无事件</h3>
+            <p className="muted">创建事件后，状态变更和指挥动作会进入时间线。</p>
           </div>
         </section>
+      ) : null}
+
+      {incidents && incidents.length > 0 ? (
+        <div className="split-grid incident-grid">
+          <section className="card">
+            <div className="card-head"><h2>事件</h2><span className="muted">{incidents.length}</span></div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {incidents.map((incident) => (
+                <button
+                  key={incident.id}
+                  type="button"
+                  className={`inbox-item${incident.id === selectedId ? ' is-active' : ''}`}
+                  onClick={() => setSelectedId(incident.id)}
+                >
+                  <span className="badge badge-neutral">{incident.severity}</span>
+                  <span className="grow">
+                    <strong>{incident.title}</strong>
+                    <span>{incident.status}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <h2>{selected?.title ?? '事件详情'}</h2>
+              {selected ? <span className="badge badge-neutral">{selected.severity}</span> : null}
+            </div>
+            <div className="card-body">
+              {selected ? (
+                <>
+                  <div className="row-between" style={{ marginBottom: 12 }}>
+                    <span className="badge badge-neutral">{selected.status}</span>
+                    <div className="row-sm">{statusActions(selected)}</div>
+                  </div>
+                  <div className="aside-row"><span>事件 ID</span><span className="mono">{selected.id.slice(0, 18)}</span></div>
+                  <div className="aside-row"><span>指挥官</span><span>{selected.commanderId ?? '未指派'}</span></div>
+                  <h3 style={{ marginTop: 18 }}>时间线</h3>
+                  {detail?.events.length === 0 ? <p className="muted">暂无时间线事件</p> : null}
+                  <div className="timeline">
+                    {detail?.events.map((event) => (
+                      <div key={event.id} className="timeline-item is-done">
+                        <div className="t-title">{event.type}</div>
+                        <div className="t-meta">{formatTime(event.createdAt)} · {JSON.stringify(event.payload)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <p className="muted">选择一条事件</p>}
+            </div>
+          </section>
+        </div>
       ) : null}
     </DesignShell>
   );

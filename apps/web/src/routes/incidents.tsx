@@ -154,50 +154,65 @@ export function Incidents({ onBack }: IncidentsProps) {
       ) : null}
 
       {incidents && incidents.length > 0 ? (
-        <div className="split-grid incident-grid">
-          <section className="card">
-            <div className="card-head"><h2>事件</h2><span className="muted">{incidents.length}</span></div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {incidents.map((incident) => (
-                <button
-                  key={incident.id}
-                  type="button"
-                  className={`inbox-item${incident.id === selectedId ? ' is-active' : ''}`}
-                  onClick={() => setSelectedId(incident.id)}
-                >
-                  <span className="badge badge-neutral">{incident.severity}</span>
-                  <span className="grow">
-                    <strong>{incident.title}</strong>
-                    <span>{incident.status}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
+        <div className="stack">
+          <div className="tabs">
+            {incidents.map((incident) => (
+              <button
+                key={incident.id}
+                type="button"
+                className={`tab${incident.id === selectedId ? ' is-active' : ''}`}
+                onClick={() => setSelectedId(incident.id)}
+              >
+                {incident.title}<span className="count">{incident.severity}</span>
+              </button>
+            ))}
+          </div>
           <section className="card">
             <div className="card-head">
               <h2>{selected?.title ?? '事件详情'}</h2>
-              {selected ? <span className="badge badge-neutral">{selected.severity}</span> : null}
+              {selected ? <span className={`badge ${selected.status === 'resolved' || selected.status === 'closed' ? 'badge-ok' : 'badge-warn'}`}>{selected.status}</span> : null}
             </div>
             <div className="card-body">
               {selected ? (
                 <>
                   <div className="row-between" style={{ marginBottom: 12 }}>
-                    <span className="badge badge-neutral">{selected.status}</span>
+                    <div className="row-sm">
+                      <span className="badge badge-neutral">{selected.severity}</span>
+                      <span className="muted">事件 ID {selected.id.slice(0, 18)}</span>
+                      <span className="muted">指挥官 {selected.commanderId ?? '未指派'}</span>
+                    </div>
                     <div className="row-sm">{statusActions(selected)}</div>
                   </div>
-                  <div className="aside-row"><span>事件 ID</span><span className="mono">{selected.id.slice(0, 18)}</span></div>
-                  <div className="aside-row"><span>指挥官</span><span>{selected.commanderId ?? '未指派'}</span></div>
-                  <h3 style={{ marginTop: 18 }}>时间线</h3>
-                  {detail?.events.length === 0 ? <p className="muted">暂无时间线事件</p> : null}
-                  <div className="timeline">
-                    {detail?.events.map((event) => (
-                      <div key={event.id} className="timeline-item is-done">
-                        <div className="t-title">{eventLabel(event.type)}</div>
-                        <div className="t-meta">{formatTime(event.createdAt)} · {eventDetail(event.payload)}</div>
+                  <div className="grid grid-2" style={{ alignItems: 'start' }}>
+                    <div>
+                      <h3>时间线</h3>
+                      {detail?.events.length === 0 ? <p className="muted">暂无时间线事件</p> : null}
+                      <div className="timeline">
+                        {detail?.events.map((event) => (
+                          <div key={event.id} className="timeline-item is-done">
+                            <div className="t-title">{eventLabel(event.type)}</div>
+                            <div className="t-meta">{formatTime(event.createdAt)} · {eventDetail(event.payload)}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                    <div className="stack">
+                      <div className="card">
+                        <div className="card-body">
+                          <strong>处理团队</strong>
+                          <div className="aside-row"><span>值班 SRE</span><span className="mono">on-call</span></div>
+                          <div className="aside-row"><span>DBA</span><span className="mono">dba</span></div>
+                          <div className="aside-row"><span>平台 SRE</span><span className="mono">platform</span></div>
+                        </div>
+                      </div>
+                      <div className="card">
+                        <div className="card-body">
+                          <strong>待审批</strong>
+                          <p className="muted">SSH 只读查询 · db-01</p>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'approvals' }))}>打开审批中心</button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <h3 style={{ marginTop: 18 }}>处置任务</h3>
                   <table className="table">
@@ -209,23 +224,6 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <tr><td>输出根因与复盘材料</td><td>指挥人</td><td><span className="badge badge-neutral">待办</span></td></tr>
                     </tbody>
                   </table>
-                  <div className="grid grid-2" style={{ marginTop: 14 }}>
-                    <div className="card">
-                      <div className="card-body">
-                        <strong>处理团队</strong>
-                        <div className="aside-row"><span>值班 SRE</span><span className="mono">on-call</span></div>
-                        <div className="aside-row"><span>DBA</span><span className="mono">dba</span></div>
-                        <div className="aside-row"><span>平台 SRE</span><span className="mono">platform</span></div>
-                      </div>
-                    </div>
-                    <div className="card">
-                      <div className="card-body">
-                        <strong>待审批</strong>
-                        <p className="muted">SSH 只读查询 · db-01</p>
-                        <button type="button" className="btn btn-outline btn-sm" onClick={() => window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'approvals' }))}>打开审批中心</button>
-                      </div>
-                    </div>
-                  </div>
                 </>
               ) : <p className="muted">选择一条事件</p>}
             </div>

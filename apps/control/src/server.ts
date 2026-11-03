@@ -12,6 +12,7 @@ import { ProbeRegistry } from './connectors/probe.js';
 import { createDefaultProbeRegistry } from './connectors/http-probes.js';
 import { registerScenarioRoutes } from './scenarios/routes.js';
 import type { ToolResolver } from './scenarios/service.js';
+import { registerAuditRoutes } from './audit/routes.js';
 
 export interface BuildServerOptions {
   readonly pool?: Pool;
@@ -53,6 +54,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       audit,
       options.scenarioTools ?? { resolve: () => undefined },
     );
+    registerAuditRoutes(app, options.pool);
   }
 
   return app;

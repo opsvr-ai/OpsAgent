@@ -38,6 +38,11 @@ export class IncidentService {
        VALUES ($1, $2, $3, 'created', $4::jsonb)`,
       [input.tenantId, row.id, input.actorId, JSON.stringify({ severity: input.severity })],
     );
+    await this.pool.query(
+      `INSERT INTO messages (tenant_id, title, body, severity)
+       VALUES ($1, $2, $3, 'warning')`,
+      [input.tenantId, `新事件 ${input.severity}`, input.title],
+    );
     return this.map(row);
   }
 

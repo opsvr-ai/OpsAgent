@@ -50,6 +50,11 @@ export function registerInternalApprovalRoutes(
        VALUES ($1, $2, $3, $4, 'R2', 'pending', $5::jsonb) RETURNING id`,
       [body.tenantId, sessionId, body.callId, body.tool, JSON.stringify(details)],
     );
+    await pool.query(
+      `INSERT INTO messages (tenant_id, title, body, severity)
+       VALUES ($1, $2, $3, 'warning')`,
+      [body.tenantId, '待审批的运行时操作', `${body.tool} 需要审批`],
+    );
     return reply.code(201).send({ id: approval.rows[0]?.id });
   });
 

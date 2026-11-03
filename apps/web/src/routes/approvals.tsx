@@ -37,6 +37,15 @@ export function Approvals({ onBack }: ApprovalsProps) {
       {error ? <p role="alert">{error}</p> : null}
       {approvals === null ? <p className="muted">加载中…</p> : null}
       {approvals?.length === 0 ? <p className="muted">暂无待审批</p> : null}
+      {approvals?.length === 0 ? (
+        <section className="card">
+          <div className="card-body empty-state">
+            <span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span>
+            <h3>没有待审批项</h3>
+            <p className="muted">运行时 R2/R3 工具和场景步骤会在这里等待审批。</p>
+          </div>
+        </section>
+      ) : null}
       <section className="grid grid-3">
         {approvals?.map((approval) => (
           <article key={approval.id} className="card">

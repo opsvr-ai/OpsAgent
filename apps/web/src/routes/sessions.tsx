@@ -26,21 +26,34 @@ export function Sessions({ onBack }: SessionsProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       {sessions === null ? <p className="muted">加载中…</p> : null}
-      {sessions?.length === 0 ? <p className="muted">暂无会话</p> : null}
-      <section className="grid grid-3">
-        {sessions?.map((session) => (
-          <article key={session.id} className="card">
-            <div className="card-body">
-              <div className="scenario-top">
-                <span className="badge badge-neutral">{session.status}</span>
-                <span className="muted">{session.roleView}</span>
-              </div>
-              <h3 className="mono">{session.id.slice(0, 18)}</h3>
-              <p className="muted">{session.createdAt}</p>
-            </div>
-          </article>
-        ))}
-      </section>
+      {sessions?.length === 0 ? (
+        <section className="card">
+          <div className="card-body empty-state">
+            <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-message" /></svg></span>
+            <h3>暂无会话</h3>
+            <p className="muted">从工作台新建会话后会出现在这里。</p>
+          </div>
+        </section>
+      ) : null}
+      {sessions && sessions.length > 0 ? (
+        <section className="card">
+          <div className="card-body">
+            <table className="table">
+              <thead><tr><th>会话</th><th>状态</th><th>角色视角</th><th>创建时间</th></tr></thead>
+              <tbody>
+                {sessions.map((session) => (
+                  <tr key={session.id}>
+                    <td className="mono">{session.id.slice(0, 18)}</td>
+                    <td><span className="badge badge-neutral">{session.status}</span></td>
+                    <td>{session.roleView}</td>
+                    <td className="mono">{session.createdAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </DesignShell>
   );
 }

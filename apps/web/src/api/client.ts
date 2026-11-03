@@ -103,6 +103,17 @@ export async function listScenarios(): Promise<ScenarioSummary[]> {
   return request<ScenarioSummary[]>('/api/scenarios');
 }
 
+export async function createScenario(input: {
+  name: string;
+  description?: string;
+  definition: { steps: Array<{ name: string; tool: string; input: Record<string, unknown> }> };
+}): Promise<ScenarioSummary> {
+  return request<ScenarioSummary>('/api/scenarios', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function runScenario(id: string): Promise<ScenarioRunSummary> {
   return request<ScenarioRunSummary>(`/api/scenarios/${id}/run`, {
     method: 'POST',

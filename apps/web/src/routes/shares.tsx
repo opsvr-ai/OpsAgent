@@ -38,7 +38,15 @@ export function Shares({ onBack }: SharesProps) {
     >
         {error ? <p role="alert">{error}</p> : null}
         {shares === null ? <p className="muted">加载中…</p> : null}
-        {shares?.length === 0 ? <p className="muted">暂无共享申请</p> : null}
+        {shares?.length === 0 ? (
+          <section className="card">
+            <div className="card-body empty-state">
+              <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-share" /></svg></span>
+              <h3>暂无共享申请</h3>
+              <p className="muted">场景发起跨租户共享后会出现在这里。</p>
+            </div>
+          </section>
+        ) : null}
         <section className="grid grid-3">
           {shares?.map((share) => (
             <article key={share.id} className="card">

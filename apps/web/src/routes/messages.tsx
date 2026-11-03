@@ -37,7 +37,15 @@ export function Messages({ onBack }: MessagesProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       {messages === null ? <p className="muted">加载中…</p> : null}
-      {messages?.length === 0 ? <p className="muted">暂无消息</p> : null}
+      {messages?.length === 0 ? (
+        <section className="card">
+          <div className="card-body empty-state">
+            <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bell" /></svg></span>
+            <h3>暂无消息</h3>
+            <p className="muted">事件创建和运行时审批会自动生成站内通知。</p>
+          </div>
+        </section>
+      ) : null}
       <section className="grid grid-3">
         {messages?.map((message) => (
           <article key={message.id} className="card">

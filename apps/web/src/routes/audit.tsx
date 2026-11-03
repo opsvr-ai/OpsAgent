@@ -43,11 +43,17 @@ export function Audit({ onBack }: AuditProps) {
         </div>
         <div className="card">
           <div className="card-body">
-            <div className="row-sm">
-              <label htmlFor="audit-action">动作</label>
-              <input id="audit-action" value={action} onChange={(event) => setAction(event.target.value)} />
-              <label htmlFor="audit-result">结果</label>
-              <input id="audit-result" value={result} onChange={(event) => setResult(event.target.value)} />
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="audit-action">动作</label>
+                <input id="audit-action" value={action} onChange={(event) => setAction(event.target.value)} placeholder="例如 auth.login" />
+              </div>
+              <div className="field">
+                <label htmlFor="audit-result">结果</label>
+                <input id="audit-result" value={result} onChange={(event) => setResult(event.target.value)} placeholder="success / failure" />
+              </div>
+            </div>
+            <div className="form-actions">
               <button type="button" className="btn btn-primary" onClick={() => void load()}>筛选</button>
             </div>
           </div>

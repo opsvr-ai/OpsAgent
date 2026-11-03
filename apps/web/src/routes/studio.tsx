@@ -69,17 +69,25 @@ export function Studio({ onBack }: StudioProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新建会话</h2><span className="muted">生成后需测试与审核</span></div>
         <div className="card-body">
-          <h2>新建会话</h2>
-          <label htmlFor="studio-goal">目标</label>
-          <input id="studio-goal" value={goal} onChange={(event) => setGoal(event.target.value)} />
-          <label htmlFor="studio-platform">平台</label>
-          <input
-            id="studio-platform"
-            value={platform}
-            onChange={(event) => setPlatform(event.target.value)}
-          />
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>生成</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="studio-goal">目标</label>
+              <input id="studio-goal" value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="例如 生成 BlueKing CMDB 连接器" />
+            </div>
+            <div className="field">
+              <label htmlFor="studio-platform">平台</label>
+              <input
+                id="studio-platform"
+                value={platform}
+                onChange={(event) => setPlatform(event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>生成</button>
+          </div>
         </div>
       </section>
       {sessions === null ? <p className="muted">加载中…</p> : null}

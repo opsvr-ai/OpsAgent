@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DesignShell } from './design-shell.js';
 import {
   approveScenarioRun,
+  createScenario,
   listScenarios,
   runScenario,
   setScenarioSchedule,
@@ -18,6 +19,33 @@ export function Scenarios({ onBack }: ScenariosProps) {
   const [result, setResult] = useState<ScenarioRunSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState<Record<string, string>>({});
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [tool, setTool] = useState('');
+  const [args, setArgs] = useState('{}');
+
+  async function create() {
+    if (!name.trim() || !tool.trim()) {
+      setError('请填写场景名称和工具');
+      return;
+    }
+    setError(null);
+    try {
+      const input = JSON.parse(args) as Record<string, unknown>;
+      const created = await createScenario({
+        name: name.trim(),
+        ...(description.trim() ? { description: description.trim() } : {}),
+        definition: { steps: [{ name: name.trim(), tool: tool.trim(), input }] },
+      });
+      setScenarios((current) => [created, ...(current ?? [])]);
+      setName('');
+      setDescription('');
+      setTool('');
+      setArgs('{}');
+    } catch {
+      setError('创建场景失败，请检查工具名和 JSON 参数');
+    }
+  }
 
   useEffect(() => {
     void listScenarios()
@@ -73,25 +101,52 @@ export function Scenarios({ onBack }: ScenariosProps) {
       onBack={onBack}
     >
         {error ? <p role="alert">{error}</p> : null}
+        <section className="card">
+          <div className="card-head"><h2>新建场景</h2><span className="muted">单步骤示例</span></div>
+          <div className="card-body">
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="scenario-name">名称</label>
+                <input id="scenario-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 订单服务健康检查" />
+              </div>
+              <div className="field">
+                <label htmlFor="scenario-desc">描述</label>
+                <input id="scenario-desc" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="可选" />
+              </div>
+              <div className="field">
+                <label htmlFor="scenario-tool">工具</label>
+                <input id="scenario-tool" value={tool} onChange={(event) => setTool(event.target.value)} placeholder="例如 promql_query" />
+              </div>
+              <div className="field">
+                <label htmlFor="scenario-args">参数 JSON</label>
+                <input id="scenario-args" value={args} onChange={(event) => setArgs(event.target.value)} placeholder='{"query":"up"}' />
+              </div>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void create()}>创建场景</button>
+            </div>
+          </div>
+        </section>
         {scenarios === null ? <p className="muted">加载中…</p> : null}
         {scenarios?.length === 0 ? <p className="muted">暂无场景</p> : null}
         <section className="grid grid-3">
           {scenarios?.map((scenario) => (
             <article key={scenario.id} className="card">
               <div className="card-body">
+              <div className="scenario-top">
+                <span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span>
+                <span className="badge badge-neutral">{scenario.status}</span>
+                <span className="badge badge-neutral">v{scenario.version}</span>
+              </div>
               <h3>{scenario.name}</h3>
               <p className="muted">{scenario.description ?? '—'}</p>
-              <p className="muted">
-                {scenario.status} · v{scenario.version} · {scenario.definition.steps.length} steps
-              </p>
-              {scenario.scheduleIntervalMinutes ? (
-                <p className="muted">每 {scenario.scheduleIntervalMinutes} 分钟</p>
-              ) : null}
-              <div className="schedule-row">
-                <label htmlFor={`schedule-${scenario.id}`}>定时分钟</label>
+              <p className="muted">{scenario.definition.steps.length} 个步骤{scenario.scheduleIntervalMinutes ? ` · 每 ${scenario.scheduleIntervalMinutes} 分钟` : ''}</p>
+              <div className="row-sm">
+                <label htmlFor={`schedule-${scenario.id}`} className="muted">定时</label>
                 <input
                   id={`schedule-${scenario.id}`}
                   inputMode="numeric"
+                  style={{ width: 92 }}
                   value={
                     scheduleDraft[scenario.id] ??
                     (scenario.scheduleIntervalMinutes?.toString() ?? '')
@@ -103,11 +158,13 @@ export function Scenarios({ onBack }: ScenariosProps) {
                     }))
                   }
                 />
-                <button type="button" onClick={() => void saveSchedule(scenario.id)}>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => void saveSchedule(scenario.id)}>
                   设置定时
                 </button>
               </div>
-              <button type="button" onClick={() => void run(scenario.id)}>运行</button>
+              <div className="row-sm">
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => void run(scenario.id)}>运行</button>
+              </div>
               </div>
             </article>
           ))}

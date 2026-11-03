@@ -70,18 +70,26 @@ export function Incidents({ onBack }: IncidentsProps) {
     >
       {error ? <p role="alert">{error}</p> : null}
       <section className="card">
+        <div className="card-head"><h2>新建事件</h2><span className="muted">R2/R3 操作需审批</span></div>
         <div className="card-body">
-          <h2>新建事件</h2>
-          <label htmlFor="incident-title">标题</label>
-          <input id="incident-title" value={title} onChange={(event) => setTitle(event.target.value)} />
-          <label htmlFor="incident-severity">等级</label>
-          <select id="incident-severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-            <option value="P0">P0</option>
-            <option value="P1">P1</option>
-            <option value="P2">P2</option>
-            <option value="P3">P3</option>
-          </select>
-          <button type="button" className="btn btn-primary" onClick={() => void create()}>创建事件</button>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="incident-title">标题</label>
+              <input id="incident-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如 订单服务 5xx 升高" />
+            </div>
+            <div className="field">
+              <label htmlFor="incident-severity">等级</label>
+              <select id="incident-severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+                <option value="P0">P0</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={() => void create()}>创建事件</button>
+          </div>
         </div>
       </section>
 

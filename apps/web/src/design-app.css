@@ -1372,3 +1372,6 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .aside-row > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 .chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .chat-suggestions .btn { font-size: 12px; height: 30px; }
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 28px 24px; }
+.empty-state h3 { margin: 0; font-size: var(--fs-14); }
+.empty-state .muted { margin: 0; }

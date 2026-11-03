@@ -45,9 +45,9 @@ describe('Scenarios', () => {
 
     await waitFor(() => expect(runMock).toHaveBeenCalledWith('s-1'));
     expect(await screen.findByText('success')).toBeInTheDocument();
-    expect(screen.getByText('每 60 分钟')).toBeInTheDocument();
+    expect(screen.getByText(/每 60 分钟/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('定时分钟'), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText('定时'), { target: { value: '30' } });
     fireEvent.click(screen.getByRole('button', { name: '设置定时' }));
     await waitFor(() => expect(scheduleMock).toHaveBeenCalledWith('s-1', 30));
   });

@@ -44,6 +44,14 @@ export function Messages({ onBack }: MessagesProps) {
       onBack={onBack}
     >
       {error ? <p role="alert">{error}</p> : null}
+      {messages && messages.length > 0 ? (
+        <div className="status-strip" style={{ marginBottom: 20 }}>
+          <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bell" /></svg></span><div><strong>未读</strong><span>{unread} 条待处理</span></div></div>
+          <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-grid" /></svg></span><div><strong>全部消息</strong><span>{messages.length} 条</span></div></div>
+          <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>今日投递</strong><span>{messages.filter((item) => item.createdAt.slice(0, 10) === new Date().toISOString().slice(0, 10)).length} 条</span></div></div>
+          <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>告警类</strong><span>{messages.filter((item) => item.severity === 'warning').length} 条</span></div></div>
+        </div>
+      ) : null}
       {messages === null ? <p className="muted">加载中…</p> : null}
       {messages?.length === 0 ? (
         <section className="card">
@@ -55,7 +63,7 @@ export function Messages({ onBack }: MessagesProps) {
         </section>
       ) : null}
       {messages && messages.length > 0 ? (
-        <div className="split-grid">
+        <div className="split-grid messages-grid">
           <section className="card">
             <div className="card-head">
               <h2>收件箱</h2>
@@ -82,7 +90,12 @@ export function Messages({ onBack }: MessagesProps) {
           <section className="card">
             <div className="card-head">
               <h2>{selected?.title ?? '消息详情'}</h2>
-              {selected ? <span className="badge badge-neutral">{selected.severity}</span> : null}
+              <div className="row-sm">
+                {selected ? <span className="badge badge-neutral">{selected.severity}</span> : null}
+                {selected && !selected.readAt ? (
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => void read(selected.id)}>标记已读</button>
+                ) : null}
+              </div>
             </div>
             <div className="card-body">
               {selected ? (
@@ -90,9 +103,21 @@ export function Messages({ onBack }: MessagesProps) {
                   <div className="aside-row"><span>时间</span><span className="mono">{formatTime(selected.createdAt)}</span></div>
                   <div className="aside-row"><span>状态</span><span>{selected.readAt ? '已读' : '未读'}</span></div>
                   <p style={{ marginTop: 16, lineHeight: 1.7 }}>{selected.body}</p>
-                  {!selected.readAt ? (
-                    <button type="button" className="btn btn-outline" onClick={() => void read(selected.id)}>标记已读</button>
-                  ) : null}
+                  <h3 style={{ marginTop: 18 }}>投递记录</h3>
+                  <div className="timeline">
+                    <div className="timeline-item is-done">
+                      <div className="t-title">消息创建</div>
+                      <div className="t-meta">{formatTime(selected.createdAt)} · 站内消息</div>
+                    </div>
+                    <div className="timeline-item is-done">
+                      <div className="t-title">站内投递完成</div>
+                      <div className="t-meta">已写入当前租户收件箱</div>
+                    </div>
+                    <div className={`timeline-item${selected.readAt ? ' is-done' : ''}`}>
+                      <div className="t-title">{selected.readAt ? '已读' : '等待阅读'}</div>
+                      <div className="t-meta">{selected.readAt ? formatTime(selected.readAt) : '尚未标记已读'}</div>
+                    </div>
+                  </div>
                 </>
               ) : <p className="muted">选择一条消息</p>}
             </div>

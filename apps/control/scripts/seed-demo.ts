@@ -103,6 +103,13 @@ async function main(): Promise<void> {
          ON CONFLICT DO NOTHING`,
         [tenant, id, admin],
       );
+      await client.query(
+        `INSERT INTO incident_events (id, tenant_id, incident_id, actor_id, type, payload)
+         VALUES
+           (gen_random_uuid(), $1, $2, $3, 'commander_assigned', '{"commander":"值班 SRE"}'::jsonb),
+           (gen_random_uuid(), $1, $2, $3, 'note', '{"note":"已确认影响范围，继续观察错误率"}'::jsonb)`,
+        [tenant, id, admin],
+      );
     }
 
     const knowledge = [

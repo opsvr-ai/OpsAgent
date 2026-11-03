@@ -44,8 +44,8 @@ describe('Scenarios', () => {
     fireEvent.click(screen.getByRole('button', { name: '运行' }));
 
     await waitFor(() => expect(runMock).toHaveBeenCalledWith('s-1'));
-    expect(await screen.findByText('success')).toBeInTheDocument();
-    expect(screen.getByText(/每 60 分钟/)).toBeInTheDocument();
+    expect((await screen.findAllByText('success')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/每 60 分钟/).length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText('定时'), { target: { value: '30' } });
     fireEvent.click(screen.getByRole('button', { name: '设置定时' }));
@@ -74,7 +74,7 @@ describe('Scenarios', () => {
     fireEvent.click(await screen.findByRole('button', { name: '运行' }));
     fireEvent.click(await screen.findByRole('button', { name: '批准' }));
     await waitFor(() => expect(approveMock).toHaveBeenCalledWith('r-1', 'approve'));
-    expect(await screen.findByText('success')).toBeInTheDocument();
+    expect((await screen.findAllByText('success')).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state', async () => {

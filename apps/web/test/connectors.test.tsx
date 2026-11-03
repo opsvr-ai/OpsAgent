@@ -30,7 +30,7 @@ describe('Connectors', () => {
     ]);
     testMock.mockResolvedValue({ status: 'healthy', latencyMs: 12 });
     render(<Connectors onBack={vi.fn()} />);
-    expect(await screen.findByText('prod-prom')).toBeInTheDocument();
+    expect((await screen.findAllByText('prod-prom')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
     await waitFor(() => expect(testMock).toHaveBeenCalledWith('c-1'));
     expect(await screen.findByText('healthy · 12ms')).toBeInTheDocument();

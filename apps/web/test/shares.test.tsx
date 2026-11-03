@@ -39,10 +39,10 @@ describe('Shares', () => {
     });
 
     render(<Shares onBack={vi.fn()} />);
-    expect(await screen.findByText('s-1')).toBeInTheDocument();
+    expect((await screen.findAllByText('s-1')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '批准' }));
     await waitFor(() => expect(reviewMock).toHaveBeenCalledWith('sh-1', 'approve'));
-    expect(await screen.findByText(/approved/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/approved/)).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state', async () => {

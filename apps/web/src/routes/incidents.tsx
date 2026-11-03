@@ -14,6 +14,19 @@ export interface IncidentsProps {
   readonly onBack: () => void;
 }
 
+function eventLabel(type: string): string {
+  if (type === 'created') return '事件创建';
+  if (type === 'commander_assigned') return '指派指挥官';
+  if (type === 'note') return '指挥记录';
+  if (type === 'status_changed') return '状态变更';
+  return type;
+}
+
+function eventDetail(payload: Record<string, unknown>): string {
+  const note = payload.note ?? payload.commander ?? payload.to ?? payload.source;
+  return typeof note === 'string' ? note : JSON.stringify(payload);
+}
+
 export function Incidents({ onBack }: IncidentsProps) {
   const [incidents, setIncidents] = useState<IncidentSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -21,6 +34,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [title, setTitle] = useState('');
   const [severity, setSeverity] = useState('P2');
   const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     void listIncidents()
@@ -93,8 +107,16 @@ export function Incidents({ onBack }: IncidentsProps) {
       title="事件指挥"
       subtitle="事件生命周期、指挥官与审计时间线。"
       onBack={onBack}
+      actions={<button type="button" className="btn btn-primary" onClick={() => setShowCreate((current) => !current)}>新建事件</button>}
     >
       {error ? <p role="alert">{error}</p> : null}
+      <div className="status-strip" style={{ marginBottom: 20 }}>
+        <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>事件总数</strong><span>{incidents?.length ?? 0} 条</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>处理中</strong><span>{incidents?.filter((item) => item.status === 'investigating').length ?? 0} 条</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-check" /></svg></span><div><strong>已解决</strong><span>{incidents?.filter((item) => item.status === 'resolved' || item.status === 'closed').length ?? 0} 条</span></div></div>
+        <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-clock" /></svg></span><div><strong>时间线</strong><span>{detail?.events.length ?? 0} 条记录</span></div></div>
+      </div>
+      {showCreate ? (
       <section className="card">
         <div className="card-head"><h2>新建事件</h2><span className="muted">R2/R3 操作需审批</span></div>
         <div className="card-body">
@@ -118,6 +140,7 @@ export function Incidents({ onBack }: IncidentsProps) {
           </div>
         </div>
       </section>
+      ) : null}
 
       {incidents === null ? <p className="muted">加载中…</p> : null}
       {incidents?.length === 0 ? (
@@ -171,8 +194,8 @@ export function Incidents({ onBack }: IncidentsProps) {
                   <div className="timeline">
                     {detail?.events.map((event) => (
                       <div key={event.id} className="timeline-item is-done">
-                        <div className="t-title">{event.type}</div>
-                        <div className="t-meta">{formatTime(event.createdAt)} · {JSON.stringify(event.payload)}</div>
+                        <div className="t-title">{eventLabel(event.type)}</div>
+                        <div className="t-meta">{formatTime(event.createdAt)} · {eventDetail(event.payload)}</div>
                       </div>
                     ))}
                   </div>

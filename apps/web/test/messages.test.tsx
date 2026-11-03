@@ -32,7 +32,7 @@ describe('Messages', () => {
     expect((await screen.findAllByText('巡检失败')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '标记已读' }));
     await waitFor(() => expect(readMock).toHaveBeenCalledWith('m-1'));
-    expect(await screen.findByText('已读')).toBeInTheDocument();
+    expect((await screen.findAllByText('已读')).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state', async () => {

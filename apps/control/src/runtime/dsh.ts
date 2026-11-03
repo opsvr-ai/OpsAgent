@@ -158,7 +158,7 @@ export class DshRuntime implements RuntimeClient {
     const toolNames = new Map<string, string>();
     const model = this.modelResolver ? await this.modelResolver(runtimeSession.tenantId) : null;
     const modelEnv =
-      model && model.provider === 'deepseek'
+      model && (model.provider === 'deepseek' || model.provider === 'openai')
         ? {
             DEEPSEEK_API_KEY: model.apiKey,
             DEEPSEEK_BASE_URL: model.baseUrl,

@@ -103,7 +103,7 @@ export class DshHeadlessGenerator implements StudioGenerator {
     ].join('\n');
     const model = this.models ? await this.models.resolve(input.tenantId) : null;
     const env =
-      model && model.provider === 'deepseek'
+      model && (model.provider === 'deepseek' || model.provider === 'openai')
         ? {
             DEEPSEEK_API_KEY: model.apiKey,
             DEEPSEEK_BASE_URL: model.baseUrl,

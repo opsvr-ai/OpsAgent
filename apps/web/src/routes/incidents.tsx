@@ -28,6 +28,7 @@ function eventLabel(type: string): string {
   if (type === 'approval_approved') return '审批通过';
   if (type === 'approval_denied') return '审批拒绝';
   if (type === 'root_cause_converged') return '根因置信度收敛';
+  if (type === 'report_generated') return '事件报告已生成';
   if (type === 'commander_assigned') return '指派指挥官';
   if (type === 'note') return '指挥记录';
   if (type === 'status_changed') return '状态变更';
@@ -35,6 +36,7 @@ function eventLabel(type: string): string {
 }
 
 function eventDetail(payload: Record<string, unknown>): string {
+  if (typeof payload.markdown === 'string') return '报告已生成，可在顶部导出完整 Markdown';
   const note = payload.note ?? payload.commander ?? payload.to ?? payload.source;
   return typeof note === 'string' ? note : JSON.stringify(payload);
 }

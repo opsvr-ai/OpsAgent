@@ -374,6 +374,32 @@ export class IncidentService {
     }
   }
 
+  private async generateReport(tenantId: string, incidentId: string, actorId: string): Promise<void> {
+    const existing = await this.pool.query(
+      `SELECT 1 FROM incident_events
+       WHERE tenant_id = $1 AND incident_id = $2 AND type = 'report_generated' LIMIT 1`,
+      [tenantId, incidentId],
+    );
+    if (existing.rows[0]) return;
+    const detail = await this.getWithEvents(tenantId, incidentId);
+    const markdown = await this.report(tenantId, incidentId);
+    if (!detail || !markdown) return;
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'report_generated', $4::jsonb)`,
+      [tenantId, incidentId, actorId, JSON.stringify({ markdown, generatedAt: new Date().toISOString() })],
+    );
+    await this.pool.query(
+      `INSERT INTO messages (tenant_id, title, body, severity)
+       VALUES ($1, $2, $3, 'info')`,
+      [
+        tenantId,
+        `事件报告已生成：${detail.incident.title}`,
+        detail.incident.rootCause ?? '根因待确认',
+      ],
+    );
+  }
+
   private async convergeRootCause(tenantId: string, incidentId: string, actorId: string): Promise<void> {
     const evidence = await this.pool.query<{ kind: string; count: string }>(
       `SELECT kind, count(*)::text AS count FROM incident_evidence
@@ -595,6 +621,7 @@ export class IncidentService {
     );
     await this.collectConnectorEvidence(input.tenantId, input.id, input.actorId);
     await this.convergeRootCause(input.tenantId, input.id, input.actorId);
+    await this.generateReport(input.tenantId, input.id, input.actorId);
     if (completed) {
       await this.pool.query(
         `UPDATE incident_tickets SET status = 'done' WHERE tenant_id = $1 AND incident_id = $2`,

@@ -884,6 +884,7 @@ export function registerAgentInstructionRoutes(
     }
 
     for (const row of decidedRows) {
+      try {
       if (body.decision === 'deny') {
         await audit.write({
           tenantId: ctx.tenantId,
@@ -944,6 +945,9 @@ export function registerAgentInstructionRoutes(
         service: row.service,
         instruction: row.instruction,
       }, pool);
+      } catch (error) {
+        console.error('batch approval side effect failed', row.id, error);
+      }
     }
     return reply.send({ results });
   });

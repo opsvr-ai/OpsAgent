@@ -284,6 +284,7 @@ GET /api/agent-instruction-approvals/notification-stats
   → 最近 24 小时按小时聚合
   → 审批 Webhook 成功 / 失败
   → 运维告警 成功 / 失败
+  → Web 支持导出 CSV
 ```
 
 并发保护：

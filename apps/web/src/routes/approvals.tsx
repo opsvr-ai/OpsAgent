@@ -96,6 +96,28 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
+  function exportNotificationStats() {
+    if (notificationStats.length === 0) return;
+    const escape = (value: string): string => `"${value.replaceAll('"', '""')}"`;
+    const rows = [
+      ['hour', 'approvalDelivered', 'approvalFailed', 'operationsDelivered', 'operationsFailed'],
+      ...notificationStats.map((point) => [
+        point.hour,
+        String(point.approvalDelivered),
+        String(point.approvalFailed),
+        String(point.operationsDelivered),
+        String(point.operationsFailed),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `notification-trend-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function replayDelivery(id: string) {
     setError(null);
     try {
@@ -188,7 +210,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
       </div>
       {notificationStats.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
-          <div className="card-head"><h2>最近 24 小时通知趋势</h2><span className="muted">{notificationStats.length} 个小时</span></div>
+          <div className="card-head"><h2>最近 24 小时通知趋势</h2><div className="row-sm"><span className="muted">{notificationStats.length} 个小时</span><button type="button" className="btn btn-outline btn-sm" onClick={exportNotificationStats}>导出 CSV</button></div></div>
           <div className="card-body">
             <div className="command-history">
               {notificationStats.map((point) => (

@@ -289,6 +289,7 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
   → 点位悬浮提示
   → 数据点较多时横向滚动
   → 1x / 2x / 4x 缩放
+  → 图例点击显示 / 隐藏曲线
   → 支持导出 CSV
 ```
 

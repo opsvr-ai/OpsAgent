@@ -46,6 +46,12 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [notificationStats, setNotificationStats] = useState<NotificationStatPoint[]>([]);
   const [statsHours, setStatsHours] = useState(24);
   const [chartZoom, setChartZoom] = useState(1);
+  const [chartSeries, setChartSeries] = useState({
+    approvalDelivered: true,
+    approvalFailed: true,
+    operationsDelivered: true,
+    operationsFailed: true,
+  });
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -280,10 +286,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
           <div className="card-body">
             <div style={{ overflowX: 'auto', marginBottom: 8 }}>
             <svg viewBox={`0 0 ${chartWidth} 100`} preserveAspectRatio="none" style={{ width: chartWidth, height: 100, display: 'block' }}>
-              <polyline fill="none" stroke="var(--ok)" strokeWidth="1.5" points={chartLine('approvalDelivered')} />
-              <polyline fill="none" stroke="var(--danger)" strokeWidth="1.5" points={chartLine('approvalFailed')} />
-              <polyline fill="none" stroke="var(--accent)" strokeWidth="1.5" points={chartLine('operationsDelivered')} />
-              <polyline fill="none" stroke="var(--warn)" strokeWidth="1.5" points={chartLine('operationsFailed')} />
+              <polyline fill="none" stroke="var(--ok)" strokeWidth="1.5" points={chartLine('approvalDelivered')} style={{ display: chartSeries.approvalDelivered ? undefined : 'none' }} />
+              <polyline fill="none" stroke="var(--danger)" strokeWidth="1.5" points={chartLine('approvalFailed')} style={{ display: chartSeries.approvalFailed ? undefined : 'none' }} />
+              <polyline fill="none" stroke="var(--accent)" strokeWidth="1.5" points={chartLine('operationsDelivered')} style={{ display: chartSeries.operationsDelivered ? undefined : 'none' }} />
+              <polyline fill="none" stroke="var(--warn)" strokeWidth="1.5" points={chartLine('operationsFailed')} style={{ display: chartSeries.operationsFailed ? undefined : 'none' }} />
               {notificationStats.map((point, index) => {
                 const x = notificationStats.length <= 1 ? chartWidth / 2 : (index / (notificationStats.length - 1)) * chartWidth;
                 const y = chartHeight - (point.approvalDelivered / maxNotification) * chartHeight;
@@ -298,10 +304,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
             </svg>
             </div>
             <div className="row-sm" style={{ marginBottom: 8 }}>
-              <span className="badge badge-ok">审批成功</span>
-              <span className="badge badge-danger">审批失败</span>
-              <span className="badge badge-neutral">运维成功</span>
-              <span className="badge badge-warn">运维失败</span>
+              <button type="button" className={`badge ${chartSeries.approvalDelivered ? 'badge-ok' : 'badge-neutral'}`} onClick={() => setChartSeries((current) => ({ ...current, approvalDelivered: !current.approvalDelivered }))}>审批成功</button>
+              <button type="button" className={`badge ${chartSeries.approvalFailed ? 'badge-danger' : 'badge-neutral'}`} onClick={() => setChartSeries((current) => ({ ...current, approvalFailed: !current.approvalFailed }))}>审批失败</button>
+              <button type="button" className={`badge ${chartSeries.operationsDelivered ? 'badge-neutral' : 'badge-neutral'}`} onClick={() => setChartSeries((current) => ({ ...current, operationsDelivered: !current.operationsDelivered }))}>运维成功</button>
+              <button type="button" className={`badge ${chartSeries.operationsFailed ? 'badge-warn' : 'badge-neutral'}`} onClick={() => setChartSeries((current) => ({ ...current, operationsFailed: !current.operationsFailed }))}>运维失败</button>
             </div>
             <div className="command-history">
               {notificationStats.map((point) => (

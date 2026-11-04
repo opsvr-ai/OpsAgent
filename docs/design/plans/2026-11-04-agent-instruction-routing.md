@@ -288,6 +288,7 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
   → 折线图展示双通道成功 / 失败
   → 点位悬浮提示
   → 数据点较多时横向滚动
+  → 1x / 2x / 4x 缩放
   → 支持导出 CSV
 ```
 

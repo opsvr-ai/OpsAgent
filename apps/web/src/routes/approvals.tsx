@@ -45,6 +45,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [operationsAlerts, setOperationsAlerts] = useState<OperationsAlertDelivery[]>([]);
   const [notificationStats, setNotificationStats] = useState<NotificationStatPoint[]>([]);
   const [statsHours, setStatsHours] = useState(24);
+  const [chartZoom, setChartZoom] = useState(1);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -223,7 +224,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
     ]),
   );
   const chartHeight = 100;
-  const chartWidth = Math.max(600, notificationStats.length * 10);
+  const chartWidth = Math.max(600, notificationStats.length * 10) * chartZoom;
   const chartLine = (key: keyof Pick<NotificationStatPoint, 'approvalDelivered' | 'approvalFailed' | 'operationsDelivered' | 'operationsFailed'>): string =>
     notificationStats.map((point, index) => {
       const x = notificationStats.length <= 1 ? chartWidth / 2 : (index / (notificationStats.length - 1)) * chartWidth;
@@ -264,6 +265,16 @@ export function Approvals({ onBack }: ApprovalsProps) {
                 </button>
               ))}
               <button type="button" className="btn btn-outline btn-sm" onClick={exportNotificationStats}>导出 CSV</button>
+              {[1, 2, 4].map((zoom) => (
+                <button
+                  key={zoom}
+                  type="button"
+                  className={`btn btn-sm ${chartZoom === zoom ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setChartZoom(zoom)}
+                >
+                  {zoom}x
+                </button>
+              ))}
             </div>
           </div>
           <div className="card-body">

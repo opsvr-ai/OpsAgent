@@ -55,10 +55,20 @@ describe('agent registry API', () => {
         arch: 'amd64',
         version: '0.1.0',
         capabilities: ['cpu', 'disk'],
+        discovery: {
+          system: { osName: 'Rocky Linux', ip: '10.0.0.1' },
+          applications: [{ name: 'order-service', kind: 'systemd' }],
+          agent: { version: '0.2.0' },
+        },
       },
     });
     expect(registered.statusCode).toBe(201);
-    const body = registered.json() as { agent: { id: string }; agentKey: string };
+    const body = registered.json() as {
+      agent: { id: string; systemInfo: { osName: string }; applications: unknown[] };
+      agentKey: string;
+    };
+    expect(body.agent.systemInfo.osName).toBe('Rocky Linux');
+    expect(body.agent.applications).toHaveLength(1);
 
     const heartbeat = await app.inject({
       method: 'POST',
@@ -109,6 +119,18 @@ describe('agent registry API', () => {
 
     const list = await app.inject({ method: 'GET', url: '/api/agents', headers: { cookie } });
     expect(list.json()).toMatchObject([{ hostname: 'prod-host-1', status: 'online' }]);
+
+    const fleet = await app.inject({ method: 'GET', url: '/api/agents/fleet', headers: { cookie } });
+    expect(fleet.statusCode).toBe(200);
+    expect(fleet.json()).toMatchObject({
+      total: 1,
+      summary: { total: 1, applications: 1, discovered: 1 },
+      items: [{ hostname: 'prod-host-1', applications: [{ name: 'order-service' }] }],
+    });
+
+    const detail = await app.inject({ method: 'GET', url: `/api/agents/${body.agent.id}`, headers: { cookie } });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({ hostname: 'prod-host-1', discoveryAt: expect.any(String) });
     await app.close();
   });
 

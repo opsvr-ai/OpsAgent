@@ -7,10 +7,10 @@ test('agent page generates one-click install commands', async ({ page }) => {
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByText('tenant_admin').first()).toBeVisible();
 
-  await page.locator('.sidebar .nav-item').filter({ hasText: '服务器 Agent' }).click();
-  await expect(page.getByRole('heading', { name: '服务器 Agent' })).toBeVisible();
+  await page.locator('.sidebar .nav-item').filter({ hasText: '操作系统智能体' }).click();
+  await expect(page.getByRole('heading', { name: '纳管操作系统智能体' })).toBeVisible();
   await page.getByRole('button', { name: '一键安装 Agent' }).click();
-  await expect(page.getByRole('heading', { name: '一键安装命令' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '一键安装 Agent' })).toBeVisible();
   await expect(page.getByText(/api\/agents\/install\.sh/)).toBeVisible();
   await expect(page.getByText(/api\/agents\/install\.ps1/)).toBeVisible();
 });

@@ -132,7 +132,7 @@ export function Help({ onBack }: HelpProps) {
         <article className="card">
           <div className="card-body">
             <div className="eyebrow">Agent 安装</div>
-            <p className="muted">服务器 Agent 页可一键生成 Linux/Windows 安装命令。</p>
+            <p className="muted">操作系统智能体页按应用系统纳管主机，展示配置发现、应用部署与 Agent 状态，并可一键生成安装命令。</p>
           </div>
         </article>
         <article className="card">

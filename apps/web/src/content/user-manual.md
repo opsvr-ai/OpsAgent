@@ -85,26 +85,27 @@
 - 状态：queued、running、awaiting_approval、success、failed。
 - 审批后继续；服务重启时 running 任务会标记 failed/interrupted，等待中的任务保留。
 
-## 10. 服务器 Agent
+## 10. 操作系统智能体
 
 ### 10.1 能力
 
 - 出站注册，不开放入站端口。
-- 立即心跳，之后每 10 秒上报：
-  - CPU 核数
-  - goroutines
-  - heap
-  - 内存总量/可用/负载
-  - 磁盘总量/可用
+- 立即心跳，之后每 10 秒上报 CPU、内存、磁盘和 Agent 运行指标。
+- 启动时与每 5 分钟执行配置发现：
+  - 操作系统版本、内核、CPU/内存/磁盘、IP、时区、虚拟化、包管理器、监听端口
+  - systemd 服务、Docker 应用、Windows 服务
+  - Agent 版本、安装路径、服务名、配置路径、启动时间、能力
 - 支持命令：
   - diagnostics
+  - discovery（立即重新发现并刷新配置）
   - disk_check
   - memory_check
   - ai_diagnose（需要 Agent 所在机器配置模型凭据）
+- 主机可按应用系统归属，平台按应用系统聚合和过滤。
 
 ### 10.2 一键安装
 
-在“服务器 Agent”页点击“一键安装 Agent”，平台会生成 Linux/Windows 命令。
+在“操作系统智能体”页点击“一键安装 Agent”，平台会生成 Linux/Windows 命令。
 
 Linux：
 

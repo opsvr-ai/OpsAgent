@@ -15,13 +15,14 @@ import (
 )
 
 type registerRequest struct {
-	TenantID     string   `json:"tenantId"`
-	Name         string   `json:"name"`
-	Hostname     string   `json:"hostname"`
-	OS           string   `json:"os"`
-	Arch         string   `json:"arch"`
-	Version      string   `json:"version"`
-	Capabilities []string `json:"capabilities"`
+	TenantID     string           `json:"tenantId"`
+	Name         string           `json:"name"`
+	Hostname     string           `json:"hostname"`
+	OS           string           `json:"os"`
+	Arch         string           `json:"arch"`
+	Version      string           `json:"version"`
+	Capabilities []string         `json:"capabilities"`
+	Discovery    *discoveryReport `json:"discovery,omitempty"`
 }
 
 type registerResponse struct {
@@ -32,9 +33,12 @@ type registerResponse struct {
 }
 
 type heartbeatRequest struct {
-	AgentKey string         `json:"agentKey"`
-	Metrics  map[string]any `json:"metrics"`
+	AgentKey  string           `json:"agentKey"`
+	Metrics   map[string]any   `json:"metrics"`
+	Discovery *discoveryReport `json:"discovery,omitempty"`
 }
+
+var agentStarted = time.Now()
 
 type agentCommand struct {
 	ID   string `json:"id"`
@@ -61,6 +65,8 @@ func runCommand(commandType string, metrics map[string]any) map[string]any {
 		} else {
 			result["analysis"] = analysis
 		}
+	case "discovery":
+		result["discovery"] = collectDiscovery(agentStarted, metrics)
 	default:
 		result["ok"] = false
 		result["error"] = "unsupported_command"
@@ -137,19 +143,24 @@ func main() {
 		headers["x-opsagent-enrollment-token"] = token
 	}
 	registered := registerResponse{}
-	started := time.Now()
+	agentStarted = time.Now()
+	started := agentStarted
+	initialMetrics := hostMetrics()
+	initialDiscovery := collectDiscovery(started, initialMetrics)
 	if err := post(controlURL+"/api/agents/register", headers, registerRequest{
 		TenantID:     tenantID,
 		Name:         name,
 		Hostname:     hostname,
 		OS:           runtime.GOOS,
 		Arch:         runtime.GOARCH,
-		Version:      "0.1.0",
-		Capabilities: []string{"cpu", "memory", "disk", "network"},
+		Version:      agentVersion,
+		Capabilities: []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover"},
+		Discovery:    &initialDiscovery,
 	}, &registered); err != nil {
 		log.Fatalf("register: %v", err)
 	}
 	log.Printf("registered agent %s", registered.Agent.ID)
+	lastDiscovery := time.Now()
 
 	beat := func() {
 		var memory runtime.MemStats
@@ -159,9 +170,16 @@ func main() {
 		metrics["goroutines"] = runtime.NumGoroutine()
 		metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
 		metrics["uptimeSec"] = int64(time.Since(started).Seconds())
+		var discovery *discoveryReport
+		if time.Since(lastDiscovery) >= 5*time.Minute {
+			report := collectDiscovery(started, metrics)
+			discovery = &report
+			lastDiscovery = time.Now()
+		}
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
-			AgentKey: registered.AgentKey,
-			Metrics:  metrics,
+			AgentKey:  registered.AgentKey,
+			Metrics:   metrics,
+			Discovery: discovery,
 		}, nil); err != nil {
 			log.Printf("heartbeat: %v", err)
 		}

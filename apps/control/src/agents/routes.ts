@@ -4,8 +4,18 @@ import { SESSION_COOKIE, readSession } from '../auth/session.js';
 import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
-import { AgentService } from './service.js';
+import { AgentService, type DiscoveryPayload } from './service.js';
 import { AgentCommandService } from './commands.js';
+
+function discoveryBody(value: unknown): DiscoveryPayload | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as DiscoveryPayload)
+    : undefined;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
 
 function enrollmentAuthorized(request: FastifyRequest, token?: string): boolean {
   if (!token) return true;
@@ -32,6 +42,7 @@ export function registerAgentRoutes(
       arch?: unknown;
       version?: unknown;
       capabilities?: unknown;
+      discovery?: unknown;
     } | undefined;
     if (
       typeof body?.tenantId !== 'string' ||
@@ -42,6 +53,7 @@ export function registerAgentRoutes(
     ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    const discovery = discoveryBody(body.discovery);
     const registered = await agents.register({
       tenantId: body.tenantId,
       name: typeof body.name === 'string' ? body.name : body.hostname,
@@ -52,12 +64,13 @@ export function registerAgentRoutes(
       capabilities: Array.isArray(body.capabilities)
         ? body.capabilities.filter((item): item is string => typeof item === 'string')
         : [],
+      ...(discovery ? { discovery } : {}),
     });
     return reply.code(201).send(registered);
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/heartbeat', async (request, reply) => {
-    const body = request.body as { agentKey?: unknown; metrics?: unknown } | undefined;
+    const body = request.body as { agentKey?: unknown; metrics?: unknown; discovery?: unknown } | undefined;
     if (typeof body?.agentKey !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
@@ -65,7 +78,12 @@ export function registerAgentRoutes(
       typeof body.metrics === 'object' && body.metrics !== null && !Array.isArray(body.metrics)
         ? (body.metrics as Record<string, unknown>)
         : undefined;
-    const agent = await agents.heartbeat(request.params.id, body.agentKey, metrics);
+    const agent = await agents.heartbeat(
+      request.params.id,
+      body.agentKey,
+      metrics,
+      discoveryBody(body.discovery),
+    );
     if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
     return reply.send(agent);
   });
@@ -88,6 +106,109 @@ export function registerAgentRoutes(
     return reply.send(await agents.list(ctx.tenantId));
   });
 
+  app.get<{
+    Querystring: {
+      query?: string;
+      status?: string;
+      appSystemId?: string;
+      os?: string;
+      page?: string;
+      pageSize?: string;
+    };
+  }>('/api/agents/fleet', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const appSystemId = request.query.appSystemId?.trim() || undefined;
+    if (appSystemId && !isUuid(appSystemId)) {
+      return reply.code(400).send({ error: 'invalid_app_system' });
+    }
+    const page = Number.parseInt(request.query.page ?? '1', 10);
+    const pageSize = Number.parseInt(request.query.pageSize ?? '20', 10);
+    return reply.send(await agents.fleet(ctx.tenantId, {
+      ...(request.query.query ? { query: request.query.query } : {}),
+      ...(request.query.status ? { status: request.query.status } : {}),
+      ...(appSystemId ? { appSystemId } : {}),
+      ...(request.query.os ? { os: request.query.os } : {}),
+      page: Number.isFinite(page) ? page : 1,
+      pageSize: Number.isFinite(pageSize) ? pageSize : 20,
+    }));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/agents/:id', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const agent = await agents.get(request.params.id, ctx.tenantId);
+    if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
+    return reply.send(agent);
+  });
+
+  app.patch<{ Params: { id: string } }>('/api/agents/:id/app-system', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { appSystemId?: unknown } | undefined;
+    const appSystemId = body?.appSystemId ?? null;
+    if (appSystemId !== null && (typeof appSystemId !== 'string' || !isUuid(appSystemId))) {
+      return reply.code(400).send({ error: 'invalid_app_system' });
+    }
+    const updated = await agents.assignAppSystem(ctx.tenantId, request.params.id, appSystemId);
+    if (!updated) return reply.code(404).send({ error: 'agent_or_app_system_not_found' });
+    return reply.send(updated);
+  });
+
+  app.get('/api/app-systems', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await agents.listAppSystems(ctx.tenantId));
+  });
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/commands', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
     if (!token) return reply.code(401).send({ error: 'unauthorized' });
@@ -106,7 +227,7 @@ export function registerAgentRoutes(
     const body = request.body as { type?: unknown } | undefined;
     if (
       typeof body?.type !== 'string' ||
-      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose'].includes(body.type)
+      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery'].includes(body.type)
     ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }

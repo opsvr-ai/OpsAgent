@@ -35,6 +35,8 @@ docker compose up -d --build control web
 - 审批通过 OpsAgent 内部审批 API 完成，与 dsh 的 permission picker 对齐
 - 会话记录写入 `session_transcripts`；`dsh_session_id` 持久化到 `runtime_sessions`，重启后仍可继续历史会话
 - 会话历史入口：智能体会话页右上角「历史」，或左侧「会话历史」页；可打开旧会话继续追问
+- 操作系统智能体启动时上报操作系统配置、应用部署和 Agent 部署信息，之后每 5 分钟刷新；平台按应用系统聚合主机
+- 修改 Agent 代码后执行 `pnpm agent:dist` 重建 Linux/Windows 安装包
 
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 

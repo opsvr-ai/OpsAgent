@@ -27,7 +27,7 @@ export const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
   { id: 'connectors', label: '集成与连接器', icon: 'plug' },
   { id: 'knowledge', label: '知识中心', icon: 'book' },
   { id: 'messages', label: '消息中心', icon: 'bell' },
-  { id: 'agents', label: '服务器 Agent', icon: 'server' },
+  { id: 'agents', label: '操作系统智能体', icon: 'server' },
   { id: 'tasks', label: '长任务', icon: 'clock' },
   { id: 'sessions', label: '会话历史', icon: 'message' },
   { id: 'members', label: '成员与角色', icon: 'users' },

@@ -395,6 +395,26 @@ export async function markMessageRead(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/messages/${id}/read`, { method: 'POST' });
 }
 
+export interface AgentApplication {
+  readonly name?: string;
+  readonly kind?: string;
+  readonly version?: string;
+  readonly status?: string;
+  readonly deploy?: string;
+  readonly ports?: unknown;
+  readonly path?: string;
+}
+
+export interface AppSystemSummary {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly owner: string | null;
+  readonly criticality: string;
+  readonly agentCount: number;
+  readonly onlineCount: number;
+}
+
 export interface AgentSummary {
   readonly id: string;
   readonly name: string;
@@ -405,10 +425,65 @@ export interface AgentSummary {
   readonly status: string;
   readonly lastSeen: string;
   readonly metrics: Readonly<Record<string, unknown>>;
+  readonly systemInfo: Readonly<Record<string, unknown>>;
+  readonly applications: readonly AgentApplication[];
+  readonly agentInfo: Readonly<Record<string, unknown>>;
+  readonly tags: readonly string[];
+  readonly discoveryAt: string | null;
+  readonly appSystem: AppSystemSummary | null;
+}
+
+export interface AgentFleetResponse {
+  readonly items: AgentSummary[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly summary: {
+    readonly total: number;
+    readonly online: number;
+    readonly offline: number;
+    readonly appSystems: number;
+    readonly applications: number;
+    readonly discovered: number;
+  };
+  readonly appSystems: AppSystemSummary[];
 }
 
 export async function listAgents(): Promise<AgentSummary[]> {
   return request<AgentSummary[]>('/api/agents');
+}
+
+export async function getAgentFleet(params: {
+  query?: string;
+  status?: string;
+  appSystemId?: string;
+  os?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<AgentFleetResponse> {
+  const search = new URLSearchParams();
+  if (params.query) search.set('query', params.query);
+  if (params.status) search.set('status', params.status);
+  if (params.appSystemId) search.set('appSystemId', params.appSystemId);
+  if (params.os) search.set('os', params.os);
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  return request<AgentFleetResponse>(`/api/agents/fleet?${search.toString()}`);
+}
+
+export async function getAgentDetail(id: string): Promise<AgentSummary> {
+  return request<AgentSummary>(`/api/agents/${id}`);
+}
+
+export async function listAppSystems(): Promise<AppSystemSummary[]> {
+  return request<AppSystemSummary[]>('/api/app-systems');
+}
+
+export async function assignAgentAppSystem(id: string, appSystemId: string | null): Promise<AgentSummary> {
+  return request<AgentSummary>(`/api/agents/${id}/app-system`, {
+    method: 'PATCH',
+    body: JSON.stringify({ appSystemId }),
+  });
 }
 
 export interface AgentCommandSummary {

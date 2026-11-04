@@ -51,6 +51,20 @@ func TestRunCommandUnsupported(t *testing.T) {
 	}
 }
 
+func TestRunCommandDiscovery(t *testing.T) {
+	result := runCommand("discovery", map[string]any{"memTotalGB": 16.0, "diskTotalGB": 100.0, "diskFreeGB": 40.0})
+	if result["ok"] != true {
+		t.Fatalf("expected discovery ok, got %#v", result)
+	}
+	report, ok := result["discovery"].(discoveryReport)
+	if !ok {
+		t.Fatalf("expected discovery report, got %#v", result["discovery"])
+	}
+	if report.System["hostname"] == "" || report.Agent["version"] == "" {
+		t.Fatalf("discovery report missing identity: %#v", report)
+	}
+}
+
 func TestRunCommandAIDiagnoseWithoutCredentials(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	result := runCommand("ai_diagnose", map[string]any{"memLoadPct": 50})

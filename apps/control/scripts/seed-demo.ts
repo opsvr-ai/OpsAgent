@@ -52,6 +52,12 @@ const ids = {
   approval1: 'a0000000-0000-4000-8000-000000000001',
   approval2: 'a0000000-0000-4000-8000-000000000002',
   agentDemo: 'b0000000-0000-4000-8000-000000000001',
+  agentOrder: 'b0000000-0000-4000-8000-000000000002',
+  agentDb: 'b0000000-0000-4000-8000-000000000003',
+  agentCache: 'b0000000-0000-4000-8000-000000000004',
+  appOrder: 'f0000000-0000-4000-8000-000000000001',
+  appPayment: 'f0000000-0000-4000-8000-000000000002',
+  appPlatform: 'f0000000-0000-4000-8000-000000000003',
   studio1: 'c0000000-0000-4000-8000-000000000001',
   studio2: 'c0000000-0000-4000-8000-000000000002',
   command1: 'd0000000-0000-4000-8000-000000000001',
@@ -95,6 +101,20 @@ async function main(): Promise<void> {
          VALUES ($1, $2, $3, $4, $5::jsonb, $6)
          ON CONFLICT (id) DO NOTHING`,
         [id, tenant, type, name, JSON.stringify(config), status],
+      );
+    }
+
+    const appSystems = [
+      [ids.appOrder, 'order-center', '订单中心', '交易研发组', 'P1'],
+      [ids.appPayment, 'payment-gateway', '支付网关', '支付研发组', 'P1'],
+      [ids.appPlatform, 'platform-runtime', '基础运行平台', '基础架构组', 'P2'],
+    ] as const;
+    for (const [id, code, name, owner, criticality] of appSystems) {
+      await client.query(
+        `INSERT INTO app_systems (id, tenant_id, code, name, owner, criticality)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, owner = EXCLUDED.owner, criticality = EXCLUDED.criticality`,
+        [id, tenant, code, name, owner, criticality],
       );
     }
 
@@ -247,15 +267,133 @@ async function main(): Promise<void> {
       [ids.approval1, tenant, ids.approvalSession1, ids.approval2, ids.approvalSession2],
     );
 
-    await client.query(
-      `INSERT INTO agents
-         (id, tenant_id, name, hostname, os, arch, version, status, capabilities, agent_key, last_seen, metrics)
-       VALUES ($1, $2, 'prod-web-01', 'prod-web-01', 'linux', 'amd64', '0.1.0', 'online',
-               '["cpu","memory","disk"]'::jsonb, 'demo-agent-key', now() + interval '1 day',
-               '{"cpuCores":8,"heapMB":24,"goroutines":12,"uptimeSec":86400,"memTotalGB":16,"memAvailableGB":9.2,"memLoadPct":42,"diskTotalGB":200,"diskFreeGB":128}'::jsonb)
-       ON CONFLICT (id) DO UPDATE SET status = 'online', last_seen = now() + interval '1 day', metrics = EXCLUDED.metrics`,
-      [ids.agentDemo, tenant],
-    );
+    const demoAgents = [
+      {
+        id: ids.agentDemo,
+        name: 'prod-web-01',
+        appSystemId: ids.appOrder,
+        minutesAgo: -1440,
+        ip: '10.20.8.12',
+        osName: 'Rocky Linux',
+        osVersion: '9.4',
+        cpu: 8,
+        mem: 16,
+        diskTotal: 200,
+        diskFree: 128,
+        apps: [
+          { name: 'order-service', kind: 'systemd', status: 'running', deploy: 'systemd', ports: [8080], version: '2.4.1', config: ['/opt/order/conf/application.yml'], logs: ['/var/log/order/service.log'] },
+          { name: 'nginx', kind: 'systemd', status: 'running', deploy: 'systemd', ports: [80, 443], version: '1.24.0' },
+        ],
+      },
+      {
+        id: ids.agentOrder,
+        name: 'prod-order-12',
+        appSystemId: ids.appOrder,
+        minutesAgo: -1440,
+        ip: '10.20.8.34',
+        osName: 'Ubuntu',
+        osVersion: '22.04',
+        cpu: 16,
+        mem: 32,
+        diskTotal: 500,
+        diskFree: 310,
+        apps: [
+          { name: 'order-worker', kind: 'systemd', status: 'running', deploy: 'systemd', ports: [], version: '2.4.1' },
+          { name: 'order-service', kind: 'docker', status: 'Up 3 days', deploy: 'docker', ports: [8080], version: '2.4.1' },
+        ],
+      },
+      {
+        id: ids.agentDb,
+        name: 'prod-db-01',
+        appSystemId: ids.appPlatform,
+        minutesAgo: -1440,
+        ip: '10.20.9.21',
+        osName: 'Rocky Linux',
+        osVersion: '9.4',
+        cpu: 32,
+        mem: 128,
+        diskTotal: 2000,
+        diskFree: 860,
+        apps: [
+          { name: 'postgresql', kind: 'systemd', status: 'running', deploy: 'systemd', ports: [5432], version: '16.4', config: ['/etc/postgresql/16/main/postgresql.conf'] },
+        ],
+      },
+      {
+        id: ids.agentCache,
+        name: 'prod-cache-01',
+        appSystemId: ids.appPayment,
+        minutesAgo: 12,
+        ip: '10.20.9.45',
+        osName: 'Debian',
+        osVersion: '12',
+        cpu: 4,
+        mem: 8,
+        diskTotal: 100,
+        diskFree: 46,
+        apps: [
+          { name: 'redis', kind: 'systemd', status: 'running', deploy: 'systemd', ports: [6379], version: '7.2.5' },
+          { name: 'zabbix-agent2', kind: 'ops-client', status: 'running', deploy: 'systemd', ports: [10050], version: '6.4' },
+        ],
+      },
+    ] as const;
+
+    for (const agent of demoAgents) {
+      const systemInfo = {
+        hostname: agent.name,
+        ip: agent.ip,
+        ipAddresses: [agent.ip],
+        osName: agent.osName,
+        osVersion: agent.osVersion,
+        osPretty: `${agent.osName} ${agent.osVersion}`,
+        kernel: '5.14.0-427.el9.x86_64',
+        virtualization: 'kvm',
+        cpuCores: agent.cpu,
+        memoryTotalGB: agent.mem,
+        diskTotalGB: agent.diskTotal,
+        diskFreeGB: agent.diskFree,
+        uptimeSec: 86400 * 17,
+        timezone: 'Asia/Shanghai',
+        packageManager: agent.osName === 'Ubuntu' ? 'apt-get' : 'dnf',
+        listeningPorts: agent.apps.flatMap((app) => app.ports),
+      };
+      const agentInfo = {
+        version: '0.2.0',
+        installPath: '/usr/local/bin/opsagent-agent',
+        serviceName: 'opsagent-agent',
+        serviceStatus: 'running',
+        configPath: '/etc/opsagent/agent.env',
+        startedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+        capabilities: ['system.discover', 'applications.discover', 'metrics', 'diagnostics'],
+      };
+      await client.query(
+        `INSERT INTO agents
+           (id, tenant_id, name, hostname, os, arch, version, status, capabilities, agent_key,
+            last_seen, metrics, app_system_id, system_info, applications, agent_info, tags, discovery_at)
+         VALUES ($1, $2, $3, $3, 'linux', 'amd64', '0.2.0', 'online',
+                 $4::jsonb, $5, now() - ($6 * interval '1 minute'), $7::jsonb, $8,
+                 $9::jsonb, $10::jsonb, $11::jsonb, '["prod","discovered"]'::jsonb, now())
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name, hostname = EXCLUDED.hostname,
+           version = EXCLUDED.version, status = 'online', capabilities = EXCLUDED.capabilities,
+           last_seen = EXCLUDED.last_seen, metrics = EXCLUDED.metrics,
+           app_system_id = EXCLUDED.app_system_id, system_info = EXCLUDED.system_info,
+           applications = EXCLUDED.applications, agent_info = EXCLUDED.agent_info,
+           discovery_at = now()`,
+        [
+          agent.id,
+          tenant,
+          agent.name,
+          JSON.stringify(['cpu', 'memory', 'disk', 'network', 'system.discover', 'applications.discover']),
+          `demo-agent-key-${agent.id}`,
+          agent.minutesAgo,
+          JSON.stringify({ cpuCores: agent.cpu, heapMB: 24, goroutines: 12, uptimeSec: 86400, memTotalGB: agent.mem, memAvailableGB: Math.round(agent.mem * 0.56), memLoadPct: 44, diskTotalGB: agent.diskTotal, diskFreeGB: agent.diskFree }),
+          agent.appSystemId,
+          JSON.stringify(systemInfo),
+          JSON.stringify(agent.apps),
+          JSON.stringify(agentInfo),
+        ],
+      );
+    }
 
     await client.query(
       `INSERT INTO agent_commands (id, tenant_id, agent_id, type, status, result, created_at, dispatched_at, completed_at)

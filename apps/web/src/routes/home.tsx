@@ -43,7 +43,7 @@ export function Home({ me, home, onStartSession, onOpenScenarios, onOpenAudit, o
   };
   const cardCopy: Record<string, string> = {
     incidents: '查看事件时间线，推进排查、恢复与关闭。',
-    agents: '安装服务器 Agent，查看心跳、指标并执行诊断。',
+    agents: '按应用系统纳管操作系统智能体，查看配置发现、应用部署与 Agent 状态。',
     knowledge: '沉淀排障经验，经审核后发布给团队。',
     scenarios: '编排标准化处置步骤，按风险审批执行。',
     approvals: '集中处理运行时、场景与共享审批。',

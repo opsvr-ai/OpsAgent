@@ -65,8 +65,8 @@ export class AgentCommandService {
     key: string;
     result: unknown;
   }): Promise<AgentCommandRecord | null> {
-    const agent = await this.pool.query(
-      'SELECT 1 FROM agents WHERE id = $1 AND agent_key = $2',
+    const agent = await this.pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM agents WHERE id = $1 AND agent_key = $2',
       [input.agentId, input.key],
     );
     if (agent.rowCount === 0) return null;
@@ -77,7 +77,32 @@ export class AgentCommandService {
        RETURNING id, agent_id, type, status, result, created_at`,
       [JSON.stringify(input.result), input.commandId, input.agentId],
     );
-    return result.rows[0] ? this.map(result.rows[0]) : null;
+    const record = result.rows[0];
+    if (record && typeof input.result === 'object' && input.result !== null) {
+      const discovery = (input.result as Record<string, unknown>).discovery;
+      if (typeof discovery === 'object' && discovery !== null && !Array.isArray(discovery)) {
+        const report = discovery as Record<string, unknown>;
+        const tenantId = agent.rows[0]?.tenant_id;
+        if (tenantId) {
+          await this.pool.query(
+            `UPDATE agents SET
+               system_info = COALESCE($3::jsonb, system_info),
+               applications = COALESCE($4::jsonb, applications),
+               agent_info = COALESCE($5::jsonb, agent_info),
+               discovery_at = now()
+             WHERE id = $1 AND tenant_id = $2`,
+            [
+              input.agentId,
+              tenantId,
+              report.system ? JSON.stringify(report.system) : null,
+              report.applications ? JSON.stringify(report.applications) : null,
+              report.agent ? JSON.stringify(report.agent) : null,
+            ],
+          );
+        }
+      }
+    }
+    return record ? this.map(record) : null;
   }
 
   private map(row: {

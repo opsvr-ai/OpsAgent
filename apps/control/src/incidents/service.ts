@@ -184,6 +184,101 @@ export class IncidentService {
     return this.map(row);
   }
 
+  async createFromSource(input: {
+    tenantId: string;
+    source: 'alertmanager' | 'zabbix' | 'webhook';
+    sourceRef: string;
+    title: string;
+    severity: string;
+    appSystemId?: string;
+    rootCause?: string;
+    evidence?: Array<{ kind: string; source: string; summary: string; payload?: Record<string, unknown> }>;
+  }): Promise<{ incident: IncidentRecord; created: boolean } | null> {
+    const existing = await this.pool.query<{ id: string }>(
+      `SELECT id FROM incidents WHERE tenant_id = $1 AND source = $2 AND source_ref = $3 LIMIT 1`,
+      [input.tenantId, input.source, input.sourceRef],
+    );
+    if (existing.rows[0]) {
+      const record = await this.get(input.tenantId, String(existing.rows[0].id));
+      return record ? { incident: record, created: false } : null;
+    }
+    const user = await this.pool.query<{ id: string }>(
+      `SELECT u.id FROM users u
+       JOIN memberships m ON m.user_id = u.id AND m.tenant_id = $1 AND m.status = 'active'
+       ORDER BY u.created_at LIMIT 1`,
+      [input.tenantId],
+    );
+    const actorId = user.rows[0]?.id;
+    if (!actorId) return null;
+    const inserted = await this.pool.query(
+      `INSERT INTO incidents
+         (tenant_id, title, severity, source, source_ref, app_system_id, root_cause, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause`,
+      [
+        input.tenantId,
+        input.title,
+        input.severity,
+        input.source,
+        input.sourceRef,
+        input.appSystemId ?? null,
+        input.rootCause ?? null,
+        actorId,
+      ],
+    );
+    const row = inserted.rows[0];
+    if (!row) return null;
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'source_ingested', $4::jsonb)`,
+      [input.tenantId, row.id, actorId, JSON.stringify({ source: input.source, sourceRef: input.sourceRef })],
+    );
+    for (const evidence of input.evidence ?? []) {
+      await this.pool.query(
+        `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+        [input.tenantId, row.id, evidence.kind, evidence.source, evidence.summary, JSON.stringify(evidence.payload ?? {})],
+      );
+    }
+    await this.pool.query(
+      `INSERT INTO messages (tenant_id, title, body, severity)
+       VALUES ($1, $2, $3, 'warning')`,
+      [input.tenantId, `新事件：${input.severity}`, input.title],
+    );
+    return { incident: this.map(row), created: true };
+  }
+
+  async report(tenantId: string, id: string): Promise<string | null> {
+    const detail = await this.getWithEvents(tenantId, id);
+    if (!detail) return null;
+    const lines = [
+      `# 事件报告：${detail.incident.title}`,
+      '',
+      `- 事件 ID：${detail.incident.id}`,
+      `- 严重度：${detail.incident.severity}`,
+      `- 状态：${detail.incident.status}`,
+      `- 来源：${detail.incident.source}`,
+      `- 根因：${detail.incident.rootCause ?? '未确认'}`,
+      '',
+      '## 证据',
+      '',
+      ...detail.evidence.map((item) => `- [${item.kind}] ${item.summary}`),
+      '',
+      '## 故障假设',
+      '',
+      ...detail.hypotheses.map((item) => `- ${item.confidence}% ${item.status}：${item.statement}`),
+      '',
+      '## 处置任务',
+      '',
+      ...detail.tickets.map((item) => `- ${item.title}（${item.assignee} / ${item.status}）`),
+      '',
+      '## 时间线',
+      '',
+      ...detail.events.map((event) => `- ${event.createdAt} ${event.type} ${JSON.stringify(event.payload)}`),
+    ];
+    return lines.join('\n');
+  }
+
   async investigate(input: {
     tenantId: string;
     id: string;

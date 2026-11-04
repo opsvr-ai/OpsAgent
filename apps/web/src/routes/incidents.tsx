@@ -201,6 +201,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <button type="button" className="btn btn-outline btn-sm" disabled={investigating} onClick={() => void investigate(selected.id)}>
                         {investigating ? '排障执行中…' : '自动排障'}
                       </button>
+                      <a className="btn btn-outline btn-sm" href={`/api/incidents/${selected.id}/report`} target="_blank" rel="noreferrer">导出报告</a>
                       {statusActions(selected)}
                     </div>
                   </div>

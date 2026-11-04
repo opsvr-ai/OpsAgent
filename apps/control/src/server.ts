@@ -96,7 +96,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerPlatformRoutes(app, options.pool);
     registerDataStoreRoutes(app, options.pool, audit);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
-    registerIncidentRoutes(app, options.pool, audit);
+    registerIncidentRoutes(app, options.pool, audit, options.internalToken);
   }
 
   return app;

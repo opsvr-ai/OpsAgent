@@ -22,6 +22,7 @@ export function registerIncidentRoutes(
   app: FastifyInstance,
   pool: Pool,
   audit: AuditWriter,
+  internalToken?: string,
 ): void {
   const incidents = new IncidentService(pool);
 
@@ -115,8 +116,76 @@ export function registerIncidentRoutes(
     return reply.send(incident);
   });
 
-  app.post<{ Params: { id: string } }>('/api/incidents/:id/investigate', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/incidents/:id/report', async (request, reply) => {
     const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const report = await incidents.report(ctx.tenantId, request.params.id);
+    if (!report) return reply.code(404).send({ error: 'incident_not_found' });
+    return reply.type('text/markdown; charset=utf-8').send(report);
+  });
+
+  app.post('/internal/incident-sources', async (request, reply) => {
+    if (internalToken && request.headers['x-opsagent-token'] !== internalToken) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+    const body = request.body as {
+      tenantId?: unknown;
+      source?: unknown;
+      sourceRef?: unknown;
+      title?: unknown;
+      severity?: unknown;
+      appSystemId?: unknown;
+      rootCause?: unknown;
+      evidence?: unknown;
+    } | undefined;
+    const sources = ['alertmanager', 'zabbix', 'webhook'];
+    if (
+      typeof body?.tenantId !== 'string' ||
+      typeof body.source !== 'string' || !sources.includes(body.source) ||
+      typeof body.sourceRef !== 'string' ||
+      typeof body.title !== 'string' ||
+      typeof body.severity !== 'string'
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const evidence = Array.isArray(body.evidence)
+      ? body.evidence
+        .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+        .map((item) => ({
+          kind: typeof item.kind === 'string' ? item.kind : 'source',
+          source: typeof item.source === 'string' ? item.source : String(body.source),
+          summary: typeof item.summary === 'string' ? item.summary : '',
+          payload: typeof item.payload === 'object' && item.payload !== null && !Array.isArray(item.payload)
+            ? item.payload as Record<string, unknown>
+            : {},
+        }))
+      : [];
+    try {
+      const result = await incidents.createFromSource({
+        tenantId: body.tenantId,
+        source: body.source as 'alertmanager' | 'zabbix' | 'webhook',
+        sourceRef: body.sourceRef,
+        title: body.title,
+        severity: body.severity,
+        ...(typeof body.appSystemId === 'string' ? { appSystemId: body.appSystemId } : {}),
+        ...(typeof body.rootCause === 'string' ? { rootCause: body.rootCause } : {}),
+        evidence,
+      });
+      if (!result) return reply.code(404).send({ error: 'tenant_or_app_system_not_found' });
+      return reply.code(result.created ? 201 : 200).send(result);
+    } catch (error) {
+      request.log.warn({ err: error }, 'incident source ingestion failed');
+      return reply.code(409).send({ error: 'source_conflict' });
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/api/incidents/:id/investigate', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
       requirePermission(ctx, 'incident.manage');

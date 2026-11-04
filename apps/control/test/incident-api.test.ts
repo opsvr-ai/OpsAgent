@@ -74,6 +74,53 @@ describe('incident API', () => {
     await app.close();
   });
 
+  it('deduplicates external sources and renders an incident report', async () => {
+    const tenant = await pool.query<{ id: string }>('SELECT id FROM tenants ORDER BY created_at LIMIT 1');
+    const tenantId = tenant.rows[0]?.id;
+    if (!tenantId) throw new Error('missing tenant');
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+      internalToken: 'source-token',
+    });
+    const payload = {
+      tenantId,
+      source: 'alertmanager',
+      sourceRef: 'alert-42',
+      title: '订单服务 5xx 升高',
+      severity: 'P1',
+      rootCause: '订单服务实例异常',
+      evidence: [{ kind: 'metric', source: 'prometheus', summary: '5xx > 5%' }],
+    };
+    const first = await app.inject({
+      method: 'POST',
+      url: '/internal/incident-sources',
+      headers: { 'x-opsagent-token': 'source-token' },
+      payload,
+    });
+    expect(first.statusCode).toBe(201);
+    const incidentId = (first.json() as { incident: { id: string } }).incident.id;
+    const second = await app.inject({
+      method: 'POST',
+      url: '/internal/incident-sources',
+      headers: { 'x-opsagent-token': 'source-token' },
+      payload,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({ created: false, incident: { id: incidentId } });
+
+    const cookie = await login(app);
+    const report = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${incidentId}/report`,
+      headers: { cookie },
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.body).toContain('订单服务 5xx 升高');
+    expect(report.body).toContain('5xx > 5%');
+    await app.close();
+  });
+
   it('rejects an invalid status', async () => {
     const app = buildServer({
       pool,

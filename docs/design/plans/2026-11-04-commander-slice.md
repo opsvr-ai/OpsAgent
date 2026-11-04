@@ -14,6 +14,8 @@
 - 数据库：`incident_evidence`、`incident_hypotheses`、`incident_tickets`
 - Commander Executor v0：事件详情「自动排障」按钮向触发主机下发 inspect 命令，收集主机证据、更新时间线/假设/任务
 - Source 去重：同一应用系统未关闭的同标题 Incident 不重复创建
+- Source 接入骨架：`POST /internal/incident-sources` 接收 Alertmanager/Zabbix/Webhook，按 `source + sourceRef` 幂等
+- 事件报告：`GET /api/incidents/:id/report` 输出 Markdown，详情页可导出
 
 ## 验收（已通过）
 

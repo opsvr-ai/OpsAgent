@@ -971,6 +971,121 @@ export function registerAgentInstructionRoutes(
     return reply.send([...hours.values()].sort((a, b) => a.hour.localeCompare(b.hour)));
   });
 
+  app.post<{ Params: { failureId: string } }>(
+    '/api/agent-instruction-approvals/side-effect-failures/:failureId/retry',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'approval.decide');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const row = await pool.query<{
+        id: string;
+        approval_id: string | null;
+        status: string;
+        agent_id: string;
+        hostname: string;
+        instruction: string;
+        action: string;
+        service: string | null;
+        incident_id: string | null;
+        command_id: string | null;
+      }>(
+        `SELECT f.id, f.approval_id, a.status, a.agent_id, g.hostname, a.instruction,
+                a.action, a.service, a.incident_id, a.command_id
+         FROM approval_side_effect_failures f
+         JOIN agent_instruction_approvals a ON a.id = f.approval_id
+         JOIN agents g ON g.id = a.agent_id
+         WHERE f.tenant_id = $1 AND f.id = $2 AND f.resolved_at IS NULL`,
+        [ctx.tenantId, request.params.failureId],
+      );
+      const failure = row.rows[0];
+      if (!failure) return reply.code(404).send({ error: 'failure_not_found' });
+      if (failure.status === 'approved') {
+        if (failure.incident_id) {
+          await pool.query(
+            `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+             SELECT $1, $2, $3, 'instruction_approval_approved', $4::jsonb
+             WHERE NOT EXISTS (
+               SELECT 1 FROM incident_events
+               WHERE tenant_id = $1 AND incident_id = $2 AND type = 'instruction_approval_approved'
+                 AND payload->>'approvalId' = $5
+             )`,
+            [ctx.tenantId, failure.incident_id, ctx.userId, JSON.stringify({
+              approvalId: failure.approval_id,
+              commandId: failure.command_id,
+              service: failure.service,
+              retried: true,
+            }), failure.approval_id],
+          );
+        }
+        await pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, 'Agent 写操作已批准', $2, 'info')`,
+          [ctx.tenantId, `${failure.hostname}：${failure.action} ${failure.service ?? ''}`],
+        );
+        notifyApprovalWebhook({
+          type: 'approval_approved',
+          tenantId: ctx.tenantId,
+          approvalId: failure.approval_id ?? failure.id,
+          agentId: failure.agent_id,
+          hostname: failure.hostname,
+          action: failure.action,
+          service: failure.service,
+          instruction: failure.instruction,
+        }, pool);
+        await audit.write({
+          tenantId: ctx.tenantId,
+          actorId: ctx.userId,
+          action: 'agent.instruction.approval.approved',
+          resource: failure.approval_id ?? failure.id,
+          result: 'success',
+          metadata: { retried: true, commandId: failure.command_id },
+        });
+      } else if (failure.status === 'denied') {
+        if (failure.incident_id) {
+          await pool.query(
+            `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+             SELECT $1, $2, $3, 'instruction_approval_denied', $4::jsonb
+             WHERE NOT EXISTS (
+               SELECT 1 FROM incident_events
+               WHERE tenant_id = $1 AND incident_id = $2 AND type = 'instruction_approval_denied'
+                 AND payload->>'approvalId' = $5
+             )`,
+            [ctx.tenantId, failure.incident_id, ctx.userId, JSON.stringify({
+              approvalId: failure.approval_id,
+              retried: true,
+            }), failure.approval_id],
+          );
+        }
+        await pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, 'Agent 写操作已拒绝', $2, 'info')`,
+          [ctx.tenantId, `${failure.service ?? failure.instruction}`],
+        );
+        notifyApprovalWebhook({
+          type: 'approval_denied',
+          tenantId: ctx.tenantId,
+          approvalId: failure.approval_id ?? failure.id,
+          agentId: failure.agent_id,
+          hostname: failure.hostname,
+          action: failure.action,
+          service: failure.service,
+          instruction: failure.instruction,
+        }, pool);
+      }
+      await pool.query(
+        `UPDATE approval_side_effect_failures SET resolved_at = now()
+         WHERE tenant_id = $1 AND id = $2`,
+        [ctx.tenantId, failure.id],
+      );
+      return reply.send({ ok: true, failureId: failure.id });
+    },
+  );
+
   app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

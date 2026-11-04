@@ -272,10 +272,11 @@ approval_side_effect_failures
   created_at / resolved_at
 
 GET /api/agent-instruction-approvals/side-effect-failures
+POST /api/agent-instruction-approvals/side-effect-failures/:id/retry
 POST /api/agent-instruction-approvals/side-effect-failures/:id/resolve
 ```
 
-待审批页面展示未解决的副作用失败，并支持「标记已处理」。
+待审批页面展示未解决的副作用失败，并支持「重试」和「标记已处理」。
 
 通知趋势：
 

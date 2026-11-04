@@ -827,6 +827,13 @@ export async function resolveApprovalSideEffectFailure(id: string): Promise<void
   });
 }
 
+export async function retryApprovalSideEffectFailure(id: string): Promise<void> {
+  await request<{ ok: true }>(`/api/agent-instruction-approvals/side-effect-failures/${id}/retry`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;

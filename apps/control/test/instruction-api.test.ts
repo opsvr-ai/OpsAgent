@@ -705,6 +705,39 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('retries an approval side-effect failure', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const approval = await pool.query<{ id: string }>(
+      `INSERT INTO agent_instruction_approvals
+         (tenant_id, agent_id, instruction, action, service, status, requested_by, decided_at)
+       VALUES ($1, $2, '重启 nginx 服务', 'service_restart', 'nginx', 'approved',
+               (SELECT id FROM users WHERE username = 'tenant-admin'), now())
+       RETURNING id`,
+      [tenantId, agentId],
+    );
+    const approvalId = approval.rows[0]?.id;
+    const failure = await pool.query<{ id: string }>(
+      `INSERT INTO approval_side_effect_failures (tenant_id, approval_id, effect, error)
+       VALUES ($1, $2, 'approval_approved_notification', 'message_insert_failed') RETURNING id`,
+      [tenantId, approvalId],
+    );
+    const failureId = failure.rows[0]?.id;
+    const retried = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/side-effect-failures/${failureId}/retry`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(retried.statusCode).toBe(200);
+    const row = await pool.query<{ resolved_at: Date | null }>(
+      'SELECT resolved_at FROM approval_side_effect_failures WHERE id = $1',
+      [failureId],
+    );
+    expect(row.rows[0]?.resolved_at).not.toBeNull();
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

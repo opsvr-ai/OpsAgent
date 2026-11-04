@@ -13,6 +13,7 @@ import {
   listNotificationStats,
   replayApprovalWebhookDelivery,
   resolveApprovalSideEffectFailure,
+  retryApprovalSideEffectFailure,
   type AgentInstructionApproval,
   type ApprovalSideEffectFailure,
   type ApprovalSummary,
@@ -174,6 +175,16 @@ export function Approvals({ onBack }: ApprovalsProps) {
       setWebhookFailures(await listApprovalWebhookDeliveries('failed'));
     } catch {
       setError('Webhook 重放失败');
+    }
+  }
+
+  async function retryFailure(id: string) {
+    setError(null);
+    try {
+      await retryApprovalSideEffectFailure(id);
+      setSideEffectFailures(await listApprovalSideEffectFailures());
+    } catch {
+      setError('副作用失败重试失败');
     }
   }
 
@@ -406,7 +417,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className="mono">{failure.effect}</span>
                   <span className="muted">{failure.error ?? '未知错误'}</span>
                   <span className="muted">{new Date(failure.createdAt).toLocaleString()}</span>
-                  <button type="button" className="btn btn-outline btn-sm" onClick={() => void resolveFailure(failure.id)}>标记已处理</button>
+                  <div className="row-sm">
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => void retryFailure(failure.id)}>重试</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => void resolveFailure(failure.id)}>标记已处理</button>
+                  </div>
                 </div>
               ))}
             </div>

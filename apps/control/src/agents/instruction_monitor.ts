@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import { notifyApprovalWebhook } from './approval_webhook.js';
+import { notifyApprovalWebhook, replayApprovalWebhook } from './approval_webhook.js';
 
 /** Expires pending/dispatched natural-language instructions after the signed command lifetime. */
 export class AgentInstructionMonitor {
@@ -95,6 +95,18 @@ export class AgentInstructionMonitor {
           service: approval.service,
           instruction: approval.instruction,
         }, this.pool);
+      }
+
+      const autoReplay = await this.pool.query<{ id: string; payload: string }>(
+        `UPDATE approval_webhook_deliveries
+         SET status = 'pending', attempts = 0, last_error = NULL,
+             auto_replayed_at = now(), updated_at = now()
+         WHERE status = 'failed' AND auto_replayed_at IS NULL
+           AND created_at < now() - interval '1 minute'
+         RETURNING id, payload::text AS payload`,
+      );
+      for (const delivery of autoReplay.rows) {
+        replayApprovalWebhook(this.pool, delivery.id, delivery.payload);
       }
     } catch (error) {
       console.error('agent instruction monitor failed', error);

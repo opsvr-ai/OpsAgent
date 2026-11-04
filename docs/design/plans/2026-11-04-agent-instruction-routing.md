@@ -350,6 +350,15 @@ POST /api/agent-instruction-approvals/webhook-deliveries/:id/replay
 
 待审批页面展示失败的 Webhook 投递，并支持手工重放。
 
+自动重放：
+
+```text
+失败超过 1 分钟
+  → 自动置为 pending
+  → 重放一次
+  → 仍失败则等待人工重放
+```
+
 ### 指令历史
 
 ```http

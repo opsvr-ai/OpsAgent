@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -80,6 +82,28 @@ type cliReply struct {
 	Hostname  string `json:"hostname"`
 }
 
+func cliPost(url string, payload any, target any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("content-type", "application/json")
+	client := &http.Client{Timeout: 120 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 {
+		return fmt.Errorf("%s returned %d", url, response.StatusCode)
+	}
+	return json.NewDecoder(response.Body).Decode(target)
+}
+
 func askPlatform(state agentState, question string) (string, bool, error) {
 	if state.AgentID == "" || state.AgentKey == "" {
 		return "", false, fmt.Errorf("agent state is missing; start opsagent-agent --service first")
@@ -89,9 +113,8 @@ func askPlatform(state agentState, question string) (string, bool, error) {
 		controlURL = env("OPSAGENT_CONTROL_URL", "http://127.0.0.1:8080")
 	}
 	var reply cliReply
-	err := post(
+	err := cliPost(
 		strings.TrimRight(controlURL, "/")+"/api/agents/"+state.AgentID+"/chat",
-		nil,
 		map[string]any{"agentKey": state.AgentKey, "question": question},
 		&reply,
 	)

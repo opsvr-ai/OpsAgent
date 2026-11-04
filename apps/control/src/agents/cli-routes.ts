@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import type { RuntimeClient } from '@opsagent/contracts';
 import type { Pool } from 'pg';
 import { PlatformAssistant } from '../assistant/platform.js';
 
-export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool): void {
+export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime: RuntimeClient): void {
   const platform = new PlatformAssistant(pool);
+  const cliSessions = new Map<string, string>();
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/chat', async (request, reply) => {
     const body = request.body as { agentKey?: unknown; question?: unknown } | undefined;
@@ -22,7 +24,7 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool): void {
     const row = agent.rows[0];
     if (!row) return reply.code(401).send({ error: 'unauthorized' });
 
-    if (/^(你好|您好|hi|hello|help)[!！。.?\s]*$/i.test(question)) {
+    if (/^(你好|您好|hi|hello)[!！。.?\s]*$/i.test(question)) {
       return reply.send({
         supported: true,
         hostname: row.hostname,
@@ -30,20 +32,89 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool): void {
       });
     }
 
-    let plan = await platform.detect(row.tenant_id, question);
-    if (!plan) {
-      plan = await platform.detect(row.tenant_id, `${row.hostname} ${question}`);
-    }
-    if (!plan) {
-      return reply.send({ supported: false, hostname: row.hostname, answer: '' });
+    if (/(你能做什么|你会什么|有什么能力|能帮我做什么|使用帮助)/i.test(question)) {
+      return reply.send({
+        supported: true,
+        hostname: row.hostname,
+        answer: [
+          `我是 **${row.hostname}** 上的 OpsAgent，可以直接对话：`,
+          '',
+          '- 本机检查：磁盘分区、CPU、内存、进程、端口、服务、网络、软件包、日志、Agent 部署路径',
+          '- 平台数据：纳管主机统计、应用系统、主动告警',
+          '- 故障分析：应用系统健康检查、跨节点异常关联、根因定位',
+          '- 服务端会下发只读检查命令，由本机常驻 Agent 执行',
+          '',
+          '例如：「磁盘分区什么样」「当前有哪些告警」「订单中心健康情况和故障根因」。',
+        ].join('\n'),
+      });
     }
 
-    const sessionId = `cli-${randomUUID()}`;
-    const chunks: string[] = [];
-    for await (const event of platform.execute(plan, row.tenant_id, sessionId)) {
-      if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
+    let plan = await platform.detect(row.tenant_id, question);
+    if (!plan && /(磁盘|分区|内存|cpu|进程|端口|服务|日志|系统|配置|部署|路径|主机|agent|告警|性能|负载|网络|内核|时间|状态|检查|查看|巡检)/i.test(question)) {
+      plan = await platform.detect(row.tenant_id, `${row.hostname} ${question}`);
     }
-    const answer = chunks.join('').trim();
-    return reply.send({ supported: Boolean(answer), hostname: row.hostname, answer });
+    if (plan) {
+      const sessionId = `cli-${randomUUID()}`;
+      const chunks: string[] = [];
+      for await (const event of platform.execute(plan, row.tenant_id, sessionId)) {
+        if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
+      }
+      const answer = chunks.join('').trim();
+      if (answer) return reply.send({ supported: true, hostname: row.hostname, answer });
+    }
+
+    let runtimeSessionId = cliSessions.get(request.params.id);
+    try {
+      if (!runtimeSessionId) {
+        const user = await pool.query<{ id: string }>(
+          `SELECT u.id FROM users u
+           JOIN memberships m ON m.user_id = u.id AND m.tenant_id = $1 AND m.status = 'active'
+           ORDER BY u.created_at LIMIT 1`,
+          [row.tenant_id],
+        );
+        const runtimeSession = await runtime.startSession({
+          tenantId: row.tenant_id,
+          userId: user.rows[0]?.id ?? '00000000-0000-0000-0000-000000000000',
+          roleView: `agent-cli:${row.hostname}`,
+        });
+        runtimeSessionId = runtimeSession.runtimeSessionId;
+        cliSessions.set(request.params.id, runtimeSessionId);
+      }
+
+      const chunks: string[] = [];
+      let runtimeError = '';
+      const prompt = [
+        '你是 OpsAgent 操作系统智能体命令行助手，不是通用编码助手。',
+        `当前接管主机：${row.hostname}。`,
+        '回答要简洁、面向运维，可引用平台数据和本机检查结果；不要声称你能直接修改目标主机。',
+        '如果用户问题明确涉及本机指标、磁盘、进程、端口、日志、服务或应用系统健康，优先使用 OpsAgent 的检查能力；日常问答则直接回答。',
+        '',
+        `用户问题：${question}`,
+      ].join('\n');
+      for await (const event of runtime.prompt(
+        runtimeSessionId,
+        prompt,
+        `cli-${randomUUID()}`,
+        { permissionMode: 'read-only' },
+      )) {
+        if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
+        if (event.type === 'runtime.error') runtimeError = event.message;
+      }
+      const answer = chunks.join('').trim();
+      if (!answer) {
+        return reply.send({
+          supported: false,
+          hostname: row.hostname,
+          answer: runtimeError ? `模型对话暂不可用：${runtimeError}` : '',
+        });
+      }
+      return reply.send({ supported: true, hostname: row.hostname, answer });
+    } catch (error) {
+      console.error('agent cli chat failed', error);
+      return reply.code(500).send({
+        error: 'cli_chat_failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 }

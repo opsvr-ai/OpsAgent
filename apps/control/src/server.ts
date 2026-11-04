@@ -64,7 +64,8 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       options.ldap,
     );
     registerTenantRoutes(app, options.pool, audit);
-    registerRuntimeRoutes(app, options.pool, audit, options.runtime ?? new FakeRuntime());
+    const runtime = options.runtime ?? new FakeRuntime();
+    registerRuntimeRoutes(app, options.pool, audit, runtime);
     registerConnectorRoutes(
       app,
       options.pool,
@@ -85,7 +86,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerKnowledgeRoutes(app, options.pool, audit);
     registerMessageRoutes(app, options.pool);
     registerAgentRoutes(app, options.pool, options.agentEnrollmentToken);
-    registerAgentCliRoutes(app, options.pool);
+    registerAgentCliRoutes(app, options.pool, runtime);
     registerAgentInstallRoutes(app, options.pool, options.agentEnrollmentToken, {
       distDir: options.agentDistDir ?? 'agents/opsagent-agent/dist',
       ...(options.agentPublicUrl ? { publicUrl: options.agentPublicUrl } : {}),

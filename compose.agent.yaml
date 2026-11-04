@@ -4,7 +4,7 @@ services:
     image: node:22-alpine
     container_name: opsagent-os-agent
     hostname: opsagent-os-agent
-    command: ["/opt/opsagent/bin/opsagent-agent", "--service"]
+    command: ["/bin/sh", "-c", "ln -sf /opt/opsagent/bin/opsagent-agent /usr/local/bin/opsagent-agent && exec /opt/opsagent/bin/opsagent-agent --service"]
     environment:
       OPSAGENT_HOME: /opt/opsagent
       OPSAGENT_CONTROL_URL: http://control:8080

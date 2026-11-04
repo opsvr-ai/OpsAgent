@@ -132,6 +132,17 @@ describe('agent registry API', () => {
       supported: true,
       answer: expect.stringContaining('纳管'),
     });
+
+    const capabilities = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/chat`,
+      payload: { agentKey: body.agentKey, question: '你能做什么' },
+    });
+    expect(capabilities.statusCode).toBe(200);
+    expect(capabilities.json()).toMatchObject({
+      supported: true,
+      answer: expect.stringContaining('OpsAgent'),
+    });
     const command = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/commands`,

@@ -318,6 +318,13 @@ export async function getIncident(id: string): Promise<IncidentDetail> {
   return request<IncidentDetail>(`/api/incidents/${id}`);
 }
 
+export async function investigateIncident(id: string): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/api/incidents/${id}/investigate`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export interface ApprovalSummary {
   readonly id: string;
   readonly action: string;

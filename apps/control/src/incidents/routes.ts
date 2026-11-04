@@ -114,4 +114,30 @@ export function registerIncidentRoutes(
     });
     return reply.send(incident);
   });
+
+  app.post<{ Params: { id: string } }>('/api/incidents/:id/investigate', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const detail = await incidents.investigate({
+      tenantId: ctx.tenantId,
+      id: request.params.id,
+      actorId: ctx.userId,
+    });
+    if (!detail) return reply.code(404).send({ error: 'incident_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'incident.investigate',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { evidence: detail.evidence.length },
+    });
+    return reply.send(detail);
+  });
 }

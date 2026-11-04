@@ -12,13 +12,16 @@
 - 自动生成处置任务（值班 SRE）
 - 事件详情 UI 展示根因、证据、假设、处置任务
 - 数据库：`incident_evidence`、`incident_hypotheses`、`incident_tickets`
+- Commander Executor v0：事件详情「自动排障」按钮向触发主机下发 inspect 命令，收集主机证据、更新时间线/假设/任务
+- Source 去重：同一应用系统未关闭的同标题 Incident 不重复创建
 
 ## 验收（已通过）
 
 ```text
 Agent 异常 → 应用健康检查 → Incident 自动创建
 Incident 详情：root_cause / evidence / hypothesis / ticket 可见
-pnpm test / pnpm build 通过
+自动排障 → Agent 执行 inspect → host_inspection 证据回填 → 任务完成
+pnpm test / pnpm build / pnpm e2e 通过
 ```
 
 ## 下一批任务

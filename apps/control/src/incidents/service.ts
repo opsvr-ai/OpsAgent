@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { sendWebhook } from '../messages/webhook.js';
+import { AgentCommandService } from '../agents/commands.js';
 
 export const INCIDENT_STATUSES = [
   'open',
@@ -183,6 +184,105 @@ export class IncidentService {
     return this.map(row);
   }
 
+  async investigate(input: {
+    tenantId: string;
+    id: string;
+    actorId: string;
+  }): Promise<Awaited<ReturnType<IncidentService['getWithEvents']>> | null> {
+    const incident = await this.pool.query<{
+      trigger_event_id: string | null;
+      app_system_id: string | null;
+      status: string;
+    }>(
+      `SELECT trigger_event_id, app_system_id, status FROM incidents
+       WHERE tenant_id = $1 AND id = $2`,
+      [input.tenantId, input.id],
+    );
+    const row = incident.rows[0];
+    if (!row) return null;
+    const trigger = await this.pool.query<{ agent_id: string; hostname: string }>(
+      `SELECT e.agent_id, a.hostname FROM agent_events e
+       JOIN agents a ON a.id = e.agent_id
+       WHERE e.id = $1`,
+      [row.trigger_event_id],
+    );
+    const agent = trigger.rows[0];
+    if (!agent) {
+      await this.pool.query(
+        `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+         VALUES ($1, $2, $3, 'investigation_skipped', $4::jsonb)`,
+        [input.tenantId, input.id, input.actorId, JSON.stringify({ reason: 'no_trigger_agent' })],
+      );
+      return this.getWithEvents(input.tenantId, input.id);
+    }
+
+    const commands = new AgentCommandService(this.pool);
+    const command = await commands.create({
+      tenantId: input.tenantId,
+      agentId: agent.agent_id,
+      type: 'inspect',
+      input: { question: '应用系统故障排查：检查磁盘、内存、服务、进程、端口和近期日志' },
+    });
+    if (!command) return null;
+
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'investigation_started', $4::jsonb)`,
+      [input.tenantId, input.id, input.actorId, JSON.stringify({ hostname: agent.hostname, commandId: command.id })],
+    );
+    await this.pool.query(
+      `UPDATE incident_tickets SET status = 'in_progress' WHERE tenant_id = $1 AND incident_id = $2`,
+      [input.tenantId, input.id],
+    );
+
+    let current = command;
+    for (let attempt = 0; attempt < 15 && current.status !== 'completed'; attempt += 1) {
+      await delay(1000);
+      current = (await commands.get(input.tenantId, agent.agent_id, command.id)) ?? current;
+    }
+    const result = typeof current.result === 'object' && current.result !== null
+      ? current.result as Record<string, unknown>
+      : {};
+    const completed = current.status === 'completed';
+    const answer = completed && typeof result.answer === 'string'
+      ? result.answer
+      : `Agent 检查已下发，当前状态 ${current.status}，等待下次心跳返回结果。`;
+    const evidenceSummary = answer.length > 1200 ? `${answer.slice(0, 1200)}\n…（完整输出见证据 payload）` : answer;
+    await this.pool.query(
+      `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+       VALUES ($1, $2, 'host_inspection', 'opsagent-agent', $3, $4::jsonb)`,
+      [input.tenantId, input.id, evidenceSummary, JSON.stringify({
+        commandId: current.id,
+        hostname: agent.hostname,
+        status: current.status,
+        result,
+      })],
+    );
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, $4, $5::jsonb)`,
+      [
+        input.tenantId,
+        input.id,
+        input.actorId,
+        completed ? 'investigation_completed' : 'investigation_pending',
+        JSON.stringify({ hostname: agent.hostname, commandId: current.id, status: current.status }),
+      ],
+    );
+    if (completed) {
+      await this.pool.query(
+        `UPDATE incident_tickets SET status = 'done' WHERE tenant_id = $1 AND incident_id = $2`,
+        [input.tenantId, input.id],
+      );
+      await this.pool.query(
+        `UPDATE incident_hypotheses SET confidence = GREATEST(confidence, 85), status = 'supported'
+         WHERE tenant_id = $1 AND incident_id = $2`,
+        [input.tenantId, input.id],
+      );
+    }
+    return this.getWithEvents(input.tenantId, input.id);
+  }
+
   private map(row: {
     id: string;
     title: string;
@@ -204,4 +304,8 @@ export class IncidentService {
       rootCause: row.root_cause ?? null,
     };
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

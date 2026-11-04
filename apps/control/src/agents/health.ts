@@ -236,8 +236,17 @@ export class AppHealthService {
     findings: AppHealthFinding[];
     triggerAgent: string;
   }): Promise<void> {
-    const existing = await this.pool.query('SELECT id FROM incidents WHERE trigger_event_id = $1 LIMIT 1', [input.eventId]);
+    const existing = await this.pool.query(
+      `SELECT id FROM incidents
+       WHERE tenant_id = $1 AND app_system_id = $2
+         AND status NOT IN ('resolved', 'closed')
+         AND title = $3
+       LIMIT 1`,
+      [input.tenantId, input.appSystemId, input.title],
+    );
     if (existing.rows[0]) return;
+    const existingEvent = await this.pool.query('SELECT id FROM incidents WHERE trigger_event_id = $1 LIMIT 1', [input.eventId]);
+    if (existingEvent.rows[0]) return;
     const user = await this.pool.query<{ id: string }>(
       `SELECT u.id FROM users u
        JOIN memberships m ON m.user_id = u.id AND m.tenant_id = $1 AND m.status = 'active'

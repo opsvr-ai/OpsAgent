@@ -1742,5 +1742,5 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .root-cause-box { margin: 14px 0 0; padding: 11px 13px; border: 1px solid var(--danger-line, #efd0cc); border-radius: 8px; background: var(--danger-soft, #fdf3f1); }
 .root-cause-box p { margin: 5px 0 0; font-size: 11px; line-height: 1.55; color: var(--text); }
 .incident-evidence { padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.incident-evidence p { margin: 6px 0; font-size: 10.5px; line-height: 1.5; color: var(--text-soft); }
+.incident-evidence p { margin: 6px 0; font-size: 10.5px; line-height: 1.5; color: var(--text-soft); max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .incident-evidence .muted { font-size: 9.5px; }

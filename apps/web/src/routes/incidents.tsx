@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   createIncident,
   getIncident,
+  investigateIncident,
   listIncidents,
   updateIncident,
   type IncidentDetail,
@@ -35,6 +36,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [severity, setSeverity] = useState('P2');
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [investigating, setInvestigating] = useState(false);
 
   useEffect(() => {
     void listIncidents()
@@ -79,6 +81,20 @@ export function Incidents({ onBack }: IncidentsProps) {
       setDetail((current) => (current ? { ...current, incident: updated } : current));
     } catch {
       setError('状态更新失败');
+    }
+  }
+
+  async function investigate(id: string) {
+    setInvestigating(true);
+    setError(null);
+    try {
+      const next = await investigateIncident(id);
+      setDetail(next);
+      setIncidents((current) => current?.map((item) => (item.id === id ? next.incident : item)) ?? current);
+    } catch {
+      setError('自动排障执行失败');
+    } finally {
+      setInvestigating(false);
     }
   }
 
@@ -181,7 +197,12 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <span className="muted">事件 ID {selected.id.slice(0, 18)}</span>
                       <span className="muted">指挥官 {selected.commanderId ?? '未指派'}</span>
                     </div>
-                    <div className="row-sm">{statusActions(selected)}</div>
+                    <div className="row-sm">
+                      <button type="button" className="btn btn-outline btn-sm" disabled={investigating} onClick={() => void investigate(selected.id)}>
+                        {investigating ? '排障执行中…' : '自动排障'}
+                      </button>
+                      {statusActions(selected)}
+                    </div>
                   </div>
                   <div className="grid grid-2" style={{ alignItems: 'start' }}>
                     <div>

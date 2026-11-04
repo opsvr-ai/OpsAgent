@@ -299,6 +299,7 @@ func runDaemon(paths agentPaths) {
 	lastDiscovery := time.Now()
 	lastPatrol := time.Time{}
 	lastMetricsSnapshot := time.Time{}
+	lastCertificateCheck := time.Time{}
 	activePatrol := map[string]bool{}
 	var diagnosticsCache map[string]any
 	var diagnosticsAt time.Time
@@ -354,6 +355,12 @@ func runDaemon(paths agentPaths) {
 	}
 
 	beat := func() {
+		if os.Getenv("OPSAGENT_AUTO_CSR") == "true" && time.Since(lastCertificateCheck) >= 6*time.Hour {
+			if err := enrollAgentCertificate(controlURL, registered.Agent.ID, registered.AgentKey, hostname, paths); err != nil {
+				log.Printf("certificate renewal: %v", err)
+			}
+			lastCertificateCheck = time.Now()
+		}
 		var memory runtime.MemStats
 		runtime.ReadMemStats(&memory)
 		metrics := hostMetrics()

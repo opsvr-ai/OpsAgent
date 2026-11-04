@@ -113,6 +113,34 @@ export class AgentInstructionMonitor {
       for (const delivery of autoReplay.rows) {
         replayApprovalWebhook(this.pool, delivery.id, delivery.payload);
       }
+
+      const configuredThreshold = Number.parseInt(process.env.OPSAGENT_APPROVAL_WEBHOOK_ALERT_THRESHOLD ?? '5', 10);
+      const threshold = Number.isFinite(configuredThreshold) ? Math.max(configuredThreshold, 1) : 5;
+      const failedByTenant = await this.pool.query<{ tenant_id: string; failed_count: string }>(
+        `SELECT tenant_id, count(*)::text AS failed_count
+         FROM approval_webhook_deliveries
+         WHERE status = 'failed'
+         GROUP BY tenant_id
+         HAVING count(*) >= $1`,
+        [threshold],
+      );
+      for (const row of failedByTenant.rows) {
+        const alerted = await this.pool.query<{ tenant_id: string }>(
+          `INSERT INTO approval_webhook_alert_state (tenant_id, last_alert_at, failed_count)
+           VALUES ($1, now(), $2)
+           ON CONFLICT (tenant_id) DO UPDATE
+             SET last_alert_at = now(), failed_count = EXCLUDED.failed_count
+             WHERE approval_webhook_alert_state.last_alert_at < now() - interval '1 hour'
+           RETURNING tenant_id`,
+          [row.tenant_id, Number(row.failed_count)],
+        );
+        if (!alerted.rows[0]) continue;
+        await this.pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, '审批 Webhook 连续投递失败', $2, 'warning')`,
+          [row.tenant_id, `${row.failed_count} 条投递失败，请检查 Webhook 配置或下游服务。`],
+        );
+      }
     } catch (error) {
       console.error('agent instruction monitor failed', error);
     }

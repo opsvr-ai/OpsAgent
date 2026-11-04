@@ -365,6 +365,15 @@ POST /api/agent-instruction-approvals/webhook-deliveries/:id/replay
 ```text
 OPSAGENT_APPROVAL_WEBHOOK_AUTO_REPLAYS=3（0–5）
 OPSAGENT_APPROVAL_WEBHOOK_REPLAY_DELAY_SECONDS=300（60–3600）
+OPSAGENT_APPROVAL_WEBHOOK_ALERT_THRESHOLD=5
+```
+
+失败告警：
+
+```text
+失败投递数达到阈值
+  → 消息中心告警
+  → 同一租户 1 小时内最多一次
 ```
 
 ### 指令历史

@@ -378,9 +378,11 @@ export function registerAgentInstructionRoutes(
       created_at: Date;
       decided_at: Date | null;
       expires_at: Date;
+      incident_id: string | null;
     }>(
       `SELECT a.id, a.agent_id, g.hostname, a.instruction, a.action, a.service, a.risk, a.status,
-              a.requested_by, a.decided_by, a.decision_reason, a.command_id, a.created_at, a.decided_at, a.expires_at
+              a.requested_by, a.decided_by, a.decision_reason, a.command_id, a.created_at, a.decided_at, a.expires_at,
+              a.incident_id
        FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
        WHERE a.tenant_id = $1 AND a.status = ANY($2::text[])
          AND (a.status <> 'pending' OR a.expires_at > now())
@@ -404,6 +406,7 @@ export function registerAgentInstructionRoutes(
       createdAt: row.created_at.toISOString(),
       decidedAt: row.decided_at ? row.decided_at.toISOString() : null,
       expiresAt: row.expires_at.toISOString(),
+      incidentId: row.incident_id,
     })));
   });
 
@@ -432,8 +435,9 @@ export function registerAgentInstructionRoutes(
         requested_by: string;
         status: string;
         expires_at: Date;
+        incident_id: string | null;
       }>(
-        `SELECT id, agent_id, instruction, action, service, requested_by, status, expires_at
+        `SELECT id, agent_id, instruction, action, service, requested_by, status, expires_at, incident_id
          FROM agent_instruction_approvals
          WHERE tenant_id = $1 AND id = $2 AND status = 'pending'`,
         [ctx.tenantId, request.params.approvalId],
@@ -505,6 +509,7 @@ export function registerAgentInstructionRoutes(
           readOnly: false,
           risk: 'R2',
         },
+        ...(approval.incident_id ? { incidentId: approval.incident_id } : {}),
       });
       if (!command) return reply.code(404).send({ error: 'agent_not_found' });
       await pool.query(
@@ -688,10 +693,10 @@ export function registerAgentInstructionRoutes(
       if (!service) return reply.code(400).send({ error: 'unsupported_instruction' });
       const approval = await pool.query<{ id: string; status: string; created_at: Date }>(
         `INSERT INTO agent_instruction_approvals
-           (tenant_id, agent_id, instruction, action, service, risk, requested_by)
-         VALUES ($1, $2, $3, $4, $5, 'R2', $6)
+           (tenant_id, agent_id, instruction, action, service, risk, requested_by, incident_id)
+         VALUES ($1, $2, $3, $4, $5, 'R2', $6, $7)
          RETURNING id, status, created_at`,
-        [ctx.tenantId, request.params.id, body.instruction.trim(), plan.intent.kind, service, ctx.userId],
+        [ctx.tenantId, request.params.id, body.instruction.trim(), plan.intent.kind, service, ctx.userId, incidentId ?? null],
       );
       const createdApproval = approval.rows[0];
       if (!createdApproval) return reply.code(500).send({ error: 'approval_create_failed' });

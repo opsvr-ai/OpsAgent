@@ -423,6 +423,45 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('links approved write commands to incidents', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const incidentResponse = await app.inject({
+      method: 'POST',
+      url: '/api/incidents',
+      headers: { cookie },
+      payload: { title: '写操作关联测试', severity: 'P2' },
+    });
+    const incidentId = (incidentResponse.json() as { id: string }).id;
+    const requested = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '重启 nginx 服务', incidentId },
+    });
+    const approvalId = (requested.json() as { approvalId: string }).approvalId;
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${approvalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    expect(approved.statusCode).toBe(202);
+    const instructionId = (approved.json() as { instructionId: string }).instructionId;
+    const command = await pool.query<{ incident_id: string | null }>(
+      'SELECT incident_id FROM agent_commands WHERE id = $1',
+      [instructionId],
+    );
+    expect(command.rows[0]?.incident_id).toBe(incidentId);
+    const linked = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${incidentId}/instructions`,
+      headers: { cookie },
+    });
+    expect((linked.json() as Array<{ instructionId: string }>).some((item) => item.instructionId === instructionId)).toBe(true);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

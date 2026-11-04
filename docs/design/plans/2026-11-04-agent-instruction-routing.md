@@ -271,6 +271,15 @@ Windows：sc.exe restart <service>
 
 写操作审批仍未覆盖其他动作。
 
+写操作也可以从 Incident 发起：
+
+```text
+Incident → 重启/停止服务
+  → 审批记录保存 incident_id
+  → 批准后命令继承 incident_id
+  → 结果继续写入 Incident 证据链
+```
+
 ### 指令历史
 
 ```http

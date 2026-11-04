@@ -69,7 +69,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   useEffect(() => {
     const log = logRef.current;
     if (log) log.scrollTop = log.scrollHeight;
-  }, [timeline, busy]);
+  }, [timeline, busy, runtimeApprovals.length, expandedApproval]);
 
   useEffect(() => {
     if (!busy) {
@@ -253,69 +253,61 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                     </div>
                   </div>
                 ) : renderEvent(entry.event, index))}
+                {runtimeApprovals.length > 0 ? (
+                  <div className="approval-stack">
+                    {runtimeApprovals.map((approval) => {
+                      const details = approval.details as Record<string, unknown>;
+                      const command = typeof details.command === 'string' ? details.command : null;
+                      const description = typeof details.description === 'string' ? details.description : null;
+                      const expanded = expandedApproval === approval.id;
+                      const highRisk = approval.risk === 'R3';
+                      return (
+                        <section key={approval.id} className={`approval-card${expanded ? ' is-expanded' : ''}`} aria-label="执行审批">
+                          <div className="approval-card-head">
+                            <span className={`approval-symbol${highRisk ? ' is-high' : ''}`}><svg><use href="/icons.svg#i-shield" /></svg></span>
+                            <div className="approval-heading">
+                              <div className="eyebrow">执行审批 · dsh 已暂停</div>
+                              <h3>{description || '允许执行此操作？'}</h3>
+                              <p>{approval.action} 请求在 <strong>{permissionLabel(permissionMode)}</strong> 权限下执行</p>
+                            </div>
+                            <span className="approval-time">{new Date(approval.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          {command ? (
+                            <div className="approval-terminal">
+                              <div className="approval-terminal-bar">
+                                <span className="approval-terminal-dots"><i /><i /><i /></span>
+                                <span className="approval-terminal-title">bash</span>
+                                {command.length > 220 ? (
+                                  <button type="button" className="approval-terminal-action" onClick={() => setExpandedApproval(expanded ? null : approval.id)}>
+                                    {expanded ? '收起' : '展开'}
+                                  </button>
+                                ) : null}
+                              </div>
+                              <pre>{command}</pre>
+                            </div>
+                          ) : null}
+                          <div className="approval-facts">
+                            <div><span>工具</span><strong>{approval.action}</strong></div>
+                            <div><span>风险</span><strong className={highRisk ? 'is-high' : 'is-warn'}>{highRisk ? '高' : '中'}风险 · {approval.risk}</strong></div>
+                            <div><span>权限</span><strong>{permissionLabel(permissionMode)}</strong></div>
+                            <div><span>生效范围</span><strong>仅本次调用</strong></div>
+                          </div>
+                          <div className="approval-card-foot">
+                            <p>批准后命令立即执行；拒绝后 dsh 会收到拒绝结果。</p>
+                            <div className="approval-card-actions">
+                              <button type="button" className="btn btn-outline" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
+                              <button type="button" className="btn btn-primary" onClick={() => void decideRuntime(approval.id, 'approve')}>批准并执行</button>
+                            </div>
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 {busy ? <div className="chat-thinking"><span className="dot dot-warn" />思考中…</div> : null}
               </div>
             </div>
 
-            {runtimeApprovals.length > 0 ? (
-              <div className="approval-queue">
-                <div className="approval-queue-head">
-                  <span className="approval-shield"><svg><use href="/icons.svg#i-shield" /></svg></span>
-                  <div className="grow">
-                    <strong>等待你的审批</strong>
-                    <span>{runtimeApprovals.length} 个操作暂停执行 · {permissionLabel(permissionMode)}</span>
-                  </div>
-                  <span className="approval-dsh-wait"><span className="dot dot-warn" />dsh 正在等待</span>
-                </div>
-                <div className="approval-queue-list">
-                  {runtimeApprovals.map((approval) => {
-                    const details = approval.details as Record<string, unknown>;
-                    const command = typeof details.command === 'string' ? details.command : null;
-                    const description = typeof details.description === 'string' ? details.description : null;
-                    const expanded = expandedApproval === approval.id;
-                    const highRisk = approval.risk === 'R3';
-                    return (
-                      <article key={approval.id} className={`approval-item${expanded ? ' is-expanded' : ''}`}>
-                        <div className="approval-item-head">
-                          <span className={`approval-tool-mark${highRisk ? ' is-high' : ''}`}>
-                            <svg><use href="/icons.svg#i-terminal" /></svg>
-                          </span>
-                          <div className="approval-item-copy">
-                            <strong>{description || `${approval.action} 请求执行`}</strong>
-                            <span>{approval.action} · {highRisk ? '高风险' : '中风险'} · {permissionLabel(permissionMode)}</span>
-                          </div>
-                          <span className="approval-time">{new Date(approval.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        {command ? (
-                          <div className="approval-command-wrap">
-                            <div className="approval-command-head">
-                              <span className="mono">$ {approval.action}</span>
-                              {command.length > 180 ? (
-                                <button
-                                  type="button"
-                                  className="approval-expand"
-                                  onClick={() => setExpandedApproval(expanded ? null : approval.id)}
-                                >
-                                  {expanded ? '收起' : '展开完整命令'}
-                                </button>
-                              ) : null}
-                            </div>
-                            <pre className="approval-command">{command}</pre>
-                          </div>
-                        ) : null}
-                        <div className="approval-item-foot">
-                          <span className="approval-scope"><svg><use href="/icons.svg#i-shield" /></svg>批准后仅执行本次调用</span>
-                          <div className="approval-actions">
-                            <button type="button" className="btn btn-outline" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
-                            <button type="button" className="btn btn-primary" onClick={() => void decideRuntime(approval.id, 'approve')}>批准执行</button>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
 
             <div className="composer-wrap">
               <form className="composer" onSubmit={send}>

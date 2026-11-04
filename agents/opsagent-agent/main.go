@@ -214,6 +214,8 @@ func main() {
 	lastPatrol := time.Time{}
 	lastMetricsSnapshot := time.Time{}
 	activePatrol := map[string]bool{}
+	var diagnosticsCache map[string]any
+	var diagnosticsAt time.Time
 
 	reportPatrol := func(metrics map[string]any) {
 		current := patrolEvents(metrics)
@@ -232,14 +234,22 @@ func main() {
 				})
 			}
 		}
+		if len(current) > 0 && (diagnosticsCache == nil || time.Since(diagnosticsAt) > 5*time.Minute) {
+			log.Printf("collecting diagnostics bundle events=%d", len(current))
+			report := collectDiscovery(started, metrics)
+			diagnosticsCache = collectDiagnosticsBundle(metrics, report)
+			diagnosticsAt = time.Now()
+		}
 		_ = paths.writeSnapshot("patrol.json", map[string]any{
-			"events":    payload,
-			"checkedAt": time.Now().UTC().Format(time.RFC3339),
+			"events":               payload,
+			"checkedAt":            time.Now().UTC().Format(time.RFC3339),
+			"diagnosticsAvailable": diagnosticsCache != nil,
 		})
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/events", nil, map[string]any{
 			"agentKey":       registered.AgentKey,
 			"events":         payload,
 			"resolveMissing": true,
+			"diagnostics":    diagnosticsCache,
 		}, nil); err != nil {
 			log.Printf("patrol report: %v", err)
 			return

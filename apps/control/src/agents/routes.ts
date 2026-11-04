@@ -7,6 +7,7 @@ import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { AgentService, type DiscoveryPayload } from './service.js';
 import { AgentCommandService } from './commands.js';
 import { AgentEventService, type AgentEventInput } from './events.js';
+import { AppHealthService } from './health.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -31,6 +32,7 @@ export function registerAgentRoutes(
   const agents = new AgentService(pool);
   const commands = new AgentCommandService(pool);
   const events = new AgentEventService(pool);
+  const health = new AppHealthService(pool);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -109,18 +111,71 @@ export function registerAgentRoutes(
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/events', async (request, reply) => {
-    const body = request.body as { agentKey?: unknown; events?: unknown; resolveMissing?: unknown } | undefined;
+    const body = request.body as {
+      agentKey?: unknown;
+      events?: unknown;
+      resolveMissing?: unknown;
+      diagnostics?: unknown;
+    } | undefined;
     if (typeof body?.agentKey !== 'string' || !Array.isArray(body.events)) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    const diagnostics = typeof body.diagnostics === 'object' && body.diagnostics !== null && !Array.isArray(body.diagnostics)
+      ? body.diagnostics as Record<string, unknown>
+      : {};
     const reported = await events.report(
       request.params.id,
       body.agentKey,
       body.events.filter((item): item is AgentEventInput => typeof item === 'object' && item !== null),
       body.resolveMissing === true,
+      diagnostics,
     );
     if (!reported) return reply.code(404).send({ error: 'agent_not_found' });
+    const triggerEvent = reported.find((event) => event.status === 'open');
+    if (triggerEvent) {
+      try {
+        await health.triggerForAgentEvent(request.params.id, triggerEvent.id);
+      } catch (error) {
+        request.log.warn({ err: error }, 'app health check failed');
+      }
+    }
     return reply.send({ events: reported });
+  });
+
+  app.get('/api/app-systems/health', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await health.latest(ctx.tenantId));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/app-systems/:id/health', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await health.latest(ctx.tenantId, request.params.id));
   });
 
   app.get<{ Params: { id: string } }>('/api/agents/:id/events', async (request, reply) => {

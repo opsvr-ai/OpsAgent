@@ -429,6 +429,29 @@ export interface AgentEventSummary {
   readonly resolvedAt: string | null;
 }
 
+export interface AppHealthFinding {
+  readonly agentId: string;
+  readonly hostname: string;
+  readonly status: 'healthy' | 'warning' | 'critical' | 'offline';
+  readonly issues: string[];
+  readonly metrics: Readonly<Record<string, unknown>>;
+  readonly applications: readonly unknown[];
+  readonly events: readonly string[];
+  readonly logSignals: readonly string[];
+}
+
+export interface AppHealthCheck {
+  readonly id: string;
+  readonly appSystemId: string;
+  readonly appSystemName: string;
+  readonly status: string;
+  readonly summary: string;
+  readonly rootCause: string;
+  readonly findings: readonly AppHealthFinding[];
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+}
+
 export interface AgentSummary {
   readonly id: string;
   readonly name: string;
@@ -492,6 +515,10 @@ export async function getAgentDetail(id: string): Promise<AgentSummary> {
 
 export async function getAgentEvents(id: string): Promise<AgentEventSummary[]> {
   return request<AgentEventSummary[]>(`/api/agents/${id}/events`);
+}
+
+export async function getAppSystemHealth(): Promise<AppHealthCheck[]> {
+  return request<AppHealthCheck[]>('/api/app-systems/health');
 }
 
 export async function listAppSystems(): Promise<AppSystemSummary[]> {

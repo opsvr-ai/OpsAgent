@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { AgentCommandService, type AgentCommandRecord } from '../agents/commands.js';
 import type { AgentEventRecord } from '../agents/events.js';
 import { AgentEventService } from '../agents/events.js';
+import { AppHealthService } from '../agents/health.js';
 import { AgentService, type AgentRecord } from '../agents/service.js';
 
 export type PlatformPlan =
@@ -26,6 +27,12 @@ export type PlatformPlan =
       readonly agent: AgentRecord;
       readonly query: string;
       readonly mode: 'inspect' | 'discovery';
+    }
+  | {
+      readonly kind: 'app-health';
+      readonly appSystemId: string;
+      readonly appSystemName: string;
+      readonly query: string;
     };
 
 function value(input: unknown): string {
@@ -61,6 +68,7 @@ export class PlatformAssistant {
     private readonly agents = new AgentService(pool),
     private readonly commands = new AgentCommandService(pool),
     private readonly events = new AgentEventService(pool),
+    private readonly health = new AppHealthService(pool),
   ) {}
 
   async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
@@ -79,12 +87,21 @@ export class PlatformAssistant {
       };
     }
 
+    const systems = await this.agents.listAppSystems(tenantId);
+    const mentionedSystem = systems.find((system) => text.includes(system.name) || text.includes(system.code));
+    if (mentionedSystem && /(健康|根因|故障|异常|影响范围)/.test(text)) {
+      return {
+        kind: 'app-health',
+        appSystemId: mentionedSystem.id,
+        appSystemName: mentionedSystem.name,
+        query: text,
+      };
+    }
+
     const inventory = /(纳管|托管|平台上|在线|离线)[^。！？\n]{0,24}(智能体|agent|主机|服务器)|(智能体|agent)[^。！？\n]{0,12}(多少|几台|哪些|列表|统计)|(多少|几台)[^。！？\n]{0,12}(智能体|agent)|(有哪些|列出|清单|列表|全部|所有|管理)[^。！？\n]{0,16}(智能体|agent|主机|服务器)/i.test(text);
     const hasAlertIntent = /(告警|故障|异常|事件)/i.test(text) && /(哪些|多少|列表|查看|当前|平台|有什么|上报)/i.test(text);
     if (hasAlertIntent) return { kind: 'alerts', query: text };
     if (!inventory) return null;
-    const systems = await this.agents.listAppSystems(tenantId);
-    const mentionedSystem = systems.find((system) => text.includes(system.name) || text.includes(system.code));
     return {
       kind: 'inventory',
       query: text,
@@ -105,6 +122,44 @@ export class PlatformAssistant {
           lines.push('', `### ${this.severityLabel(event.severity)} · ${event.title}`, event.detail, `发现时间：${relativeTime(event.detectedAt)}`);
         }
         lines.push('', '可以在「操作系统智能体」页打开该主机，在「告警」标签查看完整记录。');
+        yield this.assistant(sessionId, lines.join('\n'));
+      }
+      yield this.done(sessionId);
+      return;
+    }
+
+    if (plan.kind === 'app-health') {
+      yield this.toolCall(sessionId, 'opsagent.app_health', {
+        appSystemId: plan.appSystemId,
+        appSystemName: plan.appSystemName,
+      }, 'R0');
+      const checks = await this.health.latest(tenantId, plan.appSystemId);
+      const check = checks[0];
+      yield this.toolResult(sessionId, 'opsagent.app_health', {
+        appSystemName: plan.appSystemName,
+        found: Boolean(check),
+        summary: check?.summary ?? null,
+      });
+      if (!check) {
+        yield this.assistant(sessionId, `**${plan.appSystemName}** 还没有应用系统健康检查记录。节点异常上报后会自动触发全系统检查。`);
+      } else {
+        const lines = [
+          `## ${check.appSystemName} 应用系统健康`,
+          '',
+          check.summary,
+          '',
+          `### 根因`,
+          check.rootCause,
+          '',
+          '### 节点',
+          '| 主机 | 状态 | 问题 | 日志信号 |',
+          '| --- | --- | --- | --- |',
+        ];
+        for (const finding of check.findings) {
+          const status = finding.status === 'critical' ? '严重' : finding.status === 'warning' ? '警告' : finding.status === 'offline' ? '离线' : '正常';
+          lines.push(`| ${finding.hostname} | ${status} | ${finding.issues.join('；') || '—'} | ${finding.logSignals.join('；').slice(0, 200) || '—'} |`);
+        }
+        lines.push('', `检查时间：${relativeTime(check.createdAt)}`);
         yield this.assistant(sessionId, lines.join('\n'));
       }
       yield this.done(sessionId);

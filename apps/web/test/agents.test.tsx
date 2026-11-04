@@ -36,6 +36,7 @@ vi.mock('../src/api/client.js', () => ({
   getAgentFleet: vi.fn(),
   getAgentDetail: vi.fn(),
   getAgentEvents: vi.fn().mockResolvedValue([]),
+  getAppSystemHealth: vi.fn().mockResolvedValue([]),
   assignAgentAppSystem: vi.fn(),
   createAgentCommand: vi.fn(),
   listAgentCommands: vi.fn().mockResolvedValue([]),

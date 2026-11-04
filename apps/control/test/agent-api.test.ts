@@ -78,6 +78,17 @@ describe('agent registry API', () => {
     expect(heartbeat.statusCode).toBe(200);
     expect(heartbeat.json()).toMatchObject({ metrics: { cpuCores: 8, heapMB: 3 } });
 
+    const appSystem = await pool.query<{ id: string }>(
+      `INSERT INTO app_systems (tenant_id, code, name)
+       VALUES ($1, 'test-app', '测试应用')
+       ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id`,
+      [tenant],
+    );
+    if (appSystem.rows[0]) {
+      await pool.query('UPDATE agents SET app_system_id = $1 WHERE id = $2', [appSystem.rows[0].id, body.agent.id]);
+    }
+
     const reported = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/events`,
@@ -90,12 +101,26 @@ describe('agent registry API', () => {
           detail: '根分区可用空间低于阈值',
           metric: { diskFreePct: 8 },
         }],
+        diagnostics: {
+          metrics: { diskFreeGB: 2, diskTotalGB: 100 },
+          applicationLogs: { 'order-service.log': 'ERROR order-service No space left on device' },
+        },
       },
     });
     expect(reported.statusCode).toBe(200);
     expect(reported.json()).toMatchObject({ events: [{ fingerprint: 'disk-low', status: 'open' }] });
 
     const cookie = await login(app);
+    const health = await app.inject({
+      method: 'GET',
+      url: '/api/app-systems/health',
+      headers: { cookie },
+    });
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toMatchObject([{
+      appSystemName: expect.any(String),
+      rootCause: expect.stringContaining('磁盘可用空间不足'),
+    }]);
     const command = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/commands`,

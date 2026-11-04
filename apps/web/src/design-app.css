@@ -1724,3 +1724,18 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .agent-event-copy p { margin: 4px 0 5px; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
 .agent-event-copy .muted { font-size: 9.5px; }
 .badge-danger { background: var(--danger-soft, #fdeceb); color: var(--danger, #b5312a); }
+.app-health-panel { margin: 0 0 16px; padding: 16px 18px; border: 1px solid var(--danger-line, #efd0cc); border-radius: 12px; background: linear-gradient(180deg, var(--surface) 0%, var(--danger-soft, #fdf3f1) 100%); }
+.app-health-panel .section-heading { margin-bottom: 12px; }
+.app-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.app-health-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; }
+.app-health-card:hover { border-color: var(--danger-line, #efd0cc); box-shadow: var(--shadow-sm); }
+.app-health-head { display: flex; align-items: center; gap: 7px; }
+.app-health-head strong { font-size: 12px; font-weight: 650; }
+.app-health-head .muted { margin-left: auto; font-size: 9.5px; }
+.app-health-card > p { margin: 0; font-size: 10.5px; color: var(--text-soft); line-height: 1.45; }
+.app-health-cause { display: flex; gap: 8px; padding: 8px 9px; border-radius: 7px; background: var(--danger-soft, #fdf3f1); font-size: 10px; line-height: 1.5; }
+.app-health-cause span { flex: none; color: var(--danger, #b5312a); font-weight: 650; }
+.app-health-cause strong { color: var(--text); font-weight: 500; }
+.app-health-nodes { display: flex; flex-wrap: wrap; gap: 5px; }
+.health-node { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; font-size: 9.5px; color: var(--text-soft); }
+.health-node.critical { border-color: var(--danger-line, #efd0cc); color: var(--danger, #b5312a); }

@@ -8,6 +8,7 @@ export interface AgentEventRecord {
   readonly title: string;
   readonly detail: string;
   readonly metric: Readonly<Record<string, unknown>>;
+  readonly details: Readonly<Record<string, unknown>>;
   readonly status: string;
   readonly detectedAt: string;
   readonly resolvedAt: string | null;
@@ -31,6 +32,7 @@ export class AgentEventService {
     key: string,
     events: AgentEventInput[],
     resolveMissing = false,
+    diagnostics: Readonly<Record<string, unknown>> = {},
   ): Promise<AgentEventRecord[] | null> {
     const agent = await this.pool.query<{ tenant_id: string; hostname: string }>(
       'SELECT tenant_id, hostname FROM agents WHERE id = $1 AND agent_key = $2',
@@ -63,15 +65,16 @@ export class AgentEventService {
       );
       if (existing.rows[0]) {
         await this.pool.query(
-          `UPDATE agent_events SET severity = $1, title = $2, detail = $3, metric = $4::jsonb, detected_at = now()
-           WHERE id = $5`,
-          [severity, title, detail, JSON.stringify(metric), existing.rows[0].id],
+          `UPDATE agent_events SET severity = $1, title = $2, detail = $3, metric = $4::jsonb,
+             details = $5::jsonb, detected_at = now()
+           WHERE id = $6`,
+          [severity, title, detail, JSON.stringify(metric), JSON.stringify(diagnostics), existing.rows[0].id],
         );
       } else {
         await this.pool.query(
-          `INSERT INTO agent_events (tenant_id, agent_id, fingerprint, severity, title, detail, metric)
-           VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-          [row.tenant_id, agentId, fingerprint, severity, title, detail, JSON.stringify(metric)],
+          `INSERT INTO agent_events (tenant_id, agent_id, fingerprint, severity, title, detail, metric, details)
+           VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)`,
+          [row.tenant_id, agentId, fingerprint, severity, title, detail, JSON.stringify(metric), JSON.stringify(diagnostics)],
         );
         await this.pool.query(
           `INSERT INTO messages (tenant_id, title, body, severity)
@@ -93,9 +96,9 @@ export class AgentEventService {
   async list(tenantId: string, agentId: string): Promise<AgentEventRecord[]> {
     const result = await this.pool.query<{
       id: string; agent_id: string; fingerprint: string; severity: string; title: string;
-      detail: string; metric: Record<string, unknown>; status: string; detected_at: Date; resolved_at: Date | null;
+      detail: string; metric: Record<string, unknown>; details: Record<string, unknown>; status: string; detected_at: Date; resolved_at: Date | null;
     }>(
-      `SELECT id, agent_id, fingerprint, severity, title, detail, metric, status, detected_at, resolved_at
+      `SELECT id, agent_id, fingerprint, severity, title, detail, metric, details, status, detected_at, resolved_at
        FROM agent_events WHERE tenant_id = $1 AND agent_id = $2
        ORDER BY status = 'open' DESC, detected_at DESC LIMIT 100`,
       [tenantId, agentId],
@@ -108,6 +111,7 @@ export class AgentEventService {
       title: row.title,
       detail: row.detail,
       metric: row.metric,
+      details: row.details,
       status: row.status,
       detectedAt: row.detected_at.toISOString(),
       resolvedAt: row.resolved_at?.toISOString() ?? null,
@@ -117,11 +121,11 @@ export class AgentEventService {
   async openForTenant(tenantId: string): Promise<Array<AgentEventRecord & { hostname: string }>> {
     const result = await this.pool.query<{
       id: string; agent_id: string; hostname: string; fingerprint: string; severity: string;
-      title: string; detail: string; metric: Record<string, unknown>; status: string;
+      title: string; detail: string; metric: Record<string, unknown>; details: Record<string, unknown>; status: string;
       detected_at: Date; resolved_at: Date | null;
     }>(
       `SELECT e.id, e.agent_id, a.hostname, e.fingerprint, e.severity, e.title, e.detail,
-              e.metric, e.status, e.detected_at, e.resolved_at
+              e.metric, e.details, e.status, e.detected_at, e.resolved_at
        FROM agent_events e JOIN agents a ON a.id = e.agent_id
        WHERE e.tenant_id = $1 AND e.status = 'open'
        ORDER BY CASE e.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, e.detected_at DESC
@@ -137,6 +141,7 @@ export class AgentEventService {
       title: row.title,
       detail: row.detail,
       metric: row.metric,
+      details: row.details,
       status: row.status,
       detectedAt: row.detected_at.toISOString(),
       resolvedAt: row.resolved_at?.toISOString() ?? null,

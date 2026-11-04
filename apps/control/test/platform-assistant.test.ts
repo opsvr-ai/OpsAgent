@@ -38,13 +38,17 @@ function fakes() {
     list: vi.fn().mockResolvedValue([]),
     openForTenant: vi.fn().mockResolvedValue([]),
   };
+  const health = {
+    latest: vi.fn().mockResolvedValue([]),
+  };
   const assistant = new PlatformAssistant(
     {} as Pool,
     agents as unknown as AgentService,
     commands as unknown as AgentCommandService,
     events as unknown as import('../src/agents/events.js').AgentEventService,
+    health as unknown as import('../src/agents/health.js').AppHealthService,
   );
-  return { assistant, agents, commands, events };
+  return { assistant, agents, commands, events, health };
 }
 
 async function collect(iterable: AsyncIterable<RuntimeEvent>): Promise<RuntimeEvent[]> {
@@ -95,6 +99,39 @@ describe('PlatformAssistant', () => {
       type: 'inspect',
       input: { question: '查询 prod-web-01 的磁盘分区' },
     });
+  });
+
+  it('answers app system health and root cause questions', async () => {
+    const { assistant, agents, health } = fakes();
+    agents.findByMention.mockResolvedValue(null);
+    agents.listAppSystems.mockResolvedValue([{
+      id: 's-1',
+      code: 'order-center',
+      name: '订单中心',
+      owner: '交易研发组',
+      criticality: 'P1',
+      agentCount: 3,
+      onlineCount: 3,
+    }]);
+    health.latest.mockResolvedValue([{
+      id: 'h-1',
+      appSystemId: 's-1',
+      appSystemName: '订单中心',
+      status: 'completed',
+      summary: '应用系统 订单中心 检查 3 个节点，1 个异常。',
+      rootCause: 'prod-web-01：磁盘可用空间不足',
+      findings: [{
+        agentId: 'a-1', hostname: 'prod-web-01', status: 'warning',
+        issues: ['磁盘可用空间不足'], metrics: {}, applications: [], events: [], logSignals: ['order-service.log: ERROR No space left on device'],
+      }],
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    }]);
+    const plan = await assistant.detect('tenant', '订单中心健康情况和故障根因是什么？');
+    expect(plan).toMatchObject({ kind: 'app-health', appSystemName: '订单中心' });
+    const emitted = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
+    expect(emitted[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.app_health' });
+    expect(emitted.some((event) => event.type === 'assistant.delta' && event.text.includes('根因') && event.text.includes('磁盘可用空间不足'))).toBe(true);
   });
 
   it('answers host-specific alert questions directly', async () => {

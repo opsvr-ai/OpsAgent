@@ -6,12 +6,14 @@ import {
   getAgentEvents,
   getAgentFleet,
   getAgentInstallCommand,
+  getAppSystemHealth,
   listAgentCommands,
   type AgentApplication,
   type AgentCommandSummary,
   type AgentEventSummary,
   type AgentFleetResponse,
   type AgentSummary,
+  type AppHealthCheck,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 import { relativeTime } from '../format.js';
@@ -96,7 +98,25 @@ export function Agents({ onBack }: AgentsProps) {
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [detailCommands, setDetailCommands] = useState<AgentCommandSummary[]>([]);
   const [detailEvents, setDetailEvents] = useState<AgentEventSummary[]>([]);
+  const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void getAppSystemHealth()
+        .then((data) => {
+          if (!cancelled) setHealthChecks(data);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +256,44 @@ export function Agents({ onBack }: AgentsProps) {
           {fleet?.appSystems.length === 0 ? <span className="muted app-system-empty">暂无应用系统，主机可在详情中归属。</span> : null}
         </div>
       </section>
+
+      {healthChecks.some((check) => check.findings.some((finding) => finding.status !== 'healthy')) ? (
+        <section className="app-health-panel">
+          <div className="section-heading">
+            <div><div className="eyebrow">Root Cause</div><h2>应用系统健康与根因定位</h2></div>
+            <span className="muted">Agent 异常触发 · 自动关联全系统节点</span>
+          </div>
+          <div className="app-health-grid">
+            {healthChecks.filter((check) => check.findings.some((finding) => finding.status !== 'healthy')).slice(0, 4).map((check) => (
+              <button
+                key={check.id}
+                type="button"
+                className="app-health-card"
+                onClick={() => {
+                  setAppSystemId(check.appSystemId);
+                  setPage(1);
+                }}
+              >
+                <div className="app-health-head">
+                  <strong>{check.appSystemName}</strong>
+                  <span className="badge badge-danger">异常</span>
+                  <span className="muted">{relativeTime(check.createdAt)}</span>
+                </div>
+                <p>{check.summary}</p>
+                <div className="app-health-cause"><span>根因</span><strong>{check.rootCause}</strong></div>
+                <div className="app-health-nodes">
+                  {check.findings.map((finding) => (
+                    <span key={finding.agentId} className={`health-node ${finding.status}`}>
+                      <span className={`severity-dot ${finding.status === 'critical' ? 'critical' : finding.status === 'warning' ? 'warning' : 'info'}`} />
+                      {finding.hostname}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {fleet?.alerts && fleet.alerts.length > 0 ? (
         <section className="agent-alert-strip">

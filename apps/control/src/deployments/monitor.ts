@@ -34,7 +34,7 @@ export class DeploymentMonitor {
       const candidates = await this.pool.query<{ id: string; tenant_id: string; version: string }>(
         `SELECT d.id, d.tenant_id, r.version FROM deployments d
          JOIN releases r ON r.id = d.release_id
-         WHERE d.status = 'deployed'
+         WHERE d.status IN ('deployed', 'canary')
            AND d.finished_at IS NOT NULL
            AND d.finished_at < now() - interval '30 seconds'
            AND r.app_system_id IS NOT NULL

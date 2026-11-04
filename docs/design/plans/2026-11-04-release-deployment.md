@@ -193,12 +193,13 @@ POST /api/deployments/:id/promote
 
 canary 阶段出现新 Agent 异常时，健康监控会只回滚已灰度节点。
 
-部署成功后：
+部署成功后（含 canary 阶段）：
 
 ```text
 DeploymentMonitor 每 30 秒检查
   → 新出现的 open Agent 事件
   → 自动执行 signed rollbackCommand
+  → canary 只回滚已灰度节点
   → 状态 rolling_back → rolled_back / rollback_failed
   → 消息中心通知
 ```

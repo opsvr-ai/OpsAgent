@@ -96,8 +96,30 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
-  function exportNotificationStats() {
-    if (notificationStats.length === 0) return;
+  function exportApprovalHistory() {
+    if (instructionHistory.length === 0) return;
+    const escape = (value: string): string => `"${value.replaceAll('"', '""')}"`;
+    const rows = [
+      ['hostname', 'service', 'action', 'status', 'decidedAt', 'decisionReason'],
+      ...instructionHistory.map((item) => [
+        item.hostname,
+        item.service ?? '',
+        item.action,
+        item.status,
+        item.decidedAt ?? '',
+        item.decisionReason ?? '',
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `agent-approval-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportNotificationStats() {    if (notificationStats.length === 0) return;
     const escape = (value: string): string => `"${value.replaceAll('"', '""')}"`;
     const rows = [
       ['hour', 'approvalDelivered', 'approvalFailed', 'operationsDelivered', 'operationsFailed'],
@@ -314,7 +336,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
       ) : null}
       {instructionHistory.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
-          <div className="card-head"><h2>最近 Agent 指令审批</h2><span className="muted">{instructionHistory.length} 条</span></div>
+          <div className="card-head"><h2>最近 Agent 指令审批</h2><div className="row-sm"><span className="muted">{instructionHistory.length} 条</span><button type="button" className="btn btn-outline btn-sm" onClick={exportApprovalHistory}>导出 CSV</button></div></div>
           <div className="card-body">
             <div className="command-history">
               {instructionHistory.map((approval) => (

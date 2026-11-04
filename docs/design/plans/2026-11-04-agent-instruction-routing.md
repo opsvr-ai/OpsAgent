@@ -308,6 +308,8 @@ GET /api/agent-instruction-approvals/notification-stats
 批量批准 / 批量拒绝
 ```
 
+审批历史支持导出 CSV：hostname / service / action / status / decidedAt / reason。
+
 批准后创建的命令可在指令历史、Incident 和审计中追踪。
 
 审批保护：

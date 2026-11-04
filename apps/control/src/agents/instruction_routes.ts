@@ -413,6 +413,37 @@ export function registerAgentInstructionRoutes(
     return reply.send(result.rows.map(instructionResponse));
   });
 
+  app.post<{ Params: { id: string; instructionId: string } }>(
+    '/api/agents/:id/instructions/:instructionId/cancel',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'agent.manage');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const result = await pool.query<{ id: string }>(
+        `UPDATE agent_commands SET status = 'canceled', completed_at = now()
+         WHERE tenant_id = $1 AND agent_id = $2 AND id = $3 AND type = 'agent_instruction'
+           AND status IN ('pending', 'dispatched')
+         RETURNING id`,
+        [ctx.tenantId, request.params.id, request.params.instructionId],
+      );
+      if (!result.rows[0]) return reply.code(409).send({ error: 'instruction_not_cancelable' });
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.cancel',
+        resource: request.params.instructionId,
+        result: 'success',
+        metadata: { agentId: request.params.id },
+      });
+      return reply.send({ ok: true, instructionId: request.params.instructionId, status: 'canceled' });
+    },
+  );
+
   app.get<{ Params: { id: string; instructionId: string } }>(
     '/api/agents/:id/instructions/:instructionId/events',
     async (request, reply) => {
@@ -455,7 +486,7 @@ export function registerAgentInstructionRoutes(
           finished = true;
           break;
         }
-        if (row.status === 'completed' || row.status === 'failed') {
+        if (['completed', 'failed', 'canceled', 'expired'].includes(row.status)) {
           await linkInstructionToIncident(pool, ctx.tenantId, row, ctx.userId);
           const detail = instructionResponse(row);
           const answer = typeof detail.answer === 'string' ? detail.answer : '';

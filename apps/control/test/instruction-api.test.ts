@@ -180,6 +180,32 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('cancels a pending instruction', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '检查端口' },
+    });
+    const instructionId = (created.json() as { instructionId: string }).instructionId;
+    const canceled = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions/${instructionId}/cancel`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(canceled.statusCode).toBe(200);
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${agentId}/instructions/${instructionId}`,
+      headers: { cookie },
+    });
+    expect((detail.json() as { status: string }).status).toBe('canceled');
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

@@ -51,7 +51,8 @@ export type AuditAction =
   | 'agent.instruction.create'
   | 'agent.instruction.batch'
   | 'agent.instruction.template.create'
-  | 'agent.instruction.template.delete';
+  | 'agent.instruction.template.delete'
+  | 'agent.instruction.cancel';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

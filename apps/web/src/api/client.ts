@@ -634,6 +634,13 @@ export async function listAgentInstructions(agentId: string): Promise<AgentInstr
   return request<AgentInstructionDetail[]>(`/api/agents/${agentId}/instructions`);
 }
 
+export async function cancelAgentInstruction(agentId: string, instructionId: string): Promise<void> {
+  await request<{ ok: true }>(`/api/agents/${agentId}/instructions/${instructionId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export interface AgentBatchInstructionCreated {
   readonly intent: AgentInstructionIntent;
   readonly instructions: Array<{

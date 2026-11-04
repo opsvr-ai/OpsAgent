@@ -106,6 +106,18 @@ expires_at < now()
 
 Agent 拉取命令时也过滤过期命令，避免执行已过期签名指令。
 
+### 取消指令
+
+```http
+POST /api/agents/:agentId/instructions/:instructionId/cancel
+```
+
+- 仅允许 `pending` / `dispatched`
+- 状态改为 `canceled`
+- 审计 `agent.instruction.cancel`
+- Agent 执行中不能取消
+- 详情页执行中显示「取消指令」
+
 写操作审批仍未实现。
 
 ### 指令历史

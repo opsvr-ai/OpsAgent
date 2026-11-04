@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   assignAgentAppSystem,
+  cancelAgentInstruction,
   createAgentCommand,
   createAgentInstruction,
   createAgentInstructionsBatch,
@@ -125,6 +126,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [instructionNote, setInstructionNote] = useState<string | null>(null);
   const [instructionError, setInstructionError] = useState<string | null>(null);
   const [instructionResult, setInstructionResult] = useState<AgentInstructionDetail | null>(null);
+  const [activeInstructionId, setActiveInstructionId] = useState<string | null>(null);
   const [instructionHistory, setInstructionHistory] = useState<AgentInstructionDetail[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchIds, setBatchIds] = useState<string[]>([]);
@@ -283,6 +285,7 @@ export function Agents({ onBack }: AgentsProps) {
         instructionText.trim(),
         crypto.randomUUID(),
       );
+      setActiveInstructionId(created.instructionId);
       setInstructionNote(
         `已下发给 ${created.hostname}：${created.intent.kind} / ${created.status}`,
       );
@@ -329,7 +332,7 @@ export function Agents({ onBack }: AgentsProps) {
         for (let attempt = 0; attempt < 30; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
           latest = await getAgentInstruction(detail.id, created.instructionId);
-          if (latest.status === 'completed' || latest.status === 'failed') break;
+          if (['completed', 'failed', 'canceled', 'expired'].includes(latest.status)) break;
         }
       }
       setInstructionResult(latest);
@@ -338,6 +341,18 @@ export function Agents({ onBack }: AgentsProps) {
       setInstructionError(caught instanceof Error ? caught.message : '指令下发失败');
     } finally {
       setInstructionBusy(false);
+      setActiveInstructionId(null);
+    }
+  }
+
+  async function cancelInstruction() {
+    if (!detail || !activeInstructionId) return;
+    try {
+      await cancelAgentInstruction(detail.id, activeInstructionId);
+      setInstructionNote('指令已取消');
+      setActiveInstructionId(null);
+    } catch {
+      setInstructionError('指令取消失败');
     }
   }
 
@@ -370,7 +385,7 @@ export function Agents({ onBack }: AgentsProps) {
             : item;
         }));
         setBatchResults(current);
-        if (current.every((item) => item.status === 'completed' || item.status === 'failed')) break;
+        if (current.every((item) => ['completed', 'failed', 'canceled', 'expired'].includes(item.status))) break;
       }
       setBatchNote(`批量指令完成：${current.filter((item) => item.status === 'completed').length} 成功 / ${current.length} 台`);
       setBatchIds([]);
@@ -781,6 +796,7 @@ export function Agents({ onBack }: AgentsProps) {
                             <button type="button" className="btn btn-primary" disabled={instructionBusy || !instructionText.trim()} onClick={() => void sendInstruction()}>
                               {instructionBusy ? '执行中…' : '下发指令'}
                             </button>
+                            {instructionBusy && activeInstructionId ? <button type="button" className="btn btn-outline" onClick={() => void cancelInstruction()}>取消指令</button> : null}
                             <button type="button" className="btn btn-outline" disabled={!instructionText.trim()} onClick={() => void saveInstructionTemplate()}>保存模板</button>
                             {instructionTemplates.length > 0 ? (
                               <button

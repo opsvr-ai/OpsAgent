@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { sendWebhook } from '../messages/webhook.js';
 import { AgentCommandService } from '../agents/commands.js';
+import { ConnectorToolResolver } from '../connectors/runtime.js';
 
 export const INCIDENT_STATUSES = [
   'open',
@@ -23,7 +24,10 @@ export interface IncidentRecord {
 }
 
 export class IncidentService {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly tools = new ConnectorToolResolver(pool),
+  ) {}
 
   async create(input: {
     tenantId: string;
@@ -248,6 +252,62 @@ export class IncidentService {
     return { incident: this.map(row), created: true };
   }
 
+  private async collectConnectorEvidence(tenantId: string, incidentId: string, actorId: string): Promise<void> {
+    const connectors = await this.pool.query<{ connector_type: string; name: string }>(
+      `SELECT DISTINCT ON (connector_type) connector_type, name
+       FROM connectors WHERE tenant_id = $1 AND status <> 'archived'
+       ORDER BY connector_type, created_at`,
+      [tenantId],
+    );
+    const mapping: Record<string, { tool: string; input: Record<string, unknown> }> = {
+      prometheus: { tool: 'prometheus_query', input: { query: 'up' } },
+      zabbix: { tool: 'zabbix_hosts', input: {} },
+      alertmanager: { tool: 'alertmanager_alerts', input: {} },
+    };
+    for (const connector of connectors.rows) {
+      const selected = mapping[connector.connector_type];
+      if (!selected) continue;
+      const tool = await this.tools.resolve(tenantId, selected.tool);
+      if (!tool) continue;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const result = await tool.execute(selected.input, { tenantId, signal: controller.signal });
+        const body = JSON.stringify(result);
+        await this.pool.query(
+          `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+           VALUES ($1, $2, 'connector_query', $3, $4, $5::jsonb)`,
+          [
+            tenantId,
+            incidentId,
+            connector.connector_type,
+            `${selected.tool} 查询成功（${connector.name}）`,
+            JSON.stringify({ tool: selected.tool, input: selected.input, result: body.slice(0, 12000) }),
+          ],
+        );
+        await this.pool.query(
+          `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+           VALUES ($1, $2, $3, 'connector_evidence', $4::jsonb)`,
+          [tenantId, incidentId, actorId, JSON.stringify({ tool: selected.tool, source: connector.connector_type })],
+        );
+      } catch (error) {
+        await this.pool.query(
+          `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+           VALUES ($1, $2, 'connector_error', $3, $4, $5::jsonb)`,
+          [
+            tenantId,
+            incidentId,
+            connector.connector_type,
+            `${selected.tool} 查询失败（${connector.name}）`,
+            JSON.stringify({ tool: selected.tool, error: error instanceof Error ? error.message : String(error) }),
+          ],
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
   async report(tenantId: string, id: string): Promise<string | null> {
     const detail = await this.getWithEvents(tenantId, id);
     if (!detail) return null;
@@ -364,6 +424,7 @@ export class IncidentService {
         JSON.stringify({ hostname: agent.hostname, commandId: current.id, status: current.status }),
       ],
     );
+    await this.collectConnectorEvidence(input.tenantId, input.id, input.actorId);
     if (completed) {
       await this.pool.query(
         `UPDATE incident_tickets SET status = 'done' WHERE tenant_id = $1 AND incident_id = $2`,

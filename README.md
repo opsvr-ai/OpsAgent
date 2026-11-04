@@ -2,7 +2,7 @@
 
 Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools + Commander + Eino-based host agents.
 
-> Status (2026-11-04): all current tests/build/E2E pass and the latest commit is pushed to `opsvr-ai/OpsAgent`. Delivered: G1 identity/session/approval/audit/Web, 9 connectors, scenarios/scheduler/sharing, Studio generation, knowledge/messages/data-store/long-task basics, Host Agent install/discovery/patrol/app-health/CLI/SSE/read-only exec, Commander incident evidence/hypothesis/ticket slice, auto host-inspection executor, external incident-source ingestion and Markdown report. Not complete: P1.5 Desktop, P1.6 Commander multi-source adapters/approval loop, P2-A Eino ADK/CSR/mTLS/cgroup, P2-B signed deploy/rollback. See `docs/design/plans/2026-11-03-p1-sprint-1.md` and `docs/design/plans/2026-11-04-commander-slice.md`.
+> Status (2026-11-04): all current tests/build/E2E pass and the latest commit is pushed to `opsvr-ai/OpsAgent`. Delivered: G1 identity/session/approval/audit/Web, 9 connectors, scenarios/scheduler/sharing, Studio generation, knowledge/messages/data-store/long-task basics, Host Agent install/discovery/patrol/app-health/CLI/SSE/read-only exec, Commander incident evidence/hypothesis/ticket slice, auto host-inspection executor, external incident-source ingestion, Markdown report, connector query evidence. Not complete: P1.5 Desktop, P1.6 Commander approval loop/multi-source adapters, P2-A Eino ADK/CSR/mTLS/cgroup, P2-B signed deploy/rollback. See `docs/design/plans/2026-11-03-p1-sprint-1.md` and `docs/design/plans/2026-11-04-commander-slice.md`.
 
 ## 容器化开发（推荐）
 

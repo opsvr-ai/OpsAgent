@@ -17,6 +17,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [approvals, setApprovals] = useState<ApprovalSummary[] | null>(null);
   const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
   const [instructionHistory, setInstructionHistory] = useState<AgentInstructionApproval[]>([]);
+  const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +40,29 @@ export function Approvals({ onBack }: ApprovalsProps) {
       setInstructionHistory(await listAgentInstructionApprovals('decided'));
     } catch {
       setError('Agent 指令审批失败');
+    }
+  }
+
+  async function decideAllInstruction(decision: 'approve' | 'deny') {
+    if (instructionApprovals.length === 0) return;
+    setInstructionBusy(true);
+    setError(null);
+    try {
+      const results = await Promise.allSettled(
+        instructionApprovals.map((item) => decideAgentInstructionApproval(item.id, decision)),
+      );
+      const succeeded = new Set(
+        instructionApprovals
+          .filter((_, index) => results[index]?.status === 'fulfilled')
+          .map((item) => item.id),
+      );
+      setInstructionApprovals((current) => current.filter((item) => !succeeded.has(item.id)));
+      setInstructionHistory(await listAgentInstructionApprovals('decided'));
+      if (results.some((result) => result.status === 'rejected')) setError('部分审批处理失败');
+    } catch {
+      setError('批量审批失败');
+    } finally {
+      setInstructionBusy(false);
     }
   }
 
@@ -69,7 +93,14 @@ export function Approvals({ onBack }: ApprovalsProps) {
       </div>
       {instructionApprovals.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
-          <div className="card-head"><h2>Agent 写操作审批</h2><span className="badge badge-warn">{instructionApprovals.length} 项</span></div>
+          <div className="card-head">
+            <h2>Agent 写操作审批</h2>
+            <div className="row-sm">
+              <span className="badge badge-warn">{instructionApprovals.length} 项</span>
+              <button type="button" className="btn btn-primary btn-sm" disabled={instructionBusy} onClick={() => void decideAllInstruction('approve')}>全部批准</button>
+              <button type="button" className="btn btn-outline btn-sm" disabled={instructionBusy} onClick={() => void decideAllInstruction('deny')}>全部拒绝</button>
+            </div>
+          </div>
           <div className="card-body stack">
             {instructionApprovals.map((approval) => (
               <div key={approval.id} className="incident-evidence">

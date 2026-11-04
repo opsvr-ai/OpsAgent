@@ -69,10 +69,10 @@ export class PlatformAssistant {
         agent: mentioned,
         query: text,
         commandType: wantsConfig ? 'discovery' : 'diagnostics',
-        refresh: /(重新|刷新|实时|立即|执行|下发|最新|诊断)/i.test(text),
+        refresh: !/(最近|上次|快照|历史|已上报)/i.test(text),
       };
     }
-    const inventory = /(纳管|托管|平台上|在线|离线)[^。！？\n]{0,24}(智能体|agent|主机|服务器)|(智能体|agent)[^。！？\n]{0,12}(多少|几台|哪些|列表|统计)|(多少|几台)[^。！？\n]{0,12}(智能体|agent)/i.test(text);
+    const inventory = /(纳管|托管|平台上|在线|离线)[^。！？\n]{0,24}(智能体|agent|主机|服务器)|(智能体|agent)[^。！？\n]{0,12}(多少|几台|哪些|列表|统计)|(多少|几台)[^。！？\n]{0,12}(智能体|agent)|(有哪些|列出|清单|列表|全部|所有|管理)[^。！？\n]{0,16}(智能体|agent|主机|服务器)/i.test(text);
     const hasAlertIntent = /(告警|故障|异常|事件)/i.test(text) && /(哪些|多少|列表|查看|当前|平台|有什么|上报)/i.test(text);
     if (hasAlertIntent) return { kind: 'alerts', query: text };
     if (!inventory) return null;
@@ -244,6 +244,9 @@ export class PlatformAssistant {
       `- 磁盘：**${rounded(agent.systemInfo.diskFreeGB)}G 可用 / ${rounded(agent.systemInfo.diskTotalGB)}G**`,
       `- 时区：**${value(agent.systemInfo.timezone)}**`,
       `- Agent：**${value(agent.agentInfo.version || agent.version)}**，服务状态 **${value(agent.agentInfo.serviceStatus)}**`,
+      `- Agent 安装路径：**${value(agent.agentInfo.installPath)}**`,
+      `- Agent 配置文件：**${value(agent.agentInfo.configPath)}**`,
+      `- Agent 服务：**${value(agent.agentInfo.serviceName)}**`,
       `- 数据来源：${command ? '刚刚执行的配置发现' : '最近一次配置发现'}${agent.discoveryAt ? `（${relativeTime(agent.discoveryAt)}）` : ''}`,
     ];
     if (applications.length > 0) {

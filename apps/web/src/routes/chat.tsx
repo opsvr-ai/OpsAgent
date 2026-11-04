@@ -173,7 +173,7 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
           <div className="msg-body">
             <div className="platform-tool-line">
               <span className="platform-tool-copy"><strong>平台数据查询</strong><small>{label}</small></span>
-              <span className="badge badge-ok">已读取</span>
+              <span className="badge badge-ok">{item.tool === 'opsagent.agent_command' ? '已下发' : '已读取'}</span>
             </div>
           </div>
         </div>

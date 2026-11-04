@@ -75,7 +75,7 @@ describe('PlatformAssistant', () => {
   it('answers host configuration from the latest discovery snapshot', async () => {
     const { assistant, agents, commands } = fakes();
     agents.findByMention.mockResolvedValue(agent);
-    const plan = await assistant.detect('tenant', '检查 prod-web-01 的系统配置');
+    const plan = await assistant.detect('tenant', '查看最近一次 prod-web-01 的系统配置');
     expect(plan).toMatchObject({ kind: 'agent', commandType: 'discovery', refresh: false });
     const events = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
     expect(events[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.agent_snapshot' });

@@ -96,12 +96,24 @@ func runAgentInstruction(input map[string]any) map[string]any {
 		}
 		result["ok"] = true
 		answer := fmt.Sprintf("服务 %s 已%s。", service, label)
-		if kind != "service_enable" && kind != "service_disable" {
+		expectedState := ""
+		switch kind {
+		case "service_start", "service_restart", "service_reload":
+			expectedState = "active"
+		case "service_stop":
+			expectedState = "inactive"
+		}
+		if expectedState != "" {
 			if state, _ := serviceStatus(service); strings.TrimSpace(state) != "" {
 				trimmed := strings.TrimSpace(state)
 				answer += fmt.Sprintf("当前状态：%s", trimmed)
 				if evidence, ok := result["evidence"].(map[string]string); ok {
 					evidence["state"] = trimmed
+				}
+				if trimmed != expectedState {
+					result["ok"] = false
+					result["error"] = fmt.Sprintf("service %s state %s, expected %s", service, trimmed, expectedState)
+					answer += fmt.Sprintf("（预期 %s）", expectedState)
 				}
 			}
 		}

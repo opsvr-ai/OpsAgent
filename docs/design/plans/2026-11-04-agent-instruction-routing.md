@@ -347,6 +347,12 @@ Windows：sc.exe restart <service>
 启动 / 停止 / 重启 / 重载后
   → systemctl is-active / sc query
   → 当前状态写入 answer 和 evidence
+
+期望状态：
+  start / restart / reload → active
+  stop                     → inactive
+
+状态不符时命令标记 failed
 ```
 
 写操作审批仍未覆盖其他动作。

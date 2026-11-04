@@ -1,6 +1,9 @@
 import cookie from '@fastify/cookie';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
+import { X509Certificate } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { registerAuthRoutes } from './auth/routes.js';
 import type { LocalAdminConfig } from './auth/local-admin.js';
 import type { LdapAuthenticator } from './auth/ldap.js';
@@ -50,12 +53,30 @@ export interface BuildServerOptions {
   readonly desktopUpdateDir?: string;
 }
 
+function readTlsHealth(): Record<string, unknown> {
+  const directory = process.env.OPSAGENT_TLS_DIR ?? '.opsagent-ca';
+  const file = process.env.OPSAGENT_TLS_CERT ?? join(directory, 'server.pem');
+  if (!existsSync(file)) return { configured: false };
+  try {
+    const certificate = new X509Certificate(readFileSync(file));
+    const validTo = new Date(certificate.validTo);
+    return {
+      configured: true,
+      validTo: certificate.validTo,
+      daysRemaining: Math.floor((validTo.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
+    };
+  } catch {
+    return { configured: false, error: 'invalid_certificate' };
+  }
+}
+
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   const app = Fastify({ logger: false });
 
   app.get('/healthz', async () => ({
     status: 'ok',
     service: 'opsagent-control',
+    tls: readTlsHealth(),
   }));
 
   if (options.pool) {

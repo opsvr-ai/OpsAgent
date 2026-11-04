@@ -164,6 +164,13 @@ fingerprint = certificate.expiring
 GET /api/platform/tls
 ```
 
+健康检查也暴露证书剩余天数，便于外部监控告警：
+
+```text
+GET /healthz
+→ tls: { configured, validTo, daysRemaining }
+```
+
 引导阶段需要 Agent 能访问注册端点；生产部署可先通过受控内网完成
 证书签发，再切换 `OPSAGENT_CONTROL_URL` 为 HTTPS。
 

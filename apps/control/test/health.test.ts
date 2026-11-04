@@ -7,7 +7,7 @@ describe('control plane health', () => {
     const response = await app.inject({ method: 'GET', url: '/healthz' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok', service: 'opsagent-control' });
+    expect(response.json()).toMatchObject({ status: 'ok', service: 'opsagent-control' });
     await app.close();
   });
 });

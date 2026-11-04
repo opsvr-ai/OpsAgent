@@ -42,6 +42,18 @@ pnpm --filter @opsagent/desktop package:dir
 apps/desktop/release/win-unpacked/OpsAgent.exe
 ```
 
+生成 Windows 便携 ZIP：
+
+```bash
+pnpm --filter @opsagent/desktop package:zip
+```
+
+产物：
+
+```text
+apps/desktop/release/OpsAgent-win-x64.zip
+```
+
 生成 NSIS 安装包（需网络下载 NSIS 工具）：
 
 ```bash

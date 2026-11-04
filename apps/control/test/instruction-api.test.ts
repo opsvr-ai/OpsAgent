@@ -125,6 +125,15 @@ describe('agent instruction API', () => {
     });
     const approvalIds = new Set((approvals.json() as Array<{ id: string }>).map((item) => item.id));
     expect(writeBody.approvals.every((item) => approvalIds.has(item.approvalId))).toBe(true);
+
+    const batchDecision = await app.inject({
+      method: 'POST',
+      url: '/api/agent-instruction-approvals/batch-decision',
+      headers: { cookie },
+      payload: { approvalIds: writeBody.approvals.map((item) => item.approvalId), decision: 'approve' },
+    });
+    expect(batchDecision.statusCode).toBe(200);
+    expect((batchDecision.json() as { results: Array<{ statusCode: number }> }).results.every((item) => item.statusCode === 202)).toBe(true);
     await app.close();
   });
 

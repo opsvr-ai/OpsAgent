@@ -532,6 +532,43 @@ export function registerAgentInstructionRoutes(
     },
   );
 
+  app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'approval.decide');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      approvalIds?: unknown;
+      decision?: unknown;
+      reason?: unknown;
+    } | undefined;
+    if (!Array.isArray(body?.approvalIds) || (body.decision !== 'approve' && body.decision !== 'deny')) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const approvalIds = [...new Set(body.approvalIds.filter((id): id is string => typeof id === 'string'))];
+    if (approvalIds.length === 0 || approvalIds.length > 20) {
+      return reply.code(400).send({ error: 'invalid_approval_count' });
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : undefined;
+    const results = [];
+    for (const approvalId of approvalIds) {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/agent-instruction-approvals/${encodeURIComponent(approvalId)}/decision`,
+        headers: { cookie: request.headers.cookie ?? '' },
+        payload: { decision: body.decision, ...(reason ? { reason } : {}) },
+      });
+      let result: Record<string, unknown>;
+      try { result = response.json() as Record<string, unknown>; } catch { result = { error: 'invalid_response' }; }
+      results.push({ approvalId, statusCode: response.statusCode, result });
+    }
+    return reply.send({ results });
+  });
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/instructions', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

@@ -719,6 +719,20 @@ export async function decideAgentInstructionApproval(
   });
 }
 
+export async function decideAgentInstructionApprovals(
+  approvalIds: string[],
+  decision: 'approve' | 'deny',
+  reason?: string,
+): Promise<Array<{ approvalId: string; statusCode: number; result: Record<string, unknown> }>> {
+  const response = await request<{
+    results: Array<{ approvalId: string; statusCode: number; result: Record<string, unknown> }>;
+  }>('/api/agent-instruction-approvals/batch-decision', {
+    method: 'POST',
+    body: JSON.stringify({ approvalIds, decision, ...(reason ? { reason } : {}) }),
+  });
+  return response.results;
+}
+
 export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;

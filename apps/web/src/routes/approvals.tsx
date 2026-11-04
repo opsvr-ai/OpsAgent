@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   decideAgentInstructionApproval,
+  decideAgentInstructionApprovals,
   decideApproval,
   listAgentInstructionApprovals,
   listApprovals,
@@ -59,17 +60,17 @@ export function Approvals({ onBack }: ApprovalsProps) {
     setError(null);
     const reason = decision === 'deny' ? window.prompt('批量拒绝原因（可选）') ?? undefined : undefined;
     try {
-      const results = await Promise.allSettled(
-        instructionApprovals.map((item) => decideAgentInstructionApproval(item.id, decision, reason || undefined)),
+      const results = await decideAgentInstructionApprovals(
+        instructionApprovals.map((item) => item.id),
+        decision,
+        reason || undefined,
       );
       const succeeded = new Set(
-        instructionApprovals
-          .filter((_, index) => results[index]?.status === 'fulfilled')
-          .map((item) => item.id),
+        results.filter((result) => result.statusCode < 400).map((result) => result.approvalId),
       );
       setInstructionApprovals((current) => current.filter((item) => !succeeded.has(item.id)));
       setInstructionHistory(await listAgentInstructionApprovals('decided'));
-      if (results.some((result) => result.status === 'rejected')) setError('部分审批处理失败');
+      if (results.some((result) => result.statusCode >= 400)) setError('部分审批处理失败');
     } catch {
       setError('批量审批失败');
     } finally {

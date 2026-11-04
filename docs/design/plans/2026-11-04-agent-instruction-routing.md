@@ -174,6 +174,25 @@ agent_instruction_approvals
 ```http
 GET  /api/agent-instruction-approvals
 POST /api/agent-instruction-approvals/:id/decision
+POST /api/agent-instruction-approvals/batch-decision
+```
+
+批量接口：
+
+```json
+{
+  "approvalIds": ["a1", "a2"],
+  "decision": "approve",
+  "reason": "变更窗口已确认"
+}
+```
+
+返回每项结果：
+
+```text
+approvalId
+statusCode
+result
 ```
 
 审批页同时展示：

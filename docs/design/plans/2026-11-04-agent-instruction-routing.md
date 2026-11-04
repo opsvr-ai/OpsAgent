@@ -441,6 +441,8 @@ OPSAGENT_OPERATIONS_ALERT_RETRIES=3
   → 1–5 次重试，默认 3
   → 3 秒超时
   → 投递日志 operations_alert_deliveries
+  → GET /api/agent-instruction-approvals/operations-alert-deliveries
+  → POST .../:id/replay
 ```
 
 失败告警：

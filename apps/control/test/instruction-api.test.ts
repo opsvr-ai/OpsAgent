@@ -657,6 +657,30 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('replays a failed operations alert delivery', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const inserted = await pool.query<{ id: string }>(
+      `INSERT INTO operations_alert_deliveries (tenant_id, title, payload, status, attempts, last_error)
+       VALUES ($1, '重放告警', '{}'::jsonb, 'failed', 3, 'status_500') RETURNING id`,
+      [tenantId],
+    );
+    const deliveryId = inserted.rows[0]?.id;
+    const replay = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/operations-alert-deliveries/${deliveryId}/replay`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(replay.statusCode).toBe(202);
+    const row = await pool.query<{ status: string }>(
+      'SELECT status FROM operations_alert_deliveries WHERE id = $1',
+      [deliveryId],
+    );
+    expect(row.rows[0]?.status).toBe('pending');
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

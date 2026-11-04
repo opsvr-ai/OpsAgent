@@ -790,6 +790,13 @@ export async function listOperationsAlertDeliveries(): Promise<OperationsAlertDe
   return request<OperationsAlertDelivery[]>('/api/agent-instruction-approvals/operations-alert-deliveries');
 }
 
+export async function replayOperationsAlertDelivery(id: string): Promise<void> {
+  await request<{ status: string }>(`/api/agent-instruction-approvals/operations-alert-deliveries/${id}/replay`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function resolveApprovalSideEffectFailure(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/agent-instruction-approvals/side-effect-failures/${id}/resolve`, {
     method: 'POST',

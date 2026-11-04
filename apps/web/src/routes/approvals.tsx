@@ -7,6 +7,7 @@ import {
   listAgentInstructionApprovals,
   listApprovalSideEffectFailures,
   listOperationsAlertDeliveries,
+  replayOperationsAlertDelivery,
   listApprovalWebhookDeliveries,
   listApprovals,
   replayApprovalWebhookDelivery,
@@ -94,13 +95,22 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
-  async function resolveFailure(id: string) {
-    setError(null);
+  async function resolveFailure(id: string) {    setError(null);
     try {
       await resolveApprovalSideEffectFailure(id);
       setSideEffectFailures(await listApprovalSideEffectFailures());
     } catch {
       setError('副作用失败处理失败');
+    }
+  }
+
+  async function replayOperationsAlert(id: string) {
+    setError(null);
+    try {
+      await replayOperationsAlertDelivery(id);
+      setOperationsAlerts(await listOperationsAlertDeliveries());
+    } catch {
+      setError('运维告警重放失败');
     }
   }
 
@@ -198,6 +208,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className={`badge ${delivery.status === 'failed' ? 'badge-danger' : 'badge-neutral'}`}>{delivery.status}</span>
                   <span className="muted">{delivery.lastError ?? `尝试 ${delivery.attempts} 次`}</span>
                   <span className="muted">{new Date(delivery.createdAt).toLocaleString()}</span>
+                  {delivery.status === 'failed' ? <button type="button" className="btn btn-outline btn-sm" onClick={() => void replayOperationsAlert(delivery.id)}>重放</button> : null}
                 </div>
               ))}
             </div>

@@ -337,6 +337,39 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('can require separation of duties for approvals', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const requested = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '重启 redis 服务' },
+    });
+    const approvalId = (requested.json() as { approvalId: string }).approvalId;
+    process.env.OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES = 'true';
+    try {
+      const forbidden = await app.inject({
+        method: 'POST',
+        url: `/api/agent-instruction-approvals/${approvalId}/decision`,
+        headers: { cookie },
+        payload: { decision: 'approve' },
+      });
+      expect(forbidden.statusCode).toBe(403);
+      expect((forbidden.json() as { error: string }).error).toBe('self_approval_forbidden');
+    } finally {
+      delete process.env.OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES;
+    }
+    const denied = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${approvalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'deny' },
+    });
+    expect(denied.statusCode).toBe(200);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

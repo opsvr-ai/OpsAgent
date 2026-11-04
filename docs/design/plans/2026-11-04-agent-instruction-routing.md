@@ -196,6 +196,16 @@ POST /api/agent-instruction-approvals/:id/decision
 待审批页面显示到期时间
 ```
 
+职责分离：
+
+```text
+OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES=true
+  → 请求人不能批准自己的写操作
+  → 403 self_approval_forbidden
+```
+
+默认关闭以兼容单管理员环境；生产建议开启并配置第二审批人。
+
 安全限制：
 
 ```text

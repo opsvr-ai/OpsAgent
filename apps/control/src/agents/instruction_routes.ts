@@ -440,6 +440,11 @@ export function registerAgentInstructionRoutes(
       );
       const approval = row.rows[0];
       if (!approval) return reply.code(409).send({ error: 'approval_not_pending' });
+      if (body.decision === 'approve'
+        && process.env.OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES === 'true'
+        && approval.requested_by === ctx.userId) {
+        return reply.code(403).send({ error: 'self_approval_forbidden' });
+      }
       if (approval.expires_at.getTime() <= Date.now()) {
         await pool.query(
           `UPDATE agent_instruction_approvals SET status = 'expired', decided_at = now()

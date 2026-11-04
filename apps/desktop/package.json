@@ -11,6 +11,7 @@
     "package:dir": "node scripts/package.cjs --dir",
     "package:zip": "node scripts/package-zip.cjs",
     "package:win": "node scripts/package.cjs --win nsis",
+    "package:internal": "powershell -ExecutionPolicy Bypass -File scripts/sign-internal.ps1",
     "package:feed": "node scripts/feed.cjs"
   },
   "devDependencies": {

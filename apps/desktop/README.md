@@ -143,6 +143,34 @@ pnpm package:win
 
 配置后安装包会使用证书签名；未配置时保持未签名。
 
+### 内网自签名分发
+
+内网可以直接生成自签名代码证书并签名安装包：
+
+```powershell
+cd apps/desktop
+pnpm package:internal
+```
+
+可选把证书加入当前用户信任链：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/sign-internal.ps1 -TrustCertificate
+```
+
+脚本会：
+
+```text
+生成 CN=OpsAgent Internal Code Signing
+  → 导出临时 PFX
+  → 设置 CSC_LINK / CSC_KEY_PASSWORD
+  → 构建 NSIS 安装包
+  → 输出证书指纹和安装包路径
+```
+
+未添加信任时 Windows 仍显示 Unknown Publisher；内网可通过组策略或
+`-TrustCertificate` 分发信任。
+
 开发环境自签名验证：
 
 ```powershell

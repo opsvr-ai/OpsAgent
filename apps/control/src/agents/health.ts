@@ -76,6 +76,37 @@ function issueForEvent(event: EventRow): string {
   return `${event.title}：${event.detail}`;
 }
 
+export function deriveRootCause(findings: AppHealthFinding[], triggerAgentId: string): string {
+  const trigger = findings.find((finding) => finding.agentId === triggerAgentId);
+  if (trigger?.status === 'offline') {
+    return `${trigger.hostname}：节点离线，最近心跳异常`;
+  }
+  const counts = new Map<string, { count: number; hosts: string[] }>();
+  for (const finding of findings) {
+    for (const issue of new Set(finding.issues)) {
+      const entry = counts.get(issue) ?? { count: 0, hosts: [] };
+      entry.count += 1;
+      entry.hosts.push(finding.hostname);
+      counts.set(issue, entry);
+    }
+  }
+  const shared = [...counts.entries()]
+    .filter(([, value]) => value.count >= 2)
+    .sort((a, b) => b[1].count - a[1].count)[0];
+  if (shared) {
+    const [issue, value] = shared;
+    return `多节点共同异常：${issue}（${value.count} 个节点：${value.hosts.join('、')}）`;
+  }
+  if (trigger && trigger.issues.length > 0) {
+    return `${trigger.hostname}：${trigger.issues[0]}`;
+  }
+  const anomalous = findings.find((finding) => finding.status !== 'healthy');
+  if (anomalous && anomalous.issues.length > 0) {
+    return `${anomalous.hostname}：${anomalous.issues[0]}`;
+  }
+  return '未发现明确的应用系统级根因';
+}
+
 export class AppHealthService {
   constructor(private readonly pool: Pool) {}
 
@@ -150,15 +181,8 @@ export class AppHealthService {
     }
 
     const anomalous = findings.filter((finding) => finding.status !== 'healthy');
-    const triggerFinding = findings.find((finding) => finding.agentId === agentId);
-    let rootCause = '未发现明确的应用系统级根因';
-    const triggerIssues = triggerFinding?.issues ?? [];
-    if (triggerIssues.length > 0) {
-      rootCause = `${agent.hostname}：${triggerIssues[0] ?? '节点异常'}`;
-    } else if (anomalous.length > 0) {
-      rootCause = `${anomalous[0]?.hostname}：${anomalous[0]?.issues[0] ?? '节点异常'}`;
-    }
-    const logEvidence = triggerFinding?.logSignals ?? [];
+    let rootCause = deriveRootCause(findings, agentId);
+    const logEvidence = [...new Set(findings.flatMap((finding) => finding.logSignals))].slice(0, 3);
     if (logEvidence.length > 0) {
       rootCause += `；应用/系统日志出现异常关键字：${logEvidence[0]?.slice(0, 220) ?? ''}`;
     }

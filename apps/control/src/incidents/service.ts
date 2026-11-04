@@ -852,47 +852,79 @@ export class IncidentService {
     }
 
     const commands = new AgentCommandService(this.pool);
-    const command = await commands.create({
-      tenantId: input.tenantId,
-      agentId: agent.agent_id,
-      type: 'inspect',
-      input: { question: '应用系统故障排查：检查磁盘、内存、服务、进程、端口和近期日志' },
-    });
-    if (!command) return null;
+    const nodesResult = row.app_system_id
+      ? await this.pool.query<{ id: string; hostname: string }>(
+          `SELECT id, hostname FROM agents
+           WHERE tenant_id = $1 AND app_system_id = $2
+             AND status = 'online' AND last_seen > now() - interval '90 seconds'
+           ORDER BY hostname LIMIT 8`,
+          [input.tenantId, row.app_system_id],
+        )
+      : { rows: [{ id: agent.agent_id, hostname: agent.hostname }] };
+    const nodes = nodesResult.rows.length > 0
+      ? nodesResult.rows
+      : [{ id: agent.agent_id, hostname: agent.hostname }];
+
+    const investigations = (await Promise.all(nodes.map(async (node) => {
+      const command = await commands.create({
+        tenantId: input.tenantId,
+        agentId: node.id,
+        type: 'inspect',
+        input: {
+          question: `应用系统故障排查：检查 ${node.hostname} 的磁盘、内存、服务、进程、端口和近期日志`,
+        },
+      });
+      return command ? { node, command } : null;
+    }))).filter((item): item is NonNullable<typeof item> => item !== null);
+    if (investigations.length === 0) return null;
 
     await this.pool.query(
       `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
        VALUES ($1, $2, $3, 'investigation_started', $4::jsonb)`,
-      [input.tenantId, input.id, input.actorId, JSON.stringify({ hostname: agent.hostname, commandId: command.id })],
+      [input.tenantId, input.id, input.actorId, JSON.stringify({
+        hostnames: investigations.map((item) => item.node.hostname),
+        commandIds: investigations.map((item) => item.command.id),
+      })],
     );
     await this.pool.query(
       `UPDATE incident_tickets SET status = 'in_progress' WHERE tenant_id = $1 AND incident_id = $2`,
       [input.tenantId, input.id],
     );
 
-    let current = command;
-    for (let attempt = 0; attempt < 15 && current.status !== 'completed'; attempt += 1) {
+    let latest = await Promise.all(investigations.map(async (item) => {
+      return (await commands.get(input.tenantId, item.node.id, item.command.id)) ?? item.command;
+    }));
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      if (latest.every((command) => ['completed', 'failed'].includes(command.status))) break;
       await delay(1000);
-      current = (await commands.get(input.tenantId, agent.agent_id, command.id)) ?? current;
+      latest = await Promise.all(investigations.map(async (item) => {
+        return (await commands.get(input.tenantId, item.node.id, item.command.id)) ?? item.command;
+      }));
     }
-    const result = typeof current.result === 'object' && current.result !== null
-      ? current.result as Record<string, unknown>
-      : {};
-    const completed = current.status === 'completed';
-    const answer = completed && typeof result.answer === 'string'
-      ? result.answer
-      : `Agent 检查已下发，当前状态 ${current.status}，等待下次心跳返回结果。`;
-    const evidenceSummary = answer.length > 1200 ? `${answer.slice(0, 1200)}\n…（完整输出见证据 payload）` : answer;
-    await this.pool.query(
-      `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
-       VALUES ($1, $2, 'host_inspection', 'opsagent-agent', $3, $4::jsonb)`,
-      [input.tenantId, input.id, evidenceSummary, JSON.stringify({
-        commandId: current.id,
-        hostname: agent.hostname,
-        status: current.status,
-        result,
-      })],
-    );
+
+    const statuses: Array<{ hostname: string; status: string }> = [];
+    for (const [index, item] of investigations.entries()) {
+      const current = latest[index] ?? item.command;
+      const result = typeof current.result === 'object' && current.result !== null
+        ? current.result as Record<string, unknown>
+        : {};
+      const answer = current.status === 'completed' && typeof result.answer === 'string'
+        ? result.answer
+        : `Agent 检查已下发，当前状态 ${current.status}，等待下次心跳返回结果。`;
+      const evidenceSummary = `[${item.node.hostname}] ${answer.length > 1200 ? `${answer.slice(0, 1200)}\n…（完整输出见证据 payload）` : answer}`;
+      await this.pool.query(
+        `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+         VALUES ($1, $2, 'host_inspection', 'opsagent-agent', $3, $4::jsonb)`,
+        [input.tenantId, input.id, evidenceSummary, JSON.stringify({
+          commandId: current.id,
+          hostname: item.node.hostname,
+          status: current.status,
+          result,
+        })],
+      );
+      statuses.push({ hostname: item.node.hostname, status: current.status });
+    }
+    const completed = statuses.every((item) => item.status === 'completed');
     await this.pool.query(
       `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
        VALUES ($1, $2, $3, $4, $5::jsonb)`,
@@ -901,7 +933,7 @@ export class IncidentService {
         input.id,
         input.actorId,
         completed ? 'investigation_completed' : 'investigation_pending',
-        JSON.stringify({ hostname: agent.hostname, commandId: current.id, status: current.status }),
+        JSON.stringify({ results: statuses }),
       ],
     );
     await this.collectConnectorEvidence(input.tenantId, input.id, input.actorId);

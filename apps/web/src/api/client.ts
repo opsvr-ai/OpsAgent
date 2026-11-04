@@ -604,12 +604,26 @@ export interface AgentInstructionIntent {
 }
 
 export interface AgentInstructionCreated {
-  readonly instructionId: string;
-  readonly commandId: string;
+  readonly approvalId?: string;
+  readonly instructionId?: string;
+  readonly commandId?: string;
   readonly agentId: string;
   readonly hostname: string;
   readonly status: string;
   readonly intent: AgentInstructionIntent;
+}
+
+export interface AgentInstructionApproval {
+  readonly id: string;
+  readonly agentId: string;
+  readonly hostname: string;
+  readonly instruction: string;
+  readonly action: string;
+  readonly service: string | null;
+  readonly risk: string;
+  readonly status: string;
+  readonly requestedBy: string;
+  readonly createdAt: string;
 }
 
 export interface AgentInstructionDetail {
@@ -672,6 +686,20 @@ export async function createAgentInstructionsBatch(
   return request<AgentBatchInstructionCreated>('/api/agents/instructions', {
     method: 'POST',
     body: JSON.stringify({ agentIds, instruction }),
+  });
+}
+
+export async function listAgentInstructionApprovals(): Promise<AgentInstructionApproval[]> {
+  return request<AgentInstructionApproval[]>('/api/agent-instruction-approvals');
+}
+
+export async function decideAgentInstructionApproval(
+  id: string,
+  decision: 'approve' | 'deny',
+): Promise<void> {
+  await request<{ status: string }>(`/api/agent-instruction-approvals/${id}/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ decision }),
   });
 }
 

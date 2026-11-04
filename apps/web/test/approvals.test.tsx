@@ -6,6 +6,8 @@ import { decideApproval, listApprovals } from '../src/api/client.js';
 vi.mock('../src/api/client.js', () => ({
   listApprovals: vi.fn(),
   decideApproval: vi.fn(),
+  listAgentInstructionApprovals: vi.fn().mockResolvedValue([]),
+  decideAgentInstructionApproval: vi.fn(),
 }));
 
 const listMock = vi.mocked(listApprovals);

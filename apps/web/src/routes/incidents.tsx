@@ -285,13 +285,18 @@ export function Incidents({ onBack }: IncidentsProps) {
         crypto.randomUUID(),
         incidentId,
       );
+      if (!created.instructionId) {
+        setInstructionNote(`写操作已提交审批（${created.approvalId ?? '待处理'}），批准后执行`);
+        return;
+      }
+      const instructionId = created.instructionId;
       setInstructionNote('指令已下发，等待 Agent 返回…');
       let latest: AgentInstructionDetail | null = null;
       for (let attempt = 0; attempt < 30; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        latest = await getAgentInstruction(instructionAgentId, created.instructionId);
+        latest = await getAgentInstruction(instructionAgentId, instructionId);
         setInstructionResult(latest);
-        if (latest.status === 'completed' || latest.status === 'failed') break;
+        if (['completed', 'failed', 'canceled', 'expired'].includes(latest.status)) break;
       }
       setInstructionNote(latest ? `指令状态：${latest.status}` : null);
       setDetail(await getIncident(incidentId));

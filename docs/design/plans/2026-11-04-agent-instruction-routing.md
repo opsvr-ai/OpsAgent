@@ -130,6 +130,70 @@ POST /api/agents/:agentId/instructions/:instructionId/cancel
 
 写操作审批仍未实现。
 
+### 写操作审批：服务重启
+
+支持唯一受控写操作：
+
+```text
+重启 nginx 服务
+重启服务 redis
+restart nginx service
+```
+
+流程：
+
+```text
+自然语言
+  → planner 识别 service_restart
+  → 不创建命令
+  → 创建 agent_instruction_approval
+  → 待审批页批准
+  → 创建签名 agent_instruction 命令
+  → Agent 执行 systemctl/sc restart
+```
+
+审批表：
+
+```text
+agent_instruction_approvals
+  agent_id
+  instruction
+  action = service_restart
+  service
+  risk = R2
+  status = pending / approved / denied / canceled
+  requested_by / decided_by
+  command_id
+```
+
+接口：
+
+```http
+GET  /api/agent-instruction-approvals
+POST /api/agent-instruction-approvals/:id/decision
+```
+
+安全限制：
+
+```text
+只允许明确服务名
+服务名必须匹配 [a-zA-Z0-9][a-zA-Z0-9_.@-]{0,63}
+禁止 system / host / server / os / all 等泛化目标
+自然语言不会进入 shell
+批准时才创建签名命令
+Agent 二次校验服务名
+```
+
+执行依赖：
+
+```text
+Linux：systemctl restart <service>
+Windows：sc.exe restart <service>
+容器内无 systemd 时返回明确失败
+```
+
+写操作审批仍未覆盖其他动作。
+
 ### 指令历史
 
 ```http

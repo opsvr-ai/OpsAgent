@@ -287,15 +287,21 @@ export function Agents({ onBack }: AgentsProps) {
         instructionText.trim(),
         crypto.randomUUID(),
       );
-      setActiveInstructionId(created.instructionId);
+      setActiveInstructionId(created.instructionId ?? null);
       setInstructionNote(
         `已下发给 ${created.hostname}：${created.intent.kind} / ${created.status}`,
       );
+      if (created.approvalId || !created.instructionId || !created.commandId) {
+        setInstructionNote(`写操作已提交审批（${created.approvalId ?? '待处理'}），批准后执行`);
+        return;
+      }
+      const instructionId = created.instructionId;
+      const commandId = created.commandId;
       let latest: AgentInstructionDetail | null = null;
       if (typeof EventSource !== 'undefined' && !(window as unknown as { __OPSAGENT_TEST__?: boolean }).__OPSAGENT_TEST__) {
         latest = await new Promise<AgentInstructionDetail | null>((resolve) => {
           const source = new EventSource(
-            `/api/agents/${detail.id}/instructions/${created.instructionId}/events`,
+            `/api/agents/${detail.id}/instructions/${instructionId}/events`,
             { withCredentials: true },
           );
           const timer = window.setTimeout(() => {
@@ -319,8 +325,8 @@ export function Agents({ onBack }: AgentsProps) {
             setInstructionResult((current) => current
               ? { ...current, answer: current.answer + data.text, status: 'running' }
               : {
-                  instructionId: created.instructionId,
-                  commandId: created.commandId,
+                  instructionId,
+                  commandId,
                   status: 'running',
                   instruction: instructionText.trim(),
                   intent: created.intent,
@@ -347,7 +353,7 @@ export function Agents({ onBack }: AgentsProps) {
       if (!latest) {
         for (let attempt = 0; attempt < 30; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          latest = await getAgentInstruction(detail.id, created.instructionId);
+          latest = await getAgentInstruction(detail.id, instructionId);
           if (['completed', 'failed', 'canceled', 'expired'].includes(latest.status)) break;
         }
       }

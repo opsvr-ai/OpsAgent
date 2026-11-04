@@ -237,6 +237,43 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('requires and records approval for service restart', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const requested = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '重启 nginx 服务' },
+    });
+    expect(requested.statusCode).toBe(202);
+    const approvalId = (requested.json() as { approvalId: string }).approvalId;
+    expect((requested.json() as { status: string }).status).toBe('awaiting_approval');
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals',
+      headers: { cookie },
+    });
+    expect((list.json() as Array<{ id: string }>).some((item) => item.id === approvalId)).toBe(true);
+
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${approvalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    expect(approved.statusCode).toBe(202);
+    const commandId = (approved.json() as { instructionId: string }).instructionId;
+    const command = await pool.query<{ type: string; instruction_intent: Record<string, unknown> }>(
+      'SELECT type, instruction_intent FROM agent_commands WHERE id = $1',
+      [commandId],
+    );
+    expect(command.rows[0]?.type).toBe('agent_instruction');
+    expect(command.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_restart', params: { service: 'nginx' } });
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

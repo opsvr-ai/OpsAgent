@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { decideApproval, listApprovals, type ApprovalSummary } from '../api/client.js';
+import {
+  decideAgentInstructionApproval,
+  decideApproval,
+  listAgentInstructionApprovals,
+  listApprovals,
+  type AgentInstructionApproval,
+  type ApprovalSummary,
+} from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 
 export interface ApprovalsProps {
@@ -8,13 +15,27 @@ export interface ApprovalsProps {
 
 export function Approvals({ onBack }: ApprovalsProps) {
   const [approvals, setApprovals] = useState<ApprovalSummary[] | null>(null);
+  const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void listApprovals()
       .then(setApprovals)
       .catch(() => setError('审批加载失败'));
+    void listAgentInstructionApprovals()
+      .then(setInstructionApprovals)
+      .catch(() => undefined);
   }, []);
+
+  async function decideInstruction(id: string, decision: 'approve' | 'deny') {
+    setError(null);
+    try {
+      await decideAgentInstructionApproval(id, decision);
+      setInstructionApprovals((current) => current.filter((item) => item.id !== id));
+    } catch {
+      setError('Agent 指令审批失败');
+    }
+  }
 
   async function decide(id: string, decision: 'approve' | 'deny') {
     setError(null);
@@ -41,6 +62,26 @@ export function Approvals({ onBack }: ApprovalsProps) {
         <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>R3 写操作</strong><span>{approvals?.filter((item) => item.risk === 'R3').length ?? 0} 项</span></div></div>
         <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-clock" /></svg></span><div><strong>超时策略</strong><span>批准后继续</span></div></div>
       </div>
+      {instructionApprovals.length > 0 ? (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><h2>Agent 写操作审批</h2><span className="badge badge-warn">{instructionApprovals.length} 项</span></div>
+          <div className="card-body stack">
+            {instructionApprovals.map((approval) => (
+              <div key={approval.id} className="incident-evidence">
+                <div className="row-between">
+                  <strong>{approval.hostname} · {approval.service}</strong>
+                  <span className="badge badge-neutral">{approval.risk}</span>
+                </div>
+                <p>{approval.instruction}</p>
+                <div className="row-sm">
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => void decideInstruction(approval.id, 'approve')}>批准</button>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => void decideInstruction(approval.id, 'deny')}>拒绝</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {approvals === null ? <p className="muted">加载中…</p> : null}
       {approvals?.length === 0 ? <p className="muted">暂无待审批</p> : null}
       {approvals?.length === 0 ? (

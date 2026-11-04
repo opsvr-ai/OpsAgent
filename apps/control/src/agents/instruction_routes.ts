@@ -326,6 +326,158 @@ export function registerAgentInstructionRoutes(
     return reply.send({ ok: true });
   });
 
+  app.get('/api/agent-instruction-approvals', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'approval.decide');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const result = await pool.query<{
+      id: string;
+      agent_id: string;
+      hostname: string;
+      instruction: string;
+      action: string;
+      service: string | null;
+      risk: string;
+      status: string;
+      requested_by: string;
+      created_at: Date;
+    }>(
+      `SELECT a.id, a.agent_id, g.hostname, a.instruction, a.action, a.service, a.risk, a.status,
+              a.requested_by, a.created_at
+       FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
+       WHERE a.tenant_id = $1 AND a.status = 'pending'
+       ORDER BY a.created_at ASC`,
+      [ctx.tenantId],
+    );
+    return reply.send(result.rows.map((row) => ({
+      id: row.id,
+      agentId: row.agent_id,
+      hostname: row.hostname,
+      instruction: row.instruction,
+      action: row.action,
+      service: row.service,
+      risk: row.risk,
+      status: row.status,
+      requestedBy: row.requested_by,
+      createdAt: row.created_at.toISOString(),
+    })));
+  });
+
+  app.post<{ Params: { approvalId: string } }>(
+    '/api/agent-instruction-approvals/:approvalId/decision',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'approval.decide');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const body = request.body as { decision?: unknown; reason?: unknown } | undefined;
+      if (body?.decision !== 'approve' && body?.decision !== 'deny') {
+        return reply.code(400).send({ error: 'invalid_decision' });
+      }
+      const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null;
+      const row = await pool.query<{
+        id: string;
+        agent_id: string;
+        instruction: string;
+        action: string;
+        service: string | null;
+        requested_by: string;
+        status: string;
+      }>(
+        `SELECT id, agent_id, instruction, action, service, requested_by, status
+         FROM agent_instruction_approvals
+         WHERE tenant_id = $1 AND id = $2 AND status = 'pending'`,
+        [ctx.tenantId, request.params.approvalId],
+      );
+      const approval = row.rows[0];
+      if (!approval) return reply.code(409).send({ error: 'approval_not_pending' });
+
+      if (body.decision === 'deny') {
+        await pool.query(
+          `UPDATE agent_instruction_approvals
+           SET status = 'denied', decided_by = $1, decided_at = now(), decision_reason = $2
+           WHERE tenant_id = $3 AND id = $4`,
+          [ctx.userId, reason, ctx.tenantId, approval.id],
+        );
+        await audit.write({
+          tenantId: ctx.tenantId,
+          actorId: ctx.userId,
+          action: 'agent.instruction.approval.denied',
+          resource: approval.id,
+          result: 'success',
+          metadata: { agentId: approval.agent_id, service: approval.service },
+        });
+        return reply.send({ status: 'denied', approvalId: approval.id });
+      }
+
+      const agent = await pool.query<{ hostname: string; status: string; last_seen: Date }>(
+        'SELECT hostname, status, last_seen FROM agents WHERE tenant_id = $1 AND id = $2',
+        [ctx.tenantId, approval.agent_id],
+      );
+      const target = agent.rows[0];
+      if (!target) return reply.code(404).send({ error: 'agent_not_found' });
+      if (target.status !== 'online' || target.last_seen.getTime() < Date.now() - 90_000) {
+        return reply.code(409).send({ error: 'agent_offline', hostname: target.hostname });
+      }
+      const service = approval.service ?? '';
+      const command = await commands.create({
+        tenantId: ctx.tenantId,
+        agentId: approval.agent_id,
+        type: 'agent_instruction',
+        input: {
+          instruction: approval.instruction,
+          intent: {
+            kind: 'service_restart',
+            params: { service },
+            readOnly: false,
+            risk: 'R2',
+          },
+          readOnly: false,
+        },
+        requestedBy: approval.requested_by,
+        instruction: approval.instruction,
+        intent: {
+          kind: 'service_restart',
+          params: { service },
+          readOnly: false,
+          risk: 'R2',
+        },
+      });
+      if (!command) return reply.code(404).send({ error: 'agent_not_found' });
+      await pool.query(
+        `UPDATE agent_instruction_approvals
+         SET status = 'approved', decided_by = $1, decided_at = now(),
+             decision_reason = $2, command_id = $3
+         WHERE tenant_id = $4 AND id = $5`,
+        [ctx.userId, reason, command.id, ctx.tenantId, approval.id],
+      );
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.approval.approved',
+        resource: approval.id,
+        result: 'success',
+        metadata: { agentId: approval.agent_id, service, commandId: command.id },
+      });
+      return reply.code(202).send({
+        status: 'approved',
+        approvalId: approval.id,
+        instructionId: command.id,
+        agentId: approval.agent_id,
+        hostname: target.hostname,
+      });
+    },
+  );
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/instructions', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
@@ -368,6 +520,36 @@ export function registerAgentInstructionRoutes(
     if (!target) return reply.code(404).send({ error: 'agent_not_found' });
     if (target.status !== 'online' || target.last_seen.getTime() < Date.now() - 90_000) {
       return reply.code(409).send({ error: 'agent_offline', hostname: target.hostname });
+    }
+
+    if (!plan.intent.readOnly) {
+      const service = plan.intent.params.service;
+      if (!service) return reply.code(400).send({ error: 'unsupported_instruction' });
+      const approval = await pool.query<{ id: string; status: string; created_at: Date }>(
+        `INSERT INTO agent_instruction_approvals
+           (tenant_id, agent_id, instruction, action, service, risk, requested_by)
+         VALUES ($1, $2, $3, 'service_restart', $4, 'R2', $5)
+         RETURNING id, status, created_at`,
+        [ctx.tenantId, request.params.id, body.instruction.trim(), service, ctx.userId],
+      );
+      const createdApproval = approval.rows[0];
+      if (!createdApproval) return reply.code(500).send({ error: 'approval_create_failed' });
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.approval.requested',
+        resource: createdApproval.id,
+        result: 'success',
+        metadata: { agentId: request.params.id, hostname: target.hostname, service },
+      });
+      return reply.code(202).send({
+        approvalId: createdApproval.id,
+        status: 'awaiting_approval',
+        agentId: request.params.id,
+        hostname: target.hostname,
+        intent: plan.intent,
+        createdAt: createdApproval.created_at.toISOString(),
+      });
     }
 
     const clientRequestId = typeof body.clientRequestId === 'string' && body.clientRequestId.length <= 100

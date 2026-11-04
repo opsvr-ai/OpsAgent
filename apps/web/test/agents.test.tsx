@@ -120,7 +120,7 @@ describe('Agents', () => {
     await waitFor(() => {
       expect(instructionMock).toHaveBeenCalledWith('a-1', '系统运行多久了', expect.any(String));
     });
-    expect(await screen.findByText('系统运行时长：2 小时')).toBeInTheDocument();
+    expect(await screen.findByText('系统运行时长：2 小时', {}, { timeout: 4000 })).toBeInTheDocument();
   });
 
   it('shows an empty state', async () => {

@@ -140,6 +140,20 @@ func TestAgentInstructionRunsReadOnlyInspect(t *testing.T) {
 	}
 }
 
+func TestAgentInstructionRejectsUnsafeServiceName(t *testing.T) {
+	result := runCommandWithInput("agent_instruction", map[string]any{}, map[string]any{
+		"instruction": "重启 nginx; rm -rf /",
+		"intent": map[string]any{
+			"kind":   "service_restart",
+			"params": map[string]any{"service": "nginx; rm -rf /"},
+		},
+		"readOnly": false,
+	})
+	if result["ok"] != false || result["error"] != "invalid service name" {
+		t.Fatalf("expected invalid service name, got %#v", result)
+	}
+}
+
 func TestRunCommandAIDiagnoseWithoutCredentials(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	result := runCommand("ai_diagnose", map[string]any{"memLoadPct": 50})

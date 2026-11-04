@@ -44,6 +44,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [sideEffectFailures, setSideEffectFailures] = useState<ApprovalSideEffectFailure[]>([]);
   const [operationsAlerts, setOperationsAlerts] = useState<OperationsAlertDelivery[]>([]);
   const [notificationStats, setNotificationStats] = useState<NotificationStatPoint[]>([]);
+  const [statsHours, setStatsHours] = useState<24 | 168>(24);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,10 +70,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
     void listOperationsAlertDeliveries()
       .then(setOperationsAlerts)
       .catch(() => undefined);
-    void listNotificationStats()
+    void listNotificationStats(statsHours)
       .then(setNotificationStats)
       .catch(() => undefined);
-  }, []);
+  }, [statsHours]);
 
   async function decideInstruction(id: string, decision: 'approve' | 'deny') {
     setError(null);
@@ -135,7 +136,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
     const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `notification-trend-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `notification-trend-${statsHours}h-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -232,7 +233,14 @@ export function Approvals({ onBack }: ApprovalsProps) {
       </div>
       {notificationStats.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
-          <div className="card-head"><h2>最近 24 小时通知趋势</h2><div className="row-sm"><span className="muted">{notificationStats.length} 个小时</span><button type="button" className="btn btn-outline btn-sm" onClick={exportNotificationStats}>导出 CSV</button></div></div>
+          <div className="card-head">
+            <h2>{statsHours === 24 ? '最近 24 小时通知趋势' : '最近 7 天通知趋势'}</h2>
+            <div className="row-sm">
+              <button type="button" className={`btn btn-sm ${statsHours === 24 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setStatsHours(24)}>24 小时</button>
+              <button type="button" className={`btn btn-sm ${statsHours === 168 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setStatsHours(168)}>7 天</button>
+              <button type="button" className="btn btn-outline btn-sm" onClick={exportNotificationStats}>导出 CSV</button>
+            </div>
+          </div>
           <div className="card-body">
             <div className="command-history">
               {notificationStats.map((point) => (

@@ -805,8 +805,10 @@ export interface NotificationStatPoint {
   readonly operationsFailed: number;
 }
 
-export async function listNotificationStats(): Promise<NotificationStatPoint[]> {
-  return request<NotificationStatPoint[]>('/api/agent-instruction-approvals/notification-stats');
+export async function listNotificationStats(hours = 24): Promise<NotificationStatPoint[]> {
+  return request<NotificationStatPoint[]>(
+    `/api/agent-instruction-approvals/notification-stats?hours=${encodeURIComponent(String(hours))}`,
+  );
 }
 
 export async function resolveApprovalSideEffectFailure(id: string): Promise<void> {

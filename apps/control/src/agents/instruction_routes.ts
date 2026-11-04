@@ -889,7 +889,7 @@ export function registerAgentInstructionRoutes(
     },
   );
 
-  app.get('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
+  app.get<{ Querystring: { hours?: string } }>('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
@@ -898,23 +898,25 @@ export function registerAgentInstructionRoutes(
       if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
       throw error;
     }
+    const parsedHours = Number.parseInt(request.query.hours ?? '24', 10);
+    const hoursBack = Number.isFinite(parsedHours) ? Math.min(Math.max(parsedHours, 1), 168) : 24;
     const approval = await pool.query<{ hour: Date; delivered: string; failed: string }>(
       `SELECT date_trunc('hour', created_at) AS hour,
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
               count(*) FILTER (WHERE status = 'failed')::text AS failed
        FROM approval_webhook_deliveries
-       WHERE tenant_id = $1 AND created_at > now() - interval '24 hours'
+       WHERE tenant_id = $1 AND created_at > now() - make_interval(hours => $2)
        GROUP BY 1 ORDER BY 1`,
-      [ctx.tenantId],
+      [ctx.tenantId, hoursBack],
     );
     const operations = await pool.query<{ hour: Date; delivered: string; failed: string }>(
       `SELECT date_trunc('hour', created_at) AS hour,
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
               count(*) FILTER (WHERE status = 'failed')::text AS failed
        FROM operations_alert_deliveries
-       WHERE tenant_id = $1 AND created_at > now() - interval '24 hours'
+       WHERE tenant_id = $1 AND created_at > now() - make_interval(hours => $2)
        GROUP BY 1 ORDER BY 1`,
-      [ctx.tenantId],
+      [ctx.tenantId, hoursBack],
     );
     const hours = new Map<string, {
       hour: string;

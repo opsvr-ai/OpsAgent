@@ -280,11 +280,12 @@ POST /api/agent-instruction-approvals/side-effect-failures/:id/resolve
 通知趋势：
 
 ```text
-GET /api/agent-instruction-approvals/notification-stats
-  → 最近 24 小时按小时聚合
+GET /api/agent-instruction-approvals/notification-stats?hours=24
+  → 最近 1–168 小时按小时聚合
   → 审批 Webhook 成功 / 失败
   → 运维告警 成功 / 失败
-  → Web 支持导出 CSV
+  → Web 支持 24 小时 / 7 天切换
+  → 支持导出 CSV
 ```
 
 并发保护：

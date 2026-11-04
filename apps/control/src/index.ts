@@ -11,6 +11,8 @@ import { LongTaskService } from './tasks/service.js';
 import { IncidentService } from './incidents/service.js';
 import { CommanderScheduler } from './incidents/commander.js';
 import { AgentKeyMonitor } from './agents/key_monitor.js';
+import { DeploymentService } from './deployments/service.js';
+import { DeploymentMonitor } from './deployments/monitor.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
 const pool = new Pool({
@@ -60,6 +62,7 @@ const commanderScheduler = new CommanderScheduler(
   Number.parseInt(process.env.OPSAGENT_COMMANDER_RECHECK_MS ?? '900000', 10),
 );
 const keyMonitor = new AgentKeyMonitor(pool);
+const deploymentMonitor = new DeploymentMonitor(pool, new DeploymentService(pool));
 const auditRetention = new AuditService(pool);
 const taskService = new LongTaskService(pool, new ScenarioService(pool, tools));
 void taskService.recoverInterrupted().catch((error) => {
@@ -77,6 +80,7 @@ await app.listen({ host: '0.0.0.0', port });
 scheduler.start();
 commanderScheduler.start();
 keyMonitor.start();
+deploymentMonitor.start();
 console.log(`opsagent-control listening on :${port}`);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -84,6 +88,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     scheduler.stop();
     commanderScheduler.stop();
     keyMonitor.stop();
+    deploymentMonitor.stop();
     clearInterval(retentionTimer);
     void app.close().then(() => pool.end());
   });

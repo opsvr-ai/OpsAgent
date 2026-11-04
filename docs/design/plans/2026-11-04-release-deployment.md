@@ -152,6 +152,20 @@ Agent：
 deployed → rolling_back → rolled_back / rollback_failed
 ```
 
+### 健康门禁与自动回滚
+
+执行前检查应用系统是否存在 open Agent 异常事件，存在则拒绝部署。
+
+部署成功后：
+
+```text
+DeploymentMonitor 每 30 秒检查
+  → 新出现的 open Agent 事件
+  → 自动执行 signed rollbackCommand
+  → 状态 rolling_back → rolled_back / rollback_failed
+  → 消息中心通知
+```
+
 ### 查询
 
 ```text
@@ -195,6 +209,5 @@ deployment.execute
 ## 剩余
 
 - 流量/实例级灰度推进
-- 健康检查与自动回滚触发
 - 制品仓库和签名证书托管
 - Windows 部署执行器

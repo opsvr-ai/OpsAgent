@@ -297,6 +297,12 @@ export class DeploymentService {
     const row = result.rows[0];
     if (!row || !['approved', 'preflighted'].includes(row.status)) return null;
     if (!row.app_system_id || !row.deploy_command) return null;
+    const unhealthy = await this.pool.query(
+      `SELECT 1 FROM agent_events e JOIN agents a ON a.id = e.agent_id
+       WHERE a.app_system_id = $1 AND a.tenant_id = $2 AND e.status = 'open' LIMIT 1`,
+      [row.app_system_id, tenantId],
+    );
+    if (unhealthy.rows[0]) return null;
     const agents = await this.pool.query<{ id: string }>(
       `SELECT id FROM agents WHERE tenant_id = $1 AND app_system_id = $2
        AND status = 'online' AND last_seen > now() - interval '90 seconds'`,

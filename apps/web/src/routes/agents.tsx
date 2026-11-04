@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   assignAgentAppSystem,
   createAgentCommand,
+  createAgentInstruction,
   getAgentDetail,
   getAgentEvents,
   getAgentFleet,
   getAgentInstallCommand,
+  getAgentInstruction,
   getAppSystemHealth,
   getCommandKeyStatus,
   listAgentCommands,
@@ -13,6 +15,7 @@ import {
   type AgentCommandSummary,
   type AgentEventSummary,
   type AgentFleetResponse,
+  type AgentInstructionDetail,
   type AgentSummary,
   type AppHealthCheck,
   type CommandKeyStatus,
@@ -24,7 +27,7 @@ export interface AgentsProps {
   readonly onBack: () => void;
 }
 
-type DetailTab = 'overview' | 'system' | 'apps' | 'agent' | 'commands' | 'alerts';
+type DetailTab = 'overview' | 'system' | 'apps' | 'agent' | 'commands' | 'instruction' | 'alerts';
 
 const SYSTEM_LABELS: Record<string, string> = {
   hostname: '主机名',
@@ -103,6 +106,17 @@ export function Agents({ onBack }: AgentsProps) {
   const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
   const [keyStatus, setKeyStatus] = useState<CommandKeyStatus | null>(null);
+  const [instructionText, setInstructionText] = useState('');
+  const [instructionBusy, setInstructionBusy] = useState(false);
+  const [instructionNote, setInstructionNote] = useState<string | null>(null);
+  const [instructionError, setInstructionError] = useState<string | null>(null);
+  const [instructionResult, setInstructionResult] = useState<AgentInstructionDetail | null>(null);
+  useEffect(() => {
+    setInstructionText('');
+    setInstructionNote(null);
+    setInstructionError(null);
+    setInstructionResult(null);
+  }, [detailId]);
   useEffect(() => {
     let cancelled = false;
     const load = () => {
@@ -217,6 +231,35 @@ export function Agents({ onBack }: AgentsProps) {
       setError('命令下发失败');
     } finally {
       setCommandBusy(false);
+    }
+  }
+
+  async function sendInstruction() {
+    if (!detail || !instructionText.trim()) return;
+    setInstructionBusy(true);
+    setInstructionError(null);
+    setInstructionResult(null);
+    try {
+      const created = await createAgentInstruction(
+        detail.id,
+        instructionText.trim(),
+        crypto.randomUUID(),
+      );
+      setInstructionNote(
+        `已下发给 ${created.hostname}：${created.intent.kind} / ${created.status}`,
+      );
+      let latest: AgentInstructionDetail | null = null;
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        latest = await getAgentInstruction(detail.id, created.instructionId);
+        setInstructionResult(latest);
+        if (latest.status === 'completed' || latest.status === 'failed') break;
+      }
+      setInstructionNote(latest ? `指令状态：${latest.status}` : null);
+    } catch (caught) {
+      setInstructionError(caught instanceof Error ? caught.message : '指令下发失败');
+    } finally {
+      setInstructionBusy(false);
     }
   }
 
@@ -447,7 +490,7 @@ export function Agents({ onBack }: AgentsProps) {
                   <button type="button" className="btn btn-primary btn-sm" disabled={commandBusy} onClick={() => void runCommand('discovery')}>重新发现配置</button>
                 </div>
                 <nav className="detail-tabs">
-                  {([['overview', '概览'], ['system', '系统配置'], ['apps', '应用部署'], ['agent', 'Agent'], ['commands', '命令历史'], ['alerts', `告警${detailEvents.filter((event) => event.status === 'open').length ? ` (${detailEvents.filter((event) => event.status === 'open').length})` : ''}`]] as Array<[DetailTab, string]>).map(([id, label]) => (
+                  {([['overview', '概览'], ['system', '系统配置'], ['apps', '应用部署'], ['agent', 'Agent'], ['commands', '命令历史'], ['instruction', '自然语言'], ['alerts', `告警${detailEvents.filter((event) => event.status === 'open').length ? ` (${detailEvents.filter((event) => event.status === 'open').length})` : ''}`]] as Array<[DetailTab, string]>).map(([id, label]) => (
                     <button key={id} type="button" className={detailTab === id ? 'is-active' : ''} onClick={() => setDetailTab(id)}>{label}</button>
                   ))}
                 </nav>
@@ -495,6 +538,52 @@ export function Agents({ onBack }: AgentsProps) {
                   ) : null}
                   {detailTab === 'commands' ? (
                     detailCommands.length > 0 ? <div className="command-history">{detailCommands.map((command) => <div key={command.id} className="command-row"><span className="mono">{command.type === 'ai_diagnose' ? 'AI 诊断' : command.type === 'discovery' ? '配置发现' : command.type === 'diagnostics' ? '主机诊断' : command.type === 'inspect' ? '主机检查' : command.type}</span><span className={`badge ${command.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{command.status}</span><span className="muted">{relativeTime(command.createdAt)}</span></div>)}</div> : <p className="muted detail-loading">暂无命令记录。</p>
+                  ) : null}
+                  {detailTab === 'instruction' ? (
+                    <div className="stack">
+                      <div className="card">
+                        <div className="card-head"><h2>自然语言指令</h2><span className="badge badge-neutral">只读</span></div>
+                        <div className="card-body stack">
+                          <p className="muted">目标固定为当前智能体：<strong>{detail.hostname}</strong>。首版只执行只读检查，写操作请在审批流程中发起。</p>
+                          <div className="field">
+                            <label htmlFor="agent-instruction">指令内容</label>
+                            <textarea
+                              id="agent-instruction"
+                              rows={3}
+                              value={instructionText}
+                              onChange={(event) => setInstructionText(event.target.value)}
+                              placeholder="例如：系统运行多久了？看看磁盘为什么满了。"
+                            />
+                          </div>
+                          <div className="row-sm">
+                            <button type="button" className="btn btn-primary" disabled={instructionBusy || !instructionText.trim()} onClick={() => void sendInstruction()}>
+                              {instructionBusy ? '执行中…' : '下发指令'}
+                            </button>
+                            {instructionNote ? <span className="muted">{instructionNote}</span> : null}
+                          </div>
+                          {instructionError ? <p role="alert">{instructionError}</p> : null}
+                        </div>
+                      </div>
+                      {instructionResult ? (
+                        <div className="card">
+                          <div className="card-head">
+                            <h2>执行结果</h2>
+                            <span className={`badge ${instructionResult.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{instructionResult.status}</span>
+                          </div>
+                          <div className="card-body stack">
+                            {instructionResult.intent ? <p className="muted">意图：{instructionResult.intent.kind} · 只读 · 置信度 {instructionResult.intent.confidence}</p> : null}
+                            <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{instructionResult.answer || '等待 Agent 返回结果…'}</pre>
+                            {instructionResult.toolsUsed?.length ? <p className="muted">工具：{instructionResult.toolsUsed.join(', ')}</p> : null}
+                            {instructionResult.evidence ? (
+                              <details>
+                                <summary className="muted">查看结构化证据</summary>
+                                <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(instructionResult.evidence, null, 2)}</pre>
+                              </details>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                   {detailTab === 'alerts' ? (
                     detailEvents.length > 0 ? (

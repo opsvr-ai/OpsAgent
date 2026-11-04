@@ -582,6 +582,53 @@ export interface AgentSummary {
   readonly appSystem: AppSystemSummary | null;
 }
 
+export interface AgentInstructionIntent {
+  readonly kind: string;
+  readonly readOnly: boolean;
+  readonly confidence: number;
+  readonly params?: { readonly question?: string };
+}
+
+export interface AgentInstructionCreated {
+  readonly instructionId: string;
+  readonly commandId: string;
+  readonly agentId: string;
+  readonly hostname: string;
+  readonly status: string;
+  readonly intent: AgentInstructionIntent;
+}
+
+export interface AgentInstructionDetail {
+  readonly instructionId: string;
+  readonly commandId: string;
+  readonly status: string;
+  readonly instruction: string | null;
+  readonly intent: AgentInstructionIntent | null;
+  readonly answer: string;
+  readonly evidence: Readonly<Record<string, unknown>> | null;
+  readonly toolsUsed: readonly string[] | null;
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+}
+
+export async function createAgentInstruction(
+  agentId: string,
+  instruction: string,
+  clientRequestId: string,
+): Promise<AgentInstructionCreated> {
+  return request<AgentInstructionCreated>(`/api/agents/${agentId}/instructions`, {
+    method: 'POST',
+    body: JSON.stringify({ instruction, clientRequestId }),
+  });
+}
+
+export async function getAgentInstruction(
+  agentId: string,
+  instructionId: string,
+): Promise<AgentInstructionDetail> {
+  return request<AgentInstructionDetail>(`/api/agents/${agentId}/instructions/${instructionId}`);
+}
+
 export interface AgentFleetResponse {
   readonly items: AgentSummary[];
   readonly total: number;

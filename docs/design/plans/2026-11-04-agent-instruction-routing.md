@@ -31,6 +31,26 @@ status completed
 
 Phase 2 Web 面板和 Phase 3 SSE/批量尚未实现。
 
+### Phase 2 已实现
+
+Agent 详情页新增「自然语言」页签：
+
+```text
+目标固定为当前 Agent
+  → 输入自然语言
+  → 下发指令
+  → 轮询执行结果
+  → 展示 status / intent / answer / toolsUsed / evidence
+```
+
+- 目标 Agent 不可在输入框切换
+- 只读提示
+- 失败状态展示
+- 结构化证据可展开
+- 新增前端测试覆盖下发与结果渲染
+
+Phase 3 SSE/批量仍未实现。
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

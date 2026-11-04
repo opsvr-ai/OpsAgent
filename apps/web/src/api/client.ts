@@ -679,6 +679,7 @@ export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;
   readonly instruction: string;
+  readonly scope: 'private' | 'tenant';
   readonly createdAt: string;
 }
 
@@ -689,10 +690,11 @@ export async function listAgentInstructionTemplates(): Promise<AgentInstructionT
 export async function createAgentInstructionTemplate(
   name: string,
   instruction: string,
+  scope: 'private' | 'tenant' = 'tenant',
 ): Promise<AgentInstructionTemplate> {
   return request<AgentInstructionTemplate>('/api/agents/instruction-templates', {
     method: 'POST',
-    body: JSON.stringify({ name, instruction }),
+    body: JSON.stringify({ name, instruction, scope }),
   });
 }
 
@@ -704,10 +706,11 @@ export async function updateAgentInstructionTemplate(
   id: string,
   name: string,
   instruction: string,
+  scope?: 'private' | 'tenant',
 ): Promise<AgentInstructionTemplate> {
   return request<AgentInstructionTemplate>(`/api/agents/instruction-templates/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ name, instruction }),
+    body: JSON.stringify({ name, instruction, ...(scope ? { scope } : {}) }),
   });
 }
 

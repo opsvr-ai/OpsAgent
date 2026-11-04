@@ -119,9 +119,10 @@ describe('agent instruction API', () => {
       method: 'POST',
       url: '/api/agents/instruction-templates',
       headers: { cookie },
-      payload: { name: '磁盘模板', instruction: '检查磁盘使用率和 inode' },
+      payload: { name: '磁盘模板', instruction: '检查磁盘使用率和 inode', scope: 'private' },
     });
     expect(created.statusCode).toBe(201);
+    expect((created.json() as { scope: string }).scope).toBe('private');
     const template = created.json() as { id: string };
     const updated = await app.inject({
       method: 'PUT',

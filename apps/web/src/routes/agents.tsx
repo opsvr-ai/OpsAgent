@@ -142,6 +142,7 @@ export function Agents({ onBack }: AgentsProps) {
     answer: string;
   }>>([]);
   const [instructionTemplates, setInstructionTemplates] = useState<AgentInstructionTemplate[]>([]);
+  const [templateScope, setTemplateScope] = useState<'private' | 'tenant'>('tenant');
   useEffect(() => {
     setInstructionText('');
     setInstructionNote(null);
@@ -291,7 +292,7 @@ export function Agents({ onBack }: AgentsProps) {
         `已下发给 ${created.hostname}：${created.intent.kind} / ${created.status}`,
       );
       let latest: AgentInstructionDetail | null = null;
-      if (typeof EventSource !== 'undefined' && !navigator.userAgent.includes('jsdom')) {
+      if (typeof EventSource !== 'undefined' && !(window as unknown as { __OPSAGENT_TEST__?: boolean }).__OPSAGENT_TEST__) {
         latest = await new Promise<AgentInstructionDetail | null>((resolve) => {
           const source = new EventSource(
             `/api/agents/${detail.id}/instructions/${created.instructionId}/events`,
@@ -409,7 +410,7 @@ export function Agents({ onBack }: AgentsProps) {
     const name = window.prompt('模板名称', instructionText.trim().slice(0, 20));
     if (!name?.trim()) return;
     try {
-      const template = await createAgentInstructionTemplate(name.trim(), instructionText.trim());
+      const template = await createAgentInstructionTemplate(name.trim(), instructionText.trim(), templateScope);
       setInstructionTemplates((current) => [template, ...current]);
       setInstructionNote('模板已保存');
     } catch {
@@ -819,11 +820,16 @@ export function Agents({ onBack }: AgentsProps) {
                             </button>
                             {instructionBusy && activeInstructionId ? <button type="button" className="btn btn-outline" onClick={() => void cancelInstruction()}>取消指令</button> : null}
                             <button type="button" className="btn btn-outline" disabled={!instructionText.trim()} onClick={() => void saveInstructionTemplate()}>保存模板</button>
+                            <select aria-label="模板可见范围" value={templateScope} onChange={(event) => setTemplateScope(event.target.value === 'private' ? 'private' : 'tenant')}>
+                              <option value="tenant">租户共享</option>
+                              <option value="private">仅自己</option>
+                            </select>
                             {instructionTemplates.length > 0 ? (
                               <div className="command-history" style={{ width: '100%' }}>
                                 {instructionTemplates.map((template) => (
                                   <div key={template.id} className="command-row">
                                     <span>{template.name}</span>
+                                    <span className={`badge ${template.scope === 'private' ? 'badge-neutral' : 'badge-ok'}`}>{template.scope === 'private' ? '私有' : '共享'}</span>
                                     <span className="muted">{template.instruction.slice(0, 80)}</span>
                                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => void editInstructionTemplate(template)}>编辑</button>
                                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => void removeInstructionTemplate(template.id)}>删除</button>

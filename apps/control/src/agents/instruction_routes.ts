@@ -191,14 +191,16 @@ export function registerAgentInstructionRoutes(
       throw error;
     }
     const result = await pool.query(
-      `SELECT id, name, instruction, created_at FROM agent_instruction_templates
-       WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [ctx.tenantId],
+      `SELECT id, name, instruction, scope, created_at FROM agent_instruction_templates
+       WHERE tenant_id = $1 AND (scope = 'tenant' OR created_by = $2)
+       ORDER BY created_at DESC`,
+      [ctx.tenantId, ctx.userId],
     );
     return reply.send(result.rows.map((row) => ({
       id: row.id,
       name: row.name,
       instruction: row.instruction,
+      scope: row.scope,
       createdAt: row.created_at.toISOString(),
     })));
   });
@@ -212,20 +214,21 @@ export function registerAgentInstructionRoutes(
       if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
       throw error;
     }
-    const body = request.body as { name?: unknown; instruction?: unknown } | undefined;
+    const body = request.body as { name?: unknown; instruction?: unknown; scope?: unknown } | undefined;
     if (typeof body?.name !== 'string' || typeof body.instruction !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
     const name = body.name.trim();
     const instruction = body.instruction.trim();
+    const scope = body.scope === 'private' ? 'private' : 'tenant';
     if (!name || name.length > 80 || !instruction || instruction.length > 4000) {
       return reply.code(400).send({ error: 'invalid_template' });
     }
     try {
       const result = await pool.query(
-        `INSERT INTO agent_instruction_templates (tenant_id, name, instruction, created_by)
-         VALUES ($1, $2, $3, $4) RETURNING id, name, instruction, created_at`,
-        [ctx.tenantId, name, instruction, ctx.userId],
+        `INSERT INTO agent_instruction_templates (tenant_id, name, instruction, scope, created_by)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, name, instruction, scope, created_at`,
+        [ctx.tenantId, name, instruction, scope, ctx.userId],
       );
       await audit.write({
         tenantId: ctx.tenantId,
@@ -238,6 +241,7 @@ export function registerAgentInstructionRoutes(
         id: result.rows[0].id,
         name: result.rows[0].name,
         instruction: result.rows[0].instruction,
+        scope: result.rows[0].scope,
         createdAt: result.rows[0].created_at.toISOString(),
       });
     } catch (error) {
@@ -257,20 +261,22 @@ export function registerAgentInstructionRoutes(
       if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
       throw error;
     }
-    const body = request.body as { name?: unknown; instruction?: unknown } | undefined;
+    const body = request.body as { name?: unknown; instruction?: unknown; scope?: unknown } | undefined;
     if (typeof body?.name !== 'string' || typeof body.instruction !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
     const name = body.name.trim();
     const instruction = body.instruction.trim();
+    const scope = body.scope === 'private' ? 'private' : body.scope === 'tenant' ? 'tenant' : null;
     if (!name || name.length > 80 || !instruction || instruction.length > 4000) {
       return reply.code(400).send({ error: 'invalid_template' });
     }
     try {
       const result = await pool.query(
-        `UPDATE agent_instruction_templates SET name = $1, instruction = $2
-         WHERE tenant_id = $3 AND id = $4 RETURNING id, name, instruction, created_at`,
-        [name, instruction, ctx.tenantId, request.params.templateId],
+        `UPDATE agent_instruction_templates SET name = $1, instruction = $2, scope = COALESCE($3, scope)
+         WHERE tenant_id = $4 AND id = $5 AND (scope = 'tenant' OR created_by = $6)
+         RETURNING id, name, instruction, scope, created_at`,
+        [name, instruction, scope, ctx.tenantId, request.params.templateId, ctx.userId],
       );
       if (!result.rows[0]) return reply.code(404).send({ error: 'template_not_found' });
       await audit.write({
@@ -284,6 +290,7 @@ export function registerAgentInstructionRoutes(
         id: result.rows[0].id,
         name: result.rows[0].name,
         instruction: result.rows[0].instruction,
+        scope: result.rows[0].scope,
         createdAt: result.rows[0].created_at.toISOString(),
       });
     } catch (error) {
@@ -304,8 +311,9 @@ export function registerAgentInstructionRoutes(
       throw error;
     }
     const result = await pool.query(
-      'DELETE FROM agent_instruction_templates WHERE tenant_id = $1 AND id = $2 RETURNING id',
-      [ctx.tenantId, request.params.templateId],
+      `DELETE FROM agent_instruction_templates
+       WHERE tenant_id = $1 AND id = $2 AND (scope = 'tenant' OR created_by = $3) RETURNING id`,
+      [ctx.tenantId, request.params.templateId, ctx.userId],
     );
     if (!result.rows[0]) return reply.code(404).send({ error: 'template_not_found' });
     await audit.write({

@@ -7,6 +7,7 @@ import {
   listAgentInstructionApprovals,
   listApprovalWebhookDeliveries,
   listApprovals,
+  replayApprovalWebhookDelivery,
   type AgentInstructionApproval,
   type ApprovalSummary,
   type ApprovalWebhookDelivery,
@@ -61,14 +62,23 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
-  async function cancelInstruction(id: string) {
-    setError(null);
+  async function cancelInstruction(id: string) {    setError(null);
     try {
       await cancelAgentInstructionApproval(id);
       setInstructionApprovals((current) => current.filter((item) => item.id !== id));
       setInstructionHistory(await listAgentInstructionApprovals('decided'));
     } catch {
       setError('撤销审批失败，只有请求人可以撤销');
+    }
+  }
+
+  async function replayDelivery(id: string) {
+    setError(null);
+    try {
+      await replayApprovalWebhookDelivery(id);
+      setWebhookFailures(await listApprovalWebhookDeliveries('failed'));
+    } catch {
+      setError('Webhook 重放失败');
     }
   }
 
@@ -131,6 +141,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className="muted">{delivery.lastError ?? '未知错误'}</span>
                   <span className="muted">尝试 {delivery.attempts} 次</span>
                   <span className="muted">{new Date(delivery.createdAt).toLocaleString()}</span>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => void replayDelivery(delivery.id)}>重放</button>
                 </div>
               ))}
             </div>

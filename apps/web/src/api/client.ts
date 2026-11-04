@@ -758,6 +758,13 @@ export async function listApprovalWebhookDeliveries(
   );
 }
 
+export async function replayApprovalWebhookDelivery(id: string): Promise<void> {
+  await request<{ status: string }>(`/api/agent-instruction-approvals/webhook-deliveries/${id}/replay`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;

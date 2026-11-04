@@ -7,7 +7,7 @@ import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import type { AuditWriter } from '../audit/writer.js';
 import { AgentCommandService } from './commands.js';
 import { planInstruction } from './instruction_planner.js';
-import { notifyApprovalWebhook } from './approval_webhook.js';
+import { notifyApprovalWebhook, replayApprovalWebhook } from './approval_webhook.js';
 
 async function context(pool: Pool, request: FastifyRequest) {
   const token = request.cookies[SESSION_COOKIE];
@@ -709,6 +709,35 @@ export function registerAgentInstructionRoutes(
         lastError: row.last_error,
         createdAt: row.created_at.toISOString(),
       })));
+    },
+  );
+
+  app.post<{ Params: { deliveryId: string } }>(
+    '/api/agent-instruction-approvals/webhook-deliveries/:deliveryId/replay',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'approval.decide');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const row = await pool.query<{ id: string; payload: string }>(
+        `SELECT id, payload::text AS payload FROM approval_webhook_deliveries
+         WHERE tenant_id = $1 AND id = $2 AND status = 'failed'`,
+        [ctx.tenantId, request.params.deliveryId],
+      );
+      const delivery = row.rows[0];
+      if (!delivery) return reply.code(404).send({ error: 'delivery_not_found' });
+      await pool.query(
+        `UPDATE approval_webhook_deliveries
+         SET status = 'pending', attempts = 0, last_error = NULL, updated_at = now()
+         WHERE tenant_id = $1 AND id = $2`,
+        [ctx.tenantId, delivery.id],
+      );
+      replayApprovalWebhook(pool, delivery.id, delivery.payload);
+      return reply.code(202).send({ status: 'pending', deliveryId: delivery.id });
     },
   );
 

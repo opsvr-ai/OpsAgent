@@ -345,9 +345,10 @@ approval_webhook_deliveries
   attempts / last_error
 
 GET /api/agent-instruction-approvals/webhook-deliveries?status=failed
+POST /api/agent-instruction-approvals/webhook-deliveries/:id/replay
 ```
 
-待审批页面展示失败的 Webhook 投递。
+待审批页面展示失败的 Webhook 投递，并支持手工重放。
 
 ### 指令历史
 

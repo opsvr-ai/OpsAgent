@@ -103,7 +103,7 @@ Response: application/ocsp-response
 SHA-1 CertID 通过
 good / revoked / unknown
 签名由 CA 私钥完成
-真实响应 649 bytes，status = successful
+真实响应 650 bytes，status = successful，unknown 状态正确返回
 ```
 
 ## 6. 流量级 canary 验收

@@ -889,7 +889,7 @@ export function registerAgentInstructionRoutes(
     },
   );
 
-  app.get<{ Querystring: { hours?: string; bucket?: string } }>('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
+  app.get<{ Querystring: { hours?: string; bucket?: string; from?: string; to?: string } }>('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
@@ -900,6 +900,17 @@ export function registerAgentInstructionRoutes(
     }
     const parsedHours = Number.parseInt(request.query.hours ?? '24', 10);
     const hoursBack = Number.isFinite(parsedHours) ? Math.min(Math.max(parsedHours, 1), 168) : 24;
+    const from = typeof request.query.from === 'string' ? new Date(request.query.from) : null;
+    const to = typeof request.query.to === 'string' ? new Date(request.query.to) : null;
+    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+      return reply.code(400).send({ error: 'invalid_time_range' });
+    }
+    if (from && to && from.getTime() >= to.getTime()) {
+      return reply.code(400).send({ error: 'invalid_time_range' });
+    }
+    if (from && to && to.getTime() - from.getTime() > 31 * 24 * 3600_000) {
+      return reply.code(400).send({ error: 'time_range_too_large' });
+    }
     const bucket = request.query.bucket === 'hour' || request.query.bucket === 'day'
       ? request.query.bucket
       : hoursBack > 72 ? 'day' : 'hour';
@@ -908,18 +919,22 @@ export function registerAgentInstructionRoutes(
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
               count(*) FILTER (WHERE status = 'failed')::text AS failed
        FROM approval_webhook_deliveries
-       WHERE tenant_id = $1 AND created_at > now() - make_interval(hours => $2)
+       WHERE tenant_id = $1
+         AND created_at > COALESCE($2::timestamptz, now() - make_interval(hours => $3))
+         AND created_at <= COALESCE($4::timestamptz, now())
        GROUP BY 1 ORDER BY 1`,
-      [ctx.tenantId, hoursBack],
+      [ctx.tenantId, from, hoursBack, to],
     );
     const operations = await pool.query<{ hour: Date; delivered: string; failed: string }>(
       `SELECT date_trunc('${bucket}', created_at) AS hour,
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
               count(*) FILTER (WHERE status = 'failed')::text AS failed
        FROM operations_alert_deliveries
-       WHERE tenant_id = $1 AND created_at > now() - make_interval(hours => $2)
+       WHERE tenant_id = $1
+         AND created_at > COALESCE($2::timestamptz, now() - make_interval(hours => $3))
+         AND created_at <= COALESCE($4::timestamptz, now())
        GROUP BY 1 ORDER BY 1`,
-      [ctx.tenantId, hoursBack],
+      [ctx.tenantId, from, hoursBack, to],
     );
     const hours = new Map<string, {
       hour: string;

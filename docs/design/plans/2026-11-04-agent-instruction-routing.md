@@ -284,6 +284,7 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
   → 最近 1–168 小时
   → 自动：≤72h 按小时，>72h 按天
   → 可手动选择按小时 / 按天
+  → 支持自定义 from / to 时间范围（最多 31 天）
   → 审批 Webhook 成功 / 失败
   → 运维告警 成功 / 失败
   → Web 支持 1h / 12h / 24h / 72h / 7 天切换

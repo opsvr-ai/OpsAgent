@@ -46,6 +46,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [notificationStats, setNotificationStats] = useState<NotificationStatPoint[]>([]);
   const [statsHours, setStatsHours] = useState(24);
   const [statsBucket, setStatsBucket] = useState<'auto' | 'hour' | 'day'>('auto');
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
+  const [appliedFrom, setAppliedFrom] = useState<string | undefined>();
+  const [appliedTo, setAppliedTo] = useState<string | undefined>();
   const [chartZoom, setChartZoom] = useState(1);
   const [chartSeries, setChartSeries] = useState({
     approvalDelivered: true,
@@ -80,7 +84,12 @@ export function Approvals({ onBack }: ApprovalsProps) {
       void listOperationsAlertDeliveries()
         .then((value) => { if (!cancelled) setOperationsAlerts(value); })
         .catch(() => undefined);
-      void listNotificationStats(statsHours, statsBucket === 'auto' ? undefined : statsBucket)
+      void listNotificationStats(
+        statsHours,
+        statsBucket === 'auto' ? undefined : statsBucket,
+        appliedFrom,
+        appliedTo,
+      )
         .then((value) => { if (!cancelled) setNotificationStats(value); })
         .catch(() => undefined);
     };
@@ -90,7 +99,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [statsHours, statsBucket]);
+  }, [statsHours, statsBucket, appliedFrom, appliedTo]);
 
   async function decideInstruction(id: string, decision: 'approve' | 'deny') {
     setError(null);
@@ -296,6 +305,36 @@ export function Approvals({ onBack }: ApprovalsProps) {
             </div>
           </div>
           <div className="card-body">
+            <div className="row-sm" style={{ marginBottom: 8, flexWrap: 'wrap' }}>
+              <label className="muted">开始
+                <input type="datetime-local" value={rangeFrom} onChange={(event) => setRangeFrom(event.target.value)} />
+              </label>
+              <label className="muted">结束
+                <input type="datetime-local" value={rangeTo} onChange={(event) => setRangeTo(event.target.value)} />
+              </label>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => {
+                  setAppliedFrom(rangeFrom ? new Date(rangeFrom).toISOString() : undefined);
+                  setAppliedTo(rangeTo ? new Date(rangeTo).toISOString() : undefined);
+                }}
+              >
+                应用时间范围
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setRangeFrom('');
+                  setRangeTo('');
+                  setAppliedFrom(undefined);
+                  setAppliedTo(undefined);
+                }}
+              >
+                清除
+              </button>
+            </div>
             <div style={{ overflowX: 'auto', marginBottom: 8 }}>
             <svg viewBox={`0 0 ${chartWidth} 100`} preserveAspectRatio="none" style={{ width: chartWidth, height: 100, display: 'block' }}>
               <polyline fill="none" stroke="var(--ok)" strokeWidth="1.5" points={chartLine('approvalDelivered')} style={{ display: chartSeries.approvalDelivered ? undefined : 'none' }} />

@@ -6,6 +6,7 @@ import { listPlatformTenants } from '../src/api/client.js';
 vi.mock('../src/api/client.js', () => ({
   listPlatformTenants: vi.fn(),
   createPlatformTenant: vi.fn(),
+  getPlatformTlsStatus: vi.fn(async () => ({ configured: false })),
 }));
 
 const listMock = vi.mocked(listPlatformTenants);

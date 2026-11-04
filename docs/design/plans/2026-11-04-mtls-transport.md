@@ -147,6 +147,23 @@ fingerprint = certificate.expiring
 
 续期并上报新证书后自动 resolve。
 
+### 控制面证书状态
+
+平台管理员页面展示控制面 TLS：
+
+```text
+到期时间
+剩余天数
+证书序列号
+签发方式（内置 CA / 外部证书）
+```
+
+接口：
+
+```text
+GET /api/platform/tls
+```
+
 引导阶段需要 Agent 能访问注册端点；生产部署可先通过受控内网完成
 证书签发，再切换 `OPSAGENT_CONTROL_URL` 为 HTTPS。
 

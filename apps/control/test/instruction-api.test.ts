@@ -278,6 +278,26 @@ describe('agent instruction API', () => {
       headers: { cookie },
     });
     expect((history.json() as Array<{ id: string; status: string }>).some((item) => item.id === approvalId && item.status === 'approved')).toBe(true);
+
+    const stopRequested = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '停止 nginx 服务' },
+    });
+    const stopApprovalId = (stopRequested.json() as { approvalId: string }).approvalId;
+    const stopApproved = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${stopApprovalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    const stopCommandId = (stopApproved.json() as { instructionId: string }).instructionId;
+    const stopCommand = await pool.query<{ instruction_intent: Record<string, unknown> }>(
+      'SELECT instruction_intent FROM agent_commands WHERE id = $1',
+      [stopCommandId],
+    );
+    expect(stopCommand.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_stop', params: { service: 'nginx' } });
     await app.close();
   });
 

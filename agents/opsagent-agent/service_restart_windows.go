@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-func restartService(service string) (string, error) {
+func controlService(action string, service string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(ctx, "sc.exe", "restart", service).CombinedOutput()
+	output, err := exec.CommandContext(ctx, "sc.exe", action, service).CombinedOutput()
 	return string(output), err
 }

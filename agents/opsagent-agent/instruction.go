@@ -26,10 +26,10 @@ func runAgentInstruction(input map[string]any) map[string]any {
 	if kind == "" {
 		kind = "inspect"
 	}
-	if kind == "service_restart" {
+	if kind == "service_restart" || kind == "service_stop" {
 		readOnly, _ := input["readOnly"].(bool)
 		if readOnly {
-			result["error"] = "service restart cannot be read-only"
+			result["error"] = "service action cannot be read-only"
 			result["intent"] = intent
 			return result
 		}
@@ -41,18 +41,24 @@ func runAgentInstruction(input map[string]any) map[string]any {
 			result["intent"] = intent
 			return result
 		}
-		output, err := restartService(service)
+		action := "restart"
+		label := "重启"
+		if kind == "service_stop" {
+			action = "stop"
+			label = "停止"
+		}
+		output, err := controlService(action, service)
 		result["instruction"] = instruction
 		result["intent"] = intent
-		result["toolsUsed"] = []string{"service.restart"}
-		result["evidence"] = map[string]string{"service": service, "output": trimEvidence(output)}
+		result["toolsUsed"] = []string{"service." + action}
+		result["evidence"] = map[string]string{"service": service, "action": action, "output": trimEvidence(output)}
 		if err != nil {
-			result["error"] = fmt.Sprintf("restart %s failed: %v", service, err)
-			result["answer"] = fmt.Sprintf("服务 %s 重启失败：%v\n%s", service, err, trimEvidence(output))
+			result["error"] = fmt.Sprintf("%s %s failed: %v", action, service, err)
+			result["answer"] = fmt.Sprintf("服务 %s %s失败：%v\n%s", service, label, err, trimEvidence(output))
 			return result
 		}
 		result["ok"] = true
-		result["answer"] = fmt.Sprintf("服务 %s 已重启。\n%s", service, trimEvidence(output))
+		result["answer"] = fmt.Sprintf("服务 %s 已%s。\n%s", service, label, trimEvidence(output))
 		return result
 	}
 	if kind != "inspect" {

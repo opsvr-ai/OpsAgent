@@ -21,12 +21,17 @@ describe('agent instruction planner', () => {
       ok: true,
       intent: { kind: 'service_restart', params: { service: 'redis' } },
     });
+    expect(planInstruction('停止 nginx 服务')).toMatchObject({
+      ok: true,
+      intent: { kind: 'service_stop', params: { service: 'nginx' }, readOnly: false, risk: 'R2' },
+    });
   });
 
   it('rejects unsupported write instructions', () => {
     expect(planInstruction('重启订单服务')).toMatchObject({ ok: false, error: 'unsupported_instruction' });
     expect(planInstruction('rm -rf /tmp/x')).toMatchObject({ ok: false, error: 'unsupported_instruction' });
     expect(planInstruction('重启系统')).toMatchObject({ ok: false, error: 'unsupported_instruction' });
+    expect(planInstruction('重启 sshd 服务')).toMatchObject({ ok: false, error: 'unsupported_instruction' });
     expect(planInstruction('')).toMatchObject({ ok: false, error: 'empty_instruction' });
   });
 });

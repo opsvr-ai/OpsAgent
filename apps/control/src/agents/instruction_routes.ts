@@ -439,6 +439,7 @@ export function registerAgentInstructionRoutes(
         return reply.code(409).send({ error: 'agent_offline', hostname: target.hostname });
       }
       const service = approval.service ?? '';
+      const intentKind = approval.action === 'service_stop' ? 'service_stop' : 'service_restart';
       const command = await commands.create({
         tenantId: ctx.tenantId,
         agentId: approval.agent_id,
@@ -446,7 +447,7 @@ export function registerAgentInstructionRoutes(
         input: {
           instruction: approval.instruction,
           intent: {
-            kind: 'service_restart',
+            kind: intentKind,
             params: { service },
             readOnly: false,
             risk: 'R2',
@@ -456,7 +457,7 @@ export function registerAgentInstructionRoutes(
         requestedBy: approval.requested_by,
         instruction: approval.instruction,
         intent: {
-          kind: 'service_restart',
+          kind: intentKind,
           params: { service },
           readOnly: false,
           risk: 'R2',
@@ -538,9 +539,9 @@ export function registerAgentInstructionRoutes(
       const approval = await pool.query<{ id: string; status: string; created_at: Date }>(
         `INSERT INTO agent_instruction_approvals
            (tenant_id, agent_id, instruction, action, service, risk, requested_by)
-         VALUES ($1, $2, $3, 'service_restart', $4, 'R2', $5)
+         VALUES ($1, $2, $3, $4, $5, 'R2', $6)
          RETURNING id, status, created_at`,
-        [ctx.tenantId, request.params.id, body.instruction.trim(), service, ctx.userId],
+        [ctx.tenantId, request.params.id, body.instruction.trim(), plan.intent.kind, service, ctx.userId],
       );
       const createdApproval = approval.rows[0];
       if (!createdApproval) return reply.code(500).send({ error: 'approval_create_failed' });

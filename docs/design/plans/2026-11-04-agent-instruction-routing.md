@@ -137,7 +137,9 @@ POST /api/agents/:agentId/instructions/:instructionId/cancel
 ```text
 重启 nginx 服务
 重启服务 redis
+停止 nginx 服务
 restart nginx service
+stop nginx service
 ```
 
 流程：
@@ -189,6 +191,7 @@ POST /api/agent-instruction-approvals/:id/decision
 只允许明确服务名
 服务名必须匹配 [a-zA-Z0-9][a-zA-Z0-9_.@-]{0,63}
 禁止 system / host / server / os / all 等泛化目标
+禁止受保护服务：systemd / sshd / network / docker / kubelet / agent 等
 自然语言不会进入 shell
 批准时才创建签名命令
 Agent 二次校验服务名

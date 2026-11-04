@@ -360,6 +360,13 @@ POST /api/agent-instruction-approvals/webhook-deliveries/:id/replay
   → 仍失败则等待人工重放
 ```
 
+可配置：
+
+```text
+OPSAGENT_APPROVAL_WEBHOOK_AUTO_REPLAYS=3（0–5）
+OPSAGENT_APPROVAL_WEBHOOK_REPLAY_DELAY_SECONDS=300（60–3600）
+```
+
 ### 指令历史
 
 ```http

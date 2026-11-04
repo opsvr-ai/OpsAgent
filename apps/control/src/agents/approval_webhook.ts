@@ -97,6 +97,8 @@ export function replayApprovalWebhook(pool: Pool, deliveryId: string, payload: s
   }
   const configured = Number.parseInt(process.env.OPSAGENT_APPROVAL_WEBHOOK_RETRIES ?? '3', 10);
   const attempts = Number.isFinite(configured) ? Math.min(Math.max(configured, 1), 5) : 3;
+  const configuredDelay = Number.parseInt(process.env.OPSAGENT_APPROVAL_WEBHOOK_REPLAY_DELAY_SECONDS ?? '300', 10);
+  const replayDelay = Number.isFinite(configuredDelay) ? Math.min(Math.max(configuredDelay, 60), 3600) : 300;
   void (async () => {
     let lastError: string | null = null;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -126,9 +128,9 @@ export function replayApprovalWebhook(pool: Pool, deliveryId: string, payload: s
     await pool.query(
       `UPDATE approval_webhook_deliveries
        SET status = 'failed', attempts = $1, last_error = $2,
-           next_auto_replay_at = now() + interval '5 minutes', updated_at = now()
+           next_auto_replay_at = now() + make_interval(secs => $4), updated_at = now()
        WHERE id = $3`,
-      [attempts, lastError, deliveryId],
+      [attempts, lastError, deliveryId, replayDelay],
     ).catch(() => undefined);
   })();
 }

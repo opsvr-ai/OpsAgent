@@ -97,15 +97,18 @@ export class AgentInstructionMonitor {
         }, this.pool);
       }
 
+      const configuredReplays = Number.parseInt(process.env.OPSAGENT_APPROVAL_WEBHOOK_AUTO_REPLAYS ?? '3', 10);
+      const maxAutoReplays = Number.isFinite(configuredReplays) ? Math.min(Math.max(configuredReplays, 0), 5) : 3;
       const autoReplay = await this.pool.query<{ id: string; payload: string }>(
         `UPDATE approval_webhook_deliveries
          SET status = 'pending', attempts = 0, last_error = NULL,
              auto_replay_count = auto_replay_count + 1,
              next_auto_replay_at = NULL, updated_at = now()
-         WHERE status = 'failed' AND auto_replay_count < 3
+         WHERE status = 'failed' AND auto_replay_count < $1
            AND (next_auto_replay_at IS NULL OR next_auto_replay_at <= now())
            AND created_at < now() - interval '1 minute'
          RETURNING id, payload::text AS payload`,
+        [maxAutoReplays],
       );
       for (const delivery of autoReplay.rows) {
         replayApprovalWebhook(this.pool, delivery.id, delivery.payload);

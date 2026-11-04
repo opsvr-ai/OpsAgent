@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import { notifyApprovalWebhook, replayApprovalWebhook } from './approval_webhook.js';
-import { notifyOperationsAlert } from './operations_alert.js';
+import { notifyOperationsAlert, replayOperationsAlert } from './operations_alert.js';
 
 /** Expires pending/dispatched natural-language instructions after the signed command lifetime. */
 export class AgentInstructionMonitor {
@@ -113,6 +113,25 @@ export class AgentInstructionMonitor {
       );
       for (const delivery of autoReplay.rows) {
         replayApprovalWebhook(this.pool, delivery.id, delivery.payload);
+      }
+
+      const configuredOperationsReplays = Number.parseInt(process.env.OPSAGENT_OPERATIONS_ALERT_AUTO_REPLAYS ?? '3', 10);
+      const maxOperationsReplays = Number.isFinite(configuredOperationsReplays)
+        ? Math.min(Math.max(configuredOperationsReplays, 0), 5)
+        : 3;
+      const operationsReplay = await this.pool.query<{ id: string; payload: string }>(
+        `UPDATE operations_alert_deliveries
+         SET status = 'pending', attempts = 0, last_error = NULL,
+             auto_replay_count = auto_replay_count + 1,
+             next_auto_replay_at = NULL, updated_at = now()
+         WHERE status = 'failed' AND auto_replay_count < $1
+           AND (next_auto_replay_at IS NULL OR next_auto_replay_at <= now())
+           AND created_at < now() - interval '1 minute'
+         RETURNING id, payload::text AS payload`,
+        [maxOperationsReplays],
+      );
+      for (const delivery of operationsReplay.rows) {
+        replayOperationsAlert(this.pool, delivery.id, delivery.payload);
       }
 
       const configuredThreshold = Number.parseInt(process.env.OPSAGENT_APPROVAL_WEBHOOK_ALERT_THRESHOLD ?? '5', 10);

@@ -443,6 +443,7 @@ OPSAGENT_OPERATIONS_ALERT_RETRIES=3
   → 投递日志 operations_alert_deliveries
   → GET /api/agent-instruction-approvals/operations-alert-deliveries
   → POST .../:id/replay
+  → 自动重放最多 3 次
 ```
 
 失败告警：

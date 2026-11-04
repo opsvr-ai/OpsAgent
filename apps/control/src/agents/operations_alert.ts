@@ -19,6 +19,8 @@ export function replayOperationsAlert(pool: Pool, deliveryId: string, payload: s
   }
   const configured = Number.parseInt(process.env.OPSAGENT_OPERATIONS_ALERT_RETRIES ?? '3', 10);
   const attempts = Number.isFinite(configured) ? Math.min(Math.max(configured, 1), 5) : 3;
+  const configuredDelay = Number.parseInt(process.env.OPSAGENT_OPERATIONS_ALERT_REPLAY_DELAY_SECONDS ?? '300', 10);
+  const replayDelay = Number.isFinite(configuredDelay) ? Math.min(Math.max(configuredDelay, 60), 3600) : 300;
   void (async () => {
     let lastError: string | null = null;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -32,7 +34,8 @@ export function replayOperationsAlert(pool: Pool, deliveryId: string, payload: s
         if (response.ok) {
           await pool.query(
             `UPDATE operations_alert_deliveries
-             SET status = 'delivered', attempts = $1, last_error = NULL, updated_at = now()
+             SET status = 'delivered', attempts = $1, last_error = NULL,
+                 next_auto_replay_at = NULL, updated_at = now()
              WHERE id = $2`,
             [attempt, deliveryId],
           );
@@ -46,9 +49,10 @@ export function replayOperationsAlert(pool: Pool, deliveryId: string, payload: s
     }
     await pool.query(
       `UPDATE operations_alert_deliveries
-       SET status = 'failed', attempts = $1, last_error = $2, updated_at = now()
+       SET status = 'failed', attempts = $1, last_error = $2,
+           next_auto_replay_at = now() + make_interval(secs => $4), updated_at = now()
        WHERE id = $3`,
-      [attempts, lastError, deliveryId],
+      [attempts, lastError, deliveryId, replayDelay],
     ).catch(() => undefined);
   })();
 }

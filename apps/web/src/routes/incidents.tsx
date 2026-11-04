@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   analyzeIncident,
+  createAgentInstruction,
   createIncident,
   decideIncidentApproval,
+  getAgentFleet,
+  getAgentInstruction,
   getIncident,
   getIncidentReportTemplate,
   investigateIncident,
@@ -12,6 +15,8 @@ import {
   recheckIncident,
   saveIncidentReportTemplate,
   updateIncident,
+  type AgentInstructionDetail,
+  type AgentSummary,
   type IncidentDetail,
   type IncidentSummary,
   type MemberSummary,
@@ -29,6 +34,7 @@ function eventLabel(type: string): string {
   if (type === 'source_detected') return 'Agent 异常触发';
   if (type === 'investigation_started') return '自动排障开始';
   if (type === 'investigation_completed') return '自动排障完成';
+  if (type === 'instruction_completed') return '指令排查完成';
   if (type === 'connector_evidence') return '连接器证据';
   if (type === 'topology_collected') return '应用系统拓扑聚合';
   if (type === 'approval_requested') return '操作审批申请';
@@ -76,6 +82,14 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [templateBody, setTemplateBody] = useState('');
   const [templateBusy, setTemplateBusy] = useState(false);
+  const [instructionOpen, setInstructionOpen] = useState(false);
+  const [instructionAgents, setInstructionAgents] = useState<AgentSummary[]>([]);
+  const [instructionAgentId, setInstructionAgentId] = useState('');
+  const [instructionText, setInstructionText] = useState('');
+  const [instructionBusy, setInstructionBusy] = useState(false);
+  const [instructionNote, setInstructionNote] = useState<string | null>(null);
+  const [instructionError, setInstructionError] = useState<string | null>(null);
+  const [instructionResult, setInstructionResult] = useState<AgentInstructionDetail | null>(null);
 
   useEffect(() => {
     void listIncidents()
@@ -234,6 +248,55 @@ export function Incidents({ onBack }: IncidentsProps) {
     }
   }
 
+  async function openInstructionPanel() {
+    const appSystemId = detail?.incident.appSystemId;
+    setInstructionOpen(true);
+    setInstructionNote(null);
+    setInstructionError(null);
+    setInstructionResult(null);
+    if (!appSystemId) {
+      setInstructionError('事件未关联应用系统，无法选择 Agent');
+      return;
+    }
+    try {
+      const fleet = await getAgentFleet({ appSystemId, status: 'online', pageSize: 50 });
+      setInstructionAgents(fleet.items);
+      setInstructionAgentId(fleet.items[0]?.id ?? '');
+      if (fleet.items.length === 0) setInstructionError('应用系统内没有在线 Agent');
+    } catch {
+      setInstructionError('Agent 列表加载失败');
+    }
+  }
+
+  async function sendIncidentInstruction() {
+    const incidentId = detail?.incident.id;
+    if (!incidentId || !instructionAgentId || !instructionText.trim()) return;
+    setInstructionBusy(true);
+    setInstructionError(null);
+    try {
+      const created = await createAgentInstruction(
+        instructionAgentId,
+        instructionText.trim(),
+        crypto.randomUUID(),
+        incidentId,
+      );
+      setInstructionNote('指令已下发，等待 Agent 返回…');
+      let latest: AgentInstructionDetail | null = null;
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        latest = await getAgentInstruction(instructionAgentId, created.instructionId);
+        setInstructionResult(latest);
+        if (latest.status === 'completed' || latest.status === 'failed') break;
+      }
+      setInstructionNote(latest ? `指令状态：${latest.status}` : null);
+      setDetail(await getIncident(incidentId));
+    } catch {
+      setInstructionError('指令下发失败');
+    } finally {
+      setInstructionBusy(false);
+    }
+  }
+
   const selected = detail?.incident ?? incidents?.find((item) => item.id === selectedId) ?? null;
   const selectedSla = slaLabel(selected?.dueAt);
   const topologyEvidence = (detail?.evidence ?? []).find((item) => item.kind === 'topology');
@@ -376,6 +439,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <button type="button" className="btn btn-outline btn-sm" disabled={rechecking} onClick={() => void recheck(selected.id)}>
                         {rechecking ? '复查中…' : '复查取证'}
                       </button>
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => void openInstructionPanel()}>Agent 指令排查</button>
                       <button type="button" className="btn btn-outline btn-sm" disabled={analyzing} onClick={() => void analyze(selected.id)}>
                         {analyzing ? '分析中…' : 'Commander 分析'}
                       </button>
@@ -385,6 +449,39 @@ export function Incidents({ onBack }: IncidentsProps) {
                       {statusActions(selected)}
                     </div>
                   </div>
+                  {instructionOpen ? (
+                    <div className="incident-evidence" style={{ marginBottom: 14 }}>
+                      <div className="row-between">
+                        <strong>向 Agent 下发排查指令</strong>
+                        <button type="button" className="btn btn-outline btn-sm" disabled={instructionBusy} onClick={() => setInstructionOpen(false)}>关闭</button>
+                      </div>
+                      <div className="form-grid" style={{ marginTop: 8 }}>
+                        <div className="field">
+                          <label htmlFor="incident-instruction-agent">目标 Agent</label>
+                          <select id="incident-instruction-agent" value={instructionAgentId} onChange={(event) => setInstructionAgentId(event.target.value)}>
+                            {instructionAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.hostname}</option>)}
+                          </select>
+                        </div>
+                        <div className="field" style={{ gridColumn: '1 / -1' }}>
+                          <label htmlFor="incident-instruction-text">排查指令</label>
+                          <textarea id="incident-instruction-text" rows={3} value={instructionText} onChange={(event) => setInstructionText(event.target.value)} placeholder="例如：检查磁盘为什么满了，并查看最近异常日志。" />
+                        </div>
+                      </div>
+                      <div className="row-sm">
+                        <button type="button" className="btn btn-primary btn-sm" disabled={instructionBusy || !instructionAgentId || !instructionText.trim()} onClick={() => void sendIncidentInstruction()}>
+                          {instructionBusy ? '执行中…' : '下发指令'}
+                        </button>
+                        {instructionNote ? <span className="muted">{instructionNote}</span> : null}
+                      </div>
+                      {instructionError ? <p role="alert">{instructionError}</p> : null}
+                      {instructionResult ? (
+                        <div style={{ marginTop: 8 }}>
+                          <p className="muted">状态：{instructionResult.status} · 意图：{instructionResult.intent?.kind ?? '—'}</p>
+                          <pre style={{ whiteSpace: 'pre-wrap' }}>{instructionResult.answer}</pre>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {templateOpen ? (
                     <div className="incident-evidence" style={{ marginBottom: 14 }}>
                       <div className="row-between">

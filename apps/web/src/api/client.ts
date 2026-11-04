@@ -615,10 +615,11 @@ export async function createAgentInstruction(
   agentId: string,
   instruction: string,
   clientRequestId: string,
+  incidentId?: string,
 ): Promise<AgentInstructionCreated> {
   return request<AgentInstructionCreated>(`/api/agents/${agentId}/instructions`, {
     method: 'POST',
-    body: JSON.stringify({ instruction, clientRequestId }),
+    body: JSON.stringify({ instruction, clientRequestId, ...(incidentId ? { incidentId } : {}) }),
   });
 }
 

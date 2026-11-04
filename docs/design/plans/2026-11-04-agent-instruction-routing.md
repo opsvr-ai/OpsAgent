@@ -165,6 +165,28 @@ incident_events
 
 使用 `incident_linked_at` 做幂等，重复查询不会重复写证据。
 
+### Incident 页面直接发起
+
+事件详情新增：
+
+```text
+Agent 指令排查
+  → 自动加载事件所属应用系统的在线 Agent
+  → 选择目标 Agent
+  → 输入自然语言
+  → 下发（自动携带 incidentId）
+  → 显示状态与回答
+  → 完成后刷新事件详情，证据自动出现
+```
+
+测试覆盖：
+
+```text
+Incident 证据写入
+instruction_completed 事件
+幂等 linked_at
+```
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

@@ -138,6 +138,48 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('links a completed instruction to incident evidence', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const incidentResponse = await app.inject({
+      method: 'POST',
+      url: '/api/incidents',
+      headers: { cookie },
+      payload: { title: '指令关联测试', severity: 'P2' },
+    });
+    const incidentId = (incidentResponse.json() as { id: string }).id;
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '检查磁盘', incidentId },
+    });
+    expect(created.statusCode).toBe(202);
+    const instructionId = (created.json() as { instructionId: string }).instructionId;
+    await pool.query(
+      `UPDATE agent_commands SET status = 'completed', completed_at = now(),
+         result = $2::jsonb WHERE id = $1`,
+      [instructionId, JSON.stringify({ answer: '磁盘使用率 90%', evidence: { disk: 90 }, toolsUsed: ['inspect'] })],
+    );
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${agentId}/instructions/${instructionId}`,
+      headers: { cookie },
+    });
+    expect(detail.statusCode).toBe(200);
+    const evidence = await pool.query<{ kind: string; summary: string }>(
+      'SELECT kind, summary FROM incident_evidence WHERE incident_id = $1',
+      [incidentId],
+    );
+    expect(evidence.rows.some((row) => row.kind === 'agent_instruction' && row.summary.includes('磁盘使用率'))).toBe(true);
+    const events = await pool.query<{ type: string }>(
+      'SELECT type FROM incident_events WHERE incident_id = $1',
+      [incidentId],
+    );
+    expect(events.rows.some((row) => row.type === 'instruction_completed')).toBe(true);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

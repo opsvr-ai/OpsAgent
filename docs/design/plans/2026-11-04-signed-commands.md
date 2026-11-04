@@ -12,6 +12,8 @@
 
 - 控制面由 `OPSAGENT_COMMAND_SIGNING_SEED`（未配置时回退 `OPSAGENT_SECRET_KEY`）派生 Ed25519 密钥
 - 命令 payload 按 key 排序生成 canonical JSON，写入 `signed_payload`
+- 签名信封包含 `keyId`、`nonce`、`expiresAt`、`payload`
+- Agent 校验签名、key id、过期时间和 nonce 重放
 - 签名写入 `signature`
 - Agent 注册响应返回 `commandPublicKey`
 - Agent 将公钥持久化到 `agent-state.json`
@@ -24,14 +26,19 @@
 0033_agent_command_signatures.sql
 agent_commands.signed_payload
 agent_commands.signature
+
+0034_agent_command_envelope.sql
+agent_commands.nonce
+agent_commands.key_id
+agent_commands.expires_at
 ```
 
 ## 验证
 
-- `go test ./...`：签名验证/篡改/缺签测试通过
-- `agent-api`：注册返回公钥，pending 命令返回 signedPayload/signature
-- 容器实测：Agent 注册拿到公钥，命令 `diagnostics` 验签成功并完成
-- 篡改 payload 或签名会被拒绝
+- `go test ./...`：签名验证/篡改/缺签/过期测试通过
+- `agent-api`：注册返回公钥与 key id，pending 命令返回 signedPayload/signature
+- 容器实测：Agent 注册拿到公钥与 key id，命令 `diagnostics` 信封验签成功并完成
+- 篡改 payload、过期、重复 nonce 会被拒绝
 
 ## 剩余安全项
 

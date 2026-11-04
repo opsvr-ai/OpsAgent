@@ -22,6 +22,7 @@ type agentState struct {
 	ControlURL       string `json:"controlUrl"`
 	TenantID         string `json:"tenantId"`
 	CommandPublicKey string `json:"commandPublicKey,omitempty"`
+	CommandKeyID     string `json:"commandKeyId,omitempty"`
 	UpdatedAt        string `json:"updatedAt"`
 }
 

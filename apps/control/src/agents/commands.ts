@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { CommandSigner, getCommandSigner } from './signing.js';
 
@@ -11,6 +12,9 @@ export interface AgentCommandRecord {
   readonly createdAt: string;
   readonly signedPayload: string | null;
   readonly signature: string | null;
+  readonly nonce: string | null;
+  readonly keyId: string | null;
+  readonly expiresAt: string | null;
 }
 
 export class AgentCommandService {
@@ -31,19 +35,31 @@ export class AgentCommandService {
     );
     if (agent.rowCount === 0) return null;
     const payload = input.input ?? {};
-    const signed = this.signer.sign(payload);
+    const nonce = randomUUID();
+    const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    const signed = this.signer.signCommand(payload, nonce, expiresAt);
     const result = await this.pool.query(
-      `INSERT INTO agent_commands (tenant_id, agent_id, type, payload, signed_payload, signature)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-       RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, created_at`,
-      [input.tenantId, input.agentId, input.type, JSON.stringify(payload), signed.signedPayload, signed.signature],
+      `INSERT INTO agent_commands (tenant_id, agent_id, type, payload, signed_payload, signature, nonce, key_id, expires_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
+       RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
+      [
+        input.tenantId,
+        input.agentId,
+        input.type,
+        JSON.stringify(payload),
+        signed.signedPayload,
+        signed.signature,
+        nonce,
+        this.signer.keyId,
+        expiresAt,
+      ],
     );
     return this.map(result.rows[0]);
   }
 
   async list(tenantId: string, agentId: string): Promise<AgentCommandRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, agent_id, type, status, payload, result, signed_payload, signature, created_at FROM agent_commands
+      `SELECT id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at FROM agent_commands
        WHERE tenant_id = $1 AND agent_id = $2 ORDER BY created_at DESC LIMIT 50`,
       [tenantId, agentId],
     );
@@ -63,7 +79,7 @@ export class AgentCommandService {
          WHERE agent_id = $1 AND status = 'pending'
          ORDER BY created_at ASC LIMIT 1
        )
-       RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, created_at`,
+       RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
       [agentId],
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
@@ -71,7 +87,7 @@ export class AgentCommandService {
 
   async get(tenantId: string, agentId: string, commandId: string): Promise<AgentCommandRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, agent_id, type, status, payload, result, signed_payload, signature, created_at FROM agent_commands
+      `SELECT id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at FROM agent_commands
        WHERE tenant_id = $1 AND agent_id = $2 AND id = $3`,
       [tenantId, agentId, commandId],
     );
@@ -93,7 +109,7 @@ export class AgentCommandService {
       `UPDATE agent_commands
        SET status = 'completed', result = $1::jsonb, completed_at = now()
        WHERE id = $2 AND agent_id = $3
-       RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, created_at`,
+       RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
       [JSON.stringify(input.result), input.commandId, input.agentId],
     );
     const record = result.rows[0];
@@ -133,6 +149,9 @@ export class AgentCommandService {
     result: unknown;
     signed_payload?: string | null;
     signature?: string | null;
+    nonce?: string | null;
+    key_id?: string | null;
+    expires_at?: Date | string | null;
     created_at: string;
   }): AgentCommandRecord {
     return {
@@ -147,6 +166,11 @@ export class AgentCommandService {
       createdAt: row.created_at,
       signedPayload: row.signed_payload ?? null,
       signature: row.signature ?? null,
+      nonce: row.nonce ?? null,
+      keyId: row.key_id ?? null,
+      expiresAt: row.expires_at
+        ? (row.expires_at instanceof Date ? row.expires_at.toISOString() : row.expires_at)
+        : null,
     };
   }
 }

@@ -71,7 +71,11 @@ export function registerAgentRoutes(
         : [],
       ...(discovery ? { discovery } : {}),
     });
-    return reply.code(201).send({ ...registered, commandPublicKey: getCommandSigner().publicKey });
+    return reply.code(201).send({
+      ...registered,
+      commandPublicKey: getCommandSigner().publicKey,
+      commandKeyId: getCommandSigner().keyId,
+    });
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/heartbeat', async (request, reply) => {

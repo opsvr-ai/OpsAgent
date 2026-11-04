@@ -22,6 +22,7 @@ export function canonicalJson(value: unknown): string {
 
 export class CommandSigner {
   readonly publicKey: string;
+  readonly keyId: string;
   private readonly privateKey: ReturnType<typeof createPrivateKey>;
 
   constructor(seed: Buffer) {
@@ -32,13 +33,28 @@ export class CommandSigner {
       type: 'pkcs8',
     });
     const spki = createPublicKey(this.privateKey).export({ format: 'der', type: 'spki' });
-    this.publicKey = spki.subarray(spki.length - 32).toString('base64');
+    const raw = spki.subarray(spki.length - 32);
+    this.publicKey = raw.toString('base64');
+    this.keyId = createHash('sha256').update(raw).digest('hex').slice(0, 16);
   }
 
   sign(payload: unknown): { signedPayload: string; signature: string } {
     const signedPayload = canonicalJson(payload);
     const signature = sign(null, Buffer.from(signedPayload, 'utf8'), this.privateKey).toString('base64');
     return { signedPayload, signature };
+  }
+
+  signCommand(
+    payload: unknown,
+    nonce: string,
+    expiresAt: string,
+  ): { signedPayload: string; signature: string } {
+    return this.sign({
+      nonce,
+      keyId: this.keyId,
+      expiresAt,
+      payload,
+    });
   }
 }
 

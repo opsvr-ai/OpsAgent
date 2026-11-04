@@ -31,6 +31,7 @@ type registerResponse struct {
 	} `json:"agent"`
 	AgentKey         string `json:"agentKey"`
 	CommandPublicKey string `json:"commandPublicKey"`
+	CommandKeyID     string `json:"commandKeyId"`
 }
 
 type heartbeatRequest struct {
@@ -247,6 +248,7 @@ func runDaemon(paths agentPaths) {
 		ControlURL:       controlURL,
 		TenantID:         tenantID,
 		CommandPublicKey: registered.CommandPublicKey,
+		CommandKeyID:     registered.CommandKeyID,
 	}); err != nil {
 		log.Printf("save agent state: %v", err)
 	} else {
@@ -356,15 +358,19 @@ func runDaemon(paths agentPaths) {
 		} else if status == http.StatusOK && command.ID != "" {
 			signatureValid := true
 			if registered.CommandPublicKey != "" {
-				if err := verifyCommandSignature(registered.CommandPublicKey, command.SignedPayload, command.Signature); err != nil {
+				nonce, verifyErr := verifyCommandSignature(registered.CommandPublicKey, command.SignedPayload, command.Signature)
+				if verifyErr == nil && commandNonceSeen(nonce) {
+					verifyErr = fmt.Errorf("command replay detected")
+				}
+				if verifyErr != nil {
 					signatureValid = false
-					log.Printf("command rejected id=%s: %v", command.ID, err)
+					log.Printf("command rejected id=%s: %v", command.ID, verifyErr)
 					if postErr := post(
 						controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
 						nil,
 						map[string]any{
 							"agentKey": registered.AgentKey,
-							"result":   map[string]any{"ok": false, "error": "invalid_signature", "detail": err.Error()},
+							"result":   map[string]any{"ok": false, "error": "invalid_signature", "detail": verifyErr.Error()},
 						},
 						nil,
 					); postErr != nil {

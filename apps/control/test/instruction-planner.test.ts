@@ -29,6 +29,14 @@ describe('agent instruction planner', () => {
       ok: true,
       intent: { kind: 'service_start', params: { service: 'nginx' }, readOnly: false, risk: 'R2' },
     });
+    expect(planInstruction('启用 nginx 服务')).toMatchObject({
+      ok: true,
+      intent: { kind: 'service_enable', params: { service: 'nginx' } },
+    });
+    expect(planInstruction('禁用 nginx 服务')).toMatchObject({
+      ok: true,
+      intent: { kind: 'service_disable', params: { service: 'nginx' } },
+    });
   });
 
   it('rejects unsupported write instructions', () => {

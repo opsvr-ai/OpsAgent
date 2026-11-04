@@ -407,6 +407,26 @@ describe('agent instruction API', () => {
       [startCommandId],
     );
     expect(startCommand.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_start', params: { service: 'redis' } });
+
+    const enableRequest = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '启用 nginx 服务' },
+    });
+    const enableApprovalId = (enableRequest.json() as { approvalId: string }).approvalId;
+    const enableApproved = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${enableApprovalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    const enableCommandId = (enableApproved.json() as { instructionId: string }).instructionId;
+    const enableCommand = await pool.query<{ instruction_intent: Record<string, unknown> }>(
+      'SELECT instruction_intent FROM agent_commands WHERE id = $1',
+      [enableCommandId],
+    );
+    expect(enableCommand.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_enable', params: { service: 'nginx' } });
     await app.close();
   });
 

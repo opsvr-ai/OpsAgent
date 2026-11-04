@@ -529,7 +529,11 @@ export function registerAgentInstructionRoutes(
       const service = approval.service ?? '';
       const intentKind = approval.action === 'service_stop'
         ? 'service_stop'
-        : approval.action === 'service_start' ? 'service_start' : 'service_restart';
+        : approval.action === 'service_start'
+          ? 'service_start'
+          : approval.action === 'service_enable'
+            ? 'service_enable'
+            : approval.action === 'service_disable' ? 'service_disable' : 'service_restart';
       const claimed = await pool.query(
         `UPDATE agent_instruction_approvals
          SET status = 'approved', decided_by = $1, decided_at = now(), decision_reason = $2

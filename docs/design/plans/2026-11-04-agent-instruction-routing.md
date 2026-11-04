@@ -138,13 +138,14 @@ GET /api/agents/:agentId/instructions
 ```http
 GET    /api/agents/instruction-templates
 POST   /api/agents/instruction-templates
+PUT    /api/agents/instruction-templates/:id
 DELETE /api/agents/instruction-templates/:id
 ```
 
 - 租户级模板
 - 名称唯一
 - 内置模板：运行时长、磁盘、服务端口、日志、应用系统健康
-- Agent 详情页可选择模板、保存模板、删除最近模板
+- Agent 详情页可选择模板、保存、编辑、删除
 
 审计：
 

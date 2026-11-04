@@ -686,6 +686,17 @@ export async function deleteAgentInstructionTemplate(id: string): Promise<void> 
   await request<{ ok: true }>(`/api/agents/instruction-templates/${id}`, { method: 'DELETE' });
 }
 
+export async function updateAgentInstructionTemplate(
+  id: string,
+  name: string,
+  instruction: string,
+): Promise<AgentInstructionTemplate> {
+  return request<AgentInstructionTemplate>(`/api/agents/instruction-templates/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, instruction }),
+  });
+}
+
 export interface AgentFleetResponse {
   readonly items: AgentSummary[];
   readonly total: number;

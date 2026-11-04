@@ -248,6 +248,52 @@ export function registerAgentInstructionRoutes(
     }
   });
 
+  app.put<{ Params: { templateId: string } }>('/api/agents/instruction-templates/:templateId', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { name?: unknown; instruction?: unknown } | undefined;
+    if (typeof body?.name !== 'string' || typeof body.instruction !== 'string') {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const name = body.name.trim();
+    const instruction = body.instruction.trim();
+    if (!name || name.length > 80 || !instruction || instruction.length > 4000) {
+      return reply.code(400).send({ error: 'invalid_template' });
+    }
+    try {
+      const result = await pool.query(
+        `UPDATE agent_instruction_templates SET name = $1, instruction = $2
+         WHERE tenant_id = $3 AND id = $4 RETURNING id, name, instruction, created_at`,
+        [name, instruction, ctx.tenantId, request.params.templateId],
+      );
+      if (!result.rows[0]) return reply.code(404).send({ error: 'template_not_found' });
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.template.update',
+        resource: request.params.templateId,
+        result: 'success',
+      });
+      return reply.send({
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        instruction: result.rows[0].instruction,
+        createdAt: result.rows[0].created_at.toISOString(),
+      });
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+        return reply.code(409).send({ error: 'template_exists' });
+      }
+      throw error;
+    }
+  });
+
   app.delete<{ Params: { templateId: string } }>('/api/agents/instruction-templates/:templateId', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

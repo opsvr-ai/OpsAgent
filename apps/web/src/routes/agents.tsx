@@ -17,6 +17,7 @@ import {
   listAgentCommands,
   listAgentInstructionTemplates,
   listAgentInstructions,
+  updateAgentInstructionTemplate,
   type AgentApplication,
   type AgentCommandSummary,
   type AgentEventSummary,
@@ -425,6 +426,20 @@ export function Agents({ onBack }: AgentsProps) {
     }
   }
 
+  async function editInstructionTemplate(template: AgentInstructionTemplate) {
+    const name = window.prompt('模板名称', template.name);
+    if (!name?.trim()) return;
+    const instruction = window.prompt('模板指令', template.instruction);
+    if (!instruction?.trim()) return;
+    try {
+      const updated = await updateAgentInstructionTemplate(template.id, name.trim(), instruction.trim());
+      setInstructionTemplates((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setInstructionNote('模板已更新');
+    } catch {
+      setInstructionError('模板更新失败');
+    }
+  }
+
   function exportBatchResults() {
     if (batchResults.length === 0) return;
     const escape = (value: string): string => `"${value.replaceAll('"', '""')}"`;
@@ -810,6 +825,7 @@ export function Agents({ onBack }: AgentsProps) {
                                   <div key={template.id} className="command-row">
                                     <span>{template.name}</span>
                                     <span className="muted">{template.instruction.slice(0, 80)}</span>
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => void editInstructionTemplate(template)}>编辑</button>
                                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => void removeInstructionTemplate(template.id)}>删除</button>
                                   </div>
                                 ))}

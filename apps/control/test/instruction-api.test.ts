@@ -123,6 +123,14 @@ describe('agent instruction API', () => {
     });
     expect(created.statusCode).toBe(201);
     const template = created.json() as { id: string };
+    const updated = await app.inject({
+      method: 'PUT',
+      url: `/api/agents/instruction-templates/${template.id}`,
+      headers: { cookie },
+      payload: { name: '磁盘模板 v2', instruction: '检查磁盘、inode 和日志' },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect((updated.json() as { name: string }).name).toBe('磁盘模板 v2');
     const list = await app.inject({
       method: 'GET',
       url: '/api/agents/instruction-templates',

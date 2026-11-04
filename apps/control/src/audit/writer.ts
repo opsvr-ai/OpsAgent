@@ -51,6 +51,7 @@ export type AuditAction =
   | 'agent.instruction.create'
   | 'agent.instruction.batch'
   | 'agent.instruction.template.create'
+  | 'agent.instruction.template.update'
   | 'agent.instruction.template.delete'
   | 'agent.instruction.cancel';
 

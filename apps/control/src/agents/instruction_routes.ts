@@ -520,13 +520,16 @@ export function registerAgentInstructionRoutes(
         'x-accel-buffering': 'no',
       });
       reply.raw.flushHeaders?.();
+      reply.raw.write('retry: 2000\n\n');
       let closed = false;
+      let eventId = 0;
       request.raw.on('close', () => {
         closed = true;
       });
       const send = (event: string, data: unknown): void => {
         if (closed) return;
-        reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        eventId += 1;
+        reply.raw.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       };
       const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -64,6 +64,16 @@ error   超时或错误
 
 Web 详情页优先使用 `EventSource` 流式展示；无 EventSource 环境自动回退轮询。
 
+连接特性：
+
+```text
+retry: 2000
+事件 id
+EventSource 自动重连并携带 Last-Event-ID
+重连后从当前命令状态重放
+8 秒未完成回退轮询
+```
+
 真机验证：
 
 ```text

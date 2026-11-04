@@ -301,12 +301,15 @@ export function Agents({ onBack }: AgentsProps) {
           const timer = window.setTimeout(() => {
             source.close();
             resolve(null);
-          }, 3000);
+          }, 8000);
           const finish = (value: AgentInstructionDetail | null): void => {
             window.clearTimeout(timer);
             source.close();
             resolve(value);
           };
+          source.addEventListener('open', () => {
+            setInstructionResult((current) => current ? { ...current, answer: '' } : current);
+          });
           source.addEventListener('status', (event) => {
             const data = JSON.parse((event as MessageEvent).data) as { status: string };
             setInstructionNote(`指令状态：${data.status}`);
@@ -331,8 +334,13 @@ export function Agents({ onBack }: AgentsProps) {
           source.addEventListener('done', (event) => {
             finish(JSON.parse((event as MessageEvent).data) as AgentInstructionDetail);
           });
-          source.addEventListener('error', () => {
-            finish(null);
+          source.addEventListener('error', (event) => {
+            const data = (event as MessageEvent).data;
+            if (typeof data === 'string' && data) {
+              finish(null);
+              return;
+            }
+            // Let EventSource reconnect with Last-Event-ID; the 8s timer falls back to polling.
           });
         });
       }

@@ -177,15 +177,16 @@ export class DeploymentService {
       sha256: string;
       version: string;
       rollback_command: string | null;
+      execution: Record<string, unknown> | null;
     }>(
-      `SELECT d.status, r.app_system_id, r.artifact_url, r.sha256, r.version, r.rollback_command
+      `SELECT d.status, d.execution, r.app_system_id, r.artifact_url, r.sha256, r.version, r.rollback_command
        FROM deployments d JOIN releases r ON r.id = d.release_id
        WHERE d.tenant_id = $1 AND d.id = $2`,
       [input.tenantId, input.deploymentId],
     );
     const row = current.rows[0];
     if (!row) return null;
-    if (row.status !== 'deployed' || !row.app_system_id || !row.rollback_command) {
+    if (!['deployed', 'canary'].includes(row.status) || !row.app_system_id || !row.rollback_command) {
       const result = await this.pool.query(
         `UPDATE deployments
          SET status = 'rolled_back', reason = $1, finished_at = now()
@@ -200,10 +201,18 @@ export class DeploymentService {
        AND status = 'online' AND last_seen > now() - interval '90 seconds'`,
       [input.tenantId, row.app_system_id],
     );
-    if (agents.rows.length === 0) return null;
+    const rollbackTargets = row.status === 'canary'
+      ? (() => {
+          const targetIds = new Set(Array.isArray(row.execution?.targetAgentIds)
+            ? row.execution.targetAgentIds.filter((item): item is string => typeof item === 'string')
+            : []);
+          return agents.rows.filter((agent) => targetIds.has(agent.id));
+        })()
+      : agents.rows;
+    if (rollbackTargets.length === 0) return null;
     const commands = new AgentCommandService(this.pool);
     const commandIds: string[] = [];
-    for (const agent of agents.rows) {
+    for (const agent of rollbackTargets) {
       const command = await commands.create({
         tenantId: input.tenantId,
         agentId: agent.id,
@@ -299,8 +308,10 @@ export class DeploymentService {
       sha256: string;
       version: string;
       deploy_command: string | null;
+      strategy: string;
+      canary_percent: number | null;
     }>(
-      `SELECT d.status, r.app_system_id, r.artifact_url, r.sha256, r.version, r.deploy_command
+      `SELECT d.status, d.strategy, d.canary_percent, r.app_system_id, r.artifact_url, r.sha256, r.version, r.deploy_command
        FROM deployments d JOIN releases r ON r.id = d.release_id
        WHERE d.tenant_id = $1 AND d.id = $2`,
       [tenantId, deploymentId],
@@ -320,9 +331,13 @@ export class DeploymentService {
       [tenantId, row.app_system_id],
     );
     if (agents.rows.length === 0) return null;
+    const isCanary = row.strategy === 'canary' && (row.canary_percent ?? 100) < 100;
+    const targetAgents = isCanary
+      ? agents.rows.slice(0, Math.max(1, Math.ceil(agents.rows.length * (row.canary_percent ?? 10) / 100)))
+      : agents.rows;
     const commands = new AgentCommandService(this.pool);
     const commandIds: string[] = [];
-    for (const agent of agents.rows) {
+    for (const agent of targetAgents) {
       const command = await commands.create({
         tenantId,
         agentId: agent.id,
@@ -348,8 +363,17 @@ export class DeploymentService {
       `UPDATE deployments SET status = $1, execution = $2::jsonb, finished_at = now()
        WHERE tenant_id = $3 AND id = $4`,
       [
-        ok ? 'deployed' : 'failed',
-        JSON.stringify({ commandIds, mode: 'apply', ok, results, finishedAt: new Date().toISOString() }),
+        ok ? (isCanary && targetAgents.length < agents.rows.length ? 'canary' : 'deployed') : 'failed',
+        JSON.stringify({
+          commandIds,
+          mode: 'apply',
+          ok,
+          results,
+          targetAgentIds: targetAgents.map((agent) => agent.id),
+          remainingAgentIds: agents.rows.filter((agent) => !targetAgents.includes(agent)).map((agent) => agent.id),
+          canary: isCanary,
+          finishedAt: new Date().toISOString(),
+        }),
         tenantId,
         deploymentId,
       ],
@@ -391,6 +415,85 @@ export class DeploymentService {
         payload: input.execution,
       }],
     });
+  }
+
+  async promoteDeployment(tenantId: string, deploymentId: string): Promise<DeploymentRecord | null> {
+    const result = await this.pool.query<{
+      status: string;
+      app_system_id: string | null;
+      artifact_url: string;
+      sha256: string;
+      version: string;
+      deploy_command: string | null;
+      execution: Record<string, unknown> | null;
+    }>(
+      `SELECT d.status, d.execution, r.app_system_id, r.artifact_url, r.sha256, r.version, r.deploy_command
+       FROM deployments d JOIN releases r ON r.id = d.release_id
+       WHERE d.tenant_id = $1 AND d.id = $2`,
+      [tenantId, deploymentId],
+    );
+    const row = result.rows[0];
+    if (!row || row.status !== 'canary' || !row.app_system_id || !row.deploy_command) return null;
+    const targetIds = new Set(Array.isArray(row.execution?.targetAgentIds)
+      ? row.execution.targetAgentIds.filter((item): item is string => typeof item === 'string')
+      : []);
+    const agents = await this.pool.query<{ id: string }>(
+      `SELECT id FROM agents WHERE tenant_id = $1 AND app_system_id = $2
+       AND status = 'online' AND last_seen > now() - interval '90 seconds'`,
+      [tenantId, row.app_system_id],
+    );
+    const remaining = agents.rows.filter((agent) => !targetIds.has(agent.id));
+    if (remaining.length === 0) {
+      await this.pool.query(`UPDATE deployments SET status = 'deployed', finished_at = now() WHERE tenant_id = $1 AND id = $2`, [tenantId, deploymentId]);
+      return this.getDeployment(tenantId, deploymentId);
+    }
+    const commands = new AgentCommandService(this.pool);
+    const commandIds: string[] = [];
+    for (const agent of remaining) {
+      const command = await commands.create({
+        tenantId,
+        agentId: agent.id,
+        type: 'deployment_execute',
+        input: {
+          mode: 'apply',
+          artifactUrl: row.artifact_url,
+          sha256: row.sha256,
+          version: row.version,
+          command: row.deploy_command,
+        },
+      });
+      if (command) commandIds.push(command.id);
+    }
+    if (commandIds.length === 0) return null;
+    const results = await this.waitForCommands(commandIds);
+    const ok = results.every((item) => item.status === 'completed' && (item.result as Record<string, unknown> | null)?.ok === true);
+    await this.pool.query(
+      `UPDATE deployments SET status = $1, execution = $2::jsonb, finished_at = now()
+       WHERE tenant_id = $3 AND id = $4`,
+      [
+        ok ? 'deployed' : 'failed',
+        JSON.stringify({
+          ...(row.execution ?? {}),
+          promoteCommandIds: commandIds,
+          promoteResults: results,
+          promotedAt: new Date().toISOString(),
+          ok: ok && row.execution?.ok !== false,
+        }),
+        tenantId,
+        deploymentId,
+      ],
+    );
+    if (!ok) {
+      await this.recordFailureIncident({
+        tenantId,
+        deploymentId,
+        version: row.version,
+        ...(row.app_system_id ? { appSystemId: row.app_system_id } : {}),
+        message: `灰度推进失败：${row.version}`,
+        execution: { commandIds, results },
+      });
+    }
+    return this.getDeployment(tenantId, deploymentId);
   }
 
   private async waitForCommands(ids: string[]): Promise<Array<{ id: string; status: string; result: unknown }>> {

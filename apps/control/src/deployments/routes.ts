@@ -167,6 +167,27 @@ export function registerDeploymentRoutes(
     return reply.send(deployment);
   });
 
+  app.post<{ Params: { id: string } }>('/api/deployments/:id/promote', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'deployment.approve');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const deployment = await deployments.promoteDeployment(ctx.tenantId, request.params.id);
+    if (!deployment) return reply.code(409).send({ error: 'deployment_not_canary' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'deployment.promote',
+      resource: request.params.id,
+      result: deployment.status === 'deployed' ? 'success' : 'failure',
+    });
+    return reply.send(deployment);
+  });
+
   app.post<{ Params: { id: string } }>('/api/deployments/:id/execute', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

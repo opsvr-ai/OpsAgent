@@ -8,6 +8,7 @@ import {
   listDeployments,
   listReleases,
   preflightDeployment,
+  promoteDeployment,
   rollbackDeployment,
   type AppSystemSummary,
   type DeploymentSummary,
@@ -145,6 +146,19 @@ export function Deployments({ onBack }: DeploymentsProps) {
     }
   }
 
+  async function promote(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await promoteDeployment(id);
+      await reload();
+    } catch {
+      setError('灰度推进失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function rollback(id: string) {
     setBusy(true);
     setError(null);
@@ -210,7 +224,8 @@ export function Deployments({ onBack }: DeploymentsProps) {
                 {deployment.status === 'pending' ? <><button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void decide(deployment.id, 'approve')}>批准</button><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void decide(deployment.id, 'reject')}>拒绝</button></> : null}
                 {['approved', 'pending'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void preflight(deployment.id)}>制品预检</button> : null}
                 {['approved', 'preflighted'].includes(deployment.status) ? <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void execute(deployment.id)}>执行部署</button> : null}
-                {['approved', 'preflighted', 'deployed'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void rollback(deployment.id)}>回滚</button> : null}
+                {deployment.status === 'canary' ? <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void promote(deployment.id)}>推进全量</button> : null}
+                {['approved', 'preflighted', 'canary', 'deployed'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void rollback(deployment.id)}>回滚</button> : null}
               </div>
             </div>
           ))}

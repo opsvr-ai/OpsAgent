@@ -168,6 +168,31 @@ evidence = 命令 ID、结果、失败原因
 
 执行前检查应用系统是否存在 open Agent 异常事件，存在则拒绝部署。
 
+### canary 分批
+
+canary 部署按比例选择 Agent：
+
+```text
+ceil(在线 Agent 数 × canaryPercent / 100)
+```
+
+首批成功：
+
+```text
+status = canary
+```
+
+推进全量：
+
+```text
+POST /api/deployments/:id/promote
+  → 对剩余 Agent 下发 deployCommand
+  → 全部成功：deployed
+  → 失败：failed + Incident
+```
+
+canary 阶段出现新 Agent 异常时，健康监控会只回滚已灰度节点。
+
 部署成功后：
 
 ```text

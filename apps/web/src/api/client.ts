@@ -753,6 +753,13 @@ export async function executeDeployment(id: string): Promise<DeploymentSummary> 
   });
 }
 
+export async function promoteDeployment(id: string): Promise<DeploymentSummary> {
+  return request<DeploymentSummary>(`/api/deployments/${id}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function rollbackDeployment(id: string, reason: string): Promise<DeploymentSummary> {
   return request<DeploymentSummary>(`/api/deployments/${id}/rollback`, {
     method: 'POST',

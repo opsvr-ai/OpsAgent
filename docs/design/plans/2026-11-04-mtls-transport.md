@@ -262,9 +262,35 @@ OPSAGENT_CRL_URL=http://control.example:8080/api/pki/crl
 
 语义化 403 检查作为第二层兜底。
 
+### CA 轮换
+
+内网 CA 轮换采用维护窗口，不做在线双 CA 热切换：
+
+```bash
+# 1. 停止控制面
+docker compose stop control
+
+# 2. 归档当前 CA / 服务端证书 / CRL
+pnpm --filter @opsagent/control rotate:ca
+
+# 3. 启动控制面，自动生成新 CA、服务端证书和 CRL
+docker compose start control
+
+# 4. 重启 Agent（OPSAGENT_AUTO_CSR=true）重新签发客户端证书
+```
+
+归档目录：
+
+```text
+.opsagent-ca/archive-<timestamp>/
+```
+
+轮换后旧客户端证书全部失效，Agent 必须重新注册证书；控制面
+会签发新 CA 下的证书。该流程用于计划性轮换，不用于在线无缝迁移。
+
 ## 未完成
 
-- CA 轮换、密钥托管
+- CA 在线双证书/无缝轮换
 - OCSP
 - 部署脚本自动分发 CA
 - 服务端证书到期事件接入消息中心

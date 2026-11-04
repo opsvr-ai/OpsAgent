@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ApprovalRequestEvent, RuntimeEvent } from '@opsagent/contracts';
 import {
   decideApproval,
@@ -31,6 +33,12 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const [busy, setBusy] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequestEvent | null>(null);
   const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [timeline, busy]);
 
   useEffect(() => {
     if (!busy) {
@@ -81,9 +89,10 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     if (item.type === 'assistant.delta') {
       return (
         <div key={index} className="msg">
+          <span className="msg-avatar is-agent">A</span>
           <div className="msg-body">
-            <div className="msg-meta"><strong>OpsAgent</strong><span>assistant</span></div>
-            <div className="msg-text"><p>{item.text}</p></div>
+            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">deepseek-flash</span><span>刚刚</span></div>
+            <div className="msg-text markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown></div>
           </div>
         </div>
       );
@@ -91,6 +100,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     if (item.type === 'tool.call') {
       return (
         <div key={index} className="msg" data-testid="tool-call">
+          <span className="msg-avatar is-tool"><svg><use href="/icons.svg#i-bolt" /></svg></span>
           <div className="msg-body">
             <div className="tool-card">
               <div className="tool-head">
@@ -105,8 +115,10 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
       );
     }
     if (item.type === 'tool.result') {
+      const output = typeof item.result === 'string' ? item.result : JSON.stringify(item.result, null, 2);
       return (
         <div key={index} className="msg">
+          <span className="msg-avatar is-tool is-ok"><svg><use href="/icons.svg#i-check" /></svg></span>
           <div className="msg-body">
             <div className="tool-card is-result">
               <div className="tool-head">
@@ -114,7 +126,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                 <strong>{item.tool}</strong>
                 <span className="badge badge-ok">已返回</span>
               </div>
-              <pre className="tool-code">{JSON.stringify(item.result, null, 2)}</pre>
+              <pre className="tool-output">{output}</pre>
             </div>
           </div>
         </div>
@@ -143,7 +155,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
       );
     }
     if (item.type === 'session.done') {
-      return <p key={index} className="muted" style={{ textAlign: 'center' }}>完成</p>;
+      return <div key={index} className="session-done"><span />完成</div>;
     }
     return <p key={index} role="alert">运行时错误：{item.code}</p>;
   }
@@ -181,7 +193,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
               </div>
             </header>
 
-            <div className="chat-log">
+            <div className="chat-log" ref={logRef}>
               <div className="chat-inner" aria-live="polite">
                 {error ? <p role="alert">{error}</p> : null}
                 {timeline.length === 0 ? (
@@ -202,14 +214,15 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                   </div>
                 ) : null}
                 {timeline.map((entry, index) => entry.kind === 'user' ? (
-                  <div key={entry.id} className="msg is-user">
+                  <div key={entry.id} className="msg msg-user">
+                    <span className="msg-avatar is-user">{session?.me.user.displayName?.slice(0, 1) ?? '我'}</span>
                     <div className="msg-body">
                       <div className="msg-meta"><strong>{session?.me.user.displayName ?? '我'}</strong><span>刚刚</span></div>
                       <div className="msg-text"><p>{entry.text}</p></div>
                     </div>
                   </div>
                 ) : renderEvent(entry.event, index))}
-                {busy ? <p className="muted" style={{ textAlign: 'center' }}>思考中…</p> : null}
+                {busy ? <div className="chat-thinking"><span className="dot dot-warn" />思考中…</div> : null}
               </div>
             </div>
 
@@ -232,20 +245,31 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
 
             <div className="composer-wrap">
               <form className="composer" onSubmit={send}>
-                <label htmlFor="prompt" className="eyebrow">输入</label>
+                <label htmlFor="prompt" className="sr-only">输入</label>
                 <textarea
                   id="prompt"
-                  rows={3}
+                  rows={2}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
                   disabled={busy}
-                  placeholder="例如：订单服务 5xx 升高，先确认数据库连接池与最近变更"
+                  placeholder="描述告警、服务或主机问题，输入 / 运行场景，@ 引用数据源…"
                 />
                 <div className="composer-bar">
-                  <span className="composer-hint">工具调用受租户与角色约束</span>
-                  <button className="btn btn-primary" type="submit" disabled={busy}>发送</button>
+                  <button type="button" className="composer-plus" title="添加上下文" aria-label="添加上下文">+</button>
+                  <span className="model-pill"><span className="dot dot-ok" />deepseek-flash</span>
+                  <span className="composer-inline-hint">工具调用受租户与角色约束</span>
+                  <button className="send" type="submit" disabled={busy} aria-label="发送">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5" /><path d="M5 12l7-7 7 7" /></svg>
+                  </button>
                 </div>
               </form>
+              <div className="composer-hint"><span>Enter 发送 · Shift + Enter 换行</span><span>上下文由 dsh 会话保持</span></div>
             </div>
           </div>
           <aside className="chat-aside">
@@ -256,14 +280,18 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                 {events
                   .filter((item) => item.type === 'tool.call' || item.type === 'tool.result' || item.type === 'approval.request')
                   .slice(-6)
-                  .map((item, index) => (
-                    <div key={index} className="aside-row">
-                      <span>{item.type === 'approval.request' ? '审批请求' : item.type === 'tool.result' ? '工具返回' : `工具调用 · ${item.tool}`}</span>
-                      <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : 'badge-ok'}`}>
-                        {item.type === 'approval.request' ? '待确认' : '完成'}
-                      </span>
-                    </div>
-                  ))}
+                  .map((item, index) => {
+                    const completed = item.type === 'tool.call'
+                      && events.some((event) => event.type === 'tool.result' && event.tool === item.tool);
+                    return (
+                      <div key={index} className="aside-row">
+                        <span>{item.type === 'approval.request' ? '审批请求' : item.type === 'tool.result' ? '工具返回' : `工具调用 · ${item.tool}`}</span>
+                        <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : item.type === 'tool.result' || completed ? 'badge-ok' : 'badge-neutral'}`}>
+                          {item.type === 'approval.request' ? '待确认' : item.type === 'tool.result' ? '完成' : completed ? '已调用' : '调用中'}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
             <div className="aside-block">

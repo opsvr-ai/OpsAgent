@@ -161,7 +161,7 @@ export class SessionService {
     }
   }
 
-  async listApprovals(tenantId: string, userId: string, runtimeSessionId?: string): Promise<Array<{
+  async listApprovals(tenantId: string, userId: string, sessionId?: string): Promise<Array<{
     id: string;
     action: string;
     risk: string;
@@ -181,9 +181,9 @@ export class SessionService {
        FROM approvals a
        JOIN runtime_sessions s ON s.id = a.session_id
        WHERE a.tenant_id = $1 AND s.user_id = $2 AND a.status = 'pending'
-         AND ($3::text IS NULL OR s.runtime_session_id = $3)
+         AND ($3::uuid IS NULL OR a.session_id = $3)
        ORDER BY a.requested_at DESC`,
-      [tenantId, userId, runtimeSessionId ?? null],
+      [tenantId, userId, sessionId ?? null],
     );
     return result.rows.map((row) => ({
       id: row.id,

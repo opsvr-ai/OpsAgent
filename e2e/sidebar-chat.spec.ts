@@ -19,7 +19,7 @@ test('sidebar stays consistent across home, chat, and feature pages', async ({ p
 
   await page.getByLabel('输入').fill('你好');
   await page.getByRole('button', { name: '发送' }).click();
-  await expect(page.locator('.msg.is-user')).toContainText('你好');
+  await expect(page.locator('.msg.msg-user')).toContainText('你好');
   await expect(page.locator('.tool-card').first()).toBeVisible();
 
   await page.locator('.sidebar .nav-item').filter({ hasText: '事件指挥' }).click();

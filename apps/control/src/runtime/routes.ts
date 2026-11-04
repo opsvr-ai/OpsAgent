@@ -57,10 +57,10 @@ export function registerRuntimeRoutes(
 ): void {
   const sessions = new SessionService(pool, runtime, audit);
 
-  app.get<{ Querystring: { runtimeSessionId?: string } }>('/api/approvals', async (request, reply) => {
+  app.get<{ Querystring: { sessionId?: string } }>('/api/approvals', async (request, reply) => {
     const auth = await authContext(pool, request);
     if (!auth) return reply.code(401).send({ error: 'unauthorized' });
-    return reply.send(await sessions.listApprovals(auth.tenantId, auth.userId, request.query.runtimeSessionId));
+    return reply.send(await sessions.listApprovals(auth.tenantId, auth.userId, request.query.sessionId));
   });
 
   app.get('/api/sessions', async (request, reply) => {

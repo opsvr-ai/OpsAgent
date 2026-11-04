@@ -16,12 +16,13 @@ import (
 )
 
 type agentState struct {
-	AgentID    string `json:"agentId"`
-	AgentKey   string `json:"agentKey"`
-	Hostname   string `json:"hostname"`
-	ControlURL string `json:"controlUrl"`
-	TenantID   string `json:"tenantId"`
-	UpdatedAt  string `json:"updatedAt"`
+	AgentID          string `json:"agentId"`
+	AgentKey         string `json:"agentKey"`
+	Hostname         string `json:"hostname"`
+	ControlURL       string `json:"controlUrl"`
+	TenantID         string `json:"tenantId"`
+	CommandPublicKey string `json:"commandPublicKey,omitempty"`
+	UpdatedAt        string `json:"updatedAt"`
 }
 
 func statePath(paths agentPaths) string {

@@ -66,9 +66,11 @@ describe('agent registry API', () => {
     const body = registered.json() as {
       agent: { id: string; systemInfo: { osName: string }; applications: unknown[] };
       agentKey: string;
+      commandPublicKey: string;
     };
     expect(body.agent.systemInfo.osName).toBe('Rocky Linux');
     expect(body.agent.applications).toHaveLength(1);
+    expect(body.commandPublicKey.length).toBeGreaterThan(20);
 
     const heartbeat = await app.inject({
       method: 'POST',
@@ -193,7 +195,12 @@ describe('agent registry API', () => {
       method: 'GET',
       url: `/api/agents/${body.agent.id}/commands/pending?agentKey=${body.agentKey}`,
     });
-    expect(pending.json()).toMatchObject({ id: commandId, type: 'diagnostics' });
+    expect(pending.json()).toMatchObject({
+      id: commandId,
+      type: 'diagnostics',
+      signedPayload: expect.any(String),
+      signature: expect.any(String),
+    });
 
     const completed = await app.inject({
       method: 'POST',

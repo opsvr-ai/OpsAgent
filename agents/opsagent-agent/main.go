@@ -29,7 +29,8 @@ type registerResponse struct {
 	Agent struct {
 		ID string `json:"id"`
 	} `json:"agent"`
-	AgentKey string `json:"agentKey"`
+	AgentKey         string `json:"agentKey"`
+	CommandPublicKey string `json:"commandPublicKey"`
 }
 
 type heartbeatRequest struct {
@@ -41,9 +42,11 @@ type heartbeatRequest struct {
 var agentStarted = time.Now()
 
 type agentCommand struct {
-	ID    string         `json:"id"`
-	Type  string         `json:"type"`
-	Input map[string]any `json:"input"`
+	ID            string         `json:"id"`
+	Type          string         `json:"type"`
+	Input         map[string]any `json:"input"`
+	SignedPayload string         `json:"signedPayload"`
+	Signature     string         `json:"signature"`
 }
 
 func runCommand(commandType string, metrics map[string]any) map[string]any {
@@ -238,11 +241,12 @@ func runDaemon(paths agentPaths) {
 	}
 	log.Printf("registered agent id=%s key=%s", registered.Agent.ID, mask(registered.AgentKey))
 	if err := saveAgentState(paths, agentState{
-		AgentID:    registered.Agent.ID,
-		AgentKey:   registered.AgentKey,
-		Hostname:   hostname,
-		ControlURL: controlURL,
-		TenantID:   tenantID,
+		AgentID:          registered.Agent.ID,
+		AgentKey:         registered.AgentKey,
+		Hostname:         hostname,
+		ControlURL:       controlURL,
+		TenantID:         tenantID,
+		CommandPublicKey: registered.CommandPublicKey,
 	}); err != nil {
 		log.Printf("save agent state: %v", err)
 	} else {
@@ -350,36 +354,56 @@ func runDaemon(paths agentPaths) {
 		if err != nil {
 			log.Printf("command poll: %v", err)
 		} else if status == http.StatusOK && command.ID != "" {
-			log.Printf("command received id=%s type=%s input=%s", command.ID, command.Type, compactJSON(command.Input))
-			commandStarted := time.Now()
-			result := runCommandWithInput(command.Type, metrics, command.Input)
-			commandDuration := time.Since(commandStarted)
-			log.Printf("command completed id=%s type=%s duration=%s ok=%v", command.ID, command.Type, commandDuration, result["ok"])
-			resultSnapshot := map[string]any{
-				"commandId":  command.ID,
-				"type":       command.Type,
-				"input":      command.Input,
-				"result":     result,
-				"startedAt":  commandStarted.UTC().Format(time.RFC3339),
-				"finishedAt": time.Now().UTC().Format(time.RFC3339),
-				"durationMs": commandDuration.Milliseconds(),
+			signatureValid := true
+			if registered.CommandPublicKey != "" {
+				if err := verifyCommandSignature(registered.CommandPublicKey, command.SignedPayload, command.Signature); err != nil {
+					signatureValid = false
+					log.Printf("command rejected id=%s: %v", command.ID, err)
+					if postErr := post(
+						controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
+						nil,
+						map[string]any{
+							"agentKey": registered.AgentKey,
+							"result":   map[string]any{"ok": false, "error": "invalid_signature", "detail": err.Error()},
+						},
+						nil,
+					); postErr != nil {
+						log.Printf("command reject upload id=%s: %v", command.ID, postErr)
+					}
+				}
 			}
-			if err := paths.writeSnapshot(commandSnapshotName(command.ID), resultSnapshot); err != nil {
-				log.Printf("command snapshot: %v", err)
-			}
-			if err := paths.writeSnapshot("last-command.json", resultSnapshot); err != nil {
-				log.Printf("last command snapshot: %v", err)
-			}
-			pruneCommandSnapshots(paths, 20)
-			if err := post(
-				controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
-				nil,
-				map[string]any{"agentKey": registered.AgentKey, "result": result},
-				nil,
-			); err != nil {
-				log.Printf("command complete id=%s: %v", command.ID, err)
-			} else {
-				log.Printf("command result uploaded id=%s", command.ID)
+			if signatureValid {
+				log.Printf("command received id=%s type=%s input=%s", command.ID, command.Type, compactJSON(command.Input))
+				commandStarted := time.Now()
+				result := runCommandWithInput(command.Type, metrics, command.Input)
+				commandDuration := time.Since(commandStarted)
+				log.Printf("command completed id=%s type=%s duration=%s ok=%v", command.ID, command.Type, commandDuration, result["ok"])
+				resultSnapshot := map[string]any{
+					"commandId":  command.ID,
+					"type":       command.Type,
+					"input":      command.Input,
+					"result":     result,
+					"startedAt":  commandStarted.UTC().Format(time.RFC3339),
+					"finishedAt": time.Now().UTC().Format(time.RFC3339),
+					"durationMs": commandDuration.Milliseconds(),
+				}
+				if err := paths.writeSnapshot(commandSnapshotName(command.ID), resultSnapshot); err != nil {
+					log.Printf("command snapshot: %v", err)
+				}
+				if err := paths.writeSnapshot("last-command.json", resultSnapshot); err != nil {
+					log.Printf("last command snapshot: %v", err)
+				}
+				pruneCommandSnapshots(paths, 20)
+				if err := post(
+					controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
+					nil,
+					map[string]any{"agentKey": registered.AgentKey, "result": result},
+					nil,
+				); err != nil {
+					log.Printf("command complete id=%s: %v", command.ID, err)
+				} else {
+					log.Printf("command result uploaded id=%s", command.ID)
+				}
 			}
 		}
 	}

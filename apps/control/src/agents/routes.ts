@@ -6,6 +6,7 @@ import { resolveTenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { AgentService, type DiscoveryPayload } from './service.js';
 import { AgentCommandService } from './commands.js';
+import { getCommandSigner } from './signing.js';
 import { AgentEventService, type AgentEventInput } from './events.js';
 import { AppHealthService } from './health.js';
 
@@ -70,7 +71,7 @@ export function registerAgentRoutes(
         : [],
       ...(discovery ? { discovery } : {}),
     });
-    return reply.code(201).send(registered);
+    return reply.code(201).send({ ...registered, commandPublicKey: getCommandSigner().publicKey });
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/heartbeat', async (request, reply) => {

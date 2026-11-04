@@ -397,7 +397,7 @@ export function Agents({ onBack }: AgentsProps) {
                     </div>
                   ) : null}
                   {detailTab === 'commands' ? (
-                    detailCommands.length > 0 ? <div className="command-history">{detailCommands.map((command) => <div key={command.id} className="command-row"><span className="mono">{command.type === 'ai_diagnose' ? 'AI 诊断' : command.type === 'discovery' ? '配置发现' : command.type === 'diagnostics' ? '主机诊断' : command.type}</span><span className={`badge ${command.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{command.status}</span><span className="muted">{relativeTime(command.createdAt)}</span></div>)}</div> : <p className="muted detail-loading">暂无命令记录。</p>
+                    detailCommands.length > 0 ? <div className="command-history">{detailCommands.map((command) => <div key={command.id} className="command-row"><span className="mono">{command.type === 'ai_diagnose' ? 'AI 诊断' : command.type === 'discovery' ? '配置发现' : command.type === 'diagnostics' ? '主机诊断' : command.type === 'inspect' ? '主机检查' : command.type}</span><span className={`badge ${command.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{command.status}</span><span className="muted">{relativeTime(command.createdAt)}</span></div>)}</div> : <p className="muted detail-loading">暂无命令记录。</p>
                   ) : null}
                   {detailTab === 'alerts' ? (
                     detailEvents.length > 0 ? (

@@ -260,17 +260,21 @@ export function registerAgentRoutes(
       if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
       throw error;
     }
-    const body = request.body as { type?: unknown } | undefined;
+    const body = request.body as { type?: unknown; input?: unknown } | undefined;
     if (
       typeof body?.type !== 'string' ||
-      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery'].includes(body.type)
+      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect'].includes(body.type)
     ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    const input = typeof body.input === 'object' && body.input !== null && !Array.isArray(body.input)
+      ? body.input as Record<string, unknown>
+      : {};
     const command = await commands.create({
       tenantId: ctx.tenantId,
       agentId: request.params.id,
       type: body.type,
+      input,
     });
     if (!command) return reply.code(404).send({ error: 'agent_not_found' });
     return reply.code(201).send(command);

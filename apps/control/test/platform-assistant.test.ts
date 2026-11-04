@@ -72,15 +72,29 @@ describe('PlatformAssistant', () => {
     expect(commands.create).not.toHaveBeenCalled();
   });
 
-  it('answers host configuration from the latest discovery snapshot', async () => {
+  it('routes arbitrary host questions to the agent inspect command', async () => {
     const { assistant, agents, commands } = fakes();
     agents.findByMention.mockResolvedValue(agent);
-    const plan = await assistant.detect('tenant', '查看最近一次 prod-web-01 的系统配置');
-    expect(plan).toMatchObject({ kind: 'agent', commandType: 'discovery', refresh: false });
+    commands.create.mockResolvedValue({
+      id: 'c-1',
+      agentId: 'a-1',
+      type: 'inspect',
+      status: 'completed',
+      input: {},
+      result: { answer: '## prod-web-01 磁盘分区\n已执行只读检查，磁盘分区如下。' },
+      createdAt: new Date().toISOString(),
+    });
+    const plan = await assistant.detect('tenant', '查询 prod-web-01 的磁盘分区');
+    expect(plan).toMatchObject({ kind: 'agent', mode: 'inspect' });
     const events = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
-    expect(events[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.agent_snapshot' });
-    expect(events.some((event) => event.type === 'assistant.delta' && event.text.includes('prod-web-01 系统配置'))).toBe(true);
-    expect(commands.create).not.toHaveBeenCalled();
+    expect(events[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.agent_query' });
+    expect(events.some((event) => event.type === 'assistant.delta' && event.text.includes('磁盘分区'))).toBe(true);
+    expect(commands.create).toHaveBeenCalledWith({
+      tenantId: 'tenant',
+      agentId: 'a-1',
+      type: 'inspect',
+      input: { question: '查询 prod-web-01 的磁盘分区' },
+    });
   });
 
   it('answers host-specific alert questions directly', async () => {

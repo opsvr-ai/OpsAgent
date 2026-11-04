@@ -41,11 +41,16 @@ type heartbeatRequest struct {
 var agentStarted = time.Now()
 
 type agentCommand struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
+	ID    string         `json:"id"`
+	Type  string         `json:"type"`
+	Input map[string]any `json:"input"`
 }
 
 func runCommand(commandType string, metrics map[string]any) map[string]any {
+	return runCommandWithInput(commandType, metrics, nil)
+}
+
+func runCommandWithInput(commandType string, metrics map[string]any, input map[string]any) map[string]any {
 	result := map[string]any{"type": commandType, "ok": true}
 	switch commandType {
 	case "diagnostics":
@@ -67,6 +72,14 @@ func runCommand(commandType string, metrics map[string]any) map[string]any {
 		}
 	case "discovery":
 		result["discovery"] = collectDiscovery(agentStarted, metrics)
+	case "inspect":
+		question := ""
+		if input != nil {
+			if value, ok := input["question"].(string); ok {
+				question = value
+			}
+		}
+		result = inspectHost(question, metrics)
 	default:
 		result["ok"] = false
 		result["error"] = "unsupported_command"
@@ -231,7 +244,7 @@ func main() {
 		if err != nil {
 			log.Printf("command poll: %v", err)
 		} else if status == http.StatusOK && command.ID != "" {
-			result := runCommand(command.Type, metrics)
+			result := runCommandWithInput(command.Type, metrics, command.Input)
 			if err := post(
 				controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
 				nil,

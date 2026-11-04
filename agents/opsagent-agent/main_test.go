@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestHostMetricsHasCapacityFields(t *testing.T) {
 	metrics := hostMetrics()
@@ -77,6 +80,19 @@ func TestPatrolEventsDetectLowDiskAndHighMemory(t *testing.T) {
 	})
 	if len(events) != 2 {
 		t.Fatalf("expected disk and memory events, got %#v", events)
+	}
+}
+
+func TestInspectCommandAnswersDiskQuestion(t *testing.T) {
+	result := runCommandWithInput("inspect", map[string]any{
+		"memTotalGB": 16.0, "memAvailableGB": 8.0, "diskTotalGB": 100.0, "diskFreeGB": 40.0,
+	}, map[string]any{"question": "磁盘分区什么样"})
+	if result["ok"] != true {
+		t.Fatalf("expected inspect ok, got %#v", result)
+	}
+	answer, _ := result["answer"].(string)
+	if !strings.Contains(answer, "主机检查结果") || !strings.Contains(answer, "磁盘分区什么样") {
+		t.Fatalf("inspect answer missing question: %s", answer)
 	}
 }
 

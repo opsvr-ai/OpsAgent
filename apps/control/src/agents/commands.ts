@@ -5,6 +5,7 @@ export interface AgentCommandRecord {
   readonly agentId: string;
   readonly type: string;
   readonly status: string;
+  readonly input: Readonly<Record<string, unknown>>;
   readonly result: unknown;
   readonly createdAt: string;
 }
@@ -16,6 +17,7 @@ export class AgentCommandService {
     tenantId: string;
     agentId: string;
     type: string;
+    input?: Readonly<Record<string, unknown>>;
   }): Promise<AgentCommandRecord | null> {
     const agent = await this.pool.query(
       'SELECT 1 FROM agents WHERE tenant_id = $1 AND id = $2',
@@ -23,17 +25,17 @@ export class AgentCommandService {
     );
     if (agent.rowCount === 0) return null;
     const result = await this.pool.query(
-      `INSERT INTO agent_commands (tenant_id, agent_id, type)
-       VALUES ($1, $2, $3)
-       RETURNING id, agent_id, type, status, result, created_at`,
-      [input.tenantId, input.agentId, input.type],
+      `INSERT INTO agent_commands (tenant_id, agent_id, type, payload)
+       VALUES ($1, $2, $3, $4::jsonb)
+       RETURNING id, agent_id, type, status, payload, result, created_at`,
+      [input.tenantId, input.agentId, input.type, JSON.stringify(input.input ?? {})],
     );
     return this.map(result.rows[0]);
   }
 
   async list(tenantId: string, agentId: string): Promise<AgentCommandRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, agent_id, type, status, result, created_at FROM agent_commands
+      `SELECT id, agent_id, type, status, payload, result, created_at FROM agent_commands
        WHERE tenant_id = $1 AND agent_id = $2 ORDER BY created_at DESC LIMIT 50`,
       [tenantId, agentId],
     );
@@ -53,7 +55,7 @@ export class AgentCommandService {
          WHERE agent_id = $1 AND status = 'pending'
          ORDER BY created_at ASC LIMIT 1
        )
-       RETURNING id, agent_id, type, status, result, created_at`,
+       RETURNING id, agent_id, type, status, payload, result, created_at`,
       [agentId],
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
@@ -61,7 +63,7 @@ export class AgentCommandService {
 
   async get(tenantId: string, agentId: string, commandId: string): Promise<AgentCommandRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, agent_id, type, status, result, created_at FROM agent_commands
+      `SELECT id, agent_id, type, status, payload, result, created_at FROM agent_commands
        WHERE tenant_id = $1 AND agent_id = $2 AND id = $3`,
       [tenantId, agentId, commandId],
     );
@@ -83,7 +85,7 @@ export class AgentCommandService {
       `UPDATE agent_commands
        SET status = 'completed', result = $1::jsonb, completed_at = now()
        WHERE id = $2 AND agent_id = $3
-       RETURNING id, agent_id, type, status, result, created_at`,
+       RETURNING id, agent_id, type, status, payload, result, created_at`,
       [JSON.stringify(input.result), input.commandId, input.agentId],
     );
     const record = result.rows[0];
@@ -119,6 +121,7 @@ export class AgentCommandService {
     agent_id: string;
     type: string;
     status: string;
+    payload?: unknown;
     result: unknown;
     created_at: string;
   }): AgentCommandRecord {
@@ -127,6 +130,9 @@ export class AgentCommandService {
       agentId: row.agent_id,
       type: row.type,
       status: row.status,
+      input: typeof row.payload === 'object' && row.payload !== null && !Array.isArray(row.payload)
+        ? row.payload as Record<string, unknown>
+        : {},
       result: row.result,
       createdAt: row.created_at,
     };

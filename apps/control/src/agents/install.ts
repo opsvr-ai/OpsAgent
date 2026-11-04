@@ -36,12 +36,18 @@ export function buildInstallCommand(input: {
   return `powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr '${url}' -UseBasicParsing | iex"`;
 }
 
+function resourceLimit(value: string | undefined, fallback: string, pattern: RegExp): string {
+  return value && pattern.test(value) ? value : fallback;
+}
+
 export function buildInstallScript(input: {
   os: InstallOs;
   baseUrl: string;
   tenantId: string;
   token: string;
 }): string {
+  const memoryMax = resourceLimit(process.env.OPSAGENT_AGENT_MEMORY_MAX, '512M', /^\d+(\.\d+)?[KMGTP]?$/);
+  const cpuQuota = resourceLimit(process.env.OPSAGENT_AGENT_CPU_QUOTA, '50%', /^\d{1,3}%$/);
   if (input.os === 'linux') {
     return `#!/usr/bin/env bash
 set -euo pipefail
@@ -96,6 +102,9 @@ Type=simple
 WorkingDirectory=/opt/opsagent
 EnvironmentFile=/opt/opsagent/config/agent.env
 ExecStart=/opt/opsagent/bin/opsagent-agent --service
+MemoryMax=${memoryMax}
+CPUQuota=${cpuQuota}
+TasksMax=256
 Restart=always
 RestartSec=5
 StandardOutput=append:/opt/opsagent/logs/stdout.log

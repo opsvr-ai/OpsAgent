@@ -4,6 +4,8 @@ services:
     image: node:22-alpine
     container_name: opsagent-os-agent
     hostname: opsagent-os-agent
+    mem_limit: ${OPSAGENT_AGENT_MEMORY_LIMIT:-1g}
+    cpus: ${OPSAGENT_AGENT_CPUS:-1.0}
     command: ["/bin/sh", "-c", "ln -sf /opt/opsagent/bin/opsagent-agent /usr/local/bin/opsagent-agent && exec /opt/opsagent/bin/opsagent-agent --service"]
     environment:
       OPSAGENT_HOME: /opt/opsagent

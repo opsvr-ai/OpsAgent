@@ -33,7 +33,9 @@ export type AuditAction =
   | 'model.delete'
   | 'incident.create'
   | 'incident.update'
-  | 'incident.investigate';
+  | 'incident.investigate'
+  | 'incident.approval.request'
+  | 'incident.approval.decide';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

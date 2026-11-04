@@ -84,6 +84,7 @@ export class IncidentService {
     evidence: Array<{ id: string; kind: string; source: string; summary: string; payload: Record<string, unknown>; createdAt: string }>;
     hypotheses: Array<{ id: string; statement: string; confidence: number; status: string; createdAt: string }>;
     tickets: Array<{ id: string; title: string; assignee: string; status: string; createdAt: string }>;
+    approvals: Array<{ id: string; action: string; risk: string; status: string; details: Record<string, unknown>; reason: string | null; createdAt: string; decidedAt: string | null }>;
   } | null> {
     const incident = await this.get(tenantId, id);
     if (!incident) return null;
@@ -118,6 +119,14 @@ export class IncidentService {
        WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
       [tenantId, id],
     );
+    const approvals = await this.pool.query<{
+      id: string; action: string; risk: string; status: string; details: Record<string, unknown>;
+      reason: string | null; created_at: Date; decided_at: Date | null;
+    }>(
+      `SELECT id, action, risk, status, details, reason, created_at, decided_at FROM incident_approvals
+       WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
+      [tenantId, id],
+    );
     return {
       incident,
       events: events.rows.map((row) => ({
@@ -147,6 +156,16 @@ export class IncidentService {
         assignee: row.assignee,
         status: row.status,
         createdAt: row.created_at.toISOString(),
+      })),
+      approvals: approvals.rows.map((row) => ({
+        id: row.id,
+        action: row.action,
+        risk: row.risk,
+        status: row.status,
+        details: row.details,
+        reason: row.reason,
+        createdAt: row.created_at.toISOString(),
+        decidedAt: row.decided_at?.toISOString() ?? null,
       })),
     };
   }
@@ -337,6 +356,67 @@ export class IncidentService {
       ...detail.events.map((event) => `- ${event.createdAt} ${event.type} ${JSON.stringify(event.payload)}`),
     ];
     return lines.join('\n');
+  }
+
+  async requestApproval(input: {
+    tenantId: string;
+    incidentId: string;
+    actorId: string;
+    action: string;
+    risk: 'R2' | 'R3';
+    details?: Record<string, unknown>;
+  }): Promise<Awaited<ReturnType<IncidentService['getWithEvents']>> | null> {
+    const incident = await this.get(input.tenantId, input.incidentId);
+    if (!incident) return null;
+    const inserted = await this.pool.query<{ id: string }>(
+      `INSERT INTO incident_approvals
+         (tenant_id, incident_id, action, risk, details, requested_by)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6) RETURNING id`,
+      [input.tenantId, input.incidentId, input.action, input.risk, JSON.stringify(input.details ?? {}), input.actorId],
+    );
+    const approvalId = inserted.rows[0]?.id;
+    if (!approvalId) return null;
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'approval_requested', $4::jsonb)`,
+      [input.tenantId, input.incidentId, input.actorId, JSON.stringify({ approvalId, action: input.action, risk: input.risk })],
+    );
+    await this.pool.query(
+      `INSERT INTO messages (tenant_id, title, body, severity)
+       VALUES ($1, $2, $3, 'warning')`,
+      [input.tenantId, `事件操作待审批：${input.risk}`, input.action],
+    );
+    return this.getWithEvents(input.tenantId, input.incidentId);
+  }
+
+  async decideApproval(input: {
+    tenantId: string;
+    incidentId: string;
+    approvalId: string;
+    actorId: string;
+    decision: 'approve' | 'deny';
+    reason?: string;
+  }): Promise<Awaited<ReturnType<IncidentService['getWithEvents']>> | null> {
+    const updated = await this.pool.query<{ id: string }>(
+      `UPDATE incident_approvals
+       SET status = $1, reason = $2, decided_by = $3, decided_at = now()
+       WHERE tenant_id = $4 AND incident_id = $5 AND id = $6 AND status = 'pending'
+       RETURNING id`,
+      [input.decision === 'approve' ? 'approved' : 'denied', input.reason ?? null, input.actorId, input.tenantId, input.incidentId, input.approvalId],
+    );
+    if (!updated.rows[0]) return null;
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, $4, $5::jsonb)`,
+      [
+        input.tenantId,
+        input.incidentId,
+        input.actorId,
+        input.decision === 'approve' ? 'approval_approved' : 'approval_denied',
+        JSON.stringify({ approvalId: input.approvalId, reason: input.reason ?? null }),
+      ],
+    );
+    return this.getWithEvents(input.tenantId, input.incidentId);
   }
 
   async investigate(input: {

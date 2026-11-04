@@ -287,6 +287,7 @@ export interface IncidentDetail {
   readonly evidence?: readonly IncidentEvidence[];
   readonly hypotheses?: readonly IncidentHypothesis[];
   readonly tickets?: readonly IncidentTicket[];
+  readonly approvals?: readonly IncidentApproval[];
 }
 
 export interface IncidentEvidence {
@@ -314,6 +315,17 @@ export interface IncidentTicket {
   readonly createdAt: string;
 }
 
+export interface IncidentApproval {
+  readonly id: string;
+  readonly action: string;
+  readonly risk: string;
+  readonly status: string;
+  readonly details: Readonly<Record<string, unknown>>;
+  readonly reason: string | null;
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+}
+
 export async function getIncident(id: string): Promise<IncidentDetail> {
   return request<IncidentDetail>(`/api/incidents/${id}`);
 }
@@ -322,6 +334,28 @@ export async function investigateIncident(id: string): Promise<IncidentDetail> {
   return request<IncidentDetail>(`/api/incidents/${id}/investigate`, {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+export async function requestIncidentApproval(
+  id: string,
+  input: { action: string; risk: 'R2' | 'R3'; details?: Record<string, unknown> },
+): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/api/incidents/${id}/approvals`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function decideIncidentApproval(
+  id: string,
+  approvalId: string,
+  decision: 'approve' | 'deny',
+  reason?: string,
+): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/api/incidents/${id}/approvals/${approvalId}/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ decision, reason }),
   });
 }
 

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   createIncident,
+  decideIncidentApproval,
   getIncident,
   investigateIncident,
   listIncidents,
+  requestIncidentApproval,
   updateIncident,
   type IncidentDetail,
   type IncidentSummary,
@@ -37,6 +39,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [investigating, setInvestigating] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState(false);
 
   useEffect(() => {
     void listIncidents()
@@ -95,6 +98,36 @@ export function Incidents({ onBack }: IncidentsProps) {
       setError('自动排障执行失败');
     } finally {
       setInvestigating(false);
+    }
+  }
+
+  async function requestApproval(id: string) {
+    setApprovalBusy(true);
+    setError(null);
+    try {
+      const next = await requestIncidentApproval(id, {
+        action: '执行事件处置动作',
+        risk: 'R2',
+        details: { requestedFrom: 'incident-detail' },
+      });
+      setDetail(next);
+    } catch {
+      setError('审批申请失败');
+    } finally {
+      setApprovalBusy(false);
+    }
+  }
+
+  async function decideApproval(id: string, approvalId: string, decision: 'approve' | 'deny') {
+    setApprovalBusy(true);
+    setError(null);
+    try {
+      const next = await decideIncidentApproval(id, approvalId, decision);
+      setDetail(next);
+    } catch {
+      setError('审批处理失败');
+    } finally {
+      setApprovalBusy(false);
     }
   }
 
@@ -202,6 +235,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                         {investigating ? '排障执行中…' : '自动排障'}
                       </button>
                       <a className="btn btn-outline btn-sm" href={`/api/incidents/${selected.id}/report`} target="_blank" rel="noreferrer">导出报告</a>
+                      <button type="button" className="btn btn-outline btn-sm" disabled={approvalBusy} onClick={() => void requestApproval(selected.id)}>申请 R2 审批</button>
                       {statusActions(selected)}
                     </div>
                   </div>
@@ -242,6 +276,26 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <p>{selected.rootCause}</p>
                     </div>
                   ) : null}
+                  <h3 style={{ marginTop: 18 }}>操作审批</h3>
+                  {(detail?.approvals ?? []).length === 0 ? <p className="muted">暂无审批记录</p> : (
+                    <div className="stack">
+                      {(detail?.approvals ?? []).map((approval) => (
+                        <div key={approval.id} className="incident-evidence">
+                          <div className="row-between">
+                            <strong>{approval.action}</strong>
+                            <span className={`badge ${approval.status === 'approved' ? 'badge-ok' : approval.status === 'denied' ? 'badge-danger' : 'badge-warn'}`}>{approval.risk} · {approval.status}</span>
+                          </div>
+                          <span className="muted">{formatTime(approval.createdAt)}</span>
+                          {approval.status === 'pending' ? (
+                            <div className="row-sm" style={{ marginTop: 8 }}>
+                              <button type="button" className="btn btn-primary btn-sm" disabled={approvalBusy} onClick={() => void decideApproval(selected.id, approval.id, 'approve')}>批准</button>
+                              <button type="button" className="btn btn-outline btn-sm" disabled={approvalBusy} onClick={() => void decideApproval(selected.id, approval.id, 'deny')}>拒绝</button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="grid grid-2" style={{ alignItems: 'start', marginTop: 18 }}>
                     <div>
                       <h3>证据</h3>

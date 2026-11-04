@@ -185,6 +185,77 @@ export function registerIncidentRoutes(
     }
   });
 
+  app.post<{ Params: { id: string } }>('/api/incidents/:id/approvals', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { action?: unknown; risk?: unknown; details?: unknown } | undefined;
+    if (typeof body?.action !== 'string' || (body.risk !== 'R2' && body.risk !== 'R3')) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const detail = await incidents.requestApproval({
+      tenantId: ctx.tenantId,
+      incidentId: request.params.id,
+      actorId: ctx.userId,
+      action: body.action,
+      risk: body.risk,
+      ...(typeof body.details === 'object' && body.details !== null && !Array.isArray(body.details)
+        ? { details: body.details as Record<string, unknown> }
+        : {}),
+    });
+    if (!detail) return reply.code(404).send({ error: 'incident_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'incident.approval.request',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { action: body.action, risk: body.risk },
+    });
+    return reply.code(201).send(detail);
+  });
+
+  app.post<{ Params: { id: string; approvalId: string } }>(
+    '/api/incidents/:id/approvals/:approvalId/decision',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'incident.manage');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const body = request.body as { decision?: unknown; reason?: unknown } | undefined;
+      if (body?.decision !== 'approve' && body?.decision !== 'deny') {
+        return reply.code(400).send({ error: 'invalid_decision' });
+      }
+      const detail = await incidents.decideApproval({
+        tenantId: ctx.tenantId,
+        incidentId: request.params.id,
+        approvalId: request.params.approvalId,
+        actorId: ctx.userId,
+        decision: body.decision,
+        ...(typeof body.reason === 'string' ? { reason: body.reason } : {}),
+      });
+      if (!detail) return reply.code(404).send({ error: 'approval_not_found' });
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'incident.approval.decide',
+        resource: request.params.id,
+        result: 'success',
+        metadata: { decision: body.decision, approvalId: request.params.approvalId },
+      });
+      return reply.send(detail);
+    },
+  );
+
   app.post<{ Params: { id: string } }>('/api/incidents/:id/investigate', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {

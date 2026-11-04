@@ -71,6 +71,24 @@ describe('incident API', () => {
     });
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toMatchObject({ incident: { id }, events: [{}, {}] });
+
+    const approval = await app.inject({
+      method: 'POST',
+      url: `/api/incidents/${id}/approvals`,
+      headers: { cookie },
+      payload: { action: 'restart order-service', risk: 'R2' },
+    });
+    expect(approval.statusCode).toBe(201);
+    const approvalId = (approval.json() as { approvals: Array<{ id: string; status: string }> }).approvals[0]?.id;
+    expect(approvalId).toBeTruthy();
+    const decided = await app.inject({
+      method: 'POST',
+      url: `/api/incidents/${id}/approvals/${approvalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    expect(decided.statusCode).toBe(200);
+    expect(decided.json()).toMatchObject({ approvals: [{ id: approvalId, status: 'approved' }] });
     await app.close();
   });
 

@@ -56,6 +56,7 @@ const commanderScheduler = new CommanderScheduler(
   pool,
   new IncidentService(pool, tools),
   Number.parseInt(process.env.OPSAGENT_COMMANDER_INTERVAL_MS ?? '20000', 10),
+  Number.parseInt(process.env.OPSAGENT_COMMANDER_RECHECK_MS ?? '900000', 10),
 );
 const auditRetention = new AuditService(pool);
 const taskService = new LongTaskService(pool, new ScenarioService(pool, tools));

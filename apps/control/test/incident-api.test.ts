@@ -98,6 +98,14 @@ describe('incident API', () => {
     expect(analysis.statusCode).toBe(200);
     expect((analysis.json() as { analysis: string }).analysis.length).toBeGreaterThan(0);
     expect((analysis.json() as { detail: { evidence: Array<{ kind: string }> } }).detail.evidence.some((item) => item.kind === 'ai_analysis')).toBe(true);
+    const recheck = await app.inject({
+      method: 'POST',
+      url: `/api/incidents/${id}/recheck`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(recheck.statusCode).toBe(200);
+    expect(recheck.json()).toMatchObject({ incident: { id } });
     await app.close();
   });
 

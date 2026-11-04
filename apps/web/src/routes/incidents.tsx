@@ -8,6 +8,7 @@ import {
   investigateIncident,
   listIncidents,
   requestIncidentApproval,
+  recheckIncident,
   saveIncidentReportTemplate,
   updateIncident,
   type IncidentDetail,
@@ -56,6 +57,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [investigating, setInvestigating] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
   const [analysisText, setAnalysisText] = useState('');
   const [templateOpen, setTemplateOpen] = useState(false);
   const [templateBody, setTemplateBody] = useState('');
@@ -172,6 +174,18 @@ export function Incidents({ onBack }: IncidentsProps) {
       setError('报告模板保存失败');
     } finally {
       setTemplateBusy(false);
+    }
+  }
+
+  async function recheck(id: string) {
+    setRechecking(true);
+    setError(null);
+    try {
+      setDetail(await recheckIncident(id));
+    } catch {
+      setError('复查取证失败');
+    } finally {
+      setRechecking(false);
     }
   }
 
@@ -314,6 +328,9 @@ export function Incidents({ onBack }: IncidentsProps) {
                     <div className="row-sm">
                       <button type="button" className="btn btn-outline btn-sm" disabled={investigating} onClick={() => void investigate(selected.id)}>
                         {investigating ? '排障执行中…' : '自动排障'}
+                      </button>
+                      <button type="button" className="btn btn-outline btn-sm" disabled={rechecking} onClick={() => void recheck(selected.id)}>
+                        {rechecking ? '复查中…' : '复查取证'}
                       </button>
                       <button type="button" className="btn btn-outline btn-sm" disabled={analyzing} onClick={() => void analyze(selected.id)}>
                         {analyzing ? '分析中…' : 'Commander 分析'}

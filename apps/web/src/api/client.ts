@@ -337,6 +337,13 @@ export async function investigateIncident(id: string): Promise<IncidentDetail> {
   });
 }
 
+export async function recheckIncident(id: string): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/api/incidents/${id}/recheck`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function requestIncidentApproval(
   id: string,
   input: { action: string; risk: 'R2' | 'R3'; details?: Record<string, unknown> },

@@ -37,6 +37,7 @@ export type AuditAction =
   | 'incident.approval.request'
   | 'incident.approval.decide'
   | 'incident.analyze'
+  | 'incident.recheck'
   | 'incident.report_template.update';
 
 export interface AuditEventInput {

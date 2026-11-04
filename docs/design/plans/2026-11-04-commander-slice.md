@@ -25,6 +25,7 @@
 - 多假设竞争：保留主假设 supported，自动生成连接器证据缺口/离线节点/应用异常等 candidate 假设并随证据重建
 - 假设自动裁决：连接器成功返回证据时自动 rejected 数据缺失假设；节点全部在线时自动 rejected 节点不可用假设
 - 拓扑面板：事件详情直接展示应用系统节点、应用实例和在线状态，不再只看原始 JSON 证据
+- 定时只读复查：存在 candidate 假设且上次排障超过 `OPSAGENT_COMMANDER_RECHECK_MS` 的事件会自动重新取证；事件详情也提供「复查取证」
 - Commander 智能体分析：事件详情可调用 DshRuntime 读取证据并输出根因判断、证据缺口、下一步检查与处置建议；结果写入 ai_analysis 证据
 - 可配置报告模板：租户级 Markdown 模板，支持 title/id/severity/status/source/rootCause/evidence/hypotheses/tickets/timeline 占位符
 - R2/R3 审批闭环：事件详情可申请操作审批，审批/拒绝写入时间线与审计

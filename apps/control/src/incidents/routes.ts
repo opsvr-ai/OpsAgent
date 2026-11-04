@@ -339,6 +339,31 @@ export function registerIncidentRoutes(
     },
   );
 
+  app.post<{ Params: { id: string } }>('/api/incidents/:id/recheck', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const detail = await incidents.investigate({
+      tenantId: ctx.tenantId,
+      id: request.params.id,
+      actorId: ctx.userId,
+    });
+    if (!detail) return reply.code(404).send({ error: 'incident_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'incident.recheck',
+      resource: request.params.id,
+      result: 'success',
+    });
+    return reply.send(detail);
+  });
+
   app.post<{ Params: { id: string } }>('/api/incidents/:id/analyze', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

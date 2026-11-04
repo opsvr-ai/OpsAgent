@@ -20,6 +20,7 @@ import { registerStudioRoutes } from './studio/routes.js';
 import type { StudioGenerator } from './studio/service.js';
 import { registerIncidentRoutes } from './incidents/routes.js';
 import { registerDeploymentRoutes } from './deployments/routes.js';
+import { registerDesktopUpdateRoutes } from './desktop-updates/routes.js';
 import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
@@ -44,6 +45,7 @@ export interface BuildServerOptions {
   readonly agentDistDir?: string;
   readonly agentPublicUrl?: string;
   readonly modelSecret?: string;
+  readonly desktopUpdateDir?: string;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -101,5 +103,6 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerDeploymentRoutes(app, options.pool, audit);
   }
 
+  registerDesktopUpdateRoutes(app, options.desktopUpdateDir);
   return app;
 }

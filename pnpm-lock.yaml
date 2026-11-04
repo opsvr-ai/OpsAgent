@@ -61,19 +61,6 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.2)(jsdom@27.4.0)(tsx@4.23.15)
 
-  apps/desktop:
-    dependencies:
-      electron-updater:
-        specifier: ^6.8.11
-        version: 6.8.11
-    devDependencies:
-      electron:
-        specifier: ^34.3.4
-        version: 34.3.4
-      electron-builder:
-        specifier: ^25.1.8
-        version: 25.1.8(electron-builder-squirrel-windows@25.1.8)
-
   apps/web:
     dependencies:
       '@opsagent/contracts':

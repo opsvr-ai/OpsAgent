@@ -82,6 +82,7 @@ services:
     working_dir: /app
     command: sh -lc "chmod 600 /root/.dsh/.credentials.yaml 2>/dev/null || true; exec pnpm --filter @opsagent/control exec tsx watch src/index.ts"
     environment:
+      CI: "true"
       DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
       REDIS_URL: redis://redis:6379
       LOCAL_ADMIN_ENABLED: "true"
@@ -96,6 +97,7 @@ services:
       STUDIO_DSH_ENABLED: "true"
       OPSAGENT_AGENT_ENROLLMENT_TOKEN: opsagent-local-enroll
       OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist
+      OPSAGENT_DESKTOP_UPDATE_DIR: /app/apps/desktop/release/feed
       OPSAGENT_PUBLIC_URL: http://127.0.0.1:8080
       PORT: "8080"
     ports:
@@ -131,6 +133,7 @@ services:
     working_dir: /app
     command: pnpm --filter @opsagent/web exec vite --host 0.0.0.0 --port 5173
     environment:
+      CI: "true"
       VITE_API_PROXY: http://control:8080
     ports:
       - "5173:5173"

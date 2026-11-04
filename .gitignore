@@ -4,6 +4,7 @@ coverage/
 .env
 *.log
 .DS_Store
+.pnpm-store/
 playwright-report/
 test-results/
 

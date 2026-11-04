@@ -53,6 +53,9 @@ const app = buildServer({
   ...(process.env.STUDIO_DSH_ENABLED === 'false'
     ? {}
     : { studioGenerator: new DshHeadlessGenerator(undefined, modelService) }),
+  ...(process.env.OPSAGENT_DESKTOP_UPDATE_DIR
+    ? { desktopUpdateDir: process.env.OPSAGENT_DESKTOP_UPDATE_DIR }
+    : {}),
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
 const commanderScheduler = new CommanderScheduler(

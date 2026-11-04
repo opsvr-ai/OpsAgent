@@ -2,6 +2,8 @@
 
 P1.5 薄客户端：Electron 外壳加载 OpsAgent Web，复用登录、会话、审批和通知能力，并通过系统密钥链保存桌面设备凭证。
 
+Desktop 作为独立 npm 包维护，不在根 pnpm workspace 中，避免控制面容器安装 Electron 构建依赖。首次使用需在 `apps/desktop` 内单独安装依赖。
+
 ## 启动
 
 先启动控制面和 Web：
@@ -13,19 +15,23 @@ pnpm dev:docker
 然后：
 
 ```bash
-pnpm --filter @opsagent/desktop start
+cd apps/desktop
+pnpm install --ignore-workspace
+pnpm start
 ```
 
 默认加载 `http://127.0.0.1:5173`，可通过环境变量覆盖：
 
 ```bash
-OPSAGENT_DESKTOP_URL=http://127.0.0.1:8080 pnpm --filter @opsagent/desktop start
+cd apps/desktop
+OPSAGENT_DESKTOP_URL=http://127.0.0.1:8080 pnpm start
 ```
 
 如果 Electron 二进制下载失败，可配置镜像后重新安装：
 
 ```bash
-ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install
+cd apps/desktop
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install --ignore-workspace
 ```
 
 ## 打包
@@ -33,7 +39,8 @@ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install
 生成 Windows 免安装目录：
 
 ```bash
-pnpm --filter @opsagent/desktop package:dir
+cd apps/desktop
+pnpm package:dir
 ```
 
 产物：
@@ -45,7 +52,8 @@ apps/desktop/release/win-unpacked/OpsAgent.exe
 生成 Windows 便携 ZIP：
 
 ```bash
-pnpm --filter @opsagent/desktop package:zip
+cd apps/desktop
+pnpm package:zip
 ```
 
 产物：
@@ -57,7 +65,8 @@ apps/desktop/release/OpsAgent-win-x64.zip
 生成 Windows NSIS 安装包：
 
 ```bash
-pnpm --filter @opsagent/desktop package:win
+cd apps/desktop
+pnpm package:win
 ```
 
 产物：
@@ -89,7 +98,8 @@ OpsAgent Setup 0.2.0.exe.blockmap
 生成更新目录：
 
 ```bash
-pnpm --filter @opsagent/desktop package:feed
+cd apps/desktop
+pnpm package:feed
 ```
 
 产物：
@@ -102,6 +112,24 @@ apps/desktop/release/feed/OpsAgent Setup 0.2.0.exe.blockmap
 
 将该目录部署到静态服务器后，设置 `OPSAGENT_DESKTOP_UPDATE_URL` 即可。
 
+控制面也可以直接托管该目录：
+
+```bash
+OPSAGENT_DESKTOP_UPDATE_DIR=/app/apps/desktop/release/feed
+```
+
+启动后访问：
+
+```text
+http://127.0.0.1:8080/desktop/updates/latest.yml
+```
+
+Desktop 设置：
+
+```bash
+OPSAGENT_DESKTOP_UPDATE_URL=http://127.0.0.1:8080/desktop/updates/
+```
+
 ## 代码签名
 
 配置 Electron Builder 标准环境变量后重新打包：
@@ -109,7 +137,8 @@ apps/desktop/release/feed/OpsAgent Setup 0.2.0.exe.blockmap
 ```bash
 CSC_LINK=/path/to/certificate.pfx
 CSC_KEY_PASSWORD=***
-pnpm --filter @opsagent/desktop package:win
+cd apps/desktop
+pnpm package:win
 ```
 
 配置后安装包会使用证书签名；未配置时保持未签名。
@@ -123,7 +152,8 @@ $pfx = Join-Path $env:TEMP 'opsagent-dev-sign.pfx'
 Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pwd
 $env:CSC_LINK = $pfx
 $env:CSC_KEY_PASSWORD = 'OpsAgent-Dev'
-pnpm --filter @opsagent/desktop package:win
+cd apps/desktop
+pnpm package:win
 ```
 
 已实测可生成签名安装包；因自签名根证书不受信任，Windows 会显示 Unknown Publisher。

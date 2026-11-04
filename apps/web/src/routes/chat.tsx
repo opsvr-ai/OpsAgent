@@ -227,18 +227,37 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             </div>
 
             {runtimeApprovals.length > 0 ? (
-              <div className="card" style={{ margin: '8px 24px' }}>
-                <div className="card-body">
-                  <div className="eyebrow">运行时审批</div>
-                  {runtimeApprovals.map((approval) => (
-                    <div key={approval.id} className="row-between">
-                      <span>{approval.action} · {approval.risk}</span>
-                      <span className="row-sm">
-                        <button type="button" className="btn btn-primary" onClick={() => void decideRuntime(approval.id, 'approve')}>批准</button>
-                        <button type="button" className="btn btn-outline" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
-                      </span>
-                    </div>
-                  ))}
+              <div className="approval-queue">
+                <div className="approval-queue-head">
+                  <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span>
+                  <div className="grow">
+                    <strong>需要你确认</strong>
+                    <span>dsh 正在等待，{runtimeApprovals.length} 个操作暂停执行</span>
+                  </div>
+                </div>
+                <div className="approval-queue-list">
+                  {runtimeApprovals.map((approval) => {
+                    const details = approval.details as Record<string, unknown>;
+                    const command = typeof details.command === 'string' ? details.command : null;
+                    const description = typeof details.description === 'string' ? details.description : null;
+                    return (
+                      <div key={approval.id} className="approval-item">
+                        <div className="approval-item-main">
+                          <div className="approval-item-title">
+                            <strong>{approval.action}</strong>
+                            <span className="badge badge-warn">{approval.risk}</span>
+                            <span className="approval-time">{new Date(approval.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          {description ? <p className="approval-desc">{description}</p> : null}
+                          {command ? <pre className="approval-command">{command}</pre> : null}
+                        </div>
+                        <div className="approval-actions">
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => void decideRuntime(approval.id, 'approve')}>批准执行</button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -280,18 +299,14 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                 {events
                   .filter((item) => item.type === 'tool.call' || item.type === 'tool.result' || item.type === 'approval.request')
                   .slice(-6)
-                  .map((item, index) => {
-                    const completed = item.type === 'tool.call'
-                      && events.some((event) => event.type === 'tool.result' && event.tool === item.tool);
-                    return (
-                      <div key={index} className="aside-row">
-                        <span>{item.type === 'approval.request' ? '审批请求' : item.type === 'tool.result' ? '工具返回' : `工具调用 · ${item.tool}`}</span>
-                        <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : item.type === 'tool.result' || completed ? 'badge-ok' : 'badge-neutral'}`}>
-                          {item.type === 'approval.request' ? '待确认' : item.type === 'tool.result' ? '完成' : completed ? '已调用' : '调用中'}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  .map((item, index) => (
+                    <div key={index} className="aside-row">
+                      <span>{item.type === 'approval.request' ? '审批请求' : item.type === 'tool.result' ? '工具返回' : `工具调用 · ${item.tool}`}</span>
+                      <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : item.type === 'tool.result' ? 'badge-ok' : 'badge-neutral'}`}>
+                        {item.type === 'approval.request' ? '待确认' : item.type === 'tool.result' ? '完成' : '已发起'}
+                      </span>
+                    </div>
+                  ))}
               </div>
             </div>
             <div className="aside-block">

@@ -151,14 +151,24 @@ export class SessionService {
         }
 
         if (event.type === 'session.done') {
+          await this.cancelPendingApprovals(session.id);
           await this.updateStatus(session.id, 'completed');
         }
         yield event;
       }
     } catch (error) {
+      await this.cancelPendingApprovals(session.id);
       await this.updateStatus(session.id, 'failed');
       throw error;
     }
+  }
+
+  private async cancelPendingApprovals(sessionId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE approvals SET status = 'cancelled', decided_at = now()
+       WHERE session_id = $1 AND status = 'pending'`,
+      [sessionId],
+    );
   }
 
   async listApprovals(tenantId: string, userId: string, sessionId?: string): Promise<Array<{

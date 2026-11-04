@@ -1539,3 +1539,22 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .markdown th, .markdown td { padding: 7px 9px; border: 1px solid var(--line); text-align: left; }
 .markdown th { background: var(--surface-2); }
 .markdown a { color: var(--primary); text-decoration: underline; }
+.msg-user .msg-body { flex: 0 1 auto; max-width: 72%; display: flex; flex-direction: column; align-items: flex-end; }
+.msg-user .msg-text { width: fit-content; max-width: 100%; margin-left: auto; background: var(--primary-soft); border-color: var(--primary-line); border-radius: 14px 14px 4px 14px; color: var(--text); }
+.approval-queue { margin: 6px var(--space-5) 0; border: 1px solid var(--primary-line); border-radius: 12px; background: var(--primary-soft); overflow: hidden; flex: none; }
+.approval-queue-head { display: flex; align-items: center; gap: 10px; padding: 10px 13px 8px; }
+.approval-queue-head .grow { display: flex; flex-direction: column; gap: 1px; }
+.approval-queue-head strong { font-size: 12px; font-weight: 650; color: var(--text); }
+.approval-queue-head .grow span { font-size: 11px; color: var(--muted); }
+.approval-queue-list { max-height: 190px; overflow-y: auto; border-top: 1px solid var(--primary-line); }
+.approval-item { display: flex; align-items: center; gap: 12px; padding: 10px 13px; background: var(--surface); }
+.approval-item + .approval-item { border-top: 1px solid var(--line); }
+.approval-item-main { min-width: 0; flex: 1; }
+.approval-item-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.approval-item-title strong { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.approval-time { margin-left: auto; color: var(--faint); font-size: 10px; font-family: var(--font-mono); }
+.approval-desc { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.approval-command { margin: 6px 0 0; max-height: 52px; overflow: hidden; padding: 5px 7px; border-radius: 5px; background: var(--surface-2); color: var(--text-soft); font-family: var(--font-mono); font-size: 10px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.approval-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.approval-actions .btn { height: 27px; font-size: 11px; }
+.approval-actions .btn-sm { padding: 0 10px; }

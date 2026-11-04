@@ -80,7 +80,7 @@ export function apply(ctx) {
     if (!TOOLS.includes(exec.name)) return next();
     const callId = exec.callId ?? randomUUID();
     try {
-      const id = await createApproval(exec.name, callId, `OpsAgent approval required for ${exec.name}`, exec.input ?? {});
+      const id = await createApproval(exec.name, callId, `OpsAgent approval required for ${exec.name}`, exec.arguments ?? exec.input ?? {});
       const outcome = await waitForDecision(id, exec.signal);
       log(`outcome ${id} ${outcome}`);
       if (outcome === 'allowed-once') return { kind: 'allow' };

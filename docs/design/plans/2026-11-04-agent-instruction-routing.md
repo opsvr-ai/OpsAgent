@@ -281,8 +281,9 @@ POST /api/agent-instruction-approvals/side-effect-failures/:id/resolve
 
 ```text
 GET /api/agent-instruction-approvals/notification-stats?hours=24
-  → 最近 1–168 小时按小时聚合
-  → 超过 72 小时自动按天聚合
+  → 最近 1–168 小时
+  → 自动：≤72h 按小时，>72h 按天
+  → 可手动选择按小时 / 按天
   → 审批 Webhook 成功 / 失败
   → 运维告警 成功 / 失败
   → Web 支持 1h / 12h / 24h / 72h / 7 天切换

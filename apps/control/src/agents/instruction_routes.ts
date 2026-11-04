@@ -889,7 +889,7 @@ export function registerAgentInstructionRoutes(
     },
   );
 
-  app.get<{ Querystring: { hours?: string } }>('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
+  app.get<{ Querystring: { hours?: string; bucket?: string } }>('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
@@ -900,7 +900,9 @@ export function registerAgentInstructionRoutes(
     }
     const parsedHours = Number.parseInt(request.query.hours ?? '24', 10);
     const hoursBack = Number.isFinite(parsedHours) ? Math.min(Math.max(parsedHours, 1), 168) : 24;
-    const bucket = hoursBack > 72 ? 'day' : 'hour';
+    const bucket = request.query.bucket === 'hour' || request.query.bucket === 'day'
+      ? request.query.bucket
+      : hoursBack > 72 ? 'day' : 'hour';
     const approval = await pool.query<{ hour: Date; delivered: string; failed: string }>(
       `SELECT date_trunc('${bucket}', created_at) AS hour,
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,

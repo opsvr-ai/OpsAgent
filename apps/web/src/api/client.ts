@@ -805,9 +805,14 @@ export interface NotificationStatPoint {
   readonly operationsFailed: number;
 }
 
-export async function listNotificationStats(hours = 24): Promise<NotificationStatPoint[]> {
+export async function listNotificationStats(
+  hours = 24,
+  bucket?: 'hour' | 'day',
+): Promise<NotificationStatPoint[]> {
+  const query = new URLSearchParams({ hours: String(hours) });
+  if (bucket) query.set('bucket', bucket);
   return request<NotificationStatPoint[]>(
-    `/api/agent-instruction-approvals/notification-stats?hours=${encodeURIComponent(String(hours))}`,
+    `/api/agent-instruction-approvals/notification-stats?${query.toString()}`,
   );
 }
 

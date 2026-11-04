@@ -3,6 +3,7 @@ import {
   assignAgentAppSystem,
   createAgentCommand,
   createAgentInstruction,
+  createAgentInstructionsBatch,
   getAgentDetail,
   getAgentEvents,
   getAgentFleet,
@@ -111,6 +112,11 @@ export function Agents({ onBack }: AgentsProps) {
   const [instructionNote, setInstructionNote] = useState<string | null>(null);
   const [instructionError, setInstructionError] = useState<string | null>(null);
   const [instructionResult, setInstructionResult] = useState<AgentInstructionDetail | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchIds, setBatchIds] = useState<string[]>([]);
+  const [batchText, setBatchText] = useState('');
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchNote, setBatchNote] = useState<string | null>(null);
   useEffect(() => {
     setInstructionText('');
     setInstructionNote(null);
@@ -303,6 +309,22 @@ export function Agents({ onBack }: AgentsProps) {
     }
   }
 
+  async function sendBatchInstruction() {
+    if (batchIds.length === 0 || !batchText.trim()) return;
+    setBatchBusy(true);
+    setBatchNote(null);
+    try {
+      const created = await createAgentInstructionsBatch(batchIds, batchText.trim());
+      setBatchNote(`已下发给 ${created.instructions.length} 台：${created.intent.kind}`);
+      setBatchIds([]);
+      setBatchText('');
+    } catch (caught) {
+      setBatchNote(caught instanceof Error ? caught.message : '批量指令下发失败');
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   const pageCount = fleet ? Math.max(1, Math.ceil(fleet.total / fleet.pageSize)) : 1;
   const staleAgents = (keyStatus?.agents ?? []).filter((agent) => agent.valid === false);
   const activeKeyId = keyStatus?.keys.find((key) => key.active)?.keyId ?? '未配置';
@@ -442,6 +464,7 @@ export function Agents({ onBack }: AgentsProps) {
           <div className="fleet-toolbar-title">
             <h2>主机清单</h2>
             <span className="muted">{loading ? '加载中…' : `共 ${fleet?.total ?? 0} 台`}</span>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => setBatchOpen((current) => !current)}>批量指令</button>
           </div>
           <div className="fleet-filters">
             <label className="fleet-search">
@@ -461,6 +484,34 @@ export function Agents({ onBack }: AgentsProps) {
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setReloadToken((token) => token + 1)}>刷新</button>
           </div>
         </div>
+        {batchOpen ? (
+          <div className="card-body stack" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-subtle)' }}>
+            <p className="muted">选择一个或多个在线 Agent（最多 8 台），自然语言会按只读意图分别下发。</p>
+            <div className="row-sm" style={{ flexWrap: 'wrap' }}>
+              {(fleet?.items ?? []).filter((agent) => agent.status === 'online').map((agent) => (
+                <label key={agent.id} className="badge badge-neutral" style={{ cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={batchIds.includes(agent.id)}
+                    onChange={(event) => setBatchIds((current) => event.target.checked
+                      ? [...current, agent.id].slice(0, 8)
+                      : current.filter((id) => id !== agent.id))}
+                    style={{ marginRight: 6 }}
+                  />
+                  {agent.hostname}
+                </label>
+              ))}
+            </div>
+            <div className="field">
+              <label htmlFor="batch-instruction">批量指令内容</label>
+              <textarea id="batch-instruction" rows={2} value={batchText} onChange={(event) => setBatchText(event.target.value)} placeholder="例如：系统运行多久了？看看磁盘使用率。" />
+            </div>
+            <div className="row-sm">
+              <button type="button" className="btn btn-primary btn-sm" disabled={batchBusy || batchIds.length === 0 || !batchText.trim()} onClick={() => void sendBatchInstruction()}>下发到 {batchIds.length} 台</button>
+              {batchNote ? <span className="muted">{batchNote}</span> : null}
+            </div>
+          </div>
+        ) : null}
         <div className="table-wrap">
           <table className="table fleet-table">
             <thead>

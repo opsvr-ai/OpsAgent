@@ -29,8 +29,6 @@ status completed
 - 1 分钟负载：0.27
 ```
 
-Phase 2 Web 面板和 Phase 3 SSE/批量尚未实现。
-
 ### Phase 2 已实现
 
 Agent 详情页新增「自然语言」页签：
@@ -48,8 +46,6 @@ Agent 详情页新增「自然语言」页签：
 - 失败状态展示
 - 结构化证据可展开
 - 新增前端测试覆盖下发与结果渲染
-
-Phase 3 SSE/批量仍未实现。
 
 ### Phase 3 SSE 已实现
 
@@ -77,7 +73,24 @@ events: status... delta... done
 answerLine: true
 ```
 
-多 Agent 批量与写操作审批仍未实现。
+### 多 Agent 批量已实现
+
+```http
+POST /api/agents/instructions
+{
+  "agentIds": ["uuid-1", "uuid-2"],
+  "instruction": "看看磁盘使用率"
+}
+```
+
+- 1–8 台
+- 全部必须属于当前租户
+- 任意一台离线则整批拒绝 409
+- 每台生成独立签名命令
+- 统一审计 `agent.instruction.batch`
+- Web 主机清单提供「批量指令」多选面板
+
+写操作审批仍未实现。
 
 ## 1. 目标
 

@@ -67,6 +67,75 @@ export function registerAgentInstructionRoutes(
 ): void {
   const commands = new AgentCommandService(pool);
 
+  app.post('/api/agents/instructions', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { agentIds?: unknown; instruction?: unknown } | undefined;
+    if (!Array.isArray(body?.agentIds) || typeof body.instruction !== 'string') {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const agentIds = [...new Set(body.agentIds.filter((id): id is string => typeof id === 'string'))];
+    if (agentIds.length === 0 || agentIds.length > 8) {
+      return reply.code(400).send({ error: 'invalid_agent_count' });
+    }
+    const plan = planInstruction(body.instruction);
+    if (!plan.ok) return reply.code(400).send({ error: plan.error, message: plan.reason });
+
+    const agents = await pool.query<{
+      id: string;
+      hostname: string;
+      status: string;
+      last_seen: Date;
+    }>(
+      `SELECT id, hostname, status, last_seen FROM agents
+       WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+      [ctx.tenantId, agentIds],
+    );
+    if (agents.rows.length !== agentIds.length) {
+      return reply.code(404).send({ error: 'agents_not_found' });
+    }
+    const offline = agents.rows.filter(
+      (agent) => agent.status !== 'online' || agent.last_seen.getTime() < Date.now() - 90_000,
+    );
+    if (offline.length > 0) {
+      return reply.code(409).send({
+        error: 'agents_offline',
+        agents: offline.map((agent) => ({ id: agent.id, hostname: agent.hostname })),
+      });
+    }
+
+    const created = [];
+    for (const agent of agents.rows) {
+      const command = await commands.create({
+        tenantId: ctx.tenantId,
+        agentId: agent.id,
+        type: 'agent_instruction',
+        input: { instruction: body.instruction.trim(), intent: plan.intent, readOnly: true },
+        requestedBy: ctx.userId,
+        instruction: body.instruction.trim(),
+        intent: plan.intent as unknown as Record<string, unknown>,
+      });
+      if (command) {
+        created.push({ agentId: agent.id, hostname: agent.hostname, instructionId: command.id, status: command.status });
+      }
+    }
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'agent.instruction.batch',
+      resource: created.map((item) => item.instructionId).join(','),
+      result: 'success',
+      metadata: { agentIds: created.map((item) => item.agentId), intent: plan.intent.kind },
+    });
+    return reply.code(202).send({ intent: plan.intent, instructions: created });
+  });
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/instructions', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

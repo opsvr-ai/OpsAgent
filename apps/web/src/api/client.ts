@@ -629,6 +629,26 @@ export async function getAgentInstruction(
   return request<AgentInstructionDetail>(`/api/agents/${agentId}/instructions/${instructionId}`);
 }
 
+export interface AgentBatchInstructionCreated {
+  readonly intent: AgentInstructionIntent;
+  readonly instructions: Array<{
+    readonly agentId: string;
+    readonly hostname: string;
+    readonly instructionId: string;
+    readonly status: string;
+  }>;
+}
+
+export async function createAgentInstructionsBatch(
+  agentIds: string[],
+  instruction: string,
+): Promise<AgentBatchInstructionCreated> {
+  return request<AgentBatchInstructionCreated>('/api/agents/instructions', {
+    method: 'POST',
+    body: JSON.stringify({ agentIds, instruction }),
+  });
+}
+
 export interface AgentFleetResponse {
   readonly items: AgentSummary[];
   readonly total: number;

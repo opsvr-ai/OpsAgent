@@ -82,6 +82,28 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('creates one read-only instruction for each batch target', async () => {
+    const secondId = randomUUID();
+    await pool.query(
+      `INSERT INTO agents (id, tenant_id, name, hostname, os, arch, version, status, agent_key, last_seen, capabilities)
+       VALUES ($1, $2, 'batch-agent', 'batch-agent', 'linux', 'amd64', '0.2.0', 'online', 'batch-key', now(), '["inspect"]'::jsonb)`,
+      [secondId, tenantId],
+    );
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/agents/instructions',
+      headers: { cookie },
+      payload: { agentIds: [agentId, secondId], instruction: '看看磁盘使用率' },
+    });
+    expect(response.statusCode).toBe(202);
+    const body = response.json() as { instructions: Array<{ agentId: string }> };
+    expect(body.instructions).toHaveLength(2);
+    expect(new Set(body.instructions.map((item) => item.agentId))).toEqual(new Set([agentId, secondId]));
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

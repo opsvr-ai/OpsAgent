@@ -765,6 +765,18 @@ export async function replayApprovalWebhookDelivery(id: string): Promise<void> {
   });
 }
 
+export interface ApprovalSideEffectFailure {
+  readonly id: string;
+  readonly approvalId: string | null;
+  readonly effect: string;
+  readonly error: string | null;
+  readonly createdAt: string;
+}
+
+export async function listApprovalSideEffectFailures(): Promise<ApprovalSideEffectFailure[]> {
+  return request<ApprovalSideEffectFailure[]>('/api/agent-instruction-approvals/side-effect-failures');
+}
+
 export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;

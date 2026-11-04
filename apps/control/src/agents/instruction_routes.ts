@@ -517,6 +517,11 @@ export function registerAgentInstructionRoutes(
           });
         } catch (error) {
           console.error('approval deny side effect failed', approval.id, error);
+          await pool.query(
+            `INSERT INTO approval_side_effect_failures (tenant_id, approval_id, effect, error)
+             VALUES ($1, $2, 'approval_denied_notification', $3)`,
+            [ctx.tenantId, approval.id, error instanceof Error ? error.message : String(error)],
+          ).catch(() => undefined);
         }
         return reply.send({ status: 'denied', approvalId: approval.id });
       }
@@ -620,6 +625,11 @@ export function registerAgentInstructionRoutes(
         });
       } catch (error) {
         console.error('approval approve side effect failed', approval.id, error);
+        await pool.query(
+          `INSERT INTO approval_side_effect_failures (tenant_id, approval_id, effect, error)
+           VALUES ($1, $2, 'approval_approved_notification', $3)`,
+          [ctx.tenantId, approval.id, error instanceof Error ? error.message : String(error)],
+        ).catch(() => undefined);
       }
       return reply.code(202).send({
         status: 'approved',
@@ -752,6 +762,37 @@ export function registerAgentInstructionRoutes(
       return reply.code(202).send({ status: 'pending', deliveryId: delivery.id });
     },
   );
+
+  app.get('/api/agent-instruction-approvals/side-effect-failures', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'approval.decide');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const result = await pool.query<{
+      id: string;
+      approval_id: string | null;
+      effect: string;
+      error: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, approval_id, effect, error, created_at
+       FROM approval_side_effect_failures
+       WHERE tenant_id = $1 AND resolved_at IS NULL
+       ORDER BY created_at DESC LIMIT 50`,
+      [ctx.tenantId],
+    );
+    return reply.send(result.rows.map((row) => ({
+      id: row.id,
+      approvalId: row.approval_id,
+      effect: row.effect,
+      error: row.error,
+      createdAt: row.created_at.toISOString(),
+    })));
+  });
 
   app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
     const ctx = await context(pool, request);
@@ -955,6 +996,11 @@ export function registerAgentInstructionRoutes(
       }, pool);
       } catch (error) {
         console.error('batch approval side effect failed', row.id, error);
+        await pool.query(
+          `INSERT INTO approval_side_effect_failures (tenant_id, approval_id, effect, error)
+           VALUES ($1, $2, 'batch_approval_notification', $3)`,
+          [ctx.tenantId, row.id, error instanceof Error ? error.message : String(error)],
+        ).catch(() => undefined);
       }
     }
     return reply.send({ results });

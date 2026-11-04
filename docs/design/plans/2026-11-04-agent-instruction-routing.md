@@ -260,6 +260,20 @@ Webhook
 
 单条批准 / 拒绝同样隔离副作用：审批状态已提交，通知失败不影响响应。
 
+副作用失败持久化：
+
+```text
+approval_side_effect_failures
+  approval_id
+  effect
+  error
+  created_at / resolved_at
+
+GET /api/agent-instruction-approvals/side-effect-failures
+```
+
+待审批页面展示未解决的副作用失败。
+
 并发保护：
 
 ```text

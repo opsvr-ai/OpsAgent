@@ -5,10 +5,12 @@ import {
   decideAgentInstructionApprovals,
   decideApproval,
   listAgentInstructionApprovals,
+  listApprovalSideEffectFailures,
   listApprovalWebhookDeliveries,
   listApprovals,
   replayApprovalWebhookDelivery,
   type AgentInstructionApproval,
+  type ApprovalSideEffectFailure,
   type ApprovalSummary,
   type ApprovalWebhookDelivery,
 } from '../api/client.js';
@@ -32,6 +34,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
   const [instructionHistory, setInstructionHistory] = useState<AgentInstructionApproval[]>([]);
   const [webhookFailures, setWebhookFailures] = useState<ApprovalWebhookDelivery[]>([]);
+  const [sideEffectFailures, setSideEffectFailures] = useState<ApprovalSideEffectFailure[]>([]);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +50,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
       .catch(() => undefined);
     void listApprovalWebhookDeliveries('failed')
       .then(setWebhookFailures)
+      .catch(() => undefined);
+    void listApprovalSideEffectFailures()
+      .then(setSideEffectFailures)
       .catch(() => undefined);
   }, []);
 
@@ -142,6 +148,22 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className="muted">尝试 {delivery.attempts} 次</span>
                   <span className="muted">{new Date(delivery.createdAt).toLocaleString()}</span>
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => void replayDelivery(delivery.id)}>重放</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+      {sideEffectFailures.length > 0 ? (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><h2>审批副作用失败</h2><span className="badge badge-warn">{sideEffectFailures.length} 条</span></div>
+          <div className="card-body">
+            <div className="command-history">
+              {sideEffectFailures.map((failure) => (
+                <div key={failure.id} className="command-row">
+                  <span className="mono">{failure.effect}</span>
+                  <span className="muted">{failure.error ?? '未知错误'}</span>
+                  <span className="muted">{new Date(failure.createdAt).toLocaleString()}</span>
                 </div>
               ))}
             </div>

@@ -83,7 +83,7 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime
     }
 
     let plan = await platform.detect(row.tenant_id, question);
-    if (!plan && /(磁盘|分区|内存|cpu|进程|端口|服务|日志|系统|配置|部署|路径|主机|agent|告警|性能|负载|网络|内核|时间|状态|检查|查看|巡检)/i.test(question)) {
+    if (!plan && (/\/[^\s，。！？；;:：]+/.test(question) || /(磁盘|分区|内存|cpu|进程|端口|服务|日志|系统|配置|部署|路径|主机|agent|告警|性能|负载|网络|内核|时间|状态|检查|查看|看看|文件|目录|读取|巡检)/i.test(question))) {
       plan = await platform.detect(row.tenant_id, `${row.hostname} ${question}`);
     }
     let platformAnswer = '';
@@ -94,7 +94,7 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime
         if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
       }
       platformAnswer = chunks.join('').trim();
-      if (platformAnswer && plan.kind !== 'agent') {
+      if (platformAnswer && plan.kind !== 'agent' && plan.kind !== 'exec') {
         return reply.send({ supported: true, hostname: row.hostname, answer: platformAnswer });
       }
     }

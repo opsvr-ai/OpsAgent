@@ -40,6 +40,7 @@ docker compose up -d --build control web
 - 主机问题会由 Agent 执行只读检查命令 `inspect`，按问题采集磁盘分区、CPU、内存、服务、端口、进程、软件包、网络、日志、容器和 Agent 部署路径，而不是只返回固定指标
 - Agent 每 30 秒自巡航磁盘/内存，异常主动上报并在「操作系统智能体」页和消息中心展示，恢复后自动关闭告警
 - 异常上报会携带配置、指标、应用部署、应用日志、系统日志、进程和 Agent 日志诊断包；服务端自动触发所属应用系统的全节点健康检查并生成根因
+- 支持自然语言路径排查（如「看看 /opt/opsagent/logs 目录」），Agent 执行 allowlist 内的只读命令（ls/tail/cat/grep/find/ps/ss/journalctl/docker logs/systemctl status 等），写操作默认拒绝
 - 修改 Agent 代码后执行 `pnpm agent:dist` 重建 Linux/Windows 安装包
 
 在容器中部署一个受管 Agent（开发验证用）：

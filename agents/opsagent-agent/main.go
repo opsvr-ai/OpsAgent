@@ -80,6 +80,8 @@ func runCommandWithInput(commandType string, metrics map[string]any, input map[s
 			}
 		}
 		result = inspectHost(question, metrics)
+	case "exec":
+		result = execHost(input)
 	default:
 		result["ok"] = false
 		result["error"] = "unsupported_command"

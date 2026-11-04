@@ -99,6 +99,7 @@
 - 异常上报携带系统配置、指标、应用部署、应用/系统日志、进程和 Agent 日志诊断包
 - 服务端收到节点异常后，自动检查该节点所属应用系统的全部节点，在「操作系统智能体」页生成根因定位卡片并写入消息中心
 - 主机自然语言问题会下发只读 `inspect` 命令：磁盘分区、CPU、内存、服务、端口、进程、软件包、网络、日志、容器、Agent 部署路径等
+- 支持路径/日志排查，如「看看 /opt/opsagent/logs 目录」「查看 /opt/opsagent/logs/agent.log 最后 50 行」；只读 exec allowlist 包含 ls/tail/cat/grep/find/ps/ss/journalctl/docker logs/systemctl status 等，写操作默认拒绝
 - 主动上报的告警会进入「操作系统智能体」页的告警区和消息中心
 - 支持命令：
   - diagnostics

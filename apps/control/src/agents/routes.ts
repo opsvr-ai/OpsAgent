@@ -318,7 +318,7 @@ export function registerAgentRoutes(
     const body = request.body as { type?: unknown; input?: unknown } | undefined;
     if (
       typeof body?.type !== 'string' ||
-      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect'].includes(body.type)
+      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect', 'exec'].includes(body.type)
     ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }

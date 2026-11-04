@@ -101,6 +101,16 @@ describe('PlatformAssistant', () => {
     });
   });
 
+  it('routes path questions to a read-only exec command', async () => {
+    const { assistant, agents } = fakes();
+    agents.findByMention.mockResolvedValue(agent);
+    const plan = await assistant.detect('tenant', '看看 /opt/opsagent/logs 目录下有什么文件');
+    expect(plan).toMatchObject({
+      kind: 'exec',
+      argv: ['ls', '-lah', '/opt/opsagent/logs'],
+    });
+  });
+
   it('answers app system health and root cause questions', async () => {
     const { assistant, agents, health } = fakes();
     agents.findByMention.mockResolvedValue(null);

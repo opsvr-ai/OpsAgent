@@ -29,6 +29,12 @@ export type PlatformPlan =
       readonly mode: 'inspect' | 'discovery';
     }
   | {
+      readonly kind: 'exec';
+      readonly agent: AgentRecord;
+      readonly query: string;
+      readonly argv: string[];
+    }
+  | {
       readonly kind: 'app-health';
       readonly appSystemId: string;
       readonly appSystemName: string;
@@ -79,6 +85,21 @@ export class PlatformAssistant {
       if (alertQuestion && !analysisQuestion) {
         return { kind: 'host-alerts', agent: mentioned, query: text };
       }
+      const pathMatch = text.match(/(?:^|\s)(\/[^\s，。！？；;:：]+)/);
+      const path = pathMatch?.[1]?.replace(/[，。！？；;:：]+$/g, '');
+      if (path && /(看看|查看|列出|目录|文件|日志|内容|权限|大小|读取|打开|tail|ls)/i.test(text)) {
+        let argv: string[];
+        const lineMatch = text.match(/(?:最后|末尾)\s*(\d{1,3})\s*行/);
+        const lines = Math.min(Number.parseInt(lineMatch?.[1] ?? '100', 10) || 100, 500);
+        if (path.endsWith('.log') || /tail|最后|末尾|日志内容|内容/i.test(text)) {
+          argv = ['tail', '-n', String(lines), path];
+        } else if (/(权限|属性|大小|stat)/i.test(text)) {
+          argv = ['stat', path];
+        } else {
+          argv = ['ls', '-lah', path];
+        }
+        return { kind: 'exec', agent: mentioned, query: text, argv };
+      }
       return {
         kind: 'agent',
         agent: mentioned,
@@ -124,6 +145,42 @@ export class PlatformAssistant {
         lines.push('', '可以在「操作系统智能体」页打开该主机，在「告警」标签查看完整记录。');
         yield this.assistant(sessionId, lines.join('\n'));
       }
+      yield this.done(sessionId);
+      return;
+    }
+
+    if (plan.kind === 'exec') {
+      yield this.toolCall(sessionId, 'opsagent.exec', {
+        hostname: plan.agent.hostname,
+        argv: plan.argv,
+      }, 'R1');
+      const command = await this.waitCommand(tenantId, plan.agent.id, 'exec', { argv: plan.argv });
+      const result = typeof command?.result === 'object' && command.result !== null
+        ? command.result as Record<string, unknown>
+        : {};
+      yield this.toolResult(sessionId, 'opsagent.exec', {
+        commandId: command?.id ?? null,
+        status: command?.status ?? 'failed',
+        exitCode: result.exitCode ?? null,
+      });
+      if (!command || command.status !== 'completed') {
+        yield this.assistant(sessionId, `命令 **${plan.argv.join(' ')}** 已下发，当前状态为 **${command?.status ?? 'failed'}**。Agent 下次心跳后执行，可在命令历史查看结果。`);
+        yield this.done(sessionId);
+        return;
+      }
+      const stdout = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+      const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+      const lines = [
+        '## 命令执行结果',
+        '',
+        `\`$ ${plan.argv.join(' ')}\``,
+        '',
+      ];
+      if (stdout) lines.push('```text', stdout, '```');
+      if (stderr) lines.push('', '### stderr', '```text', stderr, '```');
+      lines.push('', `退出码：**${String(result.exitCode ?? 'unknown')}**`);
+      if (!stdout && !stderr) lines.push('', '命令执行完成，没有输出。');
+      yield this.assistant(sessionId, lines.join('\n'));
       yield this.done(sessionId);
       return;
     }

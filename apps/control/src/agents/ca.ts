@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BasicConstraintsExtension,
+  CRLDistributionPointsExtension,
   ExtendedKeyUsage,
   ExtendedKeyUsageExtension,
   type Extension,
@@ -172,6 +173,8 @@ export class AgentCaService {
         ...(options.ipAddresses ?? []).map((value) => ({ type: 'ip' as const, value })),
       ]));
     }
+    const crlUrl = process.env.OPSAGENT_CRL_URL;
+    if (crlUrl) extensions.push(new CRLDistributionPointsExtension([crlUrl]));
     const certificate = await X509CertificateGenerator.create({
       serialNumber,
       subject: csr.subject,

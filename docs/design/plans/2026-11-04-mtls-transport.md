@@ -239,12 +239,25 @@ POST /api/platform/agents/:id/certificate/revoke
 - 通过 `tlsServer.setSecureContext({ crl })` 热更新
 - Node TLS 在客户端证书校验时使用 CRL
 
+公开分发：
+
+```text
+GET /api/pki/crl
+Content-Type: application/pkix-crl
+```
+
+签发的客户端证书包含 CRL Distribution Points 扩展：
+
+```text
+OPSAGENT_CRL_URL=http://control.example:8080/api/pki/crl
+```
+
 语义化 403 检查作为第二层兜底。
 
 ## 未完成
 
 - CA 轮换、密钥托管
-- CRL 分发端点与 OCSP
+- OCSP
 - 部署脚本自动分发 CA
 - 服务端证书到期事件接入消息中心
 - 到期事件接入工单/通知路由

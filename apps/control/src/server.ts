@@ -21,6 +21,7 @@ import type { StudioGenerator } from './studio/service.js';
 import { registerIncidentRoutes } from './incidents/routes.js';
 import { registerDeploymentRoutes } from './deployments/routes.js';
 import { registerDesktopUpdateRoutes } from './desktop-updates/routes.js';
+import { registerPkiRoutes } from './pki/routes.js';
 import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
@@ -106,5 +107,6 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   }
 
   registerDesktopUpdateRoutes(app, options.desktopUpdateDir);
+  registerPkiRoutes(app);
   return app;
 }

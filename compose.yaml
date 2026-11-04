@@ -99,6 +99,7 @@ services:
       OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist
       OPSAGENT_DESKTOP_UPDATE_DIR: /app/apps/desktop/release/feed
       OPSAGENT_PUBLIC_URL: http://127.0.0.1:8080
+      OPSAGENT_CRL_URL: http://127.0.0.1:8080/api/pki/crl
       OPSAGENT_TLS_PORT: "8443"
       OPSAGENT_TLS_AUTO: "true"
       OPSAGENT_TLS_HOSTNAMES: localhost,opsagent-control

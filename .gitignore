@@ -6,6 +6,7 @@ coverage/
 .DS_Store
 .pnpm-store/
 apps/control/.dev-certs/
+.opsagent-ca/
 playwright-report/
 test-results/
 

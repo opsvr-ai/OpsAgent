@@ -2,9 +2,8 @@
 
 ## 状态
 
-已支持由外部 CA 签发的证书进行控制面 → Agent 的双向 TLS，并支持
-Agent 首次注册时自动提交 CSR、控制面自动签发客户端证书。
-CA 的生成、持久化、轮换和吊销仍未完成。
+已支持由外部 CA 或控制面内置 CA 签发证书，并支持 Agent 首次注册时
+自动提交 CSR、控制面自动签发客户端证书。CA 轮换和吊销仍未完成。
 
 ## 控制面
 
@@ -48,6 +47,23 @@ OPSAGENT_AGENT_CA_CERT=/etc/opsagent/ca/ca.pem
 OPSAGENT_AGENT_CA_KEY=/etc/opsagent/ca/ca-key.pem
 ```
 
+内网部署可以不提供上述文件，控制面会自动生成并持久化内部 CA：
+
+```text
+OPSAGENT_AGENT_CA_DIR=.opsagent-ca
+OPSAGENT_AGENT_CA_AUTO=true
+```
+
+生成文件：
+
+```text
+.opsagent-ca/ca.pem
+.opsagent-ca/ca-key.pem
+```
+
+私钥权限为 0600，目录已加入 `.gitignore`。该 CA 仅用于内网 Agent
+客户端证书，不用于公网信任。
+
 Agent 配置：
 
 ```text
@@ -88,7 +104,6 @@ apps/control/.dev-certs/
 
 ## 未完成
 
-- 控制面 CA 自动生成与持久化
-- 证书轮换、吊销与到期告警
+- CA 轮换、密钥托管与吊销
 - 部署脚本自动分发 CA
 - 证书续期与旧证书并行

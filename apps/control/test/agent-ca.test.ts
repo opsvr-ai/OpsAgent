@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   Pkcs10CertificateRequestGenerator,
@@ -37,5 +40,30 @@ describe('agent CA', () => {
     const certificate = new X509Certificate(issued.certificate);
     expect(certificate.subject).toContain('agent-test');
     expect(certificate.issuer).toContain('OpsAgent Test CA');
+  });
+
+  it('creates and reuses an internal CA directory', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'opsagent-ca-'));
+    const previous = process.env.OPSAGENT_AGENT_CA_DIR;
+    process.env.OPSAGENT_AGENT_CA_DIR = directory;
+    delete process.env.OPSAGENT_AGENT_CA_CERT;
+    delete process.env.OPSAGENT_AGENT_CA_KEY;
+    try {
+      const first = await AgentCaService.fromEnv();
+      expect(first).not.toBeNull();
+      expect(readFileSync(join(directory, 'ca.pem'), 'utf8')).toContain('BEGIN CERTIFICATE');
+      const second = await AgentCaService.fromEnv();
+      const keys = await crypto.subtle.generateKey(algorithm, true, ['sign', 'verify']);
+      const csr = await Pkcs10CertificateRequestGenerator.create({
+        name: 'CN=internal-agent',
+        keys,
+        signingAlgorithm: signing,
+      });
+      const issued = await second!.issue(csr.toString('pem'));
+      expect(issued.ca).toBe(readFileSync(join(directory, 'ca.pem'), 'utf8'));
+    } finally {
+      if (previous === undefined) delete process.env.OPSAGENT_AGENT_CA_DIR;
+      else process.env.OPSAGENT_AGENT_CA_DIR = previous;
+    }
   });
 });

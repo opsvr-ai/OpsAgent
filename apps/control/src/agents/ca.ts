@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { createPrivateKey, randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   BasicConstraintsExtension,
   ExtendedKeyUsage,
@@ -30,10 +31,49 @@ export class AgentCaService {
   static async fromEnv(): Promise<AgentCaService | null> {
     const certFile = process.env.OPSAGENT_AGENT_CA_CERT;
     const keyFile = process.env.OPSAGENT_AGENT_CA_KEY;
-    if (!certFile || !keyFile) return null;
-    const caPem = readFileSync(certFile, 'utf8');
-    const keyPem = readFileSync(keyFile, 'utf8');
-    return AgentCaService.create(caPem, keyPem);
+    if (certFile && keyFile) {
+      const caPem = readFileSync(certFile, 'utf8');
+      const keyPem = readFileSync(keyFile, 'utf8');
+      return AgentCaService.create(caPem, keyPem);
+    }
+    if (process.env.OPSAGENT_AGENT_CA_AUTO === 'false') return null;
+    return AgentCaService.createInternalCa(process.env.OPSAGENT_AGENT_CA_DIR ?? '.opsagent-ca');
+  }
+
+  private static async createInternalCa(directory: string): Promise<AgentCaService> {
+    const certFile = join(directory, 'ca.pem');
+    const keyFile = join(directory, 'ca-key.pem');
+    if (!existsSync(certFile) || !existsSync(keyFile)) {
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const keys = await crypto.subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify'],
+      );
+      const certificate = await X509CertificateGenerator.createSelfSigned({
+        name: 'CN=OpsAgent Internal CA',
+        keys,
+        signingAlgorithm: { name: 'ECDSA', hash: 'SHA-256' },
+        notBefore: new Date(Date.now() - 60_000),
+        notAfter: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000),
+        extensions: [
+          new BasicConstraintsExtension(true, 0, true),
+          new KeyUsagesExtension(
+            KeyUsageFlags.keyCertSign | KeyUsageFlags.cRLSign | KeyUsageFlags.digitalSignature,
+            true,
+          ),
+        ],
+      });
+      const keyDer = await crypto.subtle.exportKey('pkcs8', keys.privateKey);
+      const keyBase64 = Buffer.from(keyDer).toString('base64').replace(/(.{64})/g, '$1\n');
+      writeFileSync(certFile, certificate.toString('pem'), { mode: 0o600 });
+      writeFileSync(
+        keyFile,
+        `-----BEGIN PRIVATE KEY-----\n${keyBase64}\n-----END PRIVATE KEY-----\n`,
+        { mode: 0o600 },
+      );
+    }
+    return AgentCaService.create(readFileSync(certFile, 'utf8'), readFileSync(keyFile, 'utf8'));
   }
 
   static async create(caPem: string, keyPem: string): Promise<AgentCaService> {

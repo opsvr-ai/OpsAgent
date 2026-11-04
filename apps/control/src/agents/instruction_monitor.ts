@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { notifyApprovalWebhook } from './approval_webhook.js';
 
 /** Expires pending/dispatched natural-language instructions after the signed command lifetime. */
 export class AgentInstructionMonitor {
@@ -33,13 +34,14 @@ export class AgentInstructionMonitor {
       const expired = await this.pool.query<{
         tenant_id: string;
         id: string;
+        agent_id: string;
         service: string | null;
         instruction: string;
       }>(
         `UPDATE agent_instruction_approvals
          SET status = 'expired', decided_at = now()
          WHERE status = 'pending' AND expires_at < now()
-         RETURNING tenant_id, id, service, instruction`,
+         RETURNING tenant_id, id, agent_id, service, instruction`,
       );
       for (const approval of expired.rows) {
         await this.pool.query(
@@ -51,10 +53,20 @@ export class AgentInstructionMonitor {
             `${approval.service ?? approval.instruction} 的审批已超过 24 小时，未执行。`,
           ],
         );
+        notifyApprovalWebhook({
+          type: 'approval_expired',
+          tenantId: approval.tenant_id,
+          approvalId: approval.id,
+          agentId: approval.agent_id,
+          service: approval.service,
+          instruction: approval.instruction,
+        });
       }
 
       const expiring = await this.pool.query<{
         tenant_id: string;
+        id: string;
+        agent_id: string;
         service: string | null;
         instruction: string;
         expires_at: Date;
@@ -63,7 +75,7 @@ export class AgentInstructionMonitor {
          SET reminded_at = now()
          WHERE status = 'pending' AND reminded_at IS NULL
            AND expires_at > now() AND expires_at <= now() + interval '1 hour'
-         RETURNING tenant_id, service, instruction, expires_at`,
+         RETURNING tenant_id, id, agent_id, service, instruction, expires_at`,
       );
       for (const approval of expiring.rows) {
         await this.pool.query(
@@ -75,6 +87,14 @@ export class AgentInstructionMonitor {
             `${approval.service ?? approval.instruction} 的审批将在 ${approval.expires_at.toISOString()} 过期，请及时处理。`,
           ],
         );
+        notifyApprovalWebhook({
+          type: 'approval_expiring',
+          tenantId: approval.tenant_id,
+          approvalId: approval.id,
+          agentId: approval.agent_id,
+          service: approval.service,
+          instruction: approval.instruction,
+        });
       }
     } catch (error) {
       console.error('agent instruction monitor failed', error);

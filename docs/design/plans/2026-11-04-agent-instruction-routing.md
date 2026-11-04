@@ -310,6 +310,22 @@ Agent 写操作已拒绝
 审批已过期
 ```
 
+外部通知 Webhook：
+
+```text
+OPSAGENT_APPROVAL_WEBHOOK_URL
+OPSAGENT_APPROVAL_WEBHOOK_SECRET
+
+事件类型：
+approval_requested / approval_approved / approval_denied
+approval_canceled / approval_expired / approval_expiring
+
+HMAC-SHA256 头：
+x-opsagent-signature: sha256=<hex>
+```
+
+Webhook 异步发送，3 秒超时，失败不影响审批操作。
+
 ### 指令历史
 
 ```http

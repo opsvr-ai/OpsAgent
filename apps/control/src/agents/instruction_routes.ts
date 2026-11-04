@@ -7,6 +7,7 @@ import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import type { AuditWriter } from '../audit/writer.js';
 import { AgentCommandService } from './commands.js';
 import { planInstruction } from './instruction_planner.js';
+import { notifyApprovalWebhook } from './approval_webhook.js';
 
 async function context(pool: Pool, request: FastifyRequest) {
   const token = request.cookies[SESSION_COOKIE];
@@ -175,6 +176,18 @@ export function registerAgentInstructionRoutes(
          VALUES ($1, 'Agent 批量写操作待审批', $2, 'warning')`,
         [ctx.tenantId, `${approvals.length} 台：${plan.intent.kind} ${service}`],
       );
+      for (const item of approvals) {
+        notifyApprovalWebhook({
+          type: 'approval_requested',
+          tenantId: ctx.tenantId,
+          approvalId: item.approvalId,
+          agentId: item.agentId,
+          hostname: item.hostname,
+          action: plan.intent.kind,
+          service,
+          instruction: body.instruction.trim(),
+        });
+      }
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,
@@ -484,6 +497,15 @@ export function registerAgentInstructionRoutes(
            VALUES ($1, 'Agent 写操作已拒绝', $2, 'info')`,
           [ctx.tenantId, `${approval.service ?? approval.instruction}${reason ? `：${reason}` : ''}`],
         );
+        notifyApprovalWebhook({
+          type: 'approval_denied',
+          tenantId: ctx.tenantId,
+          approvalId: approval.id,
+          agentId: approval.agent_id,
+          action: approval.action,
+          service: approval.service,
+          instruction: approval.instruction,
+        });
         await audit.write({
           tenantId: ctx.tenantId,
           actorId: ctx.userId,
@@ -567,6 +589,16 @@ export function registerAgentInstructionRoutes(
          VALUES ($1, 'Agent 写操作已批准', $2, 'info')`,
         [ctx.tenantId, `${target.hostname}：${intentKind} ${service}`],
       );
+      notifyApprovalWebhook({
+        type: 'approval_approved',
+        tenantId: ctx.tenantId,
+        approvalId: approval.id,
+        agentId: approval.agent_id,
+        hostname: target.hostname,
+        action: intentKind,
+        service,
+        instruction: approval.instruction,
+      });
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,
@@ -596,8 +628,17 @@ export function registerAgentInstructionRoutes(
         if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
         throw error;
       }
-      const row = await pool.query<{ id: string; requested_by: string; status: string }>(
-        `SELECT id, requested_by, status FROM agent_instruction_approvals
+      const row = await pool.query<{
+        id: string;
+        requested_by: string;
+        status: string;
+        agent_id: string;
+        action: string;
+        service: string | null;
+        instruction: string;
+      }>(
+        `SELECT id, requested_by, status, agent_id, action, service, instruction
+         FROM agent_instruction_approvals
          WHERE tenant_id = $1 AND id = $2`,
         [ctx.tenantId, request.params.approvalId],
       );
@@ -616,6 +657,15 @@ export function registerAgentInstructionRoutes(
         action: 'agent.instruction.approval.canceled',
         resource: approval.id,
         result: 'success',
+      });
+      notifyApprovalWebhook({
+        type: 'approval_canceled',
+        tenantId: ctx.tenantId,
+        approvalId: approval.id,
+        agentId: approval.agent_id,
+        action: approval.action,
+        service: approval.service,
+        instruction: approval.instruction,
       });
       return reply.send({ status: 'canceled', approvalId: approval.id });
     },
@@ -765,6 +815,16 @@ export function registerAgentInstructionRoutes(
          VALUES ($1, 'Agent 写操作待审批', $2, 'warning')`,
         [ctx.tenantId, `${target.hostname}：${plan.intent.kind} ${service}`],
       );
+      notifyApprovalWebhook({
+        type: 'approval_requested',
+        tenantId: ctx.tenantId,
+        approvalId: createdApproval.id,
+        agentId: request.params.id,
+        hostname: target.hostname,
+        action: plan.intent.kind,
+        service,
+        instruction: body.instruction.trim(),
+      });
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,

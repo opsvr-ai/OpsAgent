@@ -143,6 +143,16 @@ describe('agent registry API', () => {
       supported: true,
       answer: expect.stringContaining('OpsAgent'),
     });
+
+    const stream = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/chat/stream`,
+      payload: { agentKey: body.agentKey, question: '你能做什么' },
+    });
+    expect(stream.statusCode).toBe(200);
+    expect(stream.headers['content-type']).toContain('text/event-stream');
+    expect(stream.body).toContain('event: delta');
+    expect(stream.body).toContain('event: done');
     const command = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/commands`,

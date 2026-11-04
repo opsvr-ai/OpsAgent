@@ -71,7 +71,7 @@ Linux 主机标准安装目录为 `/opt/opsagent`：
 opsagent-agent
 ```
 
-进入交互式对话。后台服务使用 `opsagent-agent --service`，`--version`、`--help` 可查看版本和用法。
+CLI 使用 SSE 接收状态和回答增量，检查执行、模型生成过程会实时显示；后台服务使用 `opsagent-agent --service`，`--version`、`--help` 可查看版本和用法。
 
 CLI 对话链路：
 

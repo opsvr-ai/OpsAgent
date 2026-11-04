@@ -104,6 +104,93 @@ func cliPost(url string, payload any, target any) error {
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
+func askPlatformStream(state agentState, question string, onDelta func(string), onStatus func(string)) (bool, error) {
+	if state.AgentID == "" || state.AgentKey == "" {
+		return false, fmt.Errorf("agent state is missing; start opsagent-agent --service first")
+	}
+	controlURL := state.ControlURL
+	if controlURL == "" {
+		controlURL = env("OPSAGENT_CONTROL_URL", "http://127.0.0.1:8080")
+	}
+	body, err := json.Marshal(map[string]any{"agentKey": state.AgentKey, "question": question})
+	if err != nil {
+		return false, err
+	}
+	request, err := http.NewRequest(http.MethodPost, strings.TrimRight(controlURL, "/")+"/api/agents/"+state.AgentID+"/chat/stream", bytes.NewReader(body))
+	if err != nil {
+		return false, err
+	}
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("accept", "text/event-stream")
+	client := &http.Client{Timeout: 120 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return false, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("stream returned %d", response.StatusCode)
+	}
+	scanner := bufio.NewScanner(response.Body)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	var eventType string
+	var data string
+	got := false
+	streamError := ""
+	dispatch := func() {
+		if eventType == "" || data == "" {
+			eventType, data = "", ""
+			return
+		}
+		var payload struct {
+			Text    string `json:"text"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal([]byte(data), &payload); err != nil {
+			eventType, data = "", ""
+			return
+		}
+		switch eventType {
+		case "delta":
+			if payload.Text != "" {
+				onDelta(payload.Text)
+				got = true
+			}
+		case "status":
+			if onStatus != nil && payload.Text != "" {
+				onStatus(payload.Text)
+			}
+		case "error":
+			streamError = payload.Message
+		}
+		eventType, data = "", ""
+	}
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			dispatch()
+			continue
+		}
+		if strings.HasPrefix(line, "event: ") {
+			eventType = strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+			continue
+		}
+		if strings.HasPrefix(line, "data: ") {
+			data = strings.TrimPrefix(line, "data: ")
+		}
+	}
+	dispatch()
+	if err := scanner.Err(); err != nil && !got {
+		return got, err
+	}
+	if streamError != "" {
+		fmt.Println()
+		fmt.Println(streamError)
+		return true, nil
+	}
+	return got, nil
+}
+
 func askPlatform(state agentState, question string) (string, bool, error) {
 	if state.AgentID == "" || state.AgentKey == "" {
 		return "", false, fmt.Errorf("agent state is missing; start opsagent-agent --service first")
@@ -189,12 +276,36 @@ func runCLI(paths agentPaths) {
 			continue
 		}
 		if stateErr == nil {
-			answer, supported, err := askPlatform(state, question)
-			if err == nil && supported && answer != "" {
+			printed := false
+			onDelta := func(text string) {
+				if !printed {
+					fmt.Println()
+					printed = true
+				}
+				fmt.Print(text)
+			}
+			onStatus := func(text string) {
+				if !printed {
+					fmt.Printf("\n[OpsAgent] %s\n", text)
+				}
+			}
+			_, err := askPlatformStream(state, question, onDelta, onStatus)
+			if printed {
 				fmt.Println()
-				fmt.Println(strings.TrimSpace(answer))
 				fmt.Println()
 				continue
+			}
+			if err == nil {
+				answer, supported, fallbackErr := askPlatform(state, question)
+				if fallbackErr == nil && supported && answer != "" {
+					fmt.Println()
+					fmt.Println(strings.TrimSpace(answer))
+					fmt.Println()
+					continue
+				}
+				if fallbackErr != nil {
+					err = fallbackErr
+				}
 			}
 			if err != nil {
 				fmt.Printf("平台对话不可用（%v），切换为本机只读检查。\n", err)

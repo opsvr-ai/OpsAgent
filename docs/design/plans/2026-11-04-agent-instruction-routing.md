@@ -285,6 +285,7 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
   → 审批 Webhook 成功 / 失败
   → 运维告警 成功 / 失败
   → Web 支持 24 小时 / 7 天切换
+  → 折线图展示双通道成功 / 失败
   → 支持导出 CSV
 ```
 

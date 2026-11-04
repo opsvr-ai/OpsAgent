@@ -222,6 +222,13 @@ export function Approvals({ onBack }: ApprovalsProps) {
       item.operationsFailed,
     ]),
   );
+  const chartHeight = 100;
+  const chartLine = (key: keyof Pick<NotificationStatPoint, 'approvalDelivered' | 'approvalFailed' | 'operationsDelivered' | 'operationsFailed'>): string =>
+    notificationStats.map((point, index) => {
+      const x = notificationStats.length <= 1 ? 300 : (index / (notificationStats.length - 1)) * 600;
+      const y = chartHeight - (point[key] / maxNotification) * chartHeight;
+      return `${x},${y}`;
+    }).join(' ');
 
   return (
     <DesignShell
@@ -251,6 +258,18 @@ export function Approvals({ onBack }: ApprovalsProps) {
             </div>
           </div>
           <div className="card-body">
+            <svg viewBox="0 0 600 100" preserveAspectRatio="none" style={{ width: '100%', height: 100, marginBottom: 8 }}>
+              <polyline fill="none" stroke="var(--ok)" strokeWidth="1.5" points={chartLine('approvalDelivered')} />
+              <polyline fill="none" stroke="var(--danger)" strokeWidth="1.5" points={chartLine('approvalFailed')} />
+              <polyline fill="none" stroke="var(--accent)" strokeWidth="1.5" points={chartLine('operationsDelivered')} />
+              <polyline fill="none" stroke="var(--warn)" strokeWidth="1.5" points={chartLine('operationsFailed')} />
+            </svg>
+            <div className="row-sm" style={{ marginBottom: 8 }}>
+              <span className="badge badge-ok">审批成功</span>
+              <span className="badge badge-danger">审批失败</span>
+              <span className="badge badge-neutral">运维成功</span>
+              <span className="badge badge-warn">运维失败</span>
+            </div>
             <div className="command-history">
               {notificationStats.map((point) => (
                 <div key={point.hour} className="command-row">

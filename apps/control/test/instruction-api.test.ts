@@ -177,6 +177,20 @@ describe('agent instruction API', () => {
       [incidentId],
     );
     expect(events.rows.some((row) => row.type === 'instruction_completed')).toBe(true);
+    const incidentInstructions = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${incidentId}/instructions`,
+      headers: { cookie },
+    });
+    expect(incidentInstructions.statusCode).toBe(200);
+    expect((incidentInstructions.json() as Array<{ answer: string }>).some((item) => item.answer.includes('磁盘使用率'))).toBe(true);
+    const csv = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${incidentId}/instructions.csv`,
+      headers: { cookie },
+    });
+    expect(csv.statusCode).toBe(200);
+    expect(csv.body).toContain('磁盘使用率');
     await app.close();
   });
 

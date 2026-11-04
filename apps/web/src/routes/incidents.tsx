@@ -444,6 +444,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                         {analyzing ? '分析中…' : 'Commander 分析'}
                       </button>
                       <a className="btn btn-outline btn-sm" href={`/api/incidents/${selected.id}/report`} target="_blank" rel="noreferrer">导出报告</a>
+                      <a className="btn btn-outline btn-sm" href={`/api/incidents/${selected.id}/instructions.csv`} target="_blank" rel="noreferrer">导出指令</a>
                       <button type="button" className="btn btn-outline btn-sm" onClick={() => void openTemplate()}>报告模板</button>
                       <button type="button" className="btn btn-outline btn-sm" disabled={approvalBusy} onClick={() => void requestApproval(selected.id)}>申请 R2 审批</button>
                       {statusActions(selected)}

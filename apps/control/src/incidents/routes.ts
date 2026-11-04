@@ -21,6 +21,33 @@ async function context(pool: Pool, request: FastifyRequest): Promise<TenantConte
   );
 }
 
+async function incidentInstructions(pool: Pool, tenantId: string, incidentId: string): Promise<Array<Record<string, unknown>>> {
+  const result = await pool.query<{
+    id: string;
+    hostname: string;
+    instruction: string | null;
+    status: string;
+    result: Record<string, unknown> | null;
+    created_at: Date;
+    completed_at: Date | null;
+  }>(
+    `SELECT c.id, a.hostname, c.instruction, c.status, c.result, c.created_at, c.completed_at
+     FROM agent_commands c JOIN agents a ON a.id = c.agent_id
+     WHERE c.tenant_id = $1 AND c.incident_id = $2 AND c.type = 'agent_instruction'
+     ORDER BY c.created_at DESC`,
+    [tenantId, incidentId],
+  );
+  return result.rows.map((row) => ({
+    instructionId: row.id,
+    hostname: row.hostname,
+    instruction: row.instruction,
+    status: row.status,
+    answer: typeof row.result?.answer === 'string' ? row.result.answer : '',
+    createdAt: row.created_at.toISOString(),
+    completedAt: row.completed_at ? row.completed_at.toISOString() : null,
+  }));
+}
+
 export function registerIncidentRoutes(
   app: FastifyInstance,
   pool: Pool,
@@ -177,6 +204,47 @@ export function registerIncidentRoutes(
     const report = await incidents.report(ctx.tenantId, request.params.id);
     if (!report) return reply.code(404).send({ error: 'incident_not_found' });
     return reply.type('text/markdown; charset=utf-8').send(report);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/incidents/:id/instructions', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const exists = await pool.query('SELECT 1 FROM incidents WHERE id = $1 AND tenant_id = $2', [
+      request.params.id,
+      ctx.tenantId,
+    ]);
+    if (!exists.rows[0]) return reply.code(404).send({ error: 'incident_not_found' });
+    return reply.send(await incidentInstructions(pool, ctx.tenantId, request.params.id));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/incidents/:id/instructions.csv', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const exists = await pool.query('SELECT 1 FROM incidents WHERE id = $1 AND tenant_id = $2', [
+      request.params.id,
+      ctx.tenantId,
+    ]);
+    if (!exists.rows[0]) return reply.code(404).send({ error: 'incident_not_found' });
+    const rows = await incidentInstructions(pool, ctx.tenantId, request.params.id);
+    const escape = (value: unknown): string => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const csv = [
+      ['hostname', 'instruction', 'status', 'answer', 'createdAt'],
+      ...rows.map((row) => [row.hostname, row.instruction, row.status, row.answer, row.createdAt]),
+    ].map((row) => row.map(escape).join(',')).join('\n');
+    reply.header('content-disposition', `attachment; filename="incident-${request.params.id}-instructions.csv"`);
+    return reply.type('text/csv; charset=utf-8').send(`\ufeff${csv}`);
   });
 
   app.post('/internal/incident-sources', async (request, reply) => {

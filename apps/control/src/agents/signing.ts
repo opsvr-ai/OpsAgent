@@ -59,14 +59,30 @@ export class CommandSigner {
 }
 
 let signer: CommandSigner | undefined;
+let previousSigner: CommandSigner | null | undefined;
+
+function signerFromMaterial(material: string): CommandSigner {
+  const seed = createHash('sha256').update(`opsagent-command:${material}`).digest();
+  return new CommandSigner(seed);
+}
 
 export function getCommandSigner(): CommandSigner {
   if (!signer) {
     const material = process.env.OPSAGENT_COMMAND_SIGNING_SEED
       ?? process.env.OPSAGENT_SECRET_KEY
       ?? 'dev-only-secret';
-    const seed = createHash('sha256').update(`opsagent-command:${material}`).digest();
-    signer = new CommandSigner(seed);
+    signer = signerFromMaterial(material);
   }
   return signer;
+}
+
+export function getCommandSigners(): CommandSigner[] {
+  const current = getCommandSigner();
+  if (previousSigner === undefined) {
+    const previous = process.env.OPSAGENT_COMMAND_SIGNING_PREVIOUS_SEED;
+    previousSigner = previous ? signerFromMaterial(previous) : null;
+  }
+  return previousSigner && previousSigner.keyId !== current.keyId
+    ? [current, previousSigner]
+    : [current];
 }

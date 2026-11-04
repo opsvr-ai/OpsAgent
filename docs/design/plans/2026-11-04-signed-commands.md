@@ -19,6 +19,7 @@
 - Agent 将公钥持久化到 `agent-state.json`
 - Agent 拉取命令后验签；失败命令上报 `invalid_signature`，不执行
 - 兼容旧 Agent：未配置公钥的 Agent 继续接受命令
+- 支持平滑轮换：`OPSAGENT_COMMAND_SIGNING_PREVIOUS_SEED` 保留上一把公钥，Agent 同时接受当前/上一把 key
 
 ## 数据库
 
@@ -42,7 +43,7 @@ agent_commands.expires_at
 
 ## 剩余安全项
 
-- 密钥轮换与 key id
-- 命令 nonce/过期时间
+- 密钥自动轮换与撤销
+- 命令 nonce 持久化
 - CSR/mTLS 与证书自动轮换
 - 部署/回滚审批

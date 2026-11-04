@@ -29,9 +29,10 @@ type registerResponse struct {
 	Agent struct {
 		ID string `json:"id"`
 	} `json:"agent"`
-	AgentKey         string `json:"agentKey"`
-	CommandPublicKey string `json:"commandPublicKey"`
-	CommandKeyID     string `json:"commandKeyId"`
+	AgentKey          string       `json:"agentKey"`
+	CommandPublicKey  string       `json:"commandPublicKey"`
+	CommandKeyID      string       `json:"commandKeyId"`
+	CommandPublicKeys []commandKey `json:"commandPublicKeys"`
 }
 
 type heartbeatRequest struct {
@@ -242,13 +243,14 @@ func runDaemon(paths agentPaths) {
 	}
 	log.Printf("registered agent id=%s key=%s", registered.Agent.ID, mask(registered.AgentKey))
 	if err := saveAgentState(paths, agentState{
-		AgentID:          registered.Agent.ID,
-		AgentKey:         registered.AgentKey,
-		Hostname:         hostname,
-		ControlURL:       controlURL,
-		TenantID:         tenantID,
-		CommandPublicKey: registered.CommandPublicKey,
-		CommandKeyID:     registered.CommandKeyID,
+		AgentID:           registered.Agent.ID,
+		AgentKey:          registered.AgentKey,
+		Hostname:          hostname,
+		ControlURL:        controlURL,
+		TenantID:          tenantID,
+		CommandPublicKey:  registered.CommandPublicKey,
+		CommandKeyID:      registered.CommandKeyID,
+		CommandPublicKeys: registered.CommandPublicKeys,
 	}); err != nil {
 		log.Printf("save agent state: %v", err)
 	} else {
@@ -358,7 +360,11 @@ func runDaemon(paths agentPaths) {
 		} else if status == http.StatusOK && command.ID != "" {
 			signatureValid := true
 			if registered.CommandPublicKey != "" {
-				nonce, verifyErr := verifyCommandSignature(registered.CommandPublicKey, command.SignedPayload, command.Signature)
+				commandKeys := registered.CommandPublicKeys
+				if len(commandKeys) == 0 {
+					commandKeys = []commandKey{{KeyID: registered.CommandKeyID, PublicKey: registered.CommandPublicKey}}
+				}
+				nonce, verifyErr := verifyCommandSignature(commandKeys, command.SignedPayload, command.Signature)
 				if verifyErr == nil && commandNonceSeen(nonce) {
 					verifyErr = fmt.Errorf("command replay detected")
 				}

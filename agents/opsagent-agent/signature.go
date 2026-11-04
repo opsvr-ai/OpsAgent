@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+type commandKey struct {
+	KeyID     string `json:"keyId"`
+	PublicKey string `json:"publicKey"`
+}
+
 type commandEnvelope struct {
 	KeyID     string          `json:"keyId"`
 	Nonce     string          `json:"nonce"`
@@ -25,30 +30,38 @@ func commandKeyID(publicKey []byte) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-func verifyCommandSignature(publicKeyBase64, signedPayload, signature string) (string, error) {
-	if publicKeyBase64 == "" {
+func verifyCommandSignature(keys []commandKey, signedPayload, signature string) (string, error) {
+	if len(keys) == 0 {
 		return "", fmt.Errorf("command signing key is not configured")
 	}
 	if signedPayload == "" || signature == "" {
 		return "", fmt.Errorf("command is not signed")
 	}
-	publicKey, err := base64.StdEncoding.DecodeString(publicKeyBase64)
-	if err != nil || len(publicKey) != ed25519.PublicKeySize {
-		return "", fmt.Errorf("invalid command public key")
-	}
 	decodedSignature, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil || len(decodedSignature) != ed25519.SignatureSize {
 		return "", fmt.Errorf("invalid command signature")
-	}
-	if !ed25519.Verify(ed25519.PublicKey(publicKey), []byte(signedPayload), decodedSignature) {
-		return "", fmt.Errorf("command signature verification failed")
 	}
 	var envelope commandEnvelope
 	if err := json.Unmarshal([]byte(signedPayload), &envelope); err != nil {
 		return "", fmt.Errorf("invalid command envelope")
 	}
-	if envelope.KeyID != commandKeyID(publicKey) {
-		return "", fmt.Errorf("command key id mismatch")
+	verifiedKey := false
+	for _, key := range keys {
+		if key.KeyID != envelope.KeyID {
+			continue
+		}
+		publicKey, err := base64.StdEncoding.DecodeString(key.PublicKey)
+		if err != nil || len(publicKey) != ed25519.PublicKeySize {
+			continue
+		}
+		if !ed25519.Verify(ed25519.PublicKey(publicKey), []byte(signedPayload), decodedSignature) {
+			continue
+		}
+		verifiedKey = true
+		break
+	}
+	if !verifiedKey {
+		return "", fmt.Errorf("command signature verification failed")
 	}
 	if envelope.Nonce == "" {
 		return "", fmt.Errorf("command nonce missing")

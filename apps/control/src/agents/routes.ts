@@ -6,7 +6,7 @@ import { resolveTenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { AgentService, type DiscoveryPayload } from './service.js';
 import { AgentCommandService } from './commands.js';
-import { getCommandSigner } from './signing.js';
+import { getCommandSigners } from './signing.js';
 import { AgentEventService, type AgentEventInput } from './events.js';
 import { AppHealthService } from './health.js';
 
@@ -71,10 +71,15 @@ export function registerAgentRoutes(
         : [],
       ...(discovery ? { discovery } : {}),
     });
+    const commandSigners = getCommandSigners();
     return reply.code(201).send({
       ...registered,
-      commandPublicKey: getCommandSigner().publicKey,
-      commandKeyId: getCommandSigner().keyId,
+      commandPublicKey: commandSigners[0]?.publicKey,
+      commandKeyId: commandSigners[0]?.keyId,
+      commandPublicKeys: commandSigners.map((item) => ({
+        keyId: item.keyId,
+        publicKey: item.publicKey,
+      })),
     });
   });
 

@@ -19,6 +19,15 @@ export interface IncidentsProps {
 
 function eventLabel(type: string): string {
   if (type === 'created') return '事件创建';
+  if (type === 'source_ingested') return '事件源接入';
+  if (type === 'source_detected') return 'Agent 异常触发';
+  if (type === 'investigation_started') return '自动排障开始';
+  if (type === 'investigation_completed') return '自动排障完成';
+  if (type === 'connector_evidence') return '连接器证据';
+  if (type === 'approval_requested') return '操作审批申请';
+  if (type === 'approval_approved') return '审批通过';
+  if (type === 'approval_denied') return '审批拒绝';
+  if (type === 'root_cause_converged') return '根因置信度收敛';
   if (type === 'commander_assigned') return '指派指挥官';
   if (type === 'note') return '指挥记录';
   if (type === 'status_changed') return '状态变更';

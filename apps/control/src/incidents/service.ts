@@ -374,6 +374,48 @@ export class IncidentService {
     }
   }
 
+  private async convergeRootCause(tenantId: string, incidentId: string, actorId: string): Promise<void> {
+    const evidence = await this.pool.query<{ kind: string; count: string }>(
+      `SELECT kind, count(*)::text AS count FROM incident_evidence
+       WHERE tenant_id = $1 AND incident_id = $2 GROUP BY kind`,
+      [tenantId, incidentId],
+    );
+    const kinds = new Set(evidence.rows.map((row) => row.kind));
+    const incident = await this.pool.query<{ root_cause: string | null }>(
+      'SELECT root_cause FROM incidents WHERE tenant_id = $1 AND id = $2',
+      [tenantId, incidentId],
+    );
+    let confidence = 60;
+    if (incident.rows[0]?.root_cause) confidence += 10;
+    if (kinds.has('host_inspection')) confidence += 15;
+    if (kinds.has('connector_query')) confidence += 8;
+    if (kinds.has('log_signal')) confidence += 5;
+    if (kinds.has('connector_error')) confidence -= 10;
+    confidence = Math.max(40, Math.min(98, confidence));
+    const hypothesis = await this.pool.query<{ id: string }>(
+      `SELECT id FROM incident_hypotheses WHERE tenant_id = $1 AND incident_id = $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [tenantId, incidentId],
+    );
+    if (hypothesis.rows[0]) {
+      await this.pool.query(
+        `UPDATE incident_hypotheses SET confidence = $1, status = 'supported' WHERE id = $2`,
+        [confidence, hypothesis.rows[0].id],
+      );
+    } else if (incident.rows[0]?.root_cause) {
+      await this.pool.query(
+        `INSERT INTO incident_hypotheses (tenant_id, incident_id, statement, confidence, status)
+         VALUES ($1, $2, $3, $4, 'supported')`,
+        [tenantId, incidentId, incident.rows[0].root_cause, confidence],
+      );
+    }
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'root_cause_converged', $4::jsonb)`,
+      [tenantId, incidentId, actorId, JSON.stringify({ confidence, evidenceKinds: [...kinds] })],
+    );
+  }
+
   async report(tenantId: string, id: string): Promise<string | null> {
     const detail = await this.getWithEvents(tenantId, id);
     if (!detail) return null;
@@ -552,6 +594,7 @@ export class IncidentService {
       ],
     );
     await this.collectConnectorEvidence(input.tenantId, input.id, input.actorId);
+    await this.convergeRootCause(input.tenantId, input.id, input.actorId);
     if (completed) {
       await this.pool.query(
         `UPDATE incident_tickets SET status = 'done' WHERE tenant_id = $1 AND incident_id = $2`,

@@ -7,12 +7,14 @@ import {
   getIncidentReportTemplate,
   investigateIncident,
   listIncidents,
+  listMembers,
   requestIncidentApproval,
   recheckIncident,
   saveIncidentReportTemplate,
   updateIncident,
   type IncidentDetail,
   type IncidentSummary,
+  type MemberSummary,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 import { formatTime } from '../format.js';
@@ -49,6 +51,7 @@ function eventDetail(payload: Record<string, unknown>): string {
 
 export function Incidents({ onBack }: IncidentsProps) {
   const [incidents, setIncidents] = useState<IncidentSummary[] | null>(null);
+  const [members, setMembers] = useState<MemberSummary[]>([]);
   const detailRequest = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IncidentDetail | null>(null);
@@ -72,6 +75,9 @@ export function Incidents({ onBack }: IncidentsProps) {
         setSelectedId(items[0]?.id ?? null);
       })
       .catch(() => setError('事件加载失败'));
+    void listMembers()
+      .then(setMembers)
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -100,6 +106,16 @@ export function Incidents({ onBack }: IncidentsProps) {
       setTitle('');
     } catch {
       setError('创建失败');
+    }
+  }
+
+  async function assignCommander(id: string, commanderId: string) {
+    try {
+      const updated = await updateIncident(id, { commanderId: commanderId || null });
+      setIncidents((current) => current?.map((item) => (item.id === id ? updated : item)) ?? current);
+      setDetail((current) => (current ? { ...current, incident: updated } : current));
+    } catch {
+      setError('指挥官指派失败');
     }
   }
 
@@ -329,7 +345,18 @@ export function Incidents({ onBack }: IncidentsProps) {
                     <div className="row-sm">
                       <span className="badge badge-neutral">{selected.severity}</span>
                       <span className="muted">事件 ID {selected.id.slice(0, 18)}</span>
-                      <span className="muted">指挥官 {selected.commanderId ?? '未指派'}</span>
+                      <label className="muted">指挥官
+                        <select
+                          value={selected.commanderId ?? ''}
+                          onChange={(event) => void assignCommander(selected.id, event.target.value)}
+                          style={{ marginLeft: 6 }}
+                        >
+                          <option value="">未指派</option>
+                          {members.map((member) => (
+                            <option key={member.userId} value={member.userId}>{member.displayName || member.username}</option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                     <div className="row-sm">
                       <button type="button" className="btn btn-outline btn-sm" disabled={investigating} onClick={() => void investigate(selected.id)}>

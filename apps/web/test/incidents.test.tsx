@@ -8,6 +8,7 @@ vi.mock('../src/api/client.js', () => ({
   createIncident: vi.fn(),
   updateIncident: vi.fn(),
   getIncident: vi.fn(),
+  listMembers: vi.fn().mockResolvedValue([]),
 }));
 
 const listMock = vi.mocked(listIncidents);

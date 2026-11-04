@@ -99,6 +99,14 @@ export function registerIncidentRoutes(
     if (body?.status !== undefined && !INCIDENT_STATUSES.includes(body.status as IncidentStatus)) {
       return reply.code(400).send({ error: 'invalid_status' });
     }
+    const commanderId = typeof body?.commanderId === 'string' ? body.commanderId : undefined;
+    if (commanderId) {
+      const commander = await pool.query(
+        `SELECT 1 FROM memberships WHERE tenant_id = $1 AND user_id = $2 AND status = 'active'`,
+        [ctx.tenantId, commanderId],
+      );
+      if (!commander.rows[0]) return reply.code(400).send({ error: 'invalid_commander' });
+    }
     const incident = await incidents.update({
       tenantId: ctx.tenantId,
       id: request.params.id,

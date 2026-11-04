@@ -60,6 +60,15 @@ describe('incident API', () => {
     });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({ status: 'investigating' });
+    const user = await pool.query<{ id: string }>('SELECT id FROM users WHERE username = $1', ['tenant-admin']);
+    const assigned = await app.inject({
+      method: 'PATCH',
+      url: `/api/incidents/${id}`,
+      headers: { cookie },
+      payload: { commanderId: user.rows[0]?.id },
+    });
+    expect(assigned.statusCode).toBe(200);
+    expect(assigned.json()).toMatchObject({ commanderId: user.rows[0]?.id });
 
     const list = await app.inject({ method: 'GET', url: '/api/incidents', headers: { cookie } });
     expect(list.json()).toMatchObject([{ id, severity: 'P1' }]);
@@ -70,7 +79,7 @@ describe('incident API', () => {
       headers: { cookie },
     });
     expect(detail.statusCode).toBe(200);
-    expect(detail.json()).toMatchObject({ incident: { id }, events: [{}, {}] });
+    expect(detail.json()).toMatchObject({ incident: { id }, events: [{}, {}, {}] });
 
     const approval = await app.inject({
       method: 'POST',

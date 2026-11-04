@@ -148,6 +148,8 @@ opsagent> 订单中心健康情况和故障根因
 
 后台服务使用 `opsagent-agent --service`，`--version`、`--help` 查看版本和用法。
 
+CLI 问答会优先调用平台工具（纳管数据、应用健康、主机只读检查），再由 DshRuntime 模型基于真实证据生成回答；目标机 Go Agent 只执行只读探针，不持有模型密钥。
+
 Linux 标准目录：
 
 ```text

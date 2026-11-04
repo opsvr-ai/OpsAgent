@@ -41,29 +41,30 @@ func packageManagerEvidence() string {
 }
 
 var evidenceLabels = map[string]string{
-	"disk-usage":    "磁盘使用情况",
-	"block-devices": "块设备与文件系统",
-	"mounts":        "挂载点",
-	"memory":        "内存",
-	"meminfo":       "内存详情",
-	"cpu":           "CPU",
-	"load":          "负载",
-	"services":      "运行中的服务",
-	"ports":         "监听端口",
-	"processes":     "进程",
-	"packages":      "已安装软件包",
-	"network":       "网络地址",
-	"interfaces":    "网卡",
-	"routes":        "路由",
-	"dns":           "DNS 配置",
-	"journal":       "系统日志",
-	"messages":      "系统消息",
-	"docker":        "容器",
-	"agent":         "Agent 部署情况",
-	"kernel":        "内核",
-	"hostname":      "主机名",
-	"time":          "时间",
-	"timezone":      "时区",
+	"disk-usage":      "磁盘使用情况",
+	"block-devices":   "块设备与文件系统",
+	"mounts":          "挂载点",
+	"memory":          "内存",
+	"meminfo":         "内存详情",
+	"cpu":             "CPU",
+	"load":            "负载",
+	"services":        "运行中的服务",
+	"service-manager": "服务管理器状态",
+	"ports":           "监听端口",
+	"processes":       "进程",
+	"packages":        "已安装软件包",
+	"network":         "网络地址",
+	"interfaces":      "网卡",
+	"routes":          "路由",
+	"dns":             "DNS 配置",
+	"journal":         "系统日志",
+	"messages":        "系统消息",
+	"docker":          "容器",
+	"agent":           "Agent 部署情况",
+	"kernel":          "内核",
+	"hostname":        "主机名",
+	"time":            "时间",
+	"timezone":        "时区",
 }
 
 func compactDf(output string) string {
@@ -153,6 +154,12 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 	if wants("服务", "service", "systemd", "unit") {
 		include["services"] = true
 		addFirst("services", []string{"systemctl", "list-units", "--type=service", "--state=running", "--no-pager", "--no-legend"}, []string{"rc-status"})
+		if evidence["services"] == "" {
+			include["service-manager"] = true
+			evidence["service-manager"] = "未检测到 systemd/OpenRC 服务管理器（当前环境可能是容器）。以下进程列表可代表正在运行的服务/程序。"
+			include["processes"] = true
+			addFirst("processes", []string{"ps", "aux"}, []string{"ps", "-ef"})
+		}
 	}
 	if wants("端口", "port", "监听", "listen", "socket") {
 		include["ports"] = true

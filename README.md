@@ -72,6 +72,19 @@ opsagent-agent
 
 进入交互式对话。后台服务使用 `opsagent-agent --service`，`--version`、`--help` 可查看版本和用法。
 
+CLI 对话链路：
+
+```text
+opsagent-agent
+  → POST /api/agents/:id/chat（Agent Key 鉴权）
+  → PlatformAssistant 选择平台查询 / 应用健康 / 主机检查工具
+  → 主机检查通过 agent_commands 下发到目标机
+  → DshRuntime + deepseek-flash 基于真实检查证据生成回答
+  → 返回 CLI 并保持多轮会话
+```
+
+智能体框架代码位于 `apps/control/src/runtime/dsh.ts`、`session-service.ts` 和 `assistant/platform.ts`；目标机上的 Go Agent 负责执行只读探针，不直接持有模型密钥。
+
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 
 ```bash

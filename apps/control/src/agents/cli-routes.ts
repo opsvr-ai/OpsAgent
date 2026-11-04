@@ -8,6 +8,39 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime
   const platform = new PlatformAssistant(pool);
   const cliSessions = new Map<string, string>();
 
+  async function ensureSession(agentId: string, tenantId: string, hostname: string): Promise<string> {
+    const existing = cliSessions.get(agentId);
+    if (existing) return existing;
+    const user = await pool.query<{ id: string }>(
+      `SELECT u.id FROM users u
+       JOIN memberships m ON m.user_id = u.id AND m.tenant_id = $1 AND m.status = 'active'
+       ORDER BY u.created_at LIMIT 1`,
+      [tenantId],
+    );
+    const runtimeSession = await runtime.startSession({
+      tenantId,
+      userId: user.rows[0]?.id ?? '00000000-0000-0000-0000-000000000000',
+      roleView: `agent-cli:${hostname}`,
+    });
+    cliSessions.set(agentId, runtimeSession.runtimeSessionId);
+    return runtimeSession.runtimeSessionId;
+  }
+
+  async function askRuntime(sessionId: string, prompt: string): Promise<{ answer: string; error: string }> {
+    const chunks: string[] = [];
+    let error = '';
+    for await (const event of runtime.prompt(
+      sessionId,
+      prompt,
+      `cli-${randomUUID()}`,
+      { permissionMode: 'read-only' },
+    )) {
+      if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
+      if (event.type === 'runtime.error') error = event.message;
+    }
+    return { answer: chunks.join('').trim(), error };
+  }
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/chat', async (request, reply) => {
     const body = request.body as { agentKey?: unknown; question?: unknown } | undefined;
     if (typeof body?.agentKey !== 'string' || typeof body?.question !== 'string') {
@@ -53,64 +86,59 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime
     if (!plan && /(磁盘|分区|内存|cpu|进程|端口|服务|日志|系统|配置|部署|路径|主机|agent|告警|性能|负载|网络|内核|时间|状态|检查|查看|巡检)/i.test(question)) {
       plan = await platform.detect(row.tenant_id, `${row.hostname} ${question}`);
     }
+    let platformAnswer = '';
     if (plan) {
       const sessionId = `cli-${randomUUID()}`;
       const chunks: string[] = [];
       for await (const event of platform.execute(plan, row.tenant_id, sessionId)) {
         if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
       }
-      const answer = chunks.join('').trim();
-      if (answer) return reply.send({ supported: true, hostname: row.hostname, answer });
+      platformAnswer = chunks.join('').trim();
+      if (platformAnswer && plan.kind !== 'agent') {
+        return reply.send({ supported: true, hostname: row.hostname, answer: platformAnswer });
+      }
     }
 
-    let runtimeSessionId = cliSessions.get(request.params.id);
     try {
-      if (!runtimeSessionId) {
-        const user = await pool.query<{ id: string }>(
-          `SELECT u.id FROM users u
-           JOIN memberships m ON m.user_id = u.id AND m.tenant_id = $1 AND m.status = 'active'
-           ORDER BY u.created_at LIMIT 1`,
-          [row.tenant_id],
-        );
-        const runtimeSession = await runtime.startSession({
-          tenantId: row.tenant_id,
-          userId: user.rows[0]?.id ?? '00000000-0000-0000-0000-000000000000',
-          roleView: `agent-cli:${row.hostname}`,
-        });
-        runtimeSessionId = runtimeSession.runtimeSessionId;
-        cliSessions.set(request.params.id, runtimeSessionId);
+      const runtimeSessionId = await ensureSession(request.params.id, row.tenant_id, row.hostname);
+      const prompt = platformAnswer
+        ? [
+            '你是 OpsAgent 操作系统智能体命令行助手，不是通用编码助手。',
+            `当前接管主机：${row.hostname}。`,
+            '下面是本机 Agent 刚刚执行的真实只读检查结果。',
+            '请严格依据这些数据直接回答用户问题，保留关键数字和结论，过滤无关模块，不要编造。',
+            '',
+            '--- 检查结果开始 ---',
+            platformAnswer,
+            '--- 检查结果结束 ---',
+            '',
+            `用户问题：${question}`,
+          ].join('\n')
+        : [
+            '你是 OpsAgent 操作系统智能体命令行助手，不是通用编码助手。',
+            `当前接管主机：${row.hostname}。`,
+            '回答要简洁、面向运维，可引用平台数据和本机检查结果；不要声称你能直接修改目标主机。',
+            '如果用户问题明确涉及本机指标、磁盘、进程、端口、日志、服务或应用系统健康，优先使用 OpsAgent 的检查能力；日常问答则直接回答。',
+            '',
+            `用户问题：${question}`,
+          ].join('\n');
+      const result = await askRuntime(runtimeSessionId, prompt);
+      if (result.answer) {
+        return reply.send({ supported: true, hostname: row.hostname, answer: result.answer });
       }
-
-      const chunks: string[] = [];
-      let runtimeError = '';
-      const prompt = [
-        '你是 OpsAgent 操作系统智能体命令行助手，不是通用编码助手。',
-        `当前接管主机：${row.hostname}。`,
-        '回答要简洁、面向运维，可引用平台数据和本机检查结果；不要声称你能直接修改目标主机。',
-        '如果用户问题明确涉及本机指标、磁盘、进程、端口、日志、服务或应用系统健康，优先使用 OpsAgent 的检查能力；日常问答则直接回答。',
-        '',
-        `用户问题：${question}`,
-      ].join('\n');
-      for await (const event of runtime.prompt(
-        runtimeSessionId,
-        prompt,
-        `cli-${randomUUID()}`,
-        { permissionMode: 'read-only' },
-      )) {
-        if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
-        if (event.type === 'runtime.error') runtimeError = event.message;
+      if (platformAnswer) {
+        return reply.send({ supported: true, hostname: row.hostname, answer: platformAnswer });
       }
-      const answer = chunks.join('').trim();
-      if (!answer) {
-        return reply.send({
-          supported: false,
-          hostname: row.hostname,
-          answer: runtimeError ? `模型对话暂不可用：${runtimeError}` : '',
-        });
-      }
-      return reply.send({ supported: true, hostname: row.hostname, answer });
+      return reply.send({
+        supported: false,
+        hostname: row.hostname,
+        answer: result.error ? `模型对话暂不可用：${result.error}` : '',
+      });
     } catch (error) {
       console.error('agent cli chat failed', error);
+      if (platformAnswer) {
+        return reply.send({ supported: true, hostname: row.hostname, answer: platformAnswer });
+      }
       return reply.code(500).send({
         error: 'cli_chat_failed',
         message: error instanceof Error ? error.message : String(error),

@@ -271,6 +271,13 @@ describe('agent instruction API', () => {
     );
     expect(command.rows[0]?.type).toBe('agent_instruction');
     expect(command.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_restart', params: { service: 'nginx' } });
+
+    const history = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals?status=decided',
+      headers: { cookie },
+    });
+    expect((history.json() as Array<{ id: string; status: string }>).some((item) => item.id === approvalId && item.status === 'approved')).toBe(true);
     await app.close();
   });
 

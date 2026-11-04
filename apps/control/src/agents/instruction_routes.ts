@@ -326,7 +326,7 @@ export function registerAgentInstructionRoutes(
     return reply.send({ ok: true });
   });
 
-  app.get('/api/agent-instruction-approvals', async (request, reply) => {
+  app.get<{ Querystring: { status?: string } }>('/api/agent-instruction-approvals', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
@@ -335,6 +335,7 @@ export function registerAgentInstructionRoutes(
       if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
       throw error;
     }
+    const decided = request.query.status === 'decided';
     const result = await pool.query<{
       id: string;
       agent_id: string;
@@ -345,14 +346,19 @@ export function registerAgentInstructionRoutes(
       risk: string;
       status: string;
       requested_by: string;
+      decided_by: string | null;
+      decision_reason: string | null;
+      command_id: string | null;
       created_at: Date;
+      decided_at: Date | null;
     }>(
       `SELECT a.id, a.agent_id, g.hostname, a.instruction, a.action, a.service, a.risk, a.status,
-              a.requested_by, a.created_at
+              a.requested_by, a.decided_by, a.decision_reason, a.command_id, a.created_at, a.decided_at
        FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
-       WHERE a.tenant_id = $1 AND a.status = 'pending'
-       ORDER BY a.created_at ASC`,
-      [ctx.tenantId],
+       WHERE a.tenant_id = $1 AND a.status = ANY($2::text[])
+       ORDER BY a.created_at DESC
+       LIMIT 50`,
+      [ctx.tenantId, decided ? ['approved', 'denied', 'canceled'] : ['pending']],
     );
     return reply.send(result.rows.map((row) => ({
       id: row.id,
@@ -364,7 +370,11 @@ export function registerAgentInstructionRoutes(
       risk: row.risk,
       status: row.status,
       requestedBy: row.requested_by,
+      decidedBy: row.decided_by,
+      decisionReason: row.decision_reason,
+      commandId: row.command_id,
       createdAt: row.created_at.toISOString(),
+      decidedAt: row.decided_at ? row.decided_at.toISOString() : null,
     })));
   });
 

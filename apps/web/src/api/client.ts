@@ -623,7 +623,11 @@ export interface AgentInstructionApproval {
   readonly risk: string;
   readonly status: string;
   readonly requestedBy: string;
+  readonly decidedBy?: string | null;
+  readonly decisionReason?: string | null;
+  readonly commandId?: string | null;
   readonly createdAt: string;
+  readonly decidedAt?: string | null;
 }
 
 export interface AgentInstructionDetail {
@@ -689,8 +693,12 @@ export async function createAgentInstructionsBatch(
   });
 }
 
-export async function listAgentInstructionApprovals(): Promise<AgentInstructionApproval[]> {
-  return request<AgentInstructionApproval[]>('/api/agent-instruction-approvals');
+export async function listAgentInstructionApprovals(
+  status: 'pending' | 'decided' = 'pending',
+): Promise<AgentInstructionApproval[]> {
+  return request<AgentInstructionApproval[]>(
+    `/api/agent-instruction-approvals${status === 'decided' ? '?status=decided' : ''}`,
+  );
 }
 
 export async function decideAgentInstructionApproval(

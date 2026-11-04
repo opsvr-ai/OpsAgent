@@ -173,6 +173,16 @@ GET  /api/agent-instruction-approvals
 POST /api/agent-instruction-approvals/:id/decision
 ```
 
+审批页同时展示：
+
+```text
+待审批
+最近审批历史（approved / denied / canceled）
+决定时间
+```
+
+批准后创建的命令可在指令历史、Incident 和审计中追踪。
+
 安全限制：
 
 ```text

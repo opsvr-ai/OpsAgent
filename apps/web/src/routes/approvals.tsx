@@ -16,6 +16,7 @@ export interface ApprovalsProps {
 export function Approvals({ onBack }: ApprovalsProps) {
   const [approvals, setApprovals] = useState<ApprovalSummary[] | null>(null);
   const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
+  const [instructionHistory, setInstructionHistory] = useState<AgentInstructionApproval[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,6 +26,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
     void listAgentInstructionApprovals()
       .then(setInstructionApprovals)
       .catch(() => undefined);
+    void listAgentInstructionApprovals('decided')
+      .then(setInstructionHistory)
+      .catch(() => undefined);
   }, []);
 
   async function decideInstruction(id: string, decision: 'approve' | 'deny') {
@@ -32,6 +36,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
     try {
       await decideAgentInstructionApproval(id, decision);
       setInstructionApprovals((current) => current.filter((item) => item.id !== id));
+      setInstructionHistory(await listAgentInstructionApprovals('decided'));
     } catch {
       setError('Agent 指令审批失败');
     }
@@ -79,6 +84,23 @@ export function Approvals({ onBack }: ApprovalsProps) {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      ) : null}
+      {instructionHistory.length > 0 ? (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><h2>最近 Agent 指令审批</h2><span className="muted">{instructionHistory.length} 条</span></div>
+          <div className="card-body">
+            <div className="command-history">
+              {instructionHistory.map((approval) => (
+                <div key={approval.id} className="command-row">
+                  <span className="mono">{approval.hostname}</span>
+                  <span>{approval.service ?? approval.action}</span>
+                  <span className={`badge ${approval.status === 'approved' ? 'badge-ok' : 'badge-neutral'}`}>{approval.status}</span>
+                  <span className="muted">{approval.decidedAt ? new Date(approval.decidedAt).toLocaleString() : '—'}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       ) : null}

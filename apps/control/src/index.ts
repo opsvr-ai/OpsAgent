@@ -20,6 +20,7 @@ import { DeploymentService } from './deployments/service.js';
 import { DeploymentMonitor } from './deployments/monitor.js';
 import { AgentResourceMonitor } from './agents/resource_monitor.js';
 import { AgentCertificateMonitor } from './agents/certificate_monitor.js';
+import { certificateRevocations } from './agents/revocations.js';
 import { AgentCaService } from './agents/ca.js';
 
 function certificateExpiresSoon(path: string, days = 7): boolean {
@@ -73,6 +74,17 @@ const app = buildServer({
   ...(process.env.OPSAGENT_DESKTOP_UPDATE_DIR
     ? { desktopUpdateDir: process.env.OPSAGENT_DESKTOP_UPDATE_DIR }
     : {}),
+});
+certificateRevocations.start(pool);
+app.addHook('onRequest', async (request, reply) => {
+  const socket = request.raw.socket as typeof request.raw.socket & {
+    encrypted?: boolean;
+    getPeerCertificate?: () => { serialNumber?: string };
+  };
+  if (!socket.encrypted || typeof socket.getPeerCertificate !== 'function') return;
+  if (certificateRevocations.isRevoked(socket.getPeerCertificate().serialNumber)) {
+    return reply.code(403).send({ error: 'certificate_revoked' });
+  }
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
 const commanderScheduler = new CommanderScheduler(
@@ -199,6 +211,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     deploymentMonitor.stop();
     resourceMonitor.stop();
     certificateMonitor.stop();
+    certificateRevocations.stop();
     clearInterval(retentionTimer);
     if (tlsRenewTimer) clearInterval(tlsRenewTimer);
     tlsServer?.close();

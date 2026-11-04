@@ -11,11 +11,14 @@ export function registerAgentCertificateRoutes(app: FastifyInstance, pool: Pool)
       return reply.code(400).send({ error: 'invalid_request' });
     }
     if (body.csr.length > 16_384) return reply.code(400).send({ error: 'csr_too_large' });
-    const agent = await pool.query('SELECT 1 FROM agents WHERE id = $1 AND agent_key = $2', [
-      request.params.id,
-      body.agentKey,
-    ]);
+    const agent = await pool.query<{ certificate_revoked_at: Date | null }>(
+      'SELECT certificate_revoked_at FROM agents WHERE id = $1 AND agent_key = $2',
+      [request.params.id, body.agentKey],
+    );
     if (!agent.rows[0]) return reply.code(401).send({ error: 'unauthorized' });
+    if (agent.rows[0].certificate_revoked_at) {
+      return reply.code(403).send({ error: 'agent_certificate_revoked' });
+    }
     caPromise ??= AgentCaService.fromEnv();
     const ca = await caPromise;
     if (!ca) return reply.code(503).send({ error: 'ca_not_configured' });

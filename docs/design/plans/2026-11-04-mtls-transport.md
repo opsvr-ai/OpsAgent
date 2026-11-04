@@ -205,9 +205,30 @@ OPSAGENT_TLS_AUTO=true
   → 200 {"status":"ok","service":"opsagent-control"}
 ```
 
+### 吊销
+
+平台管理员可以吊销 Agent 当前客户端证书：
+
+```text
+POST /api/platform/agents/:id/certificate/revoke
+```
+
+行为：
+
+```text
+写入 certificate_revoked_at / reason
+  → 吊销序列号进入内存缓存
+  → HTTPS 请求检查客户端证书序列号
+  → 已吊销证书返回 403
+  → 证书签发接口拒绝继续签发
+```
+
+缓存每 60 秒刷新。
+
 ## 未完成
 
-- CA 轮换、密钥托管与吊销
+- CA 轮换、密钥托管
+- 吊销列表持久化到 CA/CRL
 - 部署脚本自动分发 CA
 - 服务端证书到期事件接入消息中心
 - 到期事件接入工单/通知路由

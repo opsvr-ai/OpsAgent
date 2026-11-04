@@ -4,6 +4,7 @@ import { X509Certificate } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SESSION_COOKIE, readSession } from '../auth/session.js';
+import { certificateRevocations } from '../agents/revocations.js';
 import { PlatformTenantService } from './service.js';
 
 async function platformAdmin(pool: Pool, request: FastifyRequest): Promise<string | null> {
@@ -47,6 +48,19 @@ export function registerPlatformRoutes(app: FastifyInstance, pool: Pool): void {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  });
+
+  app.post<{ Params: { id: string } }>('/api/platform/agents/:id/certificate/revoke', async (request, reply) => {
+    if (!(await platformAdmin(pool, request))) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+    const body = request.body as { reason?: unknown } | undefined;
+    const reason = typeof body?.reason === 'string' && body.reason.trim()
+      ? body.reason.trim()
+      : 'revoked by platform administrator';
+    const serial = await certificateRevocations.revoke(request.params.id, reason);
+    if (!serial) return reply.code(404).send({ error: 'agent_certificate_not_found' });
+    return reply.send({ ok: true, serialNumber: serial });
   });
 
   app.get('/api/platform/tenants', async (request, reply) => {

@@ -25,6 +25,7 @@ import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
 import { registerAgentRoutes } from './agents/routes.js';
+import { registerAgentCertificateRoutes } from './agents/certificate_routes.js';
 import { registerAgentCliRoutes } from './agents/cli-routes.js';
 import { registerAgentInstallRoutes } from './agents/install.js';
 import { registerMemberRoutes } from './members/routes.js';
@@ -89,6 +90,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerKnowledgeRoutes(app, options.pool, audit);
     registerMessageRoutes(app, options.pool);
     registerAgentRoutes(app, options.pool, options.agentEnrollmentToken);
+    registerAgentCertificateRoutes(app, options.pool);
     registerAgentCliRoutes(app, options.pool, runtime);
     registerAgentInstallRoutes(app, options.pool, options.agentEnrollmentToken, {
       distDir: options.agentDistDir ?? 'agents/opsagent-agent/dist',

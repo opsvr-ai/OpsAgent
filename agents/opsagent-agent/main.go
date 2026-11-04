@@ -291,6 +291,11 @@ func runDaemon(paths agentPaths) {
 	} else {
 		log.Printf("agent state saved path=%s", statePath(paths))
 	}
+	if err := enrollAgentCertificate(controlURL, registered.Agent.ID, registered.AgentKey, hostname, paths); err != nil {
+		log.Printf("certificate enrollment: %v", err)
+	} else if os.Getenv("OPSAGENT_AUTO_CSR") == "true" {
+		log.Printf("certificate enrollment complete control=%s", controlURL)
+	}
 	lastDiscovery := time.Now()
 	lastPatrol := time.Time{}
 	lastMetricsSnapshot := time.Time{}

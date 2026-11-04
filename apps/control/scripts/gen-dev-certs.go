@@ -35,6 +35,9 @@ func main() {
 	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	if err != nil { panic(err) }
 	write(filepath.Join(dir, "ca.pem"), "CERTIFICATE", caDER)
+	caKeyDER, err := x509.MarshalPKCS8PrivateKey(caKey)
+	if err != nil { panic(err) }
+	write(filepath.Join(dir, "ca-key.pem"), "PRIVATE KEY", caKeyDER)
 
 	issue := func(name string, serial int64, server bool) {
 		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

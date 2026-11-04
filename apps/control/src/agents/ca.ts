@@ -1,8 +1,27 @@
 import 'reflect-metadata';
-import { createPrivateKey, randomBytes } from 'node:crypto';
+import { createPrivateKey, randomBytes, sign as cryptoSign } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AsnConvert, OctetString } from '@peculiar/asn1-schema';
 import {
+  AlgorithmIdentifier,
+  Certificate,
+} from '@peculiar/asn1-x509';
+import {
+  BasicOCSPResponse,
+  CertStatus,
+  id_pkix_ocsp_basic,
+  OCSPRequest,
+  OCSPResponse,
+  OCSPResponseStatus,
+  ResponderID,
+  ResponseBytes,
+  ResponseData,
+  RevokedInfo,
+  SingleResponse,
+} from '@peculiar/asn1-ocsp';
+import {
+  AuthorityInfoAccessExtension,
   BasicConstraintsExtension,
   CRLDistributionPointsExtension,
   ExtendedKeyUsage,
@@ -50,6 +69,7 @@ export class AgentCaService {
     private readonly caPem: string,
     private readonly caChainPem: string,
     private readonly signingKey: CryptoKey,
+    private readonly keyObject: ReturnType<typeof createPrivateKey>,
     private readonly algorithm: 'ec' | 'rsa',
   ) {}
 
@@ -120,7 +140,7 @@ export class AgentCaService {
       ['sign'],
     );
     const caChainPem = [caPem, ...previousPems].filter(Boolean).join('\n');
-    return new AgentCaService(ca, caPem, caChainPem, cryptoKey, algorithm);
+    return new AgentCaService(ca, caPem, caChainPem, cryptoKey, keyObject, algorithm);
   }
 
   get caCertificate(): string {
@@ -150,6 +170,70 @@ export class AgentCaService {
       ...issued,
       privateKey: `-----BEGIN PRIVATE KEY-----\n${keyBase64}\n-----END PRIVATE KEY-----\n`,
     };
+  }
+
+  async createOcspResponse(
+    requestDer: Buffer,
+    statuses: Map<string, Date | null>,
+  ): Promise<Buffer> {
+    const request = AsnConvert.parse(requestDer, OCSPRequest);
+    const now = new Date();
+    const caAsn1 = AsnConvert.parse(this.ca.rawData, Certificate);
+    const issuerNameDer = Buffer.from(AsnConvert.serialize(caAsn1.tbsCertificate.subject));
+    const issuerKeyDer = Buffer.from(caAsn1.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey);
+    const responses = [];
+    for (const item of request.tbsRequest.requestList) {
+      const hashOid = item.reqCert.hashAlgorithm.algorithm;
+      const hash = hashOid === '1.3.14.3.2.26' ? 'SHA-1' : hashOid === '2.16.840.1.101.3.4.2.1' ? 'SHA-256' : null;
+      if (!hash) throw new Error('unsupported_ocsp_hash_algorithm');
+      const [expectedNameHash, expectedKeyHash] = await Promise.all([
+        crypto.subtle.digest(hash, issuerNameDer),
+        crypto.subtle.digest(hash, issuerKeyDer),
+      ]);
+      if (Buffer.from(expectedNameHash).compare(Buffer.from(item.reqCert.issuerNameHash.buffer)) !== 0
+        || Buffer.from(expectedKeyHash).compare(Buffer.from(item.reqCert.issuerKeyHash.buffer)) !== 0) {
+        throw new Error('ocsp_issuer_mismatch');
+      }
+      const serial = Buffer.from(item.reqCert.serialNumber).toString('hex').replace(/^0+/, '').toLowerCase();
+      const status = statuses.get(serial);
+      const certStatus = status === undefined
+        ? new CertStatus({ unknown: null })
+        : status
+          ? new CertStatus({ revoked: new RevokedInfo({ revocationTime: status }) })
+          : new CertStatus({ good: null });
+      responses.push(new SingleResponse({
+        certID: item.reqCert,
+        certStatus,
+        thisUpdate: now,
+        nextUpdate: new Date(now.getTime() + 60 * 60_000),
+      }));
+    }
+    const responseData = new ResponseData({
+      responderID: new ResponderID({ byName: caAsn1.tbsCertificate.subject }),
+      producedAt: now,
+      responses,
+    });
+    const tbs = Buffer.from(AsnConvert.serialize(responseData));
+    const signature = this.algorithm === 'rsa'
+      ? cryptoSign('sha256', tbs, this.keyObject)
+      : cryptoSign('sha256', tbs, { key: this.keyObject, dsaEncoding: 'der' });
+    const signatureAlgorithm = new AlgorithmIdentifier({
+      algorithm: this.algorithm === 'rsa' ? '1.2.840.113549.1.1.11' : '1.2.840.10045.4.3.2',
+    });
+    const basic = new BasicOCSPResponse({
+      tbsResponseData: responseData,
+      signatureAlgorithm,
+      signature: signature.buffer.slice(signature.byteOffset, signature.byteOffset + signature.byteLength),
+      certs: [caAsn1],
+    });
+    const response = new OCSPResponse({
+      responseStatus: OCSPResponseStatus.successful,
+      responseBytes: new ResponseBytes({
+        responseType: id_pkix_ocsp_basic,
+        response: new OctetString(AsnConvert.serialize(basic)),
+      }),
+    });
+    return Buffer.from(AsnConvert.serialize(response));
   }
 
   async createCrl(serials: string[]): Promise<string> {
@@ -190,6 +274,8 @@ export class AgentCaService {
     }
     const crlUrl = process.env.OPSAGENT_CRL_URL;
     if (crlUrl) extensions.push(new CRLDistributionPointsExtension([crlUrl]));
+    const ocspUrl = process.env.OPSAGENT_OCSP_URL;
+    if (ocspUrl) extensions.push(new AuthorityInfoAccessExtension({ ocsp: [ocspUrl] }));
     const certificate = await X509CertificateGenerator.create({
       serialNumber,
       subject: csr.subject,

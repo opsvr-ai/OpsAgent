@@ -6,6 +6,7 @@ import { resolveTenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import type { AuditWriter } from '../audit/writer.js';
 import { DeploymentService } from './service.js';
+import { TrafficCanaryService, renderNginxCanaryConfig } from './traffic_canary.js';
 
 async function context(pool: Pool, request: FastifyRequest) {
   const token = request.cookies[SESSION_COOKIE];
@@ -24,6 +25,7 @@ export function registerDeploymentRoutes(
   audit: AuditWriter,
 ): void {
   const deployments = new DeploymentService(pool);
+  const trafficCanary = new TrafficCanaryService(pool);
 
   app.post('/api/releases', async (request, reply) => {
     const ctx = await context(pool, request);
@@ -254,5 +256,100 @@ export function registerDeploymentRoutes(
       result: 'success',
     });
     return reply.send(deployment);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/deployments/:id/traffic-canary', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'deployment.approve');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const policy = await trafficCanary.get(ctx.tenantId, request.params.id);
+    if (!policy) return reply.code(404).send({ error: 'traffic_canary_not_found' });
+    return reply.send(policy);
+  });
+
+  app.post<{ Params: { id: string } }>('/api/deployments/:id/traffic-canary', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'deployment.approve');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      host?: unknown;
+      stableUpstream?: unknown;
+      canaryUpstream?: unknown;
+      canaryWeight?: unknown;
+    } | undefined;
+    if (
+      typeof body?.host !== 'string' ||
+      typeof body.stableUpstream !== 'string' ||
+      typeof body.canaryUpstream !== 'string' ||
+      typeof body.canaryWeight !== 'number'
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const policy = await trafficCanary.upsert(ctx.tenantId, request.params.id, {
+      host: body.host,
+      stableUpstream: body.stableUpstream,
+      canaryUpstream: body.canaryUpstream,
+      canaryWeight: body.canaryWeight,
+    });
+    if (!policy) return reply.code(409).send({ error: 'traffic_canary_unavailable' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'deployment.traffic_canary.update',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { host: policy.host, canaryWeight: policy.canaryWeight },
+    });
+    return reply.send(policy);
+  });
+
+  app.post<{ Params: { id: string } }>('/api/deployments/:id/traffic-canary/weight', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'deployment.approve');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { weight?: unknown } | undefined;
+    if (typeof body?.weight !== 'number') return reply.code(400).send({ error: 'invalid_weight' });
+    const policy = await trafficCanary.setWeight(ctx.tenantId, request.params.id, body.weight);
+    if (!policy) return reply.code(404).send({ error: 'traffic_canary_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'deployment.traffic_canary.weight',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { canaryWeight: policy.canaryWeight, status: policy.status },
+    });
+    return reply.send(policy);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/deployments/:id/traffic-canary/nginx', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'deployment.approve');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const policy = await trafficCanary.get(ctx.tenantId, request.params.id);
+    if (!policy) return reply.code(404).send({ error: 'traffic_canary_not_found' });
+    reply.header('cache-control', 'no-store');
+    reply.type('text/plain; charset=utf-8');
+    return reply.send(renderNginxCanaryConfig(policy));
   });
 }

@@ -1060,6 +1060,48 @@ export async function rollbackDeployment(id: string, reason: string): Promise<De
   });
 }
 
+export interface TrafficCanaryPolicy {
+  readonly id: string;
+  readonly deploymentId: string;
+  readonly host: string;
+  readonly stableUpstream: string;
+  readonly canaryUpstream: string;
+  readonly canaryWeight: number;
+  readonly status: string;
+  readonly updatedAt: string;
+}
+
+export async function getTrafficCanaryPolicy(id: string): Promise<TrafficCanaryPolicy> {
+  return request<TrafficCanaryPolicy>(`/api/deployments/${id}/traffic-canary`);
+}
+
+export async function saveTrafficCanaryPolicy(id: string, input: {
+  host: string;
+  stableUpstream: string;
+  canaryUpstream: string;
+  canaryWeight: number;
+}): Promise<TrafficCanaryPolicy> {
+  return request<TrafficCanaryPolicy>(`/api/deployments/${id}/traffic-canary`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function setTrafficCanaryWeight(id: string, weight: number): Promise<TrafficCanaryPolicy> {
+  return request<TrafficCanaryPolicy>(`/api/deployments/${id}/traffic-canary/weight`, {
+    method: 'POST',
+    body: JSON.stringify({ weight }),
+  });
+}
+
+export async function fetchTrafficCanaryNginx(id: string): Promise<string> {
+  const response = await fetch(`/api/deployments/${id}/traffic-canary/nginx`, {
+    credentials: 'same-origin',
+  });
+  if (!response.ok) throw new ApiError(response.status, 'traffic_canary_unavailable');
+  return response.text();
+}
+
 export async function createAgentCommand(
   agentId: string,
   type: string,

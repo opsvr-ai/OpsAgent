@@ -14,7 +14,7 @@ Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools
 >
 > 发布说明：[RELEASE.md](docs/RELEASE.md)。
 >
-> mTLS 支持外部 CA 或控制面内置 CA、Agent 首次注册 CSR 自动签发、自动服务端证书、证书到期事件、吊销与 CRL 分发、吊销审计、平台证书状态页、健康检查证书剩余天数和新旧 CA 过渡轮换，见 [2026-11-04-mtls-transport.md](docs/design/plans/2026-11-04-mtls-transport.md)；OCSP 未完成。Compose 已启用 8443 mTLS。
+> mTLS 支持外部 CA 或控制面内置 CA、Agent 首次注册 CSR 自动签发、自动服务端证书、证书到期事件、吊销与 CRL 分发、标准 OCSP 响应、吊销审计、平台证书状态页、健康检查证书剩余天数和新旧 CA 过渡轮换，见 [2026-11-04-mtls-transport.md](docs/design/plans/2026-11-04-mtls-transport.md)；Compose 已启用 8443 mTLS。
 
 ## 容器化开发（推荐）
 

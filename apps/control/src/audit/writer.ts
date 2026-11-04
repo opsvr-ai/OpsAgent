@@ -47,6 +47,8 @@ export type AuditAction =
   | 'deployment.preflight'
   | 'deployment.execute'
   | 'deployment.promote'
+  | 'deployment.traffic_canary.update'
+  | 'deployment.traffic_canary.weight'
   | 'agent.certificate.revoke'
   | 'agent.instruction.create'
   | 'agent.instruction.batch'

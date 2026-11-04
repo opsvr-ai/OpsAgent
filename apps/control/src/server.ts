@@ -130,6 +130,6 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   }
 
   registerDesktopUpdateRoutes(app, options.desktopUpdateDir);
-  registerPkiRoutes(app);
+  registerPkiRoutes(app, options.pool);
   return app;
 }

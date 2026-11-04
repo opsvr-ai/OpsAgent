@@ -4,15 +4,20 @@ import {
   createRelease,
   decideDeployment,
   executeDeployment,
+  fetchTrafficCanaryNginx,
+  getTrafficCanaryPolicy,
   listAppSystems,
   listDeployments,
   listReleases,
   preflightDeployment,
   promoteDeployment,
   rollbackDeployment,
+  saveTrafficCanaryPolicy,
+  setTrafficCanaryWeight,
   type AppSystemSummary,
   type DeploymentSummary,
   type ReleaseSummary,
+  type TrafficCanaryPolicy,
 } from '../api/client.js';
 import { formatTime } from '../format.js';
 import { DesignShell } from './design-shell.js';
@@ -44,6 +49,13 @@ export function Deployments({ onBack }: DeploymentsProps) {
   const [canaryPercent, setCanaryPercent] = useState(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trafficFor, setTrafficFor] = useState<string | null>(null);
+  const [trafficPolicy, setTrafficPolicy] = useState<TrafficCanaryPolicy | null>(null);
+  const [trafficConfig, setTrafficConfig] = useState('');
+  const [trafficHost, setTrafficHost] = useState('');
+  const [trafficStable, setTrafficStable] = useState('');
+  const [trafficCanary, setTrafficCanary] = useState('');
+  const [trafficWeight, setTrafficWeight] = useState(10);
 
   async function reload() {
     const [nextReleases, nextDeployments, nextSystems] = await Promise.all([
@@ -172,6 +184,72 @@ export function Deployments({ onBack }: DeploymentsProps) {
     }
   }
 
+  async function openTraffic(id: string) {
+    setTrafficFor(id);
+    setTrafficPolicy(null);
+    setTrafficConfig('');
+    setTrafficHost('');
+    setTrafficStable('');
+    setTrafficCanary('');
+    setTrafficWeight(10);
+    try {
+      const policy = await getTrafficCanaryPolicy(id);
+      setTrafficPolicy(policy);
+      setTrafficHost(policy.host);
+      setTrafficStable(policy.stableUpstream);
+      setTrafficCanary(policy.canaryUpstream);
+      setTrafficWeight(policy.canaryWeight);
+    } catch {
+      // no policy yet
+    }
+  }
+
+  async function saveTraffic() {
+    if (!trafficFor) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const policy = await saveTrafficCanaryPolicy(trafficFor, {
+        host: trafficHost,
+        stableUpstream: trafficStable,
+        canaryUpstream: trafficCanary,
+        canaryWeight: trafficWeight,
+      });
+      setTrafficPolicy(policy);
+      setTrafficConfig(await fetchTrafficCanaryNginx(trafficFor));
+    } catch {
+      setError('流量灰度配置失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateTrafficWeight(weight: number) {
+    if (!trafficFor) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const policy = await setTrafficCanaryWeight(trafficFor, weight);
+      setTrafficPolicy(policy);
+      setTrafficWeight(policy.canaryWeight);
+      setTrafficConfig(await fetchTrafficCanaryNginx(trafficFor));
+    } catch {
+      setError('流量灰度比例更新失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadTrafficConfig() {
+    if (!trafficFor) return;
+    setError(null);
+    try {
+      setTrafficConfig(await fetchTrafficCanaryNginx(trafficFor));
+    } catch {
+      setError('流量灰度配置尚未创建');
+    }
+  }
+
   return (
     <DesignShell
       active="deployments"
@@ -225,6 +303,7 @@ export function Deployments({ onBack }: DeploymentsProps) {
                 {['approved', 'pending'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void preflight(deployment.id)}>制品预检</button> : null}
                 {['approved', 'preflighted'].includes(deployment.status) ? <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void execute(deployment.id)}>执行部署</button> : null}
                 {deployment.status === 'canary' ? <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void promote(deployment.id)}>推进全量</button> : null}
+                {['approved', 'preflighted', 'canary', 'deployed'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void openTraffic(deployment.id)}>流量灰度</button> : null}
                 {['approved', 'preflighted', 'canary', 'deployed'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void rollback(deployment.id)}>回滚</button> : null}
               </div>
             </div>
@@ -232,6 +311,28 @@ export function Deployments({ onBack }: DeploymentsProps) {
           {deployments.length === 0 ? <p className="muted">暂无部署计划</p> : null}
         </div>
       </section>
+
+      {trafficFor ? (
+        <section className="card" style={{ marginTop: 16 }}>
+          <div className="card-head"><h2>流量级灰度</h2><span className="muted">{trafficPolicy ? trafficPolicy.status : '未配置'}</span></div>
+          <div className="card-body stack">
+            <div className="grid grid-2">
+              <div className="field"><label htmlFor="traffic-host">入口域名</label><input id="traffic-host" value={trafficHost} onChange={(event) => setTrafficHost(event.target.value)} placeholder="order.example.com" /></div>
+              <div className="field"><label htmlFor="traffic-weight">灰度比例</label><input id="traffic-weight" type="number" min={0} max={100} value={trafficWeight} onChange={(event) => setTrafficWeight(Number(event.target.value))} /></div>
+              <div className="field"><label htmlFor="traffic-stable">稳定上游</label><input id="traffic-stable" value={trafficStable} onChange={(event) => setTrafficStable(event.target.value)} placeholder="127.0.0.1:8081" /></div>
+              <div className="field"><label htmlFor="traffic-canary">灰度上游</label><input id="traffic-canary" value={trafficCanary} onChange={(event) => setTrafficCanary(event.target.value)} placeholder="127.0.0.1:8082" /></div>
+            </div>
+            <div className="row-sm">
+              <button type="button" className="btn btn-primary btn-sm" disabled={busy || !trafficHost || !trafficStable || !trafficCanary} onClick={() => void saveTraffic()}>保存并生成配置</button>
+              {[0, 10, 25, 50, 100].map((weight) => (
+                <button key={weight} type="button" className="btn btn-outline btn-sm" disabled={busy || !trafficPolicy} onClick={() => void updateTrafficWeight(weight)}>{weight}%</button>
+              ))}
+              <button type="button" className="btn btn-ghost btn-sm" disabled={!trafficPolicy} onClick={() => void loadTrafficConfig()}>查看 Nginx 配置</button>
+            </div>
+            {trafficConfig ? <textarea className="mono" rows={16} readOnly value={trafficConfig} /> : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="card" style={{ marginTop: 16 }}>
         <div className="card-head"><h2>发布记录</h2><span className="muted">{releases.length} 条</span></div>

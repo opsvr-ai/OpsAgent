@@ -193,6 +193,42 @@ POST /api/deployments/:id/promote
 
 canary 阶段出现新 Agent 异常时，健康监控会只回滚已灰度节点。
 
+### 流量级 canary
+
+主机级 canary 控制“部署到多少台 Agent”，流量级 canary 控制“入口流量
+有多少比例进入新版本”：
+
+```text
+POST /api/deployments/:id/traffic-canary
+{
+  "host": "order.example.com",
+  "stableUpstream": "10.0.0.10:8080",
+  "canaryUpstream": "10.0.0.11:8080",
+  "canaryWeight": 10
+}
+```
+
+```text
+POST /api/deployments/:id/traffic-canary/weight
+{ "weight": 25 }
+```
+
+```text
+GET /api/deployments/:id/traffic-canary/nginx
+```
+
+生成 Nginx `split_clients` 配置：
+
+```nginx
+split_clients "${remote_addr}${request_id}" $order_example_com_backend {
+    10% order_example_com_canary;
+    *   order_example_com_stable;
+}
+```
+
+Web 部署页支持配置、10/25/50/100% 权重切换、0% 回滚和配置查看。
+数据面由企业入口代理应用并 reload；控制面负责策略、配置生成和审计。
+
 ### 自动全量
 
 可选：
@@ -291,6 +327,5 @@ deployment.execute
 
 ## 剩余
 
-- 流量/实例级灰度推进
 - 制品仓库和签名证书托管
 - Windows 部署执行器

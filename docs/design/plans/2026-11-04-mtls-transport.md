@@ -3,7 +3,8 @@
 ## 状态
 
 已支持由外部 CA 或控制面内置 CA 签发证书，并支持 Agent 首次注册时
-自动提交 CSR、控制面自动签发客户端证书。CA 轮换和吊销仍未完成。
+自动提交 CSR、控制面自动签发客户端证书；CA 轮换、吊销、CRL 与 OCSP
+均已实现。
 
 ## 控制面
 
@@ -260,6 +261,31 @@ Content-Type: application/pkix-crl
 OPSAGENT_CRL_URL=http://control.example:8080/api/pki/crl
 ```
 
+### OCSP
+
+控制面提供标准 DER OCSP 响应：
+
+```text
+POST /api/pki/ocsp
+Content-Type: application/ocsp-request
+Response: application/ocsp-response
+
+GET /api/pki/ocsp/:base64url-request
+```
+
+- 校验请求中的 issuer name hash / key hash
+- 支持 SHA-1 / SHA-256 CertID
+- 返回 good / revoked / unknown
+- 响应由 CA 私钥签名，并携带 CA 证书
+- 支持 revoked 的 revocationTime
+- `thisUpdate` / `nextUpdate` 1 小时
+
+签发的客户端证书包含 AIA OCSP 扩展：
+
+```text
+OPSAGENT_OCSP_URL=http://control.example:8080/api/pki/ocsp
+```
+
 语义化 403 检查作为第二层兜底。
 
 ### CA 轮换
@@ -307,7 +333,6 @@ docker compose restart control
 
 - CA 自动化编排与到期提醒
 - 轮换期间双 CRL
-- OCSP
 - 部署脚本自动分发 CA
 - 服务端证书到期事件接入消息中心
 - 到期事件接入工单/通知路由

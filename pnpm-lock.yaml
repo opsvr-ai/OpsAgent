@@ -23,6 +23,15 @@ importers:
       '@opsagent/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@peculiar/asn1-ocsp':
+        specifier: ^3.0.0
+        version: 3.0.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)
+      '@peculiar/asn1-schema':
+        specifier: ^3.0.0
+        version: 3.0.0(asn1js@4.0.0)
+      '@peculiar/asn1-x509':
+        specifier: ^3.0.0
+        version: 3.0.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)
       '@peculiar/x509':
         specifier: ^3.1.0
         version: 3.1.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)
@@ -595,6 +604,12 @@ packages:
 
   '@peculiar/asn1-ecc@3.0.0':
     resolution: {integrity: sha512-CxBF5rMaLycKDo4fBvEnhDF0OD4BjwHbTCKBZKsmtI5R+//gZSZcEryosDAyrW/GDEygVxyjrHhURIKam8vsIw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@peculiar/asn1-schema': ^3.0.0
+
+  '@peculiar/asn1-ocsp@3.0.0':
+    resolution: {integrity: sha512-S4oFH1NBztSL4WJ8cdT5bEwuWe1ITeyDKdXGavDc8TuAVCtUgznciY7U/eD+fEuOkcTvWwLZWdnsq5Jn4fehaQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       '@peculiar/asn1-schema': ^3.0.0
@@ -2446,6 +2461,13 @@ snapshots:
       - asn1js
 
   '@peculiar/asn1-ecc@3.0.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)':
+    dependencies:
+      '@peculiar/asn1-schema': 3.0.0(asn1js@4.0.0)
+      '@peculiar/asn1-x509': 3.0.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)
+    transitivePeerDependencies:
+      - asn1js
+
+  '@peculiar/asn1-ocsp@3.0.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)':
     dependencies:
       '@peculiar/asn1-schema': 3.0.0(asn1js@4.0.0)
       '@peculiar/asn1-x509': 3.0.0(@peculiar/asn1-schema@3.0.0(asn1js@4.0.0))(asn1js@4.0.0)

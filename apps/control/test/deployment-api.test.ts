@@ -80,6 +80,37 @@ describe('release and deployment API', () => {
     expect(approved.statusCode).toBe(200);
     expect(approved.json()).toMatchObject({ status: 'approved' });
 
+    const traffic = await app.inject({
+      method: 'POST',
+      url: `/api/deployments/${deploymentId}/traffic-canary`,
+      headers: { cookie },
+      payload: {
+        host: 'order.example.com',
+        stableUpstream: '127.0.0.1:8081',
+        canaryUpstream: '127.0.0.1:8082',
+        canaryWeight: 10,
+      },
+    });
+    expect(traffic.statusCode).toBe(200);
+    expect(traffic.json()).toMatchObject({ canaryWeight: 10, status: 'active' });
+
+    const nginx = await app.inject({
+      method: 'GET',
+      url: `/api/deployments/${deploymentId}/traffic-canary/nginx`,
+      headers: { cookie },
+    });
+    expect(nginx.statusCode).toBe(200);
+    expect(nginx.body).toContain('10% order.example.com_canary');
+
+    const promoted = await app.inject({
+      method: 'POST',
+      url: `/api/deployments/${deploymentId}/traffic-canary/weight`,
+      headers: { cookie },
+      payload: { weight: 100 },
+    });
+    expect(promoted.statusCode).toBe(200);
+    expect(promoted.json()).toMatchObject({ canaryWeight: 100, status: 'promoted' });
+
     const notExecutable = await app.inject({
       method: 'POST',
       url: `/api/deployments/${deploymentId}/execute`,

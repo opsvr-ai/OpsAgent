@@ -23,6 +23,8 @@
 - 签名 Release
 - 制品 SHA-256 预检
 - canary 分批与全量推进
+- 主机级 canary 分批
+- 流量级 canary 权重与 Nginx 配置生成
 - 健康门禁
 - 部署 / 回滚真机验证
 - 部署失败自动 Incident
@@ -47,6 +49,7 @@
   → 启动 + 每 6 小时检查，7 天内续期
   → 证书到期事件
   → 吊销 + CRL + CRL 分发
+  → 标准 OCSP 响应 + AIA
   → 吊销审计
 ```
 
@@ -73,13 +76,14 @@
 ## 验证基线
 
 ```text
-pnpm test    187 passed | 3 skipped
+pnpm test    217 passed | 3 skipped
 pnpm e2e     13 passed
 go test ./... 通过
 pnpm build   通过
 控制面       healthy
 8443         mTLS
 CRL          HTTP 200
+OCSP         HTTP 200
 真机部署/回滚 通过
 ```
 
@@ -87,10 +91,10 @@ CRL          HTTP 200
 
 - 没有公网信任链，证书仅适用于内网
 - CA 轮换需人工编排
-- OCSP 未实现，当前使用 CRL
-- 流量级 canary 依赖入口代理
+- OCSP 已实现，生产需配置可访问的 AIA 域名
+- 流量级 canary 控制面完成，数据面需入口代理应用生成的 Nginx 配置
 - Windows Job Object 限额未实现
-- G0–G10 尚未正式签字
+- G0–G10 工程验收通过，外部环境与正式签字待完成
 
 详见：
 

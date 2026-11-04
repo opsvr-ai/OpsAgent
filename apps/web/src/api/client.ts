@@ -415,6 +415,20 @@ export interface AppSystemSummary {
   readonly onlineCount: number;
 }
 
+export interface AgentEventSummary {
+  readonly id: string;
+  readonly agentId: string;
+  readonly hostname?: string;
+  readonly fingerprint: string;
+  readonly severity: 'info' | 'warning' | 'critical';
+  readonly title: string;
+  readonly detail: string;
+  readonly metric: Readonly<Record<string, unknown>>;
+  readonly status: string;
+  readonly detectedAt: string;
+  readonly resolvedAt: string | null;
+}
+
 export interface AgentSummary {
   readonly id: string;
   readonly name: string;
@@ -447,6 +461,7 @@ export interface AgentFleetResponse {
     readonly discovered: number;
   };
   readonly appSystems: AppSystemSummary[];
+  readonly alerts: AgentEventSummary[];
 }
 
 export async function listAgents(): Promise<AgentSummary[]> {
@@ -473,6 +488,10 @@ export async function getAgentFleet(params: {
 
 export async function getAgentDetail(id: string): Promise<AgentSummary> {
   return request<AgentSummary>(`/api/agents/${id}`);
+}
+
+export async function getAgentEvents(id: string): Promise<AgentEventSummary[]> {
+  return request<AgentEventSummary[]>(`/api/agents/${id}/events`);
 }
 
 export async function listAppSystems(): Promise<AppSystemSummary[]> {

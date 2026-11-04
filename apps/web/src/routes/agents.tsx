@@ -3,11 +3,13 @@ import {
   assignAgentAppSystem,
   createAgentCommand,
   getAgentDetail,
+  getAgentEvents,
   getAgentFleet,
   getAgentInstallCommand,
   listAgentCommands,
   type AgentApplication,
   type AgentCommandSummary,
+  type AgentEventSummary,
   type AgentFleetResponse,
   type AgentSummary,
 } from '../api/client.js';
@@ -18,7 +20,7 @@ export interface AgentsProps {
   readonly onBack: () => void;
 }
 
-type DetailTab = 'overview' | 'system' | 'apps' | 'agent' | 'commands';
+type DetailTab = 'overview' | 'system' | 'apps' | 'agent' | 'commands' | 'alerts';
 
 const SYSTEM_LABELS: Record<string, string> = {
   hostname: '主机名',
@@ -93,6 +95,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [detailCommands, setDetailCommands] = useState<AgentCommandSummary[]>([]);
+  const [detailEvents, setDetailEvents] = useState<AgentEventSummary[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
 
   useEffect(() => {
@@ -130,12 +133,14 @@ export function Agents({ onBack }: AgentsProps) {
   }
 
   async function refreshDetail(id: string) {
-    const [agent, commands] = await Promise.all([
+    const [agent, commands, events] = await Promise.all([
       getAgentDetail(id),
       listAgentCommands(id),
+      getAgentEvents(id),
     ]);
     setDetail(agent);
     setDetailCommands(commands);
+    setDetailEvents(events);
   }
 
   async function openDetail(id: string) {
@@ -232,6 +237,28 @@ export function Agents({ onBack }: AgentsProps) {
         </div>
       </section>
 
+      {fleet?.alerts && fleet.alerts.length > 0 ? (
+        <section className="agent-alert-strip">
+          <div className="agent-alert-head">
+            <span className="agent-alert-icon"><svg><use href="/icons.svg#i-alert" /></svg></span>
+            <strong>智能体主动上报的异常</strong>
+            <span className="badge badge-warn">{fleet.alerts.length} 条待处理</span>
+            <span className="muted">Agent 自巡航发现，已同步到消息中心</span>
+          </div>
+          <div className="agent-alert-list">
+            {fleet.alerts.slice(0, 4).map((event) => (
+              <button key={event.id} type="button" className="agent-alert-row" onClick={() => { if (event.agentId) void openDetail(event.agentId); }}>
+                <span className={`severity-dot ${event.severity}`} />
+                <strong>{event.hostname ?? event.agentId}</strong>
+                <span>{event.title}</span>
+                <span className="agent-alert-detail">{event.detail}</span>
+                <span className="muted">{relativeTime(event.detectedAt)}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="card fleet-card">
         <div className="fleet-toolbar">
           <div className="fleet-toolbar-title">
@@ -325,7 +352,7 @@ export function Agents({ onBack }: AgentsProps) {
                   <button type="button" className="btn btn-primary btn-sm" disabled={commandBusy} onClick={() => void runCommand('discovery')}>重新发现配置</button>
                 </div>
                 <nav className="detail-tabs">
-                  {([['overview', '概览'], ['system', '系统配置'], ['apps', '应用部署'], ['agent', 'Agent'], ['commands', '命令历史']] as Array<[DetailTab, string]>).map(([id, label]) => (
+                  {([['overview', '概览'], ['system', '系统配置'], ['apps', '应用部署'], ['agent', 'Agent'], ['commands', '命令历史'], ['alerts', `告警${detailEvents.filter((event) => event.status === 'open').length ? ` (${detailEvents.filter((event) => event.status === 'open').length})` : ''}`]] as Array<[DetailTab, string]>).map(([id, label]) => (
                     <button key={id} type="button" className={detailTab === id ? 'is-active' : ''} onClick={() => setDetailTab(id)}>{label}</button>
                   ))}
                 </nav>
@@ -371,6 +398,23 @@ export function Agents({ onBack }: AgentsProps) {
                   ) : null}
                   {detailTab === 'commands' ? (
                     detailCommands.length > 0 ? <div className="command-history">{detailCommands.map((command) => <div key={command.id} className="command-row"><span className="mono">{command.type === 'ai_diagnose' ? 'AI 诊断' : command.type === 'discovery' ? '配置发现' : command.type === 'diagnostics' ? '主机诊断' : command.type}</span><span className={`badge ${command.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{command.status}</span><span className="muted">{relativeTime(command.createdAt)}</span></div>)}</div> : <p className="muted detail-loading">暂无命令记录。</p>
+                  ) : null}
+                  {detailTab === 'alerts' ? (
+                    detailEvents.length > 0 ? (
+                      <div className="agent-event-list">
+                        {detailEvents.map((event) => (
+                          <div key={event.id} className={`agent-event ${event.status}`}>
+                            <span className={`severity-dot ${event.severity}`} />
+                            <div className="agent-event-copy">
+                              <strong>{event.title}</strong>
+                              <p>{event.detail}</p>
+                              <span className="muted">{relativeTime(event.detectedAt)} · {event.status === 'open' ? '待处理' : '已恢复'} · {event.fingerprint}</span>
+                            </div>
+                            <span className={`badge ${event.severity === 'critical' ? 'badge-danger' : 'badge-warn'}`}>{event.severity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="muted detail-loading">暂无告警，Agent 自巡航未发现异常。</p>
                   ) : null}
                 </div>
               </>

@@ -29,11 +29,13 @@ const fleet = {
   pageSize: 20,
   summary: { total: 1, online: 1, offline: 0, appSystems: 0, applications: 1, discovered: 1 },
   appSystems: [],
+  alerts: [],
 };
 
 vi.mock('../src/api/client.js', () => ({
   getAgentFleet: vi.fn(),
   getAgentDetail: vi.fn(),
+  getAgentEvents: vi.fn().mockResolvedValue([]),
   assignAgentAppSystem: vi.fn(),
   createAgentCommand: vi.fn(),
   listAgentCommands: vi.fn().mockResolvedValue([]),

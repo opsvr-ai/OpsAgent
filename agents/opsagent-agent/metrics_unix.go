@@ -39,5 +39,10 @@ func hostMetrics() map[string]any {
 			metrics["memAvailableGB"] = value / 1024 / 1024
 		}
 	}
+	total, _ := metrics["memTotalGB"].(float64)
+	available, _ := metrics["memAvailableGB"].(float64)
+	if total > 0 {
+		metrics["memLoadPct"] = (total - available) / total * 100
+	}
 	return metrics
 }

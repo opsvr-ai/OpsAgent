@@ -65,6 +65,21 @@ func TestRunCommandDiscovery(t *testing.T) {
 	}
 }
 
+func TestPatrolEventsDetectLowDiskAndHighMemory(t *testing.T) {
+	t.Setenv("OPSAGENT_PATROL_DISK_FREE_PCT", "15")
+	t.Setenv("OPSAGENT_PATROL_MEM_LOAD_PCT", "80")
+	events := patrolEvents(map[string]any{
+		"diskTotalGB":    100.0,
+		"diskFreeGB":     8.0,
+		"memTotalGB":     16.0,
+		"memAvailableGB": 2.0,
+		"memLoadPct":     87.5,
+	})
+	if len(events) != 2 {
+		t.Fatalf("expected disk and memory events, got %#v", events)
+	}
+}
+
 func TestRunCommandAIDiagnoseWithoutCredentials(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	result := runCommand("ai_diagnose", map[string]any{"memLoadPct": 50})

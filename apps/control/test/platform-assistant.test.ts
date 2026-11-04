@@ -34,12 +34,17 @@ function fakes() {
     create: vi.fn(),
     get: vi.fn(),
   };
+  const events = {
+    list: vi.fn().mockResolvedValue([]),
+    openForTenant: vi.fn().mockResolvedValue([]),
+  };
   const assistant = new PlatformAssistant(
     {} as Pool,
     agents as unknown as AgentService,
     commands as unknown as AgentCommandService,
+    events as unknown as import('../src/agents/events.js').AgentEventService,
   );
-  return { assistant, agents, commands };
+  return { assistant, agents, commands, events };
 }
 
 async function collect(iterable: AsyncIterable<RuntimeEvent>): Promise<RuntimeEvent[]> {
@@ -76,5 +81,28 @@ describe('PlatformAssistant', () => {
     expect(events[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.agent_snapshot' });
     expect(events.some((event) => event.type === 'assistant.delta' && event.text.includes('prod-web-01 系统配置'))).toBe(true);
     expect(commands.create).not.toHaveBeenCalled();
+  });
+
+  it('lists agent self-patrol alerts', async () => {
+    const { assistant, agents, events } = fakes();
+    agents.findByMention.mockResolvedValue(null);
+    events.openForTenant.mockResolvedValue([{
+      id: 'e-1',
+      agentId: 'a-1',
+      hostname: 'prod-web-01',
+      fingerprint: 'disk-low',
+      severity: 'warning',
+      title: '磁盘可用空间不足',
+      detail: '根分区可用 8%',
+      metric: {},
+      status: 'open',
+      detectedAt: new Date().toISOString(),
+      resolvedAt: null,
+    }]);
+    const plan = await assistant.detect('tenant', '当前有哪些告警？');
+    expect(plan).toMatchObject({ kind: 'alerts' });
+    const emitted = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
+    expect(emitted[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.alerts' });
+    expect(emitted.some((event) => event.type === 'assistant.delta' && event.text.includes('磁盘可用空间不足'))).toBe(true);
   });
 });

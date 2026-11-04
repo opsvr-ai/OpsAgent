@@ -162,9 +162,11 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
     if (item.type === 'tool.call' && item.tool.startsWith('opsagent.')) {
       const label = item.tool === 'opsagent.fleet'
         ? '纳管智能体清单'
-        : item.tool === 'opsagent.agent_snapshot'
-          ? '主机配置与性能快照'
-          : '主机命令下发';
+        : item.tool === 'opsagent.alerts'
+          ? '主动发现告警'
+          : item.tool === 'opsagent.agent_snapshot'
+            ? '主机配置与性能快照'
+            : '主机命令下发';
       return (
         <div key={index} className="msg platform-tool-msg">
           <span className="msg-avatar is-agent"><svg><use href="/icons.svg#i-shield" /></svg></span>

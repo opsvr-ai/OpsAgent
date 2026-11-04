@@ -6,6 +6,7 @@ import { resolveTenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { AgentService, type DiscoveryPayload } from './service.js';
 import { AgentCommandService } from './commands.js';
+import { AgentEventService, type AgentEventInput } from './events.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -29,6 +30,7 @@ export function registerAgentRoutes(
 ): void {
   const agents = new AgentService(pool);
   const commands = new AgentCommandService(pool);
+  const events = new AgentEventService(pool);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -106,6 +108,39 @@ export function registerAgentRoutes(
     return reply.send(await agents.list(ctx.tenantId));
   });
 
+  app.post<{ Params: { id: string } }>('/api/agents/:id/events', async (request, reply) => {
+    const body = request.body as { agentKey?: unknown; events?: unknown; resolveMissing?: unknown } | undefined;
+    if (typeof body?.agentKey !== 'string' || !Array.isArray(body.events)) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const reported = await events.report(
+      request.params.id,
+      body.agentKey,
+      body.events.filter((item): item is AgentEventInput => typeof item === 'object' && item !== null),
+      body.resolveMissing === true,
+    );
+    if (!reported) return reply.code(404).send({ error: 'agent_not_found' });
+    return reply.send({ events: reported });
+  });
+
+  app.get<{ Params: { id: string } }>('/api/agents/:id/events', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await events.list(ctx.tenantId, request.params.id));
+  });
+
   app.get<{
     Querystring: {
       query?: string;
@@ -136,14 +171,15 @@ export function registerAgentRoutes(
     }
     const page = Number.parseInt(request.query.page ?? '1', 10);
     const pageSize = Number.parseInt(request.query.pageSize ?? '20', 10);
-    return reply.send(await agents.fleet(ctx.tenantId, {
+    const fleet = await agents.fleet(ctx.tenantId, {
       ...(request.query.query ? { query: request.query.query } : {}),
       ...(request.query.status ? { status: request.query.status } : {}),
       ...(appSystemId ? { appSystemId } : {}),
       ...(request.query.os ? { os: request.query.os } : {}),
       page: Number.isFinite(page) ? page : 1,
       pageSize: Number.isFinite(pageSize) ? pageSize : 20,
-    }));
+    });
+    return reply.send({ ...fleet, alerts: await events.openForTenant(ctx.tenantId) });
   });
 
   app.get<{ Params: { id: string } }>('/api/agents/:id', async (request, reply) => {

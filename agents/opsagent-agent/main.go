@@ -161,6 +161,43 @@ func main() {
 	}
 	log.Printf("registered agent %s", registered.Agent.ID)
 	lastDiscovery := time.Now()
+	lastPatrol := time.Time{}
+	activePatrol := map[string]bool{}
+
+	reportPatrol := func(metrics map[string]any) {
+		current := patrolEvents(metrics)
+		currentSet := map[string]bool{}
+		payload := make([]patrolEvent, 0, len(current)+len(activePatrol))
+		for _, event := range current {
+			currentSet[event.Fingerprint] = true
+			payload = append(payload, event)
+		}
+		for fingerprint := range activePatrol {
+			if !currentSet[fingerprint] {
+				payload = append(payload, patrolEvent{
+					Fingerprint: fingerprint,
+					Resolved:    true,
+					DetectedAt:  time.Now().UTC().Format(time.RFC3339),
+				})
+			}
+		}
+		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/events", nil, map[string]any{
+			"agentKey":       registered.AgentKey,
+			"events":         payload,
+			"resolveMissing": true,
+		}, nil); err != nil {
+			log.Printf("patrol report: %v", err)
+			return
+		}
+		for fingerprint := range activePatrol {
+			if !currentSet[fingerprint] {
+				delete(activePatrol, fingerprint)
+			}
+		}
+		for fingerprint := range currentSet {
+			activePatrol[fingerprint] = true
+		}
+	}
 
 	beat := func() {
 		var memory runtime.MemStats
@@ -182,6 +219,10 @@ func main() {
 			Discovery: discovery,
 		}, nil); err != nil {
 			log.Printf("heartbeat: %v", err)
+		}
+		if time.Since(lastPatrol) >= 30*time.Second {
+			reportPatrol(metrics)
+			lastPatrol = time.Now()
 		}
 
 		commandURL := controlURL + "/api/agents/" + registered.Agent.ID + "/commands/pending?agentKey=" + url.QueryEscape(registered.AgentKey)

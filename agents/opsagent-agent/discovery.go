@@ -161,11 +161,11 @@ func dockerApplications() []map[string]any {
 			continue
 		}
 		app := map[string]any{
-			"name":    strings.TrimSpace(parts[0]),
-			"kind":    "docker",
-			"image":   strings.TrimSpace(parts[1]),
-			"status":  strings.TrimSpace(parts[2]),
-			"deploy":  "docker",
+			"name":   strings.TrimSpace(parts[0]),
+			"kind":   "docker",
+			"image":  strings.TrimSpace(parts[1]),
+			"status": strings.TrimSpace(parts[2]),
+			"deploy": "docker",
 		}
 		if len(parts) == 4 && strings.TrimSpace(parts[3]) != "" {
 			app["ports"] = strings.TrimSpace(parts[3])

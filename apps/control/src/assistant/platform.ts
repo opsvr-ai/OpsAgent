@@ -1,6 +1,8 @@
 import type { RuntimeEvent } from '@opsagent/contracts';
 import type { Pool } from 'pg';
 import { AgentCommandService, type AgentCommandRecord } from '../agents/commands.js';
+import { AgentEventService } from '../agents/events.js';
+import type { AgentEventRecord } from '../agents/events.js';
 import { AgentService, type AgentRecord } from '../agents/service.js';
 
 export type PlatformPlan =
@@ -9,6 +11,10 @@ export type PlatformPlan =
       readonly query: string;
       readonly appSystemId?: string;
       readonly appSystemName?: string;
+    }
+  | {
+      readonly kind: 'alerts';
+      readonly query: string;
     }
   | {
       readonly kind: 'agent';
@@ -23,6 +29,11 @@ function value(input: unknown): string {
   if (Array.isArray(input)) return input.join(', ');
   if (typeof input === 'object') return JSON.stringify(input);
   return String(input);
+}
+
+function rounded(input: unknown, digits = 1): string {
+  if (typeof input === 'number' && Number.isFinite(input)) return input.toFixed(digits);
+  return value(input);
 }
 
 function delay(ms: number): Promise<void> {
@@ -45,12 +56,14 @@ export class PlatformAssistant {
     pool: Pool,
     private readonly agents = new AgentService(pool),
     private readonly commands = new AgentCommandService(pool),
+    private readonly events = new AgentEventService(pool),
   ) {}
 
   async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
     const mentioned = await this.agents.findByMention(tenantId, text);
     if (mentioned && /(检查|查看|看看|查询|获取|诊断|巡检|配置|系统|内核|部署|应用|端口|性能|指标|负载|cpu|内存|磁盘|状态|agent)/i.test(text)) {
-      const wantsConfig = /(配置|系统|内核|部署|应用|端口|agent|发现)/i.test(text);
+      const wantsConfig = /(配置|系统信息|系统配置|内核|部署|应用|端口|发现)/i.test(text)
+        && !/(性能|指标|负载|cpu|内存|磁盘|诊断|使用率|水位)/i.test(text);
       return {
         kind: 'agent',
         agent: mentioned,
@@ -60,6 +73,8 @@ export class PlatformAssistant {
       };
     }
     const inventory = /(纳管|托管|平台上|在线|离线)[^。！？\n]{0,24}(智能体|agent|主机|服务器)|(智能体|agent)[^。！？\n]{0,12}(多少|几台|哪些|列表|统计)|(多少|几台)[^。！？\n]{0,12}(智能体|agent)/i.test(text);
+    const hasAlertIntent = /(告警|故障|异常|事件)/i.test(text) && /(哪些|多少|列表|查看|当前|平台|有什么|上报)/i.test(text);
+    if (hasAlertIntent) return { kind: 'alerts', query: text };
     if (!inventory) return null;
     const systems = await this.agents.listAppSystems(tenantId);
     const mentionedSystem = systems.find((system) => text.includes(system.name) || text.includes(system.code));
@@ -71,6 +86,27 @@ export class PlatformAssistant {
   }
 
   async *execute(plan: PlatformPlan, tenantId: string, sessionId: string): AsyncIterable<RuntimeEvent> {
+    if (plan.kind === 'alerts') {
+      yield this.toolCall(sessionId, 'opsagent.alerts', { query: plan.query }, 'R0');
+      const alerts = await this.events.openForTenant(tenantId);
+      yield this.toolResult(sessionId, 'opsagent.alerts', {
+        count: alerts.length,
+        critical: alerts.filter((event) => event.severity === 'critical').length,
+      });
+      const lines = [`当前有 **${alerts.length}** 条智能体主动上报的待处理异常。`];
+      if (alerts.length > 0) {
+        lines.push('', '| 主机 | 级别 | 异常 | 详情 | 发现时间 |', '| --- | --- | --- | --- | --- |');
+        for (const event of alerts.slice(0, 12)) {
+          lines.push(`| ${event.hostname} | ${event.severity === 'critical' ? '严重' : event.severity === 'warning' ? '警告' : '信息'} | ${event.title} | ${event.detail} | ${relativeTime(event.detectedAt)} |`);
+        }
+        lines.push('', '可以在「操作系统智能体」页点击对应主机查看自巡航告警详情。');
+      } else {
+        lines.push('', '当前没有待处理告警。');
+      }
+      yield this.assistant(sessionId, lines.join('\n'));
+      yield this.done(sessionId);
+      return;
+    }
     if (plan.kind === 'inventory') {
       yield this.toolCall(sessionId, 'opsagent.fleet', {
         query: plan.query,
@@ -95,6 +131,7 @@ export class PlatformAssistant {
       ? Boolean(plan.agent.discoveryAt)
       : Object.keys(plan.agent.metrics).length > 0;
     if (!plan.refresh && hasSnapshot) {
+      const hostAlerts = await this.events.list(tenantId, plan.agent.id);
       yield this.toolCall(sessionId, 'opsagent.agent_snapshot', {
         hostname: plan.agent.hostname,
         type: plan.commandType,
@@ -105,7 +142,7 @@ export class PlatformAssistant {
         applications: plan.agent.applications.length,
         metrics: plan.agent.metrics,
       });
-      yield this.assistant(sessionId, this.formatAgent(plan.agent, plan.commandType));
+      yield this.assistant(sessionId, this.formatAgent(plan.agent, plan.commandType, undefined, hostAlerts));
       yield this.done(sessionId);
       return;
     }
@@ -131,13 +168,14 @@ export class PlatformAssistant {
       command = (await this.commands.get(tenantId, plan.agent.id, created.id)) ?? command;
     }
     const agent = (await this.agents.get(plan.agent.id, tenantId)) ?? plan.agent;
+    const hostAlerts = await this.events.list(tenantId, plan.agent.id);
     yield this.toolResult(sessionId, 'opsagent.agent_command', {
       commandId: command.id,
       type: command.type,
       status: command.status,
       result: command.result,
     });
-    yield this.assistant(sessionId, this.formatAgent(agent, plan.commandType, command));
+    yield this.assistant(sessionId, this.formatAgent(agent, plan.commandType, command, hostAlerts));
     yield this.done(sessionId);
   }
 
@@ -163,7 +201,7 @@ export class PlatformAssistant {
     return lines.join('\n');
   }
 
-  private formatAgent(agent: AgentRecord, type: 'discovery' | 'diagnostics', command?: AgentCommandRecord): string {
+  private formatAgent(agent: AgentRecord, type: 'discovery' | 'diagnostics', command?: AgentCommandRecord, alerts?: AgentEventRecord[]): string {
     if (command && command.status !== 'completed') {
       return `已向 **${agent.hostname}** 下发${type === 'discovery' ? '配置发现' : '性能诊断'}命令，当前状态为 **${command.status}**。Agent 会在下次心跳（约 10 秒）后执行，完成后可在主机详情或命令历史查看结果。`;
     }
@@ -175,20 +213,25 @@ export class PlatformAssistant {
       const metrics = typeof result.metrics === 'object' && result.metrics !== null
         ? result.metrics as Record<string, unknown>
         : command ? result : agent.metrics;
-      return [
+      const lines = [
         `## ${agent.hostname} 性能指标`,
         '',
-        `- CPU 核数：**${value(metrics.cpuCores ?? agent.systemInfo.cpuCores)}**`,
-        `- 内存总量：**${value(metrics.memTotalGB ?? agent.systemInfo.memoryTotalGB)} GB**`,
-        `- 可用内存：**${value(metrics.memAvailableGB)} GB**`,
-        `- 内存负载：**${value(metrics.memLoadPct)}%**`,
-        `- 磁盘总量：**${value(metrics.diskTotalGB ?? agent.systemInfo.diskTotalGB)} GB**`,
-        `- 磁盘可用：**${value(metrics.diskFreeGB ?? agent.systemInfo.diskFreeGB)} GB**`,
-        `- Agent 堆内存：**${value(metrics.heapMB)} MB**`,
+        `- CPU 核数：**${rounded(metrics.cpuCores ?? agent.systemInfo.cpuCores, 0)}**`,
+        `- 内存总量：**${rounded(metrics.memTotalGB ?? agent.systemInfo.memoryTotalGB)} GB**`,
+        `- 可用内存：**${rounded(metrics.memAvailableGB)} GB**`,
+        `- 内存负载：**${rounded(metrics.memLoadPct)}%**`,
+        `- 磁盘总量：**${rounded(metrics.diskTotalGB ?? agent.systemInfo.diskTotalGB)} GB**`,
+        `- 磁盘可用：**${rounded(metrics.diskFreeGB ?? agent.systemInfo.diskFreeGB)} GB**`,
+        `- Agent 堆内存：**${rounded(metrics.heapMB)} MB**`,
         `- 数据来源：${command ? '刚刚执行的性能诊断' : '最近一次心跳上报'}（${relativeTime(agent.lastSeen)}）`,
-        '',
-        '如需重新采集，可以说「重新诊断 prod-web-01 的性能」。',
-      ].join('\n');
+      ];
+      const openAlerts = alerts?.filter((event) => event.status === 'open') ?? [];
+      if (openAlerts.length > 0) {
+        lines.push('', '### 当前告警', '');
+        for (const event of openAlerts) lines.push(`- **${event.title}**：${event.detail}`);
+      }
+      lines.push('', `如需重新采集，可以说「重新诊断 ${agent.hostname} 的性能」。`);
+      return lines.join('\n');
     }
     const applications = agent.applications;
     const lines = [
@@ -197,8 +240,8 @@ export class PlatformAssistant {
       `- 操作系统：**${value(agent.systemInfo.osPretty || agent.systemInfo.osName || agent.os)}**`,
       `- 内核：**${value(agent.systemInfo.kernel)}**`,
       `- 主 IP：**${value(agent.systemInfo.ip)}**`,
-      `- CPU / 内存：**${value(agent.systemInfo.cpuCores)}C / ${value(agent.systemInfo.memoryTotalGB)}G**`,
-      `- 磁盘：**${value(agent.systemInfo.diskFreeGB)}G 可用 / ${value(agent.systemInfo.diskTotalGB)}G**`,
+      `- CPU / 内存：**${rounded(agent.systemInfo.cpuCores, 0)}C / ${rounded(agent.systemInfo.memoryTotalGB)}G**`,
+      `- 磁盘：**${rounded(agent.systemInfo.diskFreeGB)}G 可用 / ${rounded(agent.systemInfo.diskTotalGB)}G**`,
       `- 时区：**${value(agent.systemInfo.timezone)}**`,
       `- Agent：**${value(agent.agentInfo.version || agent.version)}**，服务状态 **${value(agent.agentInfo.serviceStatus)}**`,
       `- 数据来源：${command ? '刚刚执行的配置发现' : '最近一次配置发现'}${agent.discoveryAt ? `（${relativeTime(agent.discoveryAt)}）` : ''}`,
@@ -211,7 +254,12 @@ export class PlatformAssistant {
     } else {
       lines.push('', '未发现应用部署。');
     }
-    lines.push('', '如需重新扫描，可以说「重新发现 prod-web-01 的配置」。');
+    const openAlerts = alerts?.filter((event) => event.status === 'open') ?? [];
+    if (openAlerts.length > 0) {
+      lines.push('', '### 当前告警', '');
+      for (const event of openAlerts) lines.push(`- **${event.title}**：${event.detail}`);
+    }
+    lines.push('', `如需重新扫描，可以说「重新发现 ${agent.hostname} 的配置」。`);
     return lines.join('\n');
   }
 

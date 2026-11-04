@@ -78,6 +78,23 @@ describe('agent registry API', () => {
     expect(heartbeat.statusCode).toBe(200);
     expect(heartbeat.json()).toMatchObject({ metrics: { cpuCores: 8, heapMB: 3 } });
 
+    const reported = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/events`,
+      payload: {
+        agentKey: body.agentKey,
+        events: [{
+          fingerprint: 'disk-low',
+          severity: 'warning',
+          title: '磁盘可用空间不足',
+          detail: '根分区可用空间低于阈值',
+          metric: { diskFreePct: 8 },
+        }],
+      },
+    });
+    expect(reported.statusCode).toBe(200);
+    expect(reported.json()).toMatchObject({ events: [{ fingerprint: 'disk-low', status: 'open' }] });
+
     const cookie = await login(app);
     const command = await app.inject({
       method: 'POST',
@@ -126,6 +143,7 @@ describe('agent registry API', () => {
       total: 1,
       summary: { total: 1, applications: 1, discovered: 1 },
       items: [{ hostname: 'prod-host-1', applications: [{ name: 'order-service' }] }],
+      alerts: [{ fingerprint: 'disk-low', severity: 'warning' }],
     });
 
     const detail = await app.inject({ method: 'GET', url: `/api/agents/${body.agent.id}`, headers: { cookie } });

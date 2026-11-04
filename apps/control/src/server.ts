@@ -19,6 +19,7 @@ import { registerTaskRoutes } from './tasks/routes.js';
 import { registerStudioRoutes } from './studio/routes.js';
 import type { StudioGenerator } from './studio/service.js';
 import { registerIncidentRoutes } from './incidents/routes.js';
+import { registerDeploymentRoutes } from './deployments/routes.js';
 import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
@@ -97,6 +98,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerDataStoreRoutes(app, options.pool, audit);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit, options.internalToken, runtime);
+    registerDeploymentRoutes(app, options.pool, audit);
   }
 
   return app;

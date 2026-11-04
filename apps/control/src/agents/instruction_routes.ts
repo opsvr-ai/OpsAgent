@@ -186,7 +186,7 @@ export function registerAgentInstructionRoutes(
           action: plan.intent.kind,
           service,
           instruction: body.instruction.trim(),
-        });
+        }, pool);
       }
       await audit.write({
         tenantId: ctx.tenantId,
@@ -505,7 +505,7 @@ export function registerAgentInstructionRoutes(
           action: approval.action,
           service: approval.service,
           instruction: approval.instruction,
-        });
+        }, pool);
         await audit.write({
           tenantId: ctx.tenantId,
           actorId: ctx.userId,
@@ -600,7 +600,7 @@ export function registerAgentInstructionRoutes(
         action: intentKind,
         service,
         instruction: approval.instruction,
-      });
+      }, pool);
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,
@@ -668,8 +668,47 @@ export function registerAgentInstructionRoutes(
         action: approval.action,
         service: approval.service,
         instruction: approval.instruction,
-      });
+      }, pool);
       return reply.send({ status: 'canceled', approvalId: approval.id });
+    },
+  );
+
+  app.get<{ Querystring: { status?: string } }>(
+    '/api/agent-instruction-approvals/webhook-deliveries',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'approval.decide');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const status = request.query.status === 'delivered' ? 'delivered' : 'failed';
+      const result = await pool.query<{
+        id: string;
+        event_type: string;
+        approval_id: string | null;
+        status: string;
+        attempts: number;
+        last_error: string | null;
+        created_at: Date;
+      }>(
+        `SELECT id, event_type, approval_id, status, attempts, last_error, created_at
+         FROM approval_webhook_deliveries
+         WHERE tenant_id = $1 AND status = $2
+         ORDER BY created_at DESC LIMIT 50`,
+        [ctx.tenantId, status],
+      );
+      return reply.send(result.rows.map((row) => ({
+        id: row.id,
+        eventType: row.event_type,
+        approvalId: row.approval_id,
+        status: row.status,
+        attempts: row.attempts,
+        lastError: row.last_error,
+        createdAt: row.created_at.toISOString(),
+      })));
     },
   );
 
@@ -826,7 +865,7 @@ export function registerAgentInstructionRoutes(
         action: plan.intent.kind,
         service,
         instruction: body.instruction.trim(),
-      });
+      }, pool);
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,

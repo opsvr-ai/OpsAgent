@@ -5,9 +5,11 @@ import {
   decideAgentInstructionApprovals,
   decideApproval,
   listAgentInstructionApprovals,
+  listApprovalWebhookDeliveries,
   listApprovals,
   type AgentInstructionApproval,
   type ApprovalSummary,
+  type ApprovalWebhookDelivery,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 
@@ -28,6 +30,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [approvals, setApprovals] = useState<ApprovalSummary[] | null>(null);
   const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
   const [instructionHistory, setInstructionHistory] = useState<AgentInstructionApproval[]>([]);
+  const [webhookFailures, setWebhookFailures] = useState<ApprovalWebhookDelivery[]>([]);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +43,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
       .catch(() => undefined);
     void listAgentInstructionApprovals('decided')
       .then(setInstructionHistory)
+      .catch(() => undefined);
+    void listApprovalWebhookDeliveries('failed')
+      .then(setWebhookFailures)
       .catch(() => undefined);
   }, []);
 
@@ -114,6 +120,23 @@ export function Approvals({ onBack }: ApprovalsProps) {
         <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>R3 写操作</strong><span>{approvals?.filter((item) => item.risk === 'R3').length ?? 0} 项</span></div></div>
         <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-clock" /></svg></span><div><strong>超时策略</strong><span>批准后继续</span></div></div>
       </div>
+      {webhookFailures.length > 0 ? (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><h2>审批 Webhook 投递失败</h2><span className="badge badge-danger">{webhookFailures.length} 条</span></div>
+          <div className="card-body">
+            <div className="command-history">
+              {webhookFailures.map((delivery) => (
+                <div key={delivery.id} className="command-row">
+                  <span className="mono">{delivery.eventType}</span>
+                  <span className="muted">{delivery.lastError ?? '未知错误'}</span>
+                  <span className="muted">尝试 {delivery.attempts} 次</span>
+                  <span className="muted">{new Date(delivery.createdAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
       {instructionApprovals.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
           <div className="card-head">

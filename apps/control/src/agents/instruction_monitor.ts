@@ -60,7 +60,7 @@ export class AgentInstructionMonitor {
           agentId: approval.agent_id,
           service: approval.service,
           instruction: approval.instruction,
-        });
+        }, this.pool);
       }
 
       const expiring = await this.pool.query<{
@@ -94,7 +94,7 @@ export class AgentInstructionMonitor {
           agentId: approval.agent_id,
           service: approval.service,
           instruction: approval.instruction,
-        });
+        }, this.pool);
       }
     } catch (error) {
       console.error('agent instruction monitor failed', error);

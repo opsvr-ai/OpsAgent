@@ -337,6 +337,18 @@ OPSAGENT_APPROVAL_WEBHOOK_RETRIES=3（默认，1–5）
 最终失败写日志
 ```
 
+投递日志：
+
+```text
+approval_webhook_deliveries
+  pending / delivered / failed
+  attempts / last_error
+
+GET /api/agent-instruction-approvals/webhook-deliveries?status=failed
+```
+
+待审批页面展示失败的 Webhook 投递。
+
 ### 指令历史
 
 ```http

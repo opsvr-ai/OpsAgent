@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import type { Pool } from 'pg';
 
 export type ApprovalNotificationType =
   | 'approval_requested'
@@ -19,8 +20,8 @@ export interface ApprovalNotification {
   readonly instruction?: string;
 }
 
-/** Fire-and-forget webhook with bounded retries. */
-export function notifyApprovalWebhook(event: ApprovalNotification): void {
+/** Fire-and-forget webhook with bounded retries and an optional delivery log. */
+export function notifyApprovalWebhook(event: ApprovalNotification, pool?: Pool): void {
   const url = process.env.OPSAGENT_APPROVAL_WEBHOOK_URL;
   if (!url) return;
   const body = JSON.stringify({ ...event, at: new Date().toISOString() });
@@ -32,6 +33,21 @@ export function notifyApprovalWebhook(event: ApprovalNotification): void {
   const configured = Number.parseInt(process.env.OPSAGENT_APPROVAL_WEBHOOK_RETRIES ?? '3', 10);
   const attempts = Number.isFinite(configured) ? Math.min(Math.max(configured, 1), 5) : 3;
   void (async () => {
+    let deliveryId: string | null = null;
+    if (pool) {
+      try {
+        const inserted = await pool.query<{ id: string }>(
+          `INSERT INTO approval_webhook_deliveries
+             (tenant_id, event_type, approval_id, payload)
+           VALUES ($1, $2, $3, $4::jsonb) RETURNING id`,
+          [event.tenantId, event.type, event.approvalId, body],
+        );
+        deliveryId = inserted.rows[0]?.id ?? null;
+      } catch (error) {
+        console.error('approval webhook delivery log failed', error);
+      }
+    }
+    let lastError: string | null = null;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
         const response = await fetch(url, {
@@ -40,12 +56,32 @@ export function notifyApprovalWebhook(event: ApprovalNotification): void {
           body,
           signal: AbortSignal.timeout(3000),
         });
-        if (response.ok) return;
+        if (response.ok) {
+          if (pool && deliveryId) {
+            await pool.query(
+              `UPDATE approval_webhook_deliveries
+               SET status = 'delivered', attempts = $1, updated_at = now()
+               WHERE id = $2`,
+              [attempt, deliveryId],
+            ).catch(() => undefined);
+          }
+          return;
+        }
+        lastError = `status_${response.status}`;
         console.error(`approval webhook failed status=${response.status} attempt=${attempt}`);
       } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
         console.error(`approval webhook failed attempt=${attempt}`, error);
       }
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
+    if (pool && deliveryId) {
+      await pool.query(
+        `UPDATE approval_webhook_deliveries
+         SET status = 'failed', attempts = $1, last_error = $2, updated_at = now()
+         WHERE id = $3`,
+        [attempts, lastError, deliveryId],
+      ).catch(() => undefined);
     }
   })();
 }

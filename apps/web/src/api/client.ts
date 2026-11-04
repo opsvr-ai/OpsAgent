@@ -740,6 +740,24 @@ export async function cancelAgentInstructionApproval(id: string): Promise<void> 
   });
 }
 
+export interface ApprovalWebhookDelivery {
+  readonly id: string;
+  readonly eventType: string;
+  readonly approvalId: string | null;
+  readonly status: string;
+  readonly attempts: number;
+  readonly lastError: string | null;
+  readonly createdAt: string;
+}
+
+export async function listApprovalWebhookDeliveries(
+  status: 'failed' | 'delivered' = 'failed',
+): Promise<ApprovalWebhookDelivery[]> {
+  return request<ApprovalWebhookDelivery[]>(
+    `/api/agent-instruction-approvals/webhook-deliveries?status=${status}`,
+  );
+}
+
 export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;

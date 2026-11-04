@@ -531,6 +531,25 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('lists failed approval webhook deliveries', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    await pool.query(
+      `INSERT INTO approval_webhook_deliveries
+         (tenant_id, event_type, approval_id, payload, status, attempts, last_error)
+       VALUES ($1, 'approval_requested', 'a-1', '{}'::jsonb, 'failed', 3, 'status_500')`,
+      [tenantId],
+    );
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals/webhook-deliveries',
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as Array<{ lastError: string }>).some((item) => item.lastError === 'status_500')).toBe(true);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

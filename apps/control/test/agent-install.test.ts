@@ -76,6 +76,8 @@ describe('agent install API', () => {
     expect(script.body).toContain('ExecStart=/opt/opsagent/bin/opsagent-agent --service');
     expect(script.body).toContain('MemoryMax=512M');
     expect(script.body).toContain('CPUQuota=50%');
+    expect(script.body).toContain('IOReadBandwidthMax=/ 200M');
+    expect(script.body).toContain('IOWriteBandwidthMax=/ 200M');
     expect(script.body).toContain('TasksMax=256');
     expect(script.body).toContain('systemctl enable --now opsagent-agent');
 

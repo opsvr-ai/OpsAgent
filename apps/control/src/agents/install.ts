@@ -48,6 +48,8 @@ export function buildInstallScript(input: {
 }): string {
   const memoryMax = resourceLimit(process.env.OPSAGENT_AGENT_MEMORY_MAX, '512M', /^\d+(\.\d+)?[KMGTP]?$/);
   const cpuQuota = resourceLimit(process.env.OPSAGENT_AGENT_CPU_QUOTA, '50%', /^\d{1,3}%$/);
+  const ioReadMax = resourceLimit(process.env.OPSAGENT_AGENT_IO_READ_MAX, '200M', /^\d+[KMG]$/);
+  const ioWriteMax = resourceLimit(process.env.OPSAGENT_AGENT_IO_WRITE_MAX, '200M', /^\d+[KMG]$/);
   if (input.os === 'linux') {
     return `#!/usr/bin/env bash
 set -euo pipefail
@@ -104,6 +106,8 @@ EnvironmentFile=/opt/opsagent/config/agent.env
 ExecStart=/opt/opsagent/bin/opsagent-agent --service
 MemoryMax=${memoryMax}
 CPUQuota=${cpuQuota}
+IOReadBandwidthMax=/ ${ioReadMax}
+IOWriteBandwidthMax=/ ${ioWriteMax}
 TasksMax=256
 Restart=always
 RestartSec=5

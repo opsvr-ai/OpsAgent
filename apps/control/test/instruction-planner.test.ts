@@ -29,6 +29,10 @@ describe('agent instruction planner', () => {
       ok: true,
       intent: { kind: 'service_start', params: { service: 'nginx' }, readOnly: false, risk: 'R2' },
     });
+    expect(planInstruction('重新加载 nginx 服务')).toMatchObject({
+      ok: true,
+      intent: { kind: 'service_reload', params: { service: 'nginx' }, readOnly: false, risk: 'R2' },
+    });
     expect(planInstruction('启用 nginx 服务')).toMatchObject({
       ok: true,
       intent: { kind: 'service_enable', params: { service: 'nginx' } },

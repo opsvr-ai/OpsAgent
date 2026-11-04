@@ -540,9 +540,11 @@ export function registerAgentInstructionRoutes(
         ? 'service_stop'
         : approval.action === 'service_start'
           ? 'service_start'
-          : approval.action === 'service_enable'
-            ? 'service_enable'
-            : approval.action === 'service_disable' ? 'service_disable' : 'service_restart';
+          : approval.action === 'service_reload'
+            ? 'service_reload'
+            : approval.action === 'service_enable'
+              ? 'service_enable'
+              : approval.action === 'service_disable' ? 'service_disable' : 'service_restart';
       const claimed = await pool.query(
         `UPDATE agent_instruction_approvals
          SET status = 'approved', decided_by = $1, decided_at = now(), decision_reason = $2
@@ -924,9 +926,11 @@ export function registerAgentInstructionRoutes(
           ? 'service_stop'
           : row.action === 'service_start'
             ? 'service_start'
-            : row.action === 'service_enable'
-              ? 'service_enable'
-              : row.action === 'service_disable' ? 'service_disable' : 'service_restart';
+            : row.action === 'service_reload'
+              ? 'service_reload'
+              : row.action === 'service_enable'
+                ? 'service_enable'
+                : row.action === 'service_disable' ? 'service_disable' : 'service_restart';
         const command = await commands.create({
           tenantId: ctx.tenantId,
           agentId: row.agent_id,

@@ -1,4 +1,4 @@
-export type ServiceAction = 'service_restart' | 'service_stop' | 'service_start' | 'service_enable' | 'service_disable';
+export type ServiceAction = 'service_restart' | 'service_stop' | 'service_start' | 'service_reload' | 'service_enable' | 'service_disable';
 
 export interface InstructionIntent {
   readonly kind: 'inspect' | 'service_status' | ServiceAction;
@@ -15,10 +15,10 @@ export type InstructionPlan =
   | { readonly ok: true; readonly intent: InstructionIntent }
   | { readonly ok: false; readonly error: string; readonly reason: string };
 
-const writeIntent = /(重启|停止|启动|启用|禁用|关闭|删除|安装|卸载|修改|写入|执行命令|运行命令|kill|restart|stop|start|enable|disable|rm\s|chmod|chown|systemctl\s+(restart|stop|start|enable|disable))/i;
-const serviceActionIntent = /(重启|停止|启动|启用|禁用|restart|stop|start|enable|disable)\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})(?:\s*服务|\s*service)?/i;
+const writeIntent = /(重启|停止|启动|重新加载|启用|禁用|关闭|删除|安装|卸载|修改|写入|执行命令|运行命令|kill|restart|stop|start|reload|enable|disable|rm\s|chmod|chown|systemctl\s+(restart|stop|start|reload|enable|disable))/i;
+const serviceActionIntent = /(重启|停止|启动|重新加载|启用|禁用|restart|stop|start|reload|enable|disable)\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})(?:\s*服务|\s*service)?/i;
 const serviceStatusIntent = /(?:查看|检查|查询|看看)?\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})\s*(?:服务)?\s*(?:状态|status)/i;
-const forbiddenServices = new Set(['system', 'host', 'server', 'os', 'all', 'service', 'restart', 'stop', 'start', 'enable', 'disable']);
+const forbiddenServices = new Set(['system', 'host', 'server', 'os', 'all', 'service', 'restart', 'stop', 'start', 'reload', 'enable', 'disable']);
 const protectedServices = new Set([
   'systemd', 'sshd', 'ssh', 'network', 'networking', 'dbus',
   'docker', 'containerd', 'kubelet', 'k3s',
@@ -56,9 +56,11 @@ export function planInstruction(instruction: string): InstructionPlan {
       ? 'service_stop'
       : verb === '启动' || verb === 'start'
         ? 'service_start'
-        : verb === '启用' || verb === 'enable'
-          ? 'service_enable'
-          : verb === '禁用' || verb === 'disable' ? 'service_disable' : 'service_restart';
+        : verb === '重新加载' || verb === 'reload'
+          ? 'service_reload'
+          : verb === '启用' || verb === 'enable'
+            ? 'service_enable'
+            : verb === '禁用' || verb === 'disable' ? 'service_disable' : 'service_restart';
     return {
       ok: true,
       intent: {

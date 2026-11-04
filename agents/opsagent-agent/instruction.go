@@ -51,7 +51,7 @@ func runAgentInstruction(input map[string]any) map[string]any {
 	}
 
 	if kind == "service_restart" || kind == "service_stop" || kind == "service_start" ||
-		kind == "service_enable" || kind == "service_disable" {
+		kind == "service_reload" || kind == "service_enable" || kind == "service_disable" {
 		readOnly, _ := input["readOnly"].(bool)
 		if readOnly {
 			result["error"] = "service action cannot be read-only"
@@ -74,6 +74,9 @@ func runAgentInstruction(input map[string]any) map[string]any {
 		} else if kind == "service_start" {
 			action = "start"
 			label = "启动"
+		} else if kind == "service_reload" {
+			action = "reload"
+			label = "重新加载"
 		} else if kind == "service_enable" {
 			action = "enable"
 			label = "启用"

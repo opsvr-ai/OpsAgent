@@ -78,7 +78,11 @@ describe('agent registry API', () => {
       payload: { agentKey: body.agentKey, metrics: { cpuCores: 8, heapMB: 3 } },
     });
     expect(heartbeat.statusCode).toBe(200);
-    expect(heartbeat.json()).toMatchObject({ metrics: { cpuCores: 8, heapMB: 3 } });
+    expect(heartbeat.json()).toMatchObject({
+      metrics: { cpuCores: 8, heapMB: 3 },
+      commandKeyId: expect.any(String),
+      commandPublicKeys: [{ keyId: expect.any(String), publicKey: expect.any(String) }],
+    });
 
     const appSystem = await pool.query<{ id: string }>(
       `INSERT INTO app_systems (tenant_id, code, name)

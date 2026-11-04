@@ -99,7 +99,15 @@ export function registerAgentRoutes(
       discoveryBody(body.discovery),
     );
     if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
-    return reply.send(agent);
+    const commandSigners = getCommandSigners();
+    return reply.send({
+      ...agent,
+      commandKeyId: commandSigners[0]?.keyId,
+      commandPublicKeys: commandSigners.map((item) => ({
+        keyId: item.keyId,
+        publicKey: item.publicKey,
+      })),
+    });
   });
 
   app.get('/api/agents', async (request, reply) => {

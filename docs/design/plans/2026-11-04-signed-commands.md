@@ -20,6 +20,7 @@
 - Agent 拉取命令后验签；失败命令上报 `invalid_signature`，不执行
 - 兼容旧 Agent：未配置公钥的 Agent 继续接受命令
 - 支持平滑轮换：`OPSAGENT_COMMAND_SIGNING_PREVIOUS_SEED` 保留上一把公钥，Agent 同时接受当前/上一把 key
+- 心跳刷新：控制面在心跳响应返回当前 key 集合，Agent 自动更新并落盘；撤销上一把 key 后无需重新注册
 
 ## 数据库
 

@@ -41,6 +41,11 @@ type heartbeatRequest struct {
 	Discovery *discoveryReport `json:"discovery,omitempty"`
 }
 
+type heartbeatResponse struct {
+	CommandKeyID      string       `json:"commandKeyId"`
+	CommandPublicKeys []commandKey `json:"commandPublicKeys"`
+}
+
 var agentStarted = time.Now()
 
 type agentCommand struct {
@@ -340,12 +345,29 @@ func runDaemon(paths agentPaths) {
 			}
 			lastMetricsSnapshot = time.Now()
 		}
+		var heartbeat heartbeatResponse
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
 			AgentKey:  registered.AgentKey,
 			Metrics:   metrics,
 			Discovery: discovery,
-		}, nil); err != nil {
+		}, &heartbeat); err != nil {
 			log.Printf("heartbeat: %v", err)
+		} else if len(heartbeat.CommandPublicKeys) > 0 {
+			registered.CommandKeyID = heartbeat.CommandKeyID
+			registered.CommandPublicKeys = heartbeat.CommandPublicKeys
+			registered.CommandPublicKey = heartbeat.CommandPublicKeys[0].PublicKey
+			if err := saveAgentState(paths, agentState{
+				AgentID:           registered.Agent.ID,
+				AgentKey:          registered.AgentKey,
+				Hostname:          hostname,
+				ControlURL:        controlURL,
+				TenantID:          tenantID,
+				CommandPublicKey:  registered.CommandPublicKey,
+				CommandKeyID:      registered.CommandKeyID,
+				CommandPublicKeys: registered.CommandPublicKeys,
+			}); err != nil {
+				log.Printf("save rotated command keys: %v", err)
+			}
 		}
 		if time.Since(lastPatrol) >= 30*time.Second {
 			reportPatrol(metrics)

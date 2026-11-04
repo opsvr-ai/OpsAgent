@@ -900,8 +900,9 @@ export function registerAgentInstructionRoutes(
     }
     const parsedHours = Number.parseInt(request.query.hours ?? '24', 10);
     const hoursBack = Number.isFinite(parsedHours) ? Math.min(Math.max(parsedHours, 1), 168) : 24;
+    const bucket = hoursBack > 72 ? 'day' : 'hour';
     const approval = await pool.query<{ hour: Date; delivered: string; failed: string }>(
-      `SELECT date_trunc('hour', created_at) AS hour,
+      `SELECT date_trunc('${bucket}', created_at) AS hour,
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
               count(*) FILTER (WHERE status = 'failed')::text AS failed
        FROM approval_webhook_deliveries
@@ -910,7 +911,7 @@ export function registerAgentInstructionRoutes(
       [ctx.tenantId, hoursBack],
     );
     const operations = await pool.query<{ hour: Date; delivered: string; failed: string }>(
-      `SELECT date_trunc('hour', created_at) AS hour,
+      `SELECT date_trunc('${bucket}', created_at) AS hour,
               count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
               count(*) FILTER (WHERE status = 'failed')::text AS failed
        FROM operations_alert_deliveries

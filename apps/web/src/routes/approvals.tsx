@@ -271,6 +271,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                 </button>
               ))}
               <button type="button" className="btn btn-outline btn-sm" onClick={exportNotificationStats}>导出 CSV</button>
+              <span className="muted">{statsHours > 72 ? '按天聚合' : '按小时聚合'}</span>
               {[1, 2, 4].map((zoom) => (
                 <button
                   key={zoom}
@@ -312,7 +313,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
             <div className="command-history">
               {notificationStats.map((point) => (
                 <div key={point.hour} className="command-row">
-                  <span className="mono">{new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="mono">{statsHours > 72 ? new Date(point.hour).toLocaleDateString() : new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   <span className="muted">审批 {point.approvalDelivered} 成功 / {point.approvalFailed} 失败</span>
                   <span className="muted">运维 {point.operationsDelivered} 成功 / {point.operationsFailed} 失败</span>
                   <div style={{ display: 'flex', gap: 2, flex: 1, height: 6 }}>

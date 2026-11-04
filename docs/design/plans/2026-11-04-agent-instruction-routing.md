@@ -440,6 +440,7 @@ OPSAGENT_OPERATIONS_ALERT_RETRIES=3
   → 可选 HMAC-SHA256 签名
   → 1–5 次重试，默认 3
   → 3 秒超时
+  → 投递日志 operations_alert_deliveries
 ```
 
 失败告警：

@@ -777,6 +777,19 @@ export async function listApprovalSideEffectFailures(): Promise<ApprovalSideEffe
   return request<ApprovalSideEffectFailure[]>('/api/agent-instruction-approvals/side-effect-failures');
 }
 
+export interface OperationsAlertDelivery {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  readonly attempts: number;
+  readonly lastError: string | null;
+  readonly createdAt: string;
+}
+
+export async function listOperationsAlertDeliveries(): Promise<OperationsAlertDelivery[]> {
+  return request<OperationsAlertDelivery[]>('/api/agent-instruction-approvals/operations-alert-deliveries');
+}
+
 export async function resolveApprovalSideEffectFailure(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/agent-instruction-approvals/side-effect-failures/${id}/resolve`, {
     method: 'POST',

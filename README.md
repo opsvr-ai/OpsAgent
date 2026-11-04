@@ -8,7 +8,7 @@ Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools
 >
 > 多 Agent 异常分析与协同排查：[2026-11-04-agent-collaboration.md](docs/design/plans/2026-11-04-agent-collaboration.md)。
 >
-> 指定 Agent 下发自然语言指令（后端 + 详情页 + SSE 流式/重连 + 批量 + 批量写审批/服务端事务批量审批/撤销/并发认领/单条与批量副作用隔离/副作用失败记录与处理 + 审批过期/通知/提前提醒/倒计时/拒绝原因 + Webhook 通知/重试/投递日志/可配置自动重放退避/失败告警/恢复通知/独立运维告警/重试/手工重放 + 职责分离 + CSV + 历史 + 模板管理 + 模板可见范围 + Incident 证据联动 + Incident 页面发起 + 写审批关联 Incident + Incident 审批时间线 + 审批消息中心 + 指令列表 + 超时治理 + 取消 + 指令导出 + 报告内嵌 + 服务状态查询/启动/停止/重启/重载/启用/禁用审批）：[2026-11-04-agent-instruction-routing.md](docs/design/plans/2026-11-04-agent-instruction-routing.md)。
+> 指定 Agent 下发自然语言指令（后端 + 详情页 + SSE 流式/重连 + 批量 + 批量写审批/服务端事务批量审批/撤销/并发认领/单条与批量副作用隔离/副作用失败记录与处理 + 审批过期/通知/提前提醒/倒计时/拒绝原因 + Webhook 通知/重试/投递日志/可配置自动重放退避/失败告警/恢复通知/独立运维告警/重试/投递日志/手工重放 + 职责分离 + CSV + 历史 + 模板管理 + 模板可见范围 + Incident 证据联动 + Incident 页面发起 + 写审批关联 Incident + Incident 审批时间线 + 审批消息中心 + 指令列表 + 超时治理 + 取消 + 指令导出 + 报告内嵌 + 服务状态查询/启动/停止/重启/重载/启用/禁用审批）：[2026-11-04-agent-instruction-routing.md](docs/design/plans/2026-11-04-agent-instruction-routing.md)。
 >
 > Agent 运行时长与主机概览能力：[2026-11-04-agent-capabilities.md](docs/design/plans/2026-11-04-agent-capabilities.md)。
 >

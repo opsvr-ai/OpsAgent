@@ -639,6 +639,24 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('lists operations alert deliveries', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    await pool.query(
+      `INSERT INTO operations_alert_deliveries (tenant_id, title, payload, status, attempts, last_error)
+       VALUES ($1, '测试告警', '{}'::jsonb, 'failed', 3, 'status_500')`,
+      [tenantId],
+    );
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals/operations-alert-deliveries',
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as Array<{ title: string }>).some((item) => item.title === '测试告警')).toBe(true);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

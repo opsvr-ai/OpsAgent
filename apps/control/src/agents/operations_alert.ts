@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import type { Pool } from 'pg';
 
 export interface OperationsAlert {
   readonly tenantId: string;
@@ -8,7 +9,7 @@ export interface OperationsAlert {
 }
 
 /** Sends an operational alert to a separate webhook (independent of approval delivery). */
-export function notifyOperationsAlert(alert: OperationsAlert): void {
+export function notifyOperationsAlert(alert: OperationsAlert, pool?: Pool): void {
   const url = process.env.OPSAGENT_OPERATIONS_ALERT_URL;
   if (!url) return;
   const body = JSON.stringify({ ...alert, at: new Date().toISOString() });
@@ -20,6 +21,20 @@ export function notifyOperationsAlert(alert: OperationsAlert): void {
   const configured = Number.parseInt(process.env.OPSAGENT_OPERATIONS_ALERT_RETRIES ?? '3', 10);
   const attempts = Number.isFinite(configured) ? Math.min(Math.max(configured, 1), 5) : 3;
   void (async () => {
+    let deliveryId: string | null = null;
+    if (pool) {
+      try {
+        const inserted = await pool.query<{ id: string }>(
+          `INSERT INTO operations_alert_deliveries (tenant_id, title, payload)
+           VALUES ($1, $2, $3::jsonb) RETURNING id`,
+          [alert.tenantId, alert.title, body],
+        );
+        deliveryId = inserted.rows[0]?.id ?? null;
+      } catch (error) {
+        console.error('operations alert delivery log failed', error);
+      }
+    }
+    let lastError: string | null = null;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
         const response = await fetch(url, {
@@ -28,12 +43,32 @@ export function notifyOperationsAlert(alert: OperationsAlert): void {
           body,
           signal: AbortSignal.timeout(3000),
         });
-        if (response.ok) return;
+        if (response.ok) {
+          if (pool && deliveryId) {
+            await pool.query(
+              `UPDATE operations_alert_deliveries
+               SET status = 'delivered', attempts = $1, updated_at = now()
+               WHERE id = $2`,
+              [attempt, deliveryId],
+            ).catch(() => undefined);
+          }
+          return;
+        }
+        lastError = `status_${response.status}`;
         console.error(`operations alert webhook failed status=${response.status} attempt=${attempt}`);
       } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
         console.error(`operations alert webhook failed attempt=${attempt}`, error);
       }
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
+    if (pool && deliveryId) {
+      await pool.query(
+        `UPDATE operations_alert_deliveries
+         SET status = 'failed', attempts = $1, last_error = $2, updated_at = now()
+         WHERE id = $3`,
+        [attempts, lastError, deliveryId],
+      ).catch(() => undefined);
     }
   })();
 }

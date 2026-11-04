@@ -146,7 +146,7 @@ export class AgentInstructionMonitor {
           title: '审批 Webhook 连续投递失败',
           body: `${row.failed_count} 条投递失败，请检查 Webhook 配置或下游服务。`,
           severity: 'warning',
-        });
+        }, this.pool);
       }
 
       const recovered = await this.pool.query<{ tenant_id: string; failed_count: string }>(
@@ -176,7 +176,7 @@ export class AgentInstructionMonitor {
           title: '审批 Webhook 投递已恢复',
           body: `剩余失败投递 ${row.failed_count} 条，已低于告警阈值。`,
           severity: 'info',
-        });
+        }, this.pool);
       }
     } catch (error) {
       console.error('agent instruction monitor failed', error);

@@ -6,6 +6,7 @@ import {
   decideApproval,
   listAgentInstructionApprovals,
   listApprovalSideEffectFailures,
+  listOperationsAlertDeliveries,
   listApprovalWebhookDeliveries,
   listApprovals,
   replayApprovalWebhookDelivery,
@@ -14,6 +15,7 @@ import {
   type ApprovalSideEffectFailure,
   type ApprovalSummary,
   type ApprovalWebhookDelivery,
+  type OperationsAlertDelivery,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 
@@ -36,6 +38,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [instructionHistory, setInstructionHistory] = useState<AgentInstructionApproval[]>([]);
   const [webhookFailures, setWebhookFailures] = useState<ApprovalWebhookDelivery[]>([]);
   const [sideEffectFailures, setSideEffectFailures] = useState<ApprovalSideEffectFailure[]>([]);
+  const [operationsAlerts, setOperationsAlerts] = useState<OperationsAlertDelivery[]>([]);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +57,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
       .catch(() => undefined);
     void listApprovalSideEffectFailures()
       .then(setSideEffectFailures)
+      .catch(() => undefined);
+    void listOperationsAlertDeliveries()
+      .then(setOperationsAlerts)
       .catch(() => undefined);
   }, []);
 
@@ -175,6 +181,23 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className="muted">{failure.error ?? '未知错误'}</span>
                   <span className="muted">{new Date(failure.createdAt).toLocaleString()}</span>
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => void resolveFailure(failure.id)}>标记已处理</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+      {operationsAlerts.length > 0 ? (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><h2>运维告警投递</h2><span className="muted">{operationsAlerts.length} 条</span></div>
+          <div className="card-body">
+            <div className="command-history">
+              {operationsAlerts.map((delivery) => (
+                <div key={delivery.id} className="command-row">
+                  <span>{delivery.title}</span>
+                  <span className={`badge ${delivery.status === 'failed' ? 'badge-danger' : 'badge-neutral'}`}>{delivery.status}</span>
+                  <span className="muted">{delivery.lastError ?? `尝试 ${delivery.attempts} 次`}</span>
+                  <span className="muted">{new Date(delivery.createdAt).toLocaleString()}</span>
                 </div>
               ))}
             </div>

@@ -826,6 +826,39 @@ export function registerAgentInstructionRoutes(
     },
   );
 
+  app.get('/api/agent-instruction-approvals/operations-alert-deliveries', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'approval.decide');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const result = await pool.query<{
+      id: string;
+      title: string;
+      status: string;
+      attempts: number;
+      last_error: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, title, status, attempts, last_error, created_at
+       FROM operations_alert_deliveries
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC LIMIT 50`,
+      [ctx.tenantId],
+    );
+    return reply.send(result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      attempts: row.attempts,
+      lastError: row.last_error,
+      createdAt: row.created_at.toISOString(),
+    })));
+  });
+
   app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

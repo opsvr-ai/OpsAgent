@@ -92,6 +92,19 @@ POST /api/agents/instructions
 
 写操作审批仍未实现。
 
+### 指令历史
+
+```http
+GET /api/agents/:agentId/instructions
+```
+
+- 最近 20 条指令
+- 包含 instruction / status / intent / answer
+- Agent 详情页「自然语言」页签展示历史
+- 点击历史项加载对应结果
+
+前端测试和 API 测试覆盖历史查询。
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

@@ -71,6 +71,14 @@ describe('agent instruction API', () => {
     expect(command.rows[0]).toMatchObject({ type: 'agent_instruction', instruction: '系统运行多久了' });
     expect(command.rows[0]?.requested_by).not.toBeNull();
 
+    const history = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+    });
+    expect(history.statusCode).toBe(200);
+    expect((history.json() as Array<{ instructionId: string }>).some((item) => item.instructionId === body.instructionId)).toBe(true);
+
     const repeated = await app.inject({
       method: 'POST',
       url: `/api/agents/${agentId}/instructions`,

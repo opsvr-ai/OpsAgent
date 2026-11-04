@@ -48,6 +48,7 @@ vi.mock('../src/api/client.js', () => ({
   createAgentCommand: vi.fn(),
   createAgentInstruction: vi.fn(),
   getAgentInstruction: vi.fn(),
+  listAgentInstructions: vi.fn().mockResolvedValue([]),
   listAgentCommands: vi.fn().mockResolvedValue([]),
   getAgentInstallCommand: vi.fn().mockImplementation(async (os: string) => ({
     os,

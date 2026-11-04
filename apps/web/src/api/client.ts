@@ -629,6 +629,10 @@ export async function getAgentInstruction(
   return request<AgentInstructionDetail>(`/api/agents/${agentId}/instructions/${instructionId}`);
 }
 
+export async function listAgentInstructions(agentId: string): Promise<AgentInstructionDetail[]> {
+  return request<AgentInstructionDetail[]>(`/api/agents/${agentId}/instructions`);
+}
+
 export interface AgentBatchInstructionCreated {
   readonly intent: AgentInstructionIntent;
   readonly instructions: Array<{

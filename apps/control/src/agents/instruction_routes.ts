@@ -243,6 +243,25 @@ export function registerAgentInstructionRoutes(
     },
   );
 
+  app.get<{ Params: { id: string } }>('/api/agents/:id/instructions', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const result = await pool.query<InstructionDetailRow>(
+      `SELECT id, status, result, instruction, instruction_intent, created_at, completed_at
+       FROM agent_commands
+       WHERE tenant_id = $1 AND agent_id = $2 AND type = 'agent_instruction'
+       ORDER BY created_at DESC LIMIT 20`,
+      [ctx.tenantId, request.params.id],
+    );
+    return reply.send(result.rows.map(instructionResponse));
+  });
+
   app.get<{ Params: { id: string; instructionId: string } }>(
     '/api/agents/:id/instructions/:instructionId/events',
     async (request, reply) => {

@@ -12,6 +12,7 @@ import {
   getAppSystemHealth,
   getCommandKeyStatus,
   listAgentCommands,
+  listAgentInstructions,
   type AgentApplication,
   type AgentCommandSummary,
   type AgentEventSummary,
@@ -112,6 +113,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [instructionNote, setInstructionNote] = useState<string | null>(null);
   const [instructionError, setInstructionError] = useState<string | null>(null);
   const [instructionResult, setInstructionResult] = useState<AgentInstructionDetail | null>(null);
+  const [instructionHistory, setInstructionHistory] = useState<AgentInstructionDetail[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchIds, setBatchIds] = useState<string[]>([]);
   const [batchText, setBatchText] = useState('');
@@ -122,7 +124,14 @@ export function Agents({ onBack }: AgentsProps) {
     setInstructionNote(null);
     setInstructionError(null);
     setInstructionResult(null);
+    setInstructionHistory([]);
   }, [detailId]);
+  useEffect(() => {
+    if (!detailId) return;
+    void listAgentInstructions(detailId)
+      .then(setInstructionHistory)
+      .catch(() => undefined);
+  }, [detailId, instructionResult?.status]);
   useEffect(() => {
     let cancelled = false;
     const load = () => {
@@ -671,6 +680,34 @@ export function Agents({ onBack }: AgentsProps) {
                                 <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(instructionResult.evidence, null, 2)}</pre>
                               </details>
                             ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                      {instructionHistory.length > 0 ? (
+                        <div className="card">
+                          <div className="card-head"><h2>最近指令</h2><span className="muted">{instructionHistory.length} 条</span></div>
+                          <div className="card-body">
+                            <div className="command-history">
+                              {instructionHistory.map((item) => (
+                                <button
+                                  key={item.instructionId}
+                                  type="button"
+                                  className="command-row"
+                                  onClick={() => {
+                                    void getAgentInstruction(detail.id, item.instructionId)
+                                      .then((loaded) => {
+                                        setInstructionResult(loaded);
+                                        setInstructionNote(`指令状态：${loaded.status}`);
+                                      })
+                                      .catch(() => setInstructionError('指令加载失败'));
+                                  }}
+                                >
+                                  <span>{item.instruction ?? '自然语言指令'}</span>
+                                  <span className={`badge ${item.status === 'completed' ? 'badge-ok' : 'badge-neutral'}`}>{item.status}</span>
+                                  <span className="muted">{relativeTime(item.createdAt)}</span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       ) : null}

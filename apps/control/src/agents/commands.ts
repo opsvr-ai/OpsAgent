@@ -59,6 +59,15 @@ export class AgentCommandService {
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
 
+  async get(tenantId: string, agentId: string, commandId: string): Promise<AgentCommandRecord | null> {
+    const result = await this.pool.query(
+      `SELECT id, agent_id, type, status, result, created_at FROM agent_commands
+       WHERE tenant_id = $1 AND agent_id = $2 AND id = $3`,
+      [tenantId, agentId, commandId],
+    );
+    return result.rows[0] ? this.map(result.rows[0]) : null;
+  }
+
   async complete(input: {
     agentId: string;
     commandId: string;

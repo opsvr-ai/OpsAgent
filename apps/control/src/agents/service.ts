@@ -212,6 +212,18 @@ export class AgentService {
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
 
+  async findByMention(tenantId: string, text: string): Promise<AgentRecord | null> {
+    const result = await this.pool.query<AgentRow>(
+      `${AGENT_SELECT}
+       WHERE a.tenant_id = $1
+         AND (position(lower(a.hostname) in lower($2)) > 0 OR position(lower(a.name) in lower($2)) > 0)
+       ORDER BY length(a.hostname) DESC
+       LIMIT 1`,
+      [tenantId, text],
+    );
+    return result.rows[0] ? this.map(result.rows[0]) : null;
+  }
+
   async fleet(tenantId: string, query: AgentFleetQuery = {}): Promise<AgentFleetResult> {
     const page = Math.max(1, Math.floor(query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize ?? 20)));

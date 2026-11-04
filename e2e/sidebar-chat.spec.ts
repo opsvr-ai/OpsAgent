@@ -49,8 +49,7 @@ test('composer exposes the four dsh permission modes', async ({ page }) => {
   await expect(page.getByRole('button', { name: /执行权限：自动审查/ })).toBeVisible();
 });
 
-test('previous conversations can be listed, opened, and restored', async ({ page }) => {
-  await login(page);
+test('previous conversations can be listed, opened, and restored', async ({ page }) => {  await login(page);
   await page.locator('.sidebar .nav-item').filter({ hasText: '智能体会话' }).click();
   await page.getByLabel('输入').waitFor({ timeout: 15000 });
   await page.getByLabel('输入').fill('历史记录测试');
@@ -73,4 +72,14 @@ test('previous conversations can be listed, opened, and restored', async ({ page
   await restored.click();
   await expect(page.locator('.msg.msg-user')).toContainText('历史记录测试');
   await expect(page.locator('.tool-card').first()).toBeVisible();
+});
+
+test('chat answers managed-agent inventory from platform data', async ({ page }) => {
+  await login(page);
+  await page.locator('.sidebar .nav-item').filter({ hasText: '智能体会话' }).click();
+  await page.getByLabel('输入').waitFor({ timeout: 15000 });
+  await page.getByLabel('输入').fill('当前纳管了多少操作系统智能体？');
+  await page.getByRole('button', { name: '发送' }).click();
+  await expect(page.getByText(/当前平台纳管/)).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.platform-tool-line')).toBeVisible();
 });

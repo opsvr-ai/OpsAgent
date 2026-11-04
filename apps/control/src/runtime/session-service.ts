@@ -1,6 +1,7 @@
 import type { PermissionMode, RuntimeClient, RuntimeEvent } from '@opsagent/contracts';
 import type { Pool } from 'pg';
 import type { AuditWriter } from '../audit/writer.js';
+import { PlatformAssistant } from '../assistant/platform.js';
 
 export interface SessionRecord {
   readonly id: string;
@@ -48,11 +49,15 @@ export class ApprovalNotFoundError extends Error {
 }
 
 export class SessionService {
+  private readonly platform: PlatformAssistant;
+
   constructor(
     private readonly pool: Pool,
     private readonly runtime: RuntimeClient,
     private readonly audit: AuditWriter,
-  ) {}
+  ) {
+    this.platform = new PlatformAssistant(pool);
+  }
 
   async create(input: CreateSessionInput): Promise<SessionRecord> {
     const runtimeSession = await this.runtime.startSession({
@@ -207,6 +212,24 @@ export class SessionService {
       );
     }
     await this.appendTranscript(session.id, tenantId, 'user', { text });
+
+    const platformPlan = await this.platform.detect(tenantId, text);
+    if (platformPlan) {
+      try {
+        for await (const event of this.platform.execute(platformPlan, tenantId, session.runtimeSessionId)) {
+          await this.appendTranscript(session.id, tenantId, 'event', event as unknown as Record<string, unknown>);
+          if (event.type === 'session.done') {
+            await this.cancelPendingApprovals(session.id);
+            await this.updateStatus(session.id, 'completed');
+          }
+          yield event;
+        }
+      } catch (error) {
+        await this.updateStatus(session.id, 'failed');
+        throw error;
+      }
+      return;
+    }
 
     try {
       for await (const event of this.runtime.prompt(

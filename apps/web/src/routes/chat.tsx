@@ -159,12 +159,33 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
   }
 
   function renderEvent(item: RuntimeEvent, index: number) {
+    if (item.type === 'tool.call' && item.tool.startsWith('opsagent.')) {
+      const label = item.tool === 'opsagent.fleet'
+        ? '纳管智能体清单'
+        : item.tool === 'opsagent.agent_snapshot'
+          ? '主机配置与性能快照'
+          : '主机命令下发';
+      return (
+        <div key={index} className="msg platform-tool-msg">
+          <span className="msg-avatar is-agent"><svg><use href="/icons.svg#i-shield" /></svg></span>
+          <div className="msg-body">
+            <div className="platform-tool-line">
+              <span className="platform-tool-copy"><strong>平台数据查询</strong><small>{label}</small></span>
+              <span className="badge badge-ok">已读取</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (item.type === 'tool.result' && item.tool.startsWith('opsagent.')) {
+      return null;
+    }
     if (item.type === 'assistant.delta') {
       return (
         <div key={index} className="msg">
           <span className="msg-avatar is-agent">A</span>
           <div className="msg-body">
-            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">deepseek-flash</span><span>{relativeTime(item.at)}</span></div>
+            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">{item.source === 'platform' ? '平台数据' : 'deepseek-flash'}</span><span>{relativeTime(item.at)}</span></div>
             <div className="msg-text markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown></div>
           </div>
         </div>
@@ -431,16 +452,27 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
               <div className="stack-sm" style={{ marginTop: 10 }}>
                 {events.length === 0 ? <p className="muted">等待第一条指令</p> : null}
                 {events
-                  .filter((item) => item.type === 'tool.call' || item.type === 'tool.result' || item.type === 'approval.request')
+                  .filter((item) => (item.type === 'tool.call' || item.type === 'tool.result' || item.type === 'approval.request')
+                    && !(item.type === 'tool.result' && item.tool.startsWith('opsagent.')))
                   .slice(-6)
-                  .map((item, index) => (
-                    <div key={index} className="aside-row">
-                      <span>{item.type === 'approval.request' ? '审批请求' : item.type === 'tool.result' ? '工具返回' : `工具调用 · ${item.tool}`}</span>
-                      <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : item.type === 'tool.result' ? 'badge-ok' : 'badge-neutral'}`}>
-                        {item.type === 'approval.request' ? '待确认' : item.type === 'tool.result' ? '完成' : '已发起'}
-                      </span>
-                    </div>
-                  ))}
+                  .map((item, index) => {
+                    const toolName = item.type === 'tool.call' || item.type === 'tool.result' ? item.tool : '';
+                    const trajectoryLabel = item.type === 'approval.request'
+                      ? '审批请求'
+                      : item.type === 'tool.result'
+                        ? '工具返回'
+                        : toolName.startsWith('opsagent.')
+                          ? '平台数据查询'
+                          : `工具调用 · ${toolName}`;
+                    return (
+                      <div key={index} className="aside-row">
+                        <span>{trajectoryLabel}</span>
+                        <span className={`badge ${item.type === 'approval.request' ? 'badge-warn' : item.type === 'tool.result' ? 'badge-ok' : 'badge-neutral'}`}>
+                          {item.type === 'approval.request' ? '待确认' : item.type === 'tool.result' ? '完成' : '已发起'}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
             <div className="aside-block">

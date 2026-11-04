@@ -152,6 +152,18 @@ Agent：
 deployed → rolling_back → rolled_back / rollback_failed
 ```
 
+部署失败会自动创建 Incident：
+
+```text
+source = deployment
+sourceRef = deployment:<id>
+severity = P1
+rootCause = 部署执行失败/自动回滚失败
+evidence = 命令 ID、结果、失败原因
+```
+
+失败和回滚失败都进入 Commander 事件队列，便于继续排障。
+
 ### 健康门禁与自动回滚
 
 执行前检查应用系统是否存在 open Agent 异常事件，存在则拒绝部署。

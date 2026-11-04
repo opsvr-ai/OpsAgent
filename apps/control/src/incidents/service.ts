@@ -235,7 +235,7 @@ export class IncidentService {
 
   async createFromSource(input: {
     tenantId: string;
-    source: 'alertmanager' | 'zabbix' | 'webhook';
+    source: 'alertmanager' | 'zabbix' | 'webhook' | 'deployment';
     sourceRef: string;
     title: string;
     severity: string;

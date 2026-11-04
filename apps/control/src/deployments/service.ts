@@ -2,6 +2,7 @@ import { createHash, createPublicKey, verify as verifySignature } from 'node:cry
 import type { Pool } from 'pg';
 import { canonicalJson, getCommandSigner } from '../agents/signing.js';
 import { AgentCommandService } from '../agents/commands.js';
+import { IncidentService } from '../incidents/service.js';
 
 const SPKI_ED25519_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
 
@@ -235,6 +236,16 @@ export class DeploymentService {
         input.deploymentId,
       ],
     );
+    if (!ok) {
+      await this.recordFailureIncident({
+        tenantId: input.tenantId,
+        deploymentId: input.deploymentId,
+        version: row.version,
+        ...(row.app_system_id ? { appSystemId: row.app_system_id } : {}),
+        message: `部署 ${row.version} 自动回滚失败，需要人工介入`,
+        execution: { commandIds, results },
+      });
+    }
     return this.getDeployment(input.tenantId, input.deploymentId);
   }
 
@@ -343,7 +354,43 @@ export class DeploymentService {
         deploymentId,
       ],
     );
+    if (!ok) {
+      await this.recordFailureIncident({
+        tenantId,
+        deploymentId,
+        version: row.version,
+        ...(row.app_system_id ? { appSystemId: row.app_system_id } : {}),
+        message: '部署执行失败，Agent 命令未全部成功',
+        execution: { commandIds, results },
+      });
+    }
     return this.getDeployment(tenantId, deploymentId);
+  }
+
+  private async recordFailureIncident(input: {
+    tenantId: string;
+    deploymentId: string;
+    version: string;
+    appSystemId?: string;
+    message: string;
+    execution: Record<string, unknown>;
+  }): Promise<void> {
+    const incidents = new IncidentService(this.pool);
+    await incidents.createFromSource({
+      tenantId: input.tenantId,
+      source: 'deployment',
+      sourceRef: `deployment:${input.deploymentId}`,
+      title: `部署失败：${input.version}`,
+      severity: 'P1',
+      ...(input.appSystemId ? { appSystemId: input.appSystemId } : {}),
+      rootCause: input.message,
+      evidence: [{
+        kind: 'deployment',
+        source: 'deployment',
+        summary: input.message,
+        payload: input.execution,
+      }],
+    });
   }
 
   private async waitForCommands(ids: string[]): Promise<Array<{ id: string; status: string; result: unknown }>> {

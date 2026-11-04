@@ -110,7 +110,8 @@ export function replayApprovalWebhook(pool: Pool, deliveryId: string, payload: s
         if (response.ok) {
           await pool.query(
             `UPDATE approval_webhook_deliveries
-             SET status = 'delivered', attempts = $1, last_error = NULL, updated_at = now()
+             SET status = 'delivered', attempts = $1, last_error = NULL,
+                 next_auto_replay_at = NULL, updated_at = now()
              WHERE id = $2`,
             [attempt, deliveryId],
           );
@@ -124,7 +125,8 @@ export function replayApprovalWebhook(pool: Pool, deliveryId: string, payload: s
     }
     await pool.query(
       `UPDATE approval_webhook_deliveries
-       SET status = 'failed', attempts = $1, last_error = $2, updated_at = now()
+       SET status = 'failed', attempts = $1, last_error = $2,
+           next_auto_replay_at = now() + interval '5 minutes', updated_at = now()
        WHERE id = $3`,
       [attempts, lastError, deliveryId],
     ).catch(() => undefined);

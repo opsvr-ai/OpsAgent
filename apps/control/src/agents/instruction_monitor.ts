@@ -100,8 +100,10 @@ export class AgentInstructionMonitor {
       const autoReplay = await this.pool.query<{ id: string; payload: string }>(
         `UPDATE approval_webhook_deliveries
          SET status = 'pending', attempts = 0, last_error = NULL,
-             auto_replayed_at = now(), updated_at = now()
-         WHERE status = 'failed' AND auto_replayed_at IS NULL
+             auto_replay_count = auto_replay_count + 1,
+             next_auto_replay_at = NULL, updated_at = now()
+         WHERE status = 'failed' AND auto_replay_count < 3
+           AND (next_auto_replay_at IS NULL OR next_auto_replay_at <= now())
            AND created_at < now() - interval '1 minute'
          RETURNING id, payload::text AS payload`,
       );

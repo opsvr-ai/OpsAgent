@@ -355,7 +355,8 @@ POST /api/agent-instruction-approvals/webhook-deliveries/:id/replay
 ```text
 失败超过 1 分钟
   → 自动置为 pending
-  → 重放一次
+  → 最多自动重放 3 次
+  → 每次失败后 5 分钟再试
   → 仍失败则等待人工重放
 ```
 

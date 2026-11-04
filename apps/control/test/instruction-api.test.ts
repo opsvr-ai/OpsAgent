@@ -440,6 +440,11 @@ describe('agent instruction API', () => {
       payload: { instruction: '重启 nginx 服务', incidentId },
     });
     const approvalId = (requested.json() as { approvalId: string }).approvalId;
+    const requestedEvents = await pool.query<{ type: string }>(
+      'SELECT type FROM incident_events WHERE incident_id = $1',
+      [incidentId],
+    );
+    expect(requestedEvents.rows.some((row) => row.type === 'instruction_approval_requested')).toBe(true);
     const approved = await app.inject({
       method: 'POST',
       url: `/api/agent-instruction-approvals/${approvalId}/decision`,
@@ -459,6 +464,11 @@ describe('agent instruction API', () => {
       headers: { cookie },
     });
     expect((linked.json() as Array<{ instructionId: string }>).some((item) => item.instructionId === instructionId)).toBe(true);
+    const approvedEvents = await pool.query<{ type: string }>(
+      'SELECT type FROM incident_events WHERE incident_id = $1',
+      [incidentId],
+    );
+    expect(approvedEvents.rows.some((row) => row.type === 'instruction_approval_approved')).toBe(true);
     await app.close();
   });
 

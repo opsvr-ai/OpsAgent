@@ -465,6 +465,13 @@ export function registerAgentInstructionRoutes(
            WHERE tenant_id = $3 AND id = $4`,
           [ctx.userId, reason, ctx.tenantId, approval.id],
         );
+        if (approval.incident_id) {
+          await pool.query(
+            `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+             VALUES ($1, $2, $3, 'instruction_approval_denied', $4::jsonb)`,
+            [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({ approvalId: approval.id, reason })],
+          );
+        }
         await audit.write({
           tenantId: ctx.tenantId,
           actorId: ctx.userId,
@@ -519,6 +526,17 @@ export function registerAgentInstructionRoutes(
          WHERE tenant_id = $4 AND id = $5`,
         [ctx.userId, reason, command.id, ctx.tenantId, approval.id],
       );
+      if (approval.incident_id) {
+        await pool.query(
+          `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+           VALUES ($1, $2, $3, 'instruction_approval_approved', $4::jsonb)`,
+          [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({
+            approvalId: approval.id,
+            commandId: command.id,
+            service,
+          })],
+        );
+      }
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,
@@ -700,6 +718,18 @@ export function registerAgentInstructionRoutes(
       );
       const createdApproval = approval.rows[0];
       if (!createdApproval) return reply.code(500).send({ error: 'approval_create_failed' });
+      if (incidentId) {
+        await pool.query(
+          `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+           VALUES ($1, $2, $3, 'instruction_approval_requested', $4::jsonb)`,
+          [ctx.tenantId, incidentId, ctx.userId, JSON.stringify({
+            approvalId: createdApproval.id,
+            agentId: request.params.id,
+            action: plan.intent.kind,
+            service,
+          })],
+        );
+      }
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,

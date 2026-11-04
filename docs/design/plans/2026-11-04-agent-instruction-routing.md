@@ -280,6 +280,15 @@ Incident → 重启/停止服务
   → 结果继续写入 Incident 证据链
 ```
 
+Incident 时间线记录：
+
+```text
+instruction_approval_requested
+instruction_approval_approved
+instruction_approval_denied
+instruction_completed
+```
+
 ### 指令历史
 
 ```http

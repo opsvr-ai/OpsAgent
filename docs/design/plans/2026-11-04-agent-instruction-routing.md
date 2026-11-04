@@ -51,6 +51,34 @@ Agent 详情页新增「自然语言」页签：
 
 Phase 3 SSE/批量仍未实现。
 
+### Phase 3 SSE 已实现
+
+```text
+GET /api/agents/:agentId/instructions/:instructionId/events
+```
+
+事件：
+
+```text
+status  当前指令状态
+delta   回答分片
+done    最终 answer / intent / evidence / toolsUsed
+error   超时或错误
+```
+
+Web 详情页优先使用 `EventSource` 流式展示；无 EventSource 环境自动回退轮询。
+
+真机验证：
+
+```text
+created 202
+sse 200 text/event-stream
+events: status... delta... done
+answerLine: true
+```
+
+多 Agent 批量与写操作审批仍未实现。
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

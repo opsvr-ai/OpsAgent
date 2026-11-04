@@ -249,12 +249,52 @@ export function Agents({ onBack }: AgentsProps) {
         `已下发给 ${created.hostname}：${created.intent.kind} / ${created.status}`,
       );
       let latest: AgentInstructionDetail | null = null;
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        latest = await getAgentInstruction(detail.id, created.instructionId);
-        setInstructionResult(latest);
-        if (latest.status === 'completed' || latest.status === 'failed') break;
+      if (typeof EventSource !== 'undefined') {
+        latest = await new Promise<AgentInstructionDetail | null>((resolve) => {
+          const source = new EventSource(
+            `/api/agents/${detail.id}/instructions/${created.instructionId}/events`,
+            { withCredentials: true },
+          );
+          source.addEventListener('status', (event) => {
+            const data = JSON.parse((event as MessageEvent).data) as { status: string };
+            setInstructionNote(`指令状态：${data.status}`);
+          });
+          source.addEventListener('delta', (event) => {
+            const data = JSON.parse((event as MessageEvent).data) as { text: string };
+            setInstructionResult((current) => current
+              ? { ...current, answer: current.answer + data.text, status: 'running' }
+              : {
+                  instructionId: created.instructionId,
+                  commandId: created.commandId,
+                  status: 'running',
+                  instruction: instructionText.trim(),
+                  intent: created.intent,
+                  answer: data.text,
+                  evidence: null,
+                  toolsUsed: null,
+                  createdAt: new Date().toISOString(),
+                  completedAt: null,
+                });
+          });
+          source.addEventListener('done', (event) => {
+            const detail = JSON.parse((event as MessageEvent).data) as AgentInstructionDetail;
+            source.close();
+            resolve(detail);
+          });
+          source.addEventListener('error', () => {
+            source.close();
+            resolve(null);
+          });
+        });
       }
+      if (!latest) {
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          latest = await getAgentInstruction(detail.id, created.instructionId);
+          if (latest.status === 'completed' || latest.status === 'failed') break;
+        }
+      }
+      setInstructionResult(latest);
       setInstructionNote(latest ? `指令状态：${latest.status}` : null);
     } catch (caught) {
       setInstructionError(caught instanceof Error ? caught.message : '指令下发失败');

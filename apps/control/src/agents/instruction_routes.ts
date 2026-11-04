@@ -19,6 +19,47 @@ async function context(pool: Pool, request: FastifyRequest) {
   );
 }
 
+interface InstructionDetailRow {
+  id: string;
+  status: string;
+  result: Record<string, unknown> | null;
+  instruction: string | null;
+  instruction_intent: Record<string, unknown> | null;
+  created_at: Date;
+  completed_at: Date | null;
+}
+
+async function loadInstruction(
+  pool: Pool,
+  tenantId: string,
+  agentId: string,
+  instructionId: string,
+): Promise<InstructionDetailRow | null> {
+  const result = await pool.query<InstructionDetailRow>(
+    `SELECT id, status, result, instruction, instruction_intent, created_at, completed_at
+     FROM agent_commands
+     WHERE tenant_id = $1 AND agent_id = $2 AND id = $3 AND type = 'agent_instruction'`,
+    [tenantId, agentId, instructionId],
+  );
+  return result.rows[0] ?? null;
+}
+
+function instructionResponse(row: InstructionDetailRow): Record<string, unknown> {
+  const payload = row.result ?? {};
+  return {
+    instructionId: row.id,
+    commandId: row.id,
+    status: row.status,
+    instruction: row.instruction,
+    intent: row.instruction_intent,
+    answer: typeof payload.answer === 'string' ? payload.answer : '',
+    evidence: payload.evidence ?? null,
+    toolsUsed: payload.toolsUsed ?? null,
+    createdAt: row.created_at.toISOString(),
+    completedAt: row.completed_at ? row.completed_at.toISOString() : null,
+  };
+}
+
 export function registerAgentInstructionRoutes(
   app: FastifyInstance,
   pool: Pool,
@@ -127,36 +168,70 @@ export function registerAgentInstructionRoutes(
         if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
         throw error;
       }
-      const result = await pool.query<{
-        id: string;
-        status: string;
-        result: Record<string, unknown> | null;
-        instruction: string | null;
-        instruction_intent: Record<string, unknown> | null;
-        created_at: Date;
-        completed_at: Date | null;
-      }>(
-        `SELECT id, status, result, instruction, instruction_intent, created_at, completed_at
-         FROM agent_commands
-         WHERE tenant_id = $1 AND agent_id = $2 AND id = $3 AND type = 'agent_instruction'`,
-        [ctx.tenantId, request.params.id, request.params.instructionId],
-      );
-      const row = result.rows[0];
+      const row = await loadInstruction(pool, ctx.tenantId, request.params.id, request.params.instructionId);
       if (!row) return reply.code(404).send({ error: 'instruction_not_found' });
-      const payload = row.result ?? {};
-      const answer = typeof payload.answer === 'string' ? payload.answer : '';
-      return reply.send({
-        instructionId: row.id,
-        commandId: row.id,
-        status: row.status,
-        instruction: row.instruction,
-        intent: row.instruction_intent,
-        answer,
-        evidence: payload.evidence ?? null,
-        toolsUsed: payload.toolsUsed ?? null,
-        createdAt: row.created_at.toISOString(),
-        completedAt: row.completed_at ? row.completed_at.toISOString() : null,
+      return reply.send(instructionResponse(row));
+    },
+  );
+
+  app.get<{ Params: { id: string; instructionId: string } }>(
+    '/api/agents/:id/instructions/:instructionId/events',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'agent.manage');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const initial = await loadInstruction(pool, ctx.tenantId, request.params.id, request.params.instructionId);
+      if (!initial) return reply.code(404).send({ error: 'instruction_not_found' });
+
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
       });
+      reply.raw.flushHeaders?.();
+      let closed = false;
+      request.raw.on('close', () => {
+        closed = true;
+      });
+      const send = (event: string, data: unknown): void => {
+        if (closed) return;
+        reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+      const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+      send('status', { status: initial.status });
+      const startedAt = Date.now();
+      let finished = false;
+      while (!closed && Date.now() - startedAt < 45_000) {
+        const row = await loadInstruction(pool, ctx.tenantId, request.params.id, request.params.instructionId);
+        if (!row) {
+          send('error', { message: 'instruction_not_found' });
+          finished = true;
+          break;
+        }
+        if (row.status === 'completed' || row.status === 'failed') {
+          const detail = instructionResponse(row);
+          const answer = typeof detail.answer === 'string' ? detail.answer : '';
+          for (let index = 0; index < answer.length && !closed; index += 80) {
+            send('delta', { text: answer.slice(index, index + 80) });
+            if (answer.length > 80) await sleep(8);
+          }
+          send('done', detail);
+          finished = true;
+          break;
+        }
+        send('status', { status: row.status });
+        await sleep(1000);
+      }
+      if (!closed && !finished) send('error', { message: 'instruction_timeout' });
+      reply.raw.end();
     },
   );
 }

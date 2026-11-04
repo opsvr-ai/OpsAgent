@@ -86,7 +86,8 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
-  async function replayDelivery(id: string) {    setError(null);
+  async function replayDelivery(id: string) {
+    setError(null);
     try {
       await replayApprovalWebhookDelivery(id);
       setWebhookFailures(await listApprovalWebhookDeliveries('failed'));
@@ -95,7 +96,8 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
-  async function resolveFailure(id: string) {    setError(null);
+  async function resolveFailure(id: string) {
+    setError(null);
     try {
       await resolveApprovalSideEffectFailure(id);
       setSideEffectFailures(await listApprovalSideEffectFailures());
@@ -160,7 +162,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
         <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span><div><strong>待审批</strong><span>{approvals?.length ?? 0} 项</span></div></div>
         <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>R2 只读</strong><span>{approvals?.filter((item) => item.risk === 'R2').length ?? 0} 项</span></div></div>
         <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>R3 写操作</strong><span>{approvals?.filter((item) => item.risk === 'R3').length ?? 0} 项</span></div></div>
-        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-clock" /></svg></span><div><strong>超时策略</strong><span>批准后继续</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-server" /></svg></span><div><strong>Agent 写操作</strong><span>{instructionApprovals.length} 项</span></div></div>
       </div>
       {webhookFailures.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>

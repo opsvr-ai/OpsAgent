@@ -1,6 +1,6 @@
 {
   "name": "@opsagent/desktop",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "private": true,
   "description": "OpsAgent desktop thin client",
   "author": "OpsAgent",
@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "electron": "^34.3.4",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "ai.opsvr.opsagent.desktop",

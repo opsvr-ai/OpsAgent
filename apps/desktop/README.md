@@ -54,11 +54,19 @@ pnpm --filter @opsagent/desktop package:zip
 apps/desktop/release/OpsAgent-win-x64.zip
 ```
 
-生成 NSIS 安装包（需网络下载 NSIS 工具）：
+生成 Windows NSIS 安装包：
 
 ```bash
 pnpm --filter @opsagent/desktop package:win
 ```
+
+产物：
+
+```text
+apps/desktop/release/OpsAgent Setup 0.2.0.exe
+```
+
+安装包已验证可生成；当前未配置代码签名证书，Windows 会显示未签名提示。
 
 打包脚本会自动定位本机 Electron 二进制，不依赖 GitHub 下载。
 

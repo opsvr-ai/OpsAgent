@@ -38,6 +38,20 @@ OPSAGENT_AGENT_CPUS=1.0
 
 映射到 Docker `mem_limit` / `cpus`。
 
+## Windows Job Object
+
+Windows Agent 服务模式启动时创建 Job Object，把自身与子进程放入同一作业：
+
+```text
+OPSAGENT_AGENT_MEMORY_LIMIT_MB=512
+OPSAGENT_AGENT_CPU_PERCENT=50
+```
+
+- 内存限制使用 `JOB_OBJECT_LIMIT_JOB_MEMORY`
+- CPU 限制使用 `JobObjectCpuRateControlInformation` 硬上限
+- 子进程自动继承作业限制
+- 未配置时不创建 Job Object
+
 ## 资源告警
 
 `AgentResourceMonitor` 每 60 秒检查在线 Agent：
@@ -67,4 +81,4 @@ resource.disk
 
 ## 剩余
 
-- Windows Job Object 内存限制
+- Windows 主机实机压测（代码已交叉编译通过，需 Windows 执行主机签字）

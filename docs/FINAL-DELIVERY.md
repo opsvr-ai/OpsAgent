@@ -1,4 +1,4 @@
-﻿# OpsAgent 0.3.1 最终交付说明
+﻿# OpsAgent 0.3.2 最终交付说明
 
 日期：2026-11-05
 
@@ -103,7 +103,7 @@ OCSP 实时响应    status=successful, serial=1234, 650 bytes
 | --- | --- |
 | G0 正式兼容性矩阵 | 按目标 dsh 版本签字 |
 | 十台混合 Linux 环境 | G9 集群安装/采集/限额 |
-| Windows 主机 | Windows Job Object 限额验证 |
+| Windows 主机 | Windows Job Object 限额实机压测 |
 | 企业代码签名证书 | Desktop 安装包受信 |
 | 生产入口代理 | 应用流量 canary Nginx 配置 |
 | 生产 OCSP 域名 | AIA 可达、防火墙放行 |

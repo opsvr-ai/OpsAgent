@@ -206,6 +206,7 @@ func main() {
 		runCLI(paths)
 		return
 	}
+	applyResourceLimits()
 	runDaemon(paths)
 }
 

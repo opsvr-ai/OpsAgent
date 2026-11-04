@@ -1,4 +1,4 @@
-﻿# OpsAgent 0.3.1 发布说明
+﻿# OpsAgent 0.3.2 发布说明
 
 ## 定位
 
@@ -93,7 +93,7 @@ OCSP         HTTP 200
 - CA 轮换需人工编排
 - OCSP 已实现，生产需配置可访问的 AIA 域名
 - 流量级 canary 控制面完成，数据面需入口代理应用生成的 Nginx 配置
-- Windows Job Object 限额未实现
+- Windows Job Object 限额已实现，需 Windows 执行主机实机压测
 - G0–G10 工程验收通过，外部环境与正式签字待完成
 
 详见：

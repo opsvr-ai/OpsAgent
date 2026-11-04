@@ -4,7 +4,7 @@
 # volumes so Windows/macOS hosts never install Linux-native modules.
 FROM node:22-alpine
 
-RUN apk add --no-cache python3 make g++ \
+RUN apk add --no-cache python3 make g++ bash \
   && npm install -g pnpm@11.4.0 @deepseek-ai/dsh@0.2.1-rc.5
 
 WORKDIR /app

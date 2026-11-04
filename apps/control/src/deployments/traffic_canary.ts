@@ -23,7 +23,7 @@ interface PolicyRow {
 }
 
 const UPSTREAM = /^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/;
-const HOST = /^[A-Za-z0-9.*-]+$/;
+const HOST = /^[A-Za-z0-9.-]+$/;
 
 function map(row: PolicyRow): TrafficCanaryPolicy {
   return {

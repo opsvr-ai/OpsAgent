@@ -70,6 +70,8 @@ func runCommandWithInput(commandType string, metrics map[string]any, input map[s
 	switch commandType {
 	case "diagnostics":
 		result["metrics"] = metrics
+	case "deployment_execute":
+		return runDeploymentCommand(input)
 	case "disk_check":
 		result["diskTotalGB"] = metrics["diskTotalGB"]
 		result["diskFreeGB"] = metrics["diskFreeGB"]
@@ -266,7 +268,7 @@ func runDaemon(paths agentPaths) {
 		OS:              runtime.GOOS,
 		Arch:            runtime.GOARCH,
 		Version:         agentVersion,
-		Capabilities:    []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot"},
+		Capabilities:    []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot", "deployment.execute"},
 		ResultPublicKey: resultPublicKeyBase64,
 		Discovery:       &initialDiscovery,
 	}, &registered); err != nil {

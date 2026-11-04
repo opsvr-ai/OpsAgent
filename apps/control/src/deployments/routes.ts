@@ -40,6 +40,8 @@ export function registerDeploymentRoutes(
       artifactUrl?: unknown;
       sha256?: unknown;
       signature?: unknown;
+      deployCommand?: unknown;
+      rollbackCommand?: unknown;
     } | undefined;
     if (
       typeof body?.version !== 'string' ||
@@ -56,6 +58,8 @@ export function registerDeploymentRoutes(
       artifactUrl: body.artifactUrl,
       sha256: body.sha256,
       signature: body.signature,
+      ...(typeof body.deployCommand === 'string' ? { deployCommand: body.deployCommand } : {}),
+      ...(typeof body.rollbackCommand === 'string' ? { rollbackCommand: body.rollbackCommand } : {}),
       ...(typeof body.appSystemId === 'string' ? { appSystemId: body.appSystemId } : {}),
     });
     if (!release) return reply.code(400).send({ error: 'invalid_release_signature' });
@@ -159,6 +163,27 @@ export function registerDeploymentRoutes(
       action: body.decision === 'approve' ? 'deployment.approve' : 'deployment.reject',
       resource: request.params.id,
       result: 'success',
+    });
+    return reply.send(deployment);
+  });
+
+  app.post<{ Params: { id: string } }>('/api/deployments/:id/execute', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'deployment.approve');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const deployment = await deployments.executeDeployment(ctx.tenantId, request.params.id);
+    if (!deployment) return reply.code(409).send({ error: 'deployment_not_executable' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'deployment.execute',
+      resource: request.params.id,
+      result: deployment.status === 'deployed' ? 'success' : 'failure',
     });
     return reply.send(deployment);
   });

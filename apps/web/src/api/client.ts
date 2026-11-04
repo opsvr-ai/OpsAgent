@@ -676,6 +676,8 @@ export interface ReleaseSummary {
   readonly artifactUrl: string;
   readonly sha256: string;
   readonly status: string;
+  readonly deployCommand: string | null;
+  readonly rollbackCommand: string | null;
   readonly createdAt: string;
 }
 
@@ -688,6 +690,7 @@ export interface DeploymentSummary {
   readonly status: string;
   readonly reason: string | null;
   readonly preflight: Readonly<Record<string, unknown>> | null;
+  readonly execution: Readonly<Record<string, unknown>> | null;
   readonly createdAt: string;
 }
 
@@ -701,6 +704,8 @@ export async function createRelease(input: {
   sha256: string;
   signature: string;
   appSystemId?: string;
+  deployCommand?: string;
+  rollbackCommand?: string;
 }): Promise<ReleaseSummary> {
   return request<ReleaseSummary>('/api/releases', {
     method: 'POST',
@@ -736,6 +741,13 @@ export async function decideDeployment(
 
 export async function preflightDeployment(id: string): Promise<DeploymentSummary> {
   return request<DeploymentSummary>(`/api/deployments/${id}/preflight`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function executeDeployment(id: string): Promise<DeploymentSummary> {
+  return request<DeploymentSummary>(`/api/deployments/${id}/execute`, {
     method: 'POST',
     body: JSON.stringify({}),
   });

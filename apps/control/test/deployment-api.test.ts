@@ -80,6 +80,14 @@ describe('release and deployment API', () => {
     expect(approved.statusCode).toBe(200);
     expect(approved.json()).toMatchObject({ status: 'approved' });
 
+    const notExecutable = await app.inject({
+      method: 'POST',
+      url: `/api/deployments/${deploymentId}/execute`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(notExecutable.statusCode).toBe(409);
+
     const rolledBack = await app.inject({
       method: 'POST',
       url: `/api/deployments/${deploymentId}/rollback`,

@@ -3,6 +3,7 @@ import {
   createDeployment,
   createRelease,
   decideDeployment,
+  executeDeployment,
   listAppSystems,
   listDeployments,
   listReleases,
@@ -33,6 +34,8 @@ export function Deployments({ onBack }: DeploymentsProps) {
   const [artifactUrl, setArtifactUrl] = useState('');
   const [sha256, setSha256] = useState('');
   const [signature, setSignature] = useState('');
+  const [deployCommand, setDeployCommand] = useState('');
+  const [rollbackCommand, setRollbackCommand] = useState('');
   const [appSystemId, setAppSystemId] = useState('');
   const [selectedRelease, setSelectedRelease] = useState('');
   const [environment, setEnvironment] = useState('staging');
@@ -67,11 +70,15 @@ export function Deployments({ onBack }: DeploymentsProps) {
         sha256,
         signature,
         ...(appSystemId ? { appSystemId } : {}),
+        ...(deployCommand ? { deployCommand } : {}),
+        ...(rollbackCommand ? { rollbackCommand } : {}),
       });
       setVersion('');
       setArtifactUrl('');
       setSha256('');
       setSignature('');
+      setDeployCommand('');
+      setRollbackCommand('');
       await reload();
     } catch {
       setError('发布创建失败：签名无效或参数不完整');
@@ -125,6 +132,19 @@ export function Deployments({ onBack }: DeploymentsProps) {
     }
   }
 
+  async function execute(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await executeDeployment(id);
+      await reload();
+    } catch {
+      setError('部署执行失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function rollback(id: string) {
     setBusy(true);
     setError(null);
@@ -156,6 +176,8 @@ export function Deployments({ onBack }: DeploymentsProps) {
             <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="release-url">制品地址</label><input id="release-url" value={artifactUrl} onChange={(event) => setArtifactUrl(event.target.value)} placeholder="https://artifacts.example/app.tgz" /></div>
             <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="release-sha">SHA-256</label><input id="release-sha" className="mono" value={sha256} onChange={(event) => setSha256(event.target.value)} /></div>
             <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="release-signature">Release 签名（Base64）</label><textarea id="release-signature" rows={4} value={signature} onChange={(event) => setSignature(event.target.value)} /></div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="release-deploy-command">部署命令</label><textarea id="release-deploy-command" rows={3} value={deployCommand} onChange={(event) => setDeployCommand(event.target.value)} placeholder="使用 $OPSAGENT_ARTIFACT 等环境变量" /></div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="release-rollback-command">回滚命令</label><textarea id="release-rollback-command" rows={3} value={rollbackCommand} onChange={(event) => setRollbackCommand(event.target.value)} placeholder="可选" /></div>
             <button type="button" className="btn btn-primary" disabled={busy || !version || !artifactUrl || !sha256 || !signature} onClick={() => void submitRelease()}>创建发布</button>
           </div>
         </section>
@@ -183,10 +205,12 @@ export function Deployments({ onBack }: DeploymentsProps) {
               </div>
               {deployment.canaryPercent ? <p className="muted">灰度 {deployment.canaryPercent}%</p> : null}
               {deployment.preflight ? <p className="muted">预检：{deployment.preflight.ok ? '通过' : String(deployment.preflight.error ?? '失败')}</p> : null}
+              {deployment.execution ? <p className="muted">执行：{deployment.execution.ok ? '成功' : '失败或未完成'}</p> : null}
               <div className="row-sm" style={{ marginTop: 8 }}>
                 {deployment.status === 'pending' ? <><button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void decide(deployment.id, 'approve')}>批准</button><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void decide(deployment.id, 'reject')}>拒绝</button></> : null}
                 {['approved', 'pending'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void preflight(deployment.id)}>制品预检</button> : null}
-                {['approved', 'preflighted'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void rollback(deployment.id)}>回滚</button> : null}
+                {['approved', 'preflighted'].includes(deployment.status) ? <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void execute(deployment.id)}>执行部署</button> : null}
+                {['approved', 'preflighted', 'deployed'].includes(deployment.status) ? <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void rollback(deployment.id)}>回滚</button> : null}
               </div>
             </div>
           ))}

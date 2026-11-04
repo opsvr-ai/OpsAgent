@@ -113,6 +113,45 @@ status = preflight_failed
 preflight = { ok: false, error, checkedAt }
 ```
 
+### 实际执行
+
+签名 Manifest 中可携带：
+
+```text
+deployCommand
+rollbackCommand
+```
+
+```text
+POST /api/deployments/:id/execute
+```
+
+控制面：
+
+```text
+选择应用系统在线 Agent
+  → 下发 deployment_execute 命令
+  → 等待命令完成
+  → 全部成功：deployed
+  → 任一失败：failed
+```
+
+Agent：
+
+```text
+下载制品
+  → 校验 SHA-256
+  → 注入 OPSAGENT_ARTIFACT / OPSAGENT_VERSION
+  → 执行 deployCommand
+  → 回传输出与校验结果
+```
+
+回滚在执行后使用同一命令通道发送 `rollbackCommand`：
+
+```text
+deployed → rolling_back → rolled_back / rollback_failed
+```
+
 ### 查询
 
 ```text
@@ -141,6 +180,7 @@ deployment.approve
 deployment.reject
 deployment.rollback
 deployment.preflight
+deployment.execute
 ```
 
 ## 验证
@@ -154,7 +194,7 @@ deployment.preflight
 
 ## 剩余
 
-- 从审批到 Agent 执行部署
 - 流量/实例级灰度推进
 - 健康检查与自动回滚触发
 - 制品仓库和签名证书托管
+- Windows 部署执行器

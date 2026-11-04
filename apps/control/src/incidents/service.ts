@@ -272,57 +272,104 @@ export class IncidentService {
   }
 
   private async collectConnectorEvidence(tenantId: string, incidentId: string, actorId: string): Promise<void> {
-    const connectors = await this.pool.query<{ connector_type: string; name: string }>(
-      `SELECT DISTINCT ON (connector_type) connector_type, name
+    const connectors = await this.pool.query<{
+      connector_type: string;
+      name: string;
+      config: Record<string, unknown>;
+    }>(
+      `SELECT DISTINCT ON (connector_type) connector_type, name, config
        FROM connectors WHERE tenant_id = $1 AND status <> 'archived'
        ORDER BY connector_type, created_at`,
       [tenantId],
     );
-    const mapping: Record<string, { tool: string; input: Record<string, unknown> }> = {
-      prometheus: { tool: 'prometheus_query', input: { query: 'up' } },
-      zabbix: { tool: 'zabbix_hosts', input: {} },
-      alertmanager: { tool: 'alertmanager_alerts', input: {} },
-    };
+    const tasks: Array<{
+      connectorType: string;
+      name: string;
+      tool: string;
+      input: Record<string, unknown>;
+    }> = [];
     for (const connector of connectors.rows) {
-      const selected = mapping[connector.connector_type];
-      if (!selected) continue;
-      const tool = await this.tools.resolve(tenantId, selected.tool);
-      if (!tool) continue;
+      const diagnosticQuery = typeof connector.config.diagnosticQuery === 'string'
+        ? connector.config.diagnosticQuery
+        : undefined;
+      let selected: { tool: string; input: Record<string, unknown> } | undefined;
+      switch (connector.connector_type) {
+        case 'prometheus':
+          selected = { tool: 'prometheus_query', input: { query: diagnosticQuery ?? 'up' } };
+          break;
+        case 'zabbix':
+          selected = { tool: 'zabbix_hosts', input: {} };
+          break;
+        case 'alertmanager':
+          selected = { tool: 'alertmanager_alerts', input: {} };
+          break;
+        case 'clickhouse':
+          if (diagnosticQuery) selected = { tool: 'clickhouse_query', input: { sql: diagnosticQuery } };
+          break;
+        case 'postgres':
+          if (diagnosticQuery) selected = { tool: 'postgres_query', input: { sql: diagnosticQuery } };
+          break;
+        case 'mysql':
+          if (diagnosticQuery) selected = { tool: 'mysql_query', input: { sql: diagnosticQuery } };
+          break;
+        default:
+          break;
+      }
+      if (selected) {
+        tasks.push({
+          connectorType: connector.connector_type,
+          name: connector.name,
+          tool: selected.tool,
+          input: selected.input,
+        });
+      }
+    }
+
+    const outcomes = await Promise.all(tasks.map(async (task) => {
+      const tool = await this.tools.resolve(tenantId, task.tool);
+      if (!tool) return { task, ok: false as const, error: 'connector_not_configured' };
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 8000);
       try {
-        const result = await tool.execute(selected.input, { tenantId, signal: controller.signal });
-        const body = JSON.stringify(result);
+        const result = await tool.execute(task.input, { tenantId, signal: controller.signal });
+        return { task, ok: true as const, result: JSON.stringify(result).slice(0, 12000) };
+      } catch (error) {
+        return { task, ok: false as const, error: error instanceof Error ? error.message : String(error) };
+      } finally {
+        clearTimeout(timer);
+      }
+    }));
+
+    for (const outcome of outcomes) {
+      if (outcome.ok) {
         await this.pool.query(
           `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
            VALUES ($1, $2, 'connector_query', $3, $4, $5::jsonb)`,
           [
             tenantId,
             incidentId,
-            connector.connector_type,
-            `${selected.tool} 查询成功（${connector.name}）`,
-            JSON.stringify({ tool: selected.tool, input: selected.input, result: body.slice(0, 12000) }),
+            outcome.task.connectorType,
+            `${outcome.task.tool} 查询成功（${outcome.task.name}）`,
+            JSON.stringify({ tool: outcome.task.tool, input: outcome.task.input, result: outcome.result }),
           ],
         );
         await this.pool.query(
           `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
            VALUES ($1, $2, $3, 'connector_evidence', $4::jsonb)`,
-          [tenantId, incidentId, actorId, JSON.stringify({ tool: selected.tool, source: connector.connector_type })],
+          [tenantId, incidentId, actorId, JSON.stringify({ tool: outcome.task.tool, source: outcome.task.connectorType })],
         );
-      } catch (error) {
+      } else {
         await this.pool.query(
           `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
            VALUES ($1, $2, 'connector_error', $3, $4, $5::jsonb)`,
           [
             tenantId,
             incidentId,
-            connector.connector_type,
-            `${selected.tool} 查询失败（${connector.name}）`,
-            JSON.stringify({ tool: selected.tool, error: error instanceof Error ? error.message : String(error) }),
+            outcome.task.connectorType,
+            `${outcome.task.tool} 查询失败（${outcome.task.name}）`,
+            JSON.stringify({ tool: outcome.task.tool, error: outcome.error }),
           ],
         );
-      } finally {
-        clearTimeout(timer);
       }
     }
   }

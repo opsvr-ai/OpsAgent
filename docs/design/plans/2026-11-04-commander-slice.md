@@ -17,6 +17,7 @@
 - Source 接入骨架：`POST /internal/incident-sources` 接收 Alertmanager/Zabbix/Webhook，按 `source + sourceRef` 幂等
 - 事件报告：`GET /api/incidents/:id/report` 输出 Markdown，详情页可导出
 - ConnectorExecutor v0：自动排查时按租户已配置的 Prometheus/Zabbix/Alertmanager 连接器执行只读查询，成功/失败都写入证据
+- ConnectorExecutor v1：多连接器并行取证；ClickHouse/PostgreSQL/MySQL 支持通过连接器 `diagnosticQuery` 配置诊断 SQL
 - R2/R3 审批闭环：事件详情可申请操作审批，审批/拒绝写入时间线与审计
 - 专用 Source 适配器：`/internal/incident-sources/alertmanager` 与 `/internal/incident-sources/zabbix`，支持告警标准化与幂等
 

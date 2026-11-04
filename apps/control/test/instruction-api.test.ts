@@ -343,6 +343,34 @@ describe('agent instruction API', () => {
     });
     expect(expiredDecision.statusCode).toBe(409);
     expect((expiredDecision.json() as { error: string }).error).toBe('approval_expired');
+
+    const pendingRequest = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '停止 redis 服务' },
+    });
+    const pendingApprovalId = (pendingRequest.json() as { approvalId: string }).approvalId;
+    const preflight = await app.inject({
+      method: 'POST',
+      url: '/api/agent-instruction-approvals/batch-decision',
+      headers: { cookie },
+      payload: { approvalIds: [expiredApprovalId, pendingApprovalId], decision: 'approve' },
+    });
+    expect(preflight.statusCode).toBe(409);
+    expect((preflight.json() as { error: string }).error).toBe('batch_preflight_failed');
+    const stillPending = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals',
+      headers: { cookie },
+    });
+    expect((stillPending.json() as Array<{ id: string }>).some((item) => item.id === pendingApprovalId)).toBe(true);
+    await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${pendingApprovalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'deny' },
+    });
     await app.close();
   });
 

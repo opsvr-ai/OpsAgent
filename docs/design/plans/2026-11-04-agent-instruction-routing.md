@@ -195,6 +195,18 @@ statusCode
 result
 ```
 
+批量预检：
+
+```text
+任一审批不存在 / 非 pending / 已过期
+任一 Agent 离线
+职责分离不允许
+  → 整批拒绝 409 batch_preflight_failed
+  → 不产生部分批准
+```
+
+预检通过后逐项执行，仍保留单项独立结果。
+
 审批页同时展示：
 
 ```text

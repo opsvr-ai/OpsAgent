@@ -554,6 +554,40 @@ export function registerAgentInstructionRoutes(
       return reply.code(400).send({ error: 'invalid_approval_count' });
     }
     const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : undefined;
+    const preflight = await pool.query<{
+      id: string;
+      status: string;
+      expires_at: Date;
+      requested_by: string;
+      hostname: string;
+      agent_status: string;
+      last_seen: Date;
+    }>(
+      `SELECT a.id, a.status, a.expires_at, a.requested_by, g.hostname, g.status AS agent_status, g.last_seen
+       FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
+       WHERE a.tenant_id = $1 AND a.id = ANY($2::uuid[])`,
+      [ctx.tenantId, approvalIds],
+    );
+    const byId = new Map(preflight.rows.map((row) => [row.id, row]));
+    const failures = approvalIds.flatMap((approvalId) => {
+      const row = byId.get(approvalId);
+      if (!row) return [{ approvalId, reason: 'not_found' }];
+      if (row.status !== 'pending') return [{ approvalId, reason: 'not_pending' }];
+      if (row.expires_at.getTime() <= Date.now()) return [{ approvalId, reason: 'expired' }];
+      if (body.decision === 'approve'
+        && process.env.OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES === 'true'
+        && row.requested_by === ctx.userId) {
+        return [{ approvalId, reason: 'self_approval_forbidden' }];
+      }
+      if (body.decision === 'approve'
+        && (row.agent_status !== 'online' || row.last_seen.getTime() < Date.now() - 90_000)) {
+        return [{ approvalId, reason: 'agent_offline' }];
+      }
+      return [];
+    });
+    if (failures.length > 0) {
+      return reply.code(409).send({ error: 'batch_preflight_failed', failures });
+    }
     const results = [];
     for (const approvalId of approvalIds) {
       const response = await app.inject({

@@ -233,12 +233,26 @@ func runDaemon(paths agentPaths) {
 	registered := registerResponse{}
 	agentStarted = time.Now()
 	started := agentStarted
-	resultPublicKey, resultPrivateKey, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		log.Fatalf("generate result key: %v", err)
+	var resultPrivateKey ed25519.PrivateKey
+	resultPrivateSeedBase64 := ""
+	resultPublicKeyBase64 := ""
+	if existing, err := loadAgentState(paths); err == nil && existing.ResultPrivateKey != "" {
+		if seed, decodeErr := base64.StdEncoding.DecodeString(existing.ResultPrivateKey); decodeErr == nil && len(seed) == ed25519.SeedSize {
+			resultPrivateKey = ed25519.NewKeyFromSeed(seed)
+			resultPrivateSeedBase64 = existing.ResultPrivateKey
+			resultPublicKeyBase64 = base64.StdEncoding.EncodeToString(resultPrivateKey.Public().(ed25519.PublicKey))
+			log.Printf("result signing key loaded keyId=%s", commandKeyID(resultPrivateKey.Public().(ed25519.PublicKey)))
+		}
 	}
-	resultPublicKeyBase64 := base64.StdEncoding.EncodeToString(resultPublicKey)
-	resultPrivateSeedBase64 := base64.StdEncoding.EncodeToString(resultPrivateKey.Seed())
+	if resultPrivateKey == nil {
+		resultPublicKey, generatedPrivateKey, generateErr := ed25519.GenerateKey(rand.Reader)
+		if generateErr != nil {
+			log.Fatalf("generate result key: %v", generateErr)
+		}
+		resultPrivateKey = generatedPrivateKey
+		resultPrivateSeedBase64 = base64.StdEncoding.EncodeToString(generatedPrivateKey.Seed())
+		resultPublicKeyBase64 = base64.StdEncoding.EncodeToString(resultPublicKey)
+	}
 	initialMetrics := hostMetrics()
 	initialDiscovery := collectDiscovery(started, initialMetrics)
 	if err := paths.writeSnapshot("discovery.json", initialDiscovery); err != nil {

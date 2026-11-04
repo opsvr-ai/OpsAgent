@@ -190,6 +190,29 @@ export function Incidents({ onBack }: IncidentsProps) {
   }
 
   const selected = detail?.incident ?? incidents?.find((item) => item.id === selectedId) ?? null;
+  const topologyEvidence = (detail?.evidence ?? []).find((item) => item.kind === 'topology');
+  const topologyNodes = (() => {
+    const raw = topologyEvidence?.payload?.nodes;
+    if (!Array.isArray(raw)) return [] as Array<{ hostname: string; status: string; applications: string[] }>;
+    return raw.flatMap((node) => {
+      if (typeof node !== 'object' || node === null) return [];
+      const record = node as Record<string, unknown>;
+      const applications = Array.isArray(record.applications)
+        ? record.applications.flatMap((app) => {
+            if (typeof app === 'string') return [app];
+            if (typeof app === 'object' && app !== null && typeof (app as Record<string, unknown>).name === 'string') {
+              return [(app as Record<string, unknown>).name as string];
+            }
+            return [];
+          })
+        : [];
+      return [{
+        hostname: typeof record.hostname === 'string' ? record.hostname : 'unknown',
+        status: typeof record.status === 'string' ? record.status : 'unknown',
+        applications,
+      }];
+    });
+  })();
 
   function statusActions(incident: IncidentSummary) {
     if (incident.status === 'open') {
@@ -364,6 +387,22 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <p style={{ whiteSpace: 'pre-wrap' }}>{analysisText}</p>
                     </div>
                   ) : null}
+                  {topologyNodes.length > 0 ? (
+                    <div className="incident-evidence" style={{ marginTop: 14 }}>
+                      <span className="eyebrow">应用拓扑</span>
+                      <div className="stack" style={{ marginTop: 8 }}>
+                        {topologyNodes.map((node) => (
+                          <div key={node.hostname} className="row-between">
+                            <div>
+                              <strong>{node.hostname}</strong>
+                              <div className="muted">{node.applications.length > 0 ? node.applications.join('、') : '无应用信息'}</div>
+                            </div>
+                            <span className={`badge ${node.status === 'online' ? 'badge-ok' : 'badge-danger'}`}>{node.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <h3 style={{ marginTop: 18 }}>操作审批</h3>
                   {(detail?.approvals ?? []).length === 0 ? <p className="muted">暂无审批记录</p> : (
                     <div className="stack">
@@ -405,7 +444,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                         <div className="stack">
                           {(detail?.hypotheses ?? []).map((item) => (
                             <div key={item.id} className="incident-evidence">
-                              <div className="row-between"><strong>{item.confidence}% 置信度</strong><span className="badge badge-warn">{item.status}</span></div>
+                              <div className="row-between"><strong>{item.confidence}% 置信度</strong><span className={`badge ${item.status === 'supported' ? 'badge-ok' : item.status === 'rejected' ? 'badge-neutral' : 'badge-warn'}`}>{item.status}</span></div>
                               <p>{item.statement}</p>
                             </div>
                           ))}

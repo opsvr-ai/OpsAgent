@@ -503,18 +503,38 @@ export class IncidentService {
       `DELETE FROM incident_hypotheses WHERE tenant_id = $1 AND incident_id = $2 AND status = 'candidate'`,
       [tenantId, incidentId],
     );
-    const candidates: Array<{ statement: string; confidence: number }> = [];
+    const candidates: Array<{ statement: string; confidence: number; status: string }> = [];
     if (kinds.has('connector_error')) {
-      candidates.push({ statement: '连接器取证失败，监控数据可能不完整，需要检查连接器配置与凭据', confidence: Math.min(confidence - 10, 45) });
+      candidates.push({
+        statement: '连接器取证失败，监控数据可能不完整，需要检查连接器配置与凭据',
+        confidence: Math.min(confidence - 10, 45),
+        status: kinds.has('connector_query') ? 'rejected' : 'candidate',
+      });
     }
     if (offlineNodes.length > 0) {
-      candidates.push({ statement: `应用系统存在 ${offlineNodes.length} 个离线节点，可能是节点级故障`, confidence: Math.min(confidence, 60) });
+      candidates.push({
+        statement: `应用系统存在 ${offlineNodes.length} 个离线节点，可能是节点级故障`,
+        confidence: Math.min(confidence, 60),
+        status: 'candidate',
+      });
+    } else if (kinds.has('topology')) {
+      candidates.push({
+        statement: '应用系统节点全部在线，可排除节点级不可用',
+        confidence: 20,
+        status: 'rejected',
+      });
     }
     if (downApps.length > 0) {
-      candidates.push({ statement: `${downApps.length} 个应用实例状态异常，需检查应用进程与依赖`, confidence: Math.min(confidence, 55) });
+      candidates.push({
+        statement: `${downApps.length} 个应用实例状态异常，需检查应用进程与依赖`,
+        confidence: Math.min(confidence, 55),
+        status: 'candidate',
+      });
     }
     if (!kinds.has('connector_query') && !kinds.has('connector_error')) {
-      candidates.push({ statement: '缺少连接器监控证据，根因需要人工确认', confidence: 40 });
+      candidates.push({ statement: '缺少连接器监控证据，根因需要人工确认', confidence: 40, status: 'candidate' });
+    } else if (kinds.has('connector_query')) {
+      candidates.push({ statement: '连接器已返回监控证据，可排除数据缺失导致的误判', confidence: 25, status: 'rejected' });
     }
 
     const rootCause = incident.rows[0]?.root_cause;
@@ -551,15 +571,14 @@ export class IncidentService {
     for (const candidate of candidates) {
       await this.pool.query(
         `INSERT INTO incident_hypotheses (tenant_id, incident_id, statement, confidence, status)
-         VALUES ($1, $2, $3, $4, 'candidate')`,
-        [tenantId, incidentId, candidate.statement, Math.max(20, candidate.confidence)],
+         VALUES ($1, $2, $3, $4, $5)`,
+        [tenantId, incidentId, candidate.statement, Math.max(20, candidate.confidence), candidate.status],
       );
     }
     await this.pool.query(
       `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
        VALUES ($1, $2, $3, 'root_cause_converged', $4::jsonb)`,
-      [tenantId, incidentId, actorId, JSON.stringify({ confidence, evidenceKinds: [...kinds], candidates })],
-    );
+      [tenantId, incidentId, actorId, JSON.stringify({ confidence, evidenceKinds: [...kinds], candidates })],    );
   }
 
   async addAnalysis(input: {

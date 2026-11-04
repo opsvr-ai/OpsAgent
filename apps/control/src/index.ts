@@ -8,6 +8,8 @@ import { DshRuntime } from './runtime/dsh.js';
 import { ModelProviderService } from './models/service.js';
 import { AuditService } from './audit/service.js';
 import { LongTaskService } from './tasks/service.js';
+import { IncidentService } from './incidents/service.js';
+import { CommanderScheduler } from './incidents/commander.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
 const pool = new Pool({
@@ -50,6 +52,11 @@ const app = buildServer({
     : { studioGenerator: new DshHeadlessGenerator(undefined, modelService) }),
 });
 const scheduler = new ScenarioScheduler(new ScenarioService(pool, tools));
+const commanderScheduler = new CommanderScheduler(
+  pool,
+  new IncidentService(pool, tools),
+  Number.parseInt(process.env.OPSAGENT_COMMANDER_INTERVAL_MS ?? '20000', 10),
+);
 const auditRetention = new AuditService(pool);
 const taskService = new LongTaskService(pool, new ScenarioService(pool, tools));
 void taskService.recoverInterrupted().catch((error) => {
@@ -65,11 +72,13 @@ void auditRetention.purgeOlderThan(180).catch(() => undefined);
 
 await app.listen({ host: '0.0.0.0', port });
 scheduler.start();
+commanderScheduler.start();
 console.log(`opsagent-control listening on :${port}`);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     scheduler.stop();
+    commanderScheduler.stop();
     clearInterval(retentionTimer);
     void app.close().then(() => pool.end());
   });

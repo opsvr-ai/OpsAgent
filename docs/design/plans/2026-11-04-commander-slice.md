@@ -19,6 +19,7 @@
 - ConnectorExecutor v0：自动排查时按租户已配置的 Prometheus/Zabbix/Alertmanager 连接器执行只读查询，成功/失败都写入证据
 - ConnectorExecutor v1：多连接器并行取证；ClickHouse/PostgreSQL/MySQL 支持通过连接器 `diagnosticQuery` 配置诊断 SQL
 - 根因置信度收敛：按根因、主机证据、连接器证据、日志信号、连接器失败动态计算 40–98% 置信度并写入时间线
+- Commander 定时调度：服务启动后自动认领未排障的 open Incident，执行主机检查、连接器取证、根因收敛；支持 `OPSAGENT_COMMANDER_INTERVAL_MS`
 - R2/R3 审批闭环：事件详情可申请操作审批，审批/拒绝写入时间线与审计
 - 专用 Source 适配器：`/internal/incident-sources/alertmanager` 与 `/internal/incident-sources/zabbix`，支持告警标准化与幂等
 

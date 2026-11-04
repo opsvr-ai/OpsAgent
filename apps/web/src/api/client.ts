@@ -577,6 +577,8 @@ export interface AgentSummary {
   readonly tags: readonly string[];
   readonly discoveryAt: string | null;
   readonly commandKeyId?: string | null;
+  readonly tlsCertExpiresAt?: string | null;
+  readonly tlsCertSerial?: string | null;
   readonly appSystem: AppSystemSummary | null;
 }
 

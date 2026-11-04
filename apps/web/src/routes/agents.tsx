@@ -467,6 +467,7 @@ export function Agents({ onBack }: AgentsProps) {
                         <div><div className="eyebrow">应用部署</div><strong>{detail.applications.length} 个</strong><p className="muted">{detail.applications.slice(0, 3).map((application) => text(application.name)).join('、') || '未发现应用'}</p></div>
                         <div><div className="eyebrow">Agent 版本</div><strong className="mono">{text(detail.agentInfo.version || detail.version)}</strong><p className="muted">{detail.agentInfo.serviceStatus ? `服务 ${text(detail.agentInfo.serviceStatus)}` : '状态未知'}</p></div>
                         <div><div className="eyebrow">命令签名</div><strong className="mono">{detail.commandKeyId ?? '未上报'}</strong><p className="muted">注册/心跳同步</p></div>
+                        <div><div className="eyebrow">客户端证书</div><strong>{detail.tlsCertExpiresAt ? relativeTime(detail.tlsCertExpiresAt) : '未上报'}</strong><p className="muted mono">{detail.tlsCertSerial ?? '无序列号'}</p></div>
                       </div>
                     </div>
                   ) : null}

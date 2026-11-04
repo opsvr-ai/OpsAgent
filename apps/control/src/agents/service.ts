@@ -27,6 +27,8 @@ export interface AgentRecord {
   readonly tags: readonly string[];
   readonly discoveryAt: string | null;
   readonly commandKeyId: string | null;
+  readonly tlsCertExpiresAt: string | null;
+  readonly tlsCertSerial: string | null;
   readonly appSystem: AppSystemSummary | null;
 }
 
@@ -80,6 +82,8 @@ interface AgentRow {
   tags: string[] | null;
   discovery_at: Date | null;
   command_key_id: string | null;
+  tls_cert_expires_at: Date | null;
+  tls_cert_serial: string | null;
   app_system_id: string | null;
   app_system_code: string | null;
   app_system_name: string | null;
@@ -90,7 +94,7 @@ interface AgentRow {
 const AGENT_SELECT = `SELECT a.id, a.name, a.hostname, a.os, a.arch, a.version,
   CASE WHEN a.last_seen < now() - interval '90 seconds' THEN 'offline' ELSE a.status END AS status,
   a.last_seen, a.metrics, a.system_info, a.applications, a.agent_info, a.tags, a.discovery_at,
-  a.command_key_id,
+  a.command_key_id, a.tls_cert_expires_at, a.tls_cert_serial,
   a.app_system_id, s.code AS app_system_code, s.name AS app_system_name,
   s.owner AS app_system_owner, s.criticality AS app_system_criticality
   FROM agents a LEFT JOIN app_systems s ON s.id = a.app_system_id`;
@@ -402,6 +406,8 @@ export class AgentService {
       tags: tagList(row.tags),
       discoveryAt: row.discovery_at ? row.discovery_at.toISOString() : null,
       commandKeyId: row.command_key_id ?? null,
+      tlsCertExpiresAt: row.tls_cert_expires_at ? row.tls_cert_expires_at.toISOString() : null,
+      tlsCertSerial: row.tls_cert_serial ?? null,
       appSystem: row.app_system_id && row.app_system_code && row.app_system_name
         ? {
             id: row.app_system_id,

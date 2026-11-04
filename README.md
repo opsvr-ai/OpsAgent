@@ -64,6 +64,14 @@ Linux 主机标准安装目录为 `/opt/opsagent`：
 
 日志记录启动、注册、心跳、HTTP 请求、自巡航、命令输入与执行、结果上传和错误；配置 `/etc/logrotate.d/opsagent` 每日轮转并保留 14 份。Windows 使用 `C:\ProgramData\OpsAgent` 下的同名目录结构。
 
+安装脚本会把 `/opt/opsagent/bin` 写入 `/etc/profile.d/opsagent.sh` 并创建 `/usr/local/bin/opsagent-agent` 链接。重新登录（或 `source /etc/profile.d/opsagent.sh`）后直接执行：
+
+```bash
+opsagent-agent
+```
+
+进入交互式对话。后台服务使用 `opsagent-agent --service`，`--version`、`--help` 可查看版本和用法。
+
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 
 ```bash

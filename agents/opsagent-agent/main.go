@@ -161,6 +161,31 @@ func post(url string, headers map[string]string, payload any, target any) error 
 
 func main() {
 	paths := resolveAgentPaths()
+	loadAgentConfig(paths.Config)
+	service := os.Getenv("OPSAGENT_SERVICE_MODE") == "1"
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "--service", "daemon":
+			service = true
+		case "--version", "-v":
+			fmt.Printf("opsagent-agent %s (%s/%s)\n", agentVersion, runtime.GOOS, runtime.GOARCH)
+			return
+		case "--help", "-h":
+			fmt.Println("OpsAgent 操作系统智能体")
+			fmt.Println("  opsagent-agent            进入交互式对话")
+			fmt.Println("  opsagent-agent --service  以后台服务模式运行")
+			fmt.Println("  opsagent-agent --version  显示版本")
+			return
+		}
+	}
+	if !service {
+		runCLI(paths)
+		return
+	}
+	runDaemon(paths)
+}
+
+func runDaemon(paths agentPaths) {
 	if err := paths.ensure(); err != nil {
 		log.Fatalf("prepare agent directories: %v", err)
 	}
@@ -210,6 +235,17 @@ func main() {
 		log.Fatalf("register: %v", err)
 	}
 	log.Printf("registered agent id=%s key=%s", registered.Agent.ID, mask(registered.AgentKey))
+	if err := saveAgentState(paths, agentState{
+		AgentID:    registered.Agent.ID,
+		AgentKey:   registered.AgentKey,
+		Hostname:   hostname,
+		ControlURL: controlURL,
+		TenantID:   tenantID,
+	}); err != nil {
+		log.Printf("save agent state: %v", err)
+	} else {
+		log.Printf("agent state saved path=%s", statePath(paths))
+	}
 	lastDiscovery := time.Now()
 	lastPatrol := time.Time{}
 	lastMetricsSnapshot := time.Time{}

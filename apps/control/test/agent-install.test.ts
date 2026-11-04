@@ -72,6 +72,8 @@ describe('agent install API', () => {
     expect(script.body).toContain('OPSAGENT_HOME=$ROOT');
     expect(script.body).toContain('OPSAGENT_LOG_DIR=$LOG_DIR');
     expect(script.body).toContain('OPSAGENT_SNAPSHOT_DIR=$SNAPSHOT_DIR');
+    expect(script.body).toContain('/etc/profile.d/opsagent.sh');
+    expect(script.body).toContain('ExecStart=/opt/opsagent/bin/opsagent-agent --service');
     expect(script.body).toContain('systemctl enable --now opsagent-agent');
 
     const powershell = await app.inject({
@@ -80,6 +82,8 @@ describe('agent install API', () => {
     });
     expect(powershell.statusCode).toBe(200);
     expect(powershell.body).toContain('schtasks /Create');
+    expect(powershell.body).toContain("SetEnvironmentVariable('Path'");
+    expect(powershell.body).toContain('--service');
 
     const binary = await app.inject({
       method: 'GET',

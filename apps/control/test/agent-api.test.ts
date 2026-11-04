@@ -121,6 +121,17 @@ describe('agent registry API', () => {
       appSystemName: expect.any(String),
       rootCause: expect.stringContaining('磁盘可用空间不足'),
     }]);
+
+    const cli = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/chat`,
+      payload: { agentKey: body.agentKey, question: '当前纳管了多少操作系统智能体？' },
+    });
+    expect(cli.statusCode).toBe(200);
+    expect(cli.json()).toMatchObject({
+      supported: true,
+      answer: expect.stringContaining('纳管'),
+    });
     const command = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/commands`,

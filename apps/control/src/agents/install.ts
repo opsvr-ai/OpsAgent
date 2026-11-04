@@ -80,6 +80,11 @@ OPSAGENT_SNAPSHOT_DIR=$SNAPSHOT_DIR
 OPSAGENT_AGENT_SERVICE=opsagent-agent
 EOF
 chmod 0600 "$CONFIG_FILE"
+ln -sf "$BIN_DIR/opsagent-agent" /usr/local/bin/opsagent-agent
+cat > /etc/profile.d/opsagent.sh <<'EOF'
+export PATH="/opt/opsagent/bin:$PATH"
+EOF
+chmod 0644 /etc/profile.d/opsagent.sh
 cat > /etc/systemd/system/opsagent-agent.service <<'EOF'
 [Unit]
 Description=OpsAgent host agent
@@ -90,7 +95,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/opt/opsagent
 EnvironmentFile=/opt/opsagent/config/agent.env
-ExecStart=/opt/opsagent/bin/opsagent-agent
+ExecStart=/opt/opsagent/bin/opsagent-agent --service
 Restart=always
 RestartSec=5
 StandardOutput=append:/opt/opsagent/logs/stdout.log
@@ -153,7 +158,11 @@ Invoke-WebRequest -Uri "$ControlUrl/api/agents/binary?os=windows&arch=amd64&toke
 [Environment]::SetEnvironmentVariable('OPSAGENT_LOG_DIR', $LogDir, 'Machine')
 [Environment]::SetEnvironmentVariable('OPSAGENT_SNAPSHOT_DIR', $SnapshotDir, 'Machine')
 [Environment]::SetEnvironmentVariable('OPSAGENT_TOOLS_DIR', $ToolsDir, 'Machine')
-$Action = $Binary
+$MachinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+if ($MachinePath -notlike "*$BinDir*") {
+  [Environment]::SetEnvironmentVariable('Path', "$BinDir;$MachinePath", 'Machine')
+}
+$Action = '"' + $Binary + '" --service'
 schtasks /Create /TN "OpsAgent" /TR $Action /SC ONSTART /RU SYSTEM /RL HIGHEST /F | Out-Null
 schtasks /Run /TN "OpsAgent" | Out-Null
 Write-Host "OpsAgent agent installed at $Root and started"

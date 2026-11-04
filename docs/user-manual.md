@@ -139,6 +139,8 @@ Linux 目录规范：
 
 日志记录详细执行过程，并由 logrotate 每日轮转、保留 14 份。
 
+安装脚本会把 `/opt/opsagent/bin` 加入 PATH 并创建 `opsagent-agent` 命令。直接执行 `opsagent-agent` 进入交互式对话；后台服务使用 `opsagent-agent --service`。
+
 前置条件：
 
 - 控制面必须配置 `OPSAGENT_AGENT_ENROLLMENT_TOKEN`。

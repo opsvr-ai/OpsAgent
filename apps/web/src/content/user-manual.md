@@ -130,6 +130,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr 'http://<control>/ap
 2. 安装到 Linux 的 `/opt/opsagent` 根目录；Windows 使用 `C:\ProgramData\OpsAgent`。
 3. 写入 enrollment token、租户和目录配置。
 4. 注册 systemd 或 Windows 计划任务并启动。
+5. 将 `/opt/opsagent/bin` 加入 PATH，并创建 `opsagent-agent` 命令。
+
+安装后直接执行：
+
+```bash
+opsagent-agent
+```
+
+进入交互式对话，例如：
+
+```text
+opsagent> 磁盘分区什么样
+opsagent> 当前纳管了多少操作系统智能体
+opsagent> 订单中心健康情况和故障根因
+```
+
+后台服务使用 `opsagent-agent --service`，`--version`、`--help` 查看版本和用法。
 
 Linux 标准目录：
 

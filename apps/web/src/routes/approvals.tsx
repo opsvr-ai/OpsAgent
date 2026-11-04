@@ -44,7 +44,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [sideEffectFailures, setSideEffectFailures] = useState<ApprovalSideEffectFailure[]>([]);
   const [operationsAlerts, setOperationsAlerts] = useState<OperationsAlertDelivery[]>([]);
   const [notificationStats, setNotificationStats] = useState<NotificationStatPoint[]>([]);
-  const [statsHours, setStatsHours] = useState<24 | 168>(24);
+  const [statsHours, setStatsHours] = useState(24);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -250,10 +250,18 @@ export function Approvals({ onBack }: ApprovalsProps) {
       {notificationStats.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
           <div className="card-head">
-            <h2>{statsHours === 24 ? '最近 24 小时通知趋势' : '最近 7 天通知趋势'}</h2>
+            <h2>{statsHours === 168 ? '最近 7 天通知趋势' : `最近 ${statsHours} 小时通知趋势`}</h2>
             <div className="row-sm">
-              <button type="button" className={`btn btn-sm ${statsHours === 24 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setStatsHours(24)}>24 小时</button>
-              <button type="button" className={`btn btn-sm ${statsHours === 168 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setStatsHours(168)}>7 天</button>
+              {[1, 12, 24, 72, 168].map((hours) => (
+                <button
+                  key={hours}
+                  type="button"
+                  className={`btn btn-sm ${statsHours === hours ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setStatsHours(hours)}
+                >
+                  {hours === 168 ? '7 天' : `${hours}h`}
+                </button>
+              ))}
               <button type="button" className="btn btn-outline btn-sm" onClick={exportNotificationStats}>导出 CSV</button>
             </div>
           </div>

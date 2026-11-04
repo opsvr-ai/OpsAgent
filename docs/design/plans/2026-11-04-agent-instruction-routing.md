@@ -187,6 +187,15 @@ POST /api/agent-instruction-approvals/:id/decision
 
 批准后创建的命令可在指令历史、Incident 和审计中追踪。
 
+审批保护：
+
+```text
+默认 24 小时过期
+过期后不能批准
+监控每分钟将过期审批标记为 expired
+待审批页面显示到期时间
+```
+
 安全限制：
 
 ```text

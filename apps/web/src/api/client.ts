@@ -628,6 +628,7 @@ export interface AgentInstructionApproval {
   readonly commandId?: string | null;
   readonly createdAt: string;
   readonly decidedAt?: string | null;
+  readonly expiresAt?: string | null;
 }
 
 export interface AgentInstructionDetail {

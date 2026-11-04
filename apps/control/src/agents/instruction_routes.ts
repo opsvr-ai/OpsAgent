@@ -377,14 +377,16 @@ export function registerAgentInstructionRoutes(
       command_id: string | null;
       created_at: Date;
       decided_at: Date | null;
+      expires_at: Date;
     }>(
       `SELECT a.id, a.agent_id, g.hostname, a.instruction, a.action, a.service, a.risk, a.status,
-              a.requested_by, a.decided_by, a.decision_reason, a.command_id, a.created_at, a.decided_at
+              a.requested_by, a.decided_by, a.decision_reason, a.command_id, a.created_at, a.decided_at, a.expires_at
        FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
        WHERE a.tenant_id = $1 AND a.status = ANY($2::text[])
+         AND (a.status <> 'pending' OR a.expires_at > now())
        ORDER BY a.created_at DESC
        LIMIT 50`,
-      [ctx.tenantId, decided ? ['approved', 'denied', 'canceled'] : ['pending']],
+      [ctx.tenantId, decided ? ['approved', 'denied', 'canceled', 'expired'] : ['pending']],
     );
     return reply.send(result.rows.map((row) => ({
       id: row.id,
@@ -401,6 +403,7 @@ export function registerAgentInstructionRoutes(
       commandId: row.command_id,
       createdAt: row.created_at.toISOString(),
       decidedAt: row.decided_at ? row.decided_at.toISOString() : null,
+      expiresAt: row.expires_at.toISOString(),
     })));
   });
 
@@ -428,14 +431,23 @@ export function registerAgentInstructionRoutes(
         service: string | null;
         requested_by: string;
         status: string;
+        expires_at: Date;
       }>(
-        `SELECT id, agent_id, instruction, action, service, requested_by, status
+        `SELECT id, agent_id, instruction, action, service, requested_by, status, expires_at
          FROM agent_instruction_approvals
          WHERE tenant_id = $1 AND id = $2 AND status = 'pending'`,
         [ctx.tenantId, request.params.approvalId],
       );
       const approval = row.rows[0];
       if (!approval) return reply.code(409).send({ error: 'approval_not_pending' });
+      if (approval.expires_at.getTime() <= Date.now()) {
+        await pool.query(
+          `UPDATE agent_instruction_approvals SET status = 'expired', decided_at = now()
+           WHERE tenant_id = $1 AND id = $2 AND status = 'pending'`,
+          [ctx.tenantId, approval.id],
+        );
+        return reply.code(409).send({ error: 'approval_expired' });
+      }
 
       if (body.decision === 'deny') {
         await pool.query(

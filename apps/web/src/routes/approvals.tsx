@@ -109,6 +109,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className="badge badge-neutral">{approval.risk}</span>
                 </div>
                 <p>{approval.instruction}</p>
+                {approval.expiresAt ? <span className="muted">审批到期：{new Date(approval.expiresAt).toLocaleString()}</span> : null}
                 <div className="row-sm">
                   <button type="button" className="btn btn-primary btn-sm" onClick={() => void decideInstruction(approval.id, 'approve')}>批准</button>
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => void decideInstruction(approval.id, 'deny')}>拒绝</button>

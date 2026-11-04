@@ -314,6 +314,26 @@ describe('agent instruction API', () => {
       [stopCommandId],
     );
     expect(stopCommand.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_stop', params: { service: 'nginx' } });
+
+    const expiredRequest = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '重启 redis 服务' },
+    });
+    const expiredApprovalId = (expiredRequest.json() as { approvalId: string }).approvalId;
+    await pool.query(
+      `UPDATE agent_instruction_approvals SET expires_at = now() - interval '1 minute' WHERE id = $1`,
+      [expiredApprovalId],
+    );
+    const expiredDecision = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${expiredApprovalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    expect(expiredDecision.statusCode).toBe(409);
+    expect((expiredDecision.json() as { error: string }).error).toBe('approval_expired');
     await app.close();
   });
 

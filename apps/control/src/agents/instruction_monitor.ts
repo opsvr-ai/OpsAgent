@@ -30,6 +30,11 @@ export class AgentInstructionMonitor {
            AND status IN ('pending', 'dispatched')
            AND expires_at < now()`,
       );
+      await this.pool.query(
+        `UPDATE agent_instruction_approvals
+         SET status = 'expired', decided_at = now()
+         WHERE status = 'pending' AND expires_at < now()`,
+      );
     } catch (error) {
       console.error('agent instruction monitor failed', error);
     }

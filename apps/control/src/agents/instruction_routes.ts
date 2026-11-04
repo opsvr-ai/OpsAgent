@@ -893,6 +893,11 @@ export function registerAgentInstructionRoutes(
           result: 'success',
           metadata: { agentId: row.agent_id, service: row.service, batch: true },
         });
+        await pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, 'Agent 写操作已拒绝', $2, 'info')`,
+          [ctx.tenantId, `${row.service ?? row.instruction}${reason ? `：${reason}` : ''}`],
+        );
         notifyApprovalWebhook({
           type: 'approval_denied',
           tenantId: ctx.tenantId,
@@ -924,6 +929,11 @@ export function registerAgentInstructionRoutes(
         result: 'success',
         metadata: { agentId: row.agent_id, service: row.service, commandId: row.commandId, batch: true },
       });
+      await pool.query(
+        `INSERT INTO messages (tenant_id, title, body, severity)
+         VALUES ($1, 'Agent 写操作已批准', $2, 'info')`,
+        [ctx.tenantId, `${row.hostname}：${row.action} ${row.service ?? ''}`],
+      );
       notifyApprovalWebhook({
         type: 'approval_approved',
         tenantId: ctx.tenantId,

@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { PermissionMode } from '@opsagent/contracts';
 import type { ApprovalRequestEvent, RuntimeEvent } from '@opsagent/contracts';
 import {
   decideApproval,
@@ -24,6 +25,23 @@ type ChatTimelineEntry =
   | { readonly kind: 'user'; readonly id: string; readonly text: string }
   | { readonly kind: 'event'; readonly event: RuntimeEvent };
 
+const PERMISSION_OPTIONS: ReadonlyArray<{
+  readonly id: PermissionMode;
+  readonly label: string;
+  readonly description: string;
+  readonly icon: string;
+  readonly tag?: string;
+}> = [
+  { id: 'read-only', label: '仅可查看', description: '只读沙箱，禁止写入文件', icon: 'i-eye' },
+  { id: 'workspace-write', label: '工作区内修改', description: '可修改工作区，工作区外只读', icon: 'i-lock' },
+  { id: 'danger-full-access', label: '完全权限', description: '跳过审批，可执行任意命令', icon: 'i-shield' },
+  { id: 'auto-review', label: '自动审查', description: '只读操作自动放行，写操作询问', icon: 'i-bolt', tag: 'EXP' },
+];
+
+function permissionLabel(mode: PermissionMode): string {
+  return PERMISSION_OPTIONS.find((option) => option.id === mode)?.label ?? mode;
+}
+
 export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const session = useSession();
   const [timeline, setTimeline] = useState<ChatTimelineEntry[]>([]);
@@ -33,7 +51,19 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const [busy, setBusy] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequestEvent | null>(null);
   const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>('danger-full-access');
+  const [permissionOpen, setPermissionOpen] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!permissionOpen) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest('.permission-picker')) setPermissionOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [permissionOpen]);
 
   useEffect(() => {
     const log = logRef.current;
@@ -62,7 +92,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     setError(null);
     setTimeline((current) => [...current, { kind: 'user', id: crypto.randomUUID(), text }]);
     try {
-      for await (const item of promptSession(sessionId, text, crypto.randomUUID())) {
+      for await (const item of promptSession(sessionId, text, crypto.randomUUID(), permissionMode)) {
         setTimeline((current) => [...current, { kind: 'event', event: item }]);
         if (item.type === 'approval.request') setPendingApproval(item);
         if (item.type === 'session.done') setBusy(false);
@@ -232,7 +262,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                   <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span>
                   <div className="grow">
                     <strong>需要你确认</strong>
-                    <span>dsh 正在等待，{runtimeApprovals.length} 个操作暂停执行</span>
+                    <span>执行权限：{permissionLabel(permissionMode)} · dsh 正在等待，{runtimeApprovals.length} 个操作暂停执行</span>
                   </div>
                 </div>
                 <div className="approval-queue-list">
@@ -281,6 +311,45 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                 />
                 <div className="composer-bar">
                   <button type="button" className="composer-plus" title="添加上下文" aria-label="添加上下文">+</button>
+                  <div className="permission-picker">
+                    <button
+                      type="button"
+                      className="permission-trigger"
+                      onClick={() => setPermissionOpen((open) => !open)}
+                      disabled={busy}
+                      aria-expanded={permissionOpen}
+                      aria-label={`执行权限：${permissionLabel(permissionMode)}`}
+                    >
+                      <svg><use href={`/icons.svg#${PERMISSION_OPTIONS.find((option) => option.id === permissionMode)?.icon ?? 'i-shield'}`} /></svg>
+                      <span>{permissionLabel(permissionMode)}</span>
+                      <svg className="permission-chevron" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" /></svg>
+                    </button>
+                    {permissionOpen ? (
+                      <div className="permission-menu">
+                        <div className="permission-menu-head">执行权限</div>
+                        {PERMISSION_OPTIONS.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className="permission-option"
+                            aria-pressed={permissionMode === option.id}
+                            onClick={() => {
+                              setPermissionMode(option.id);
+                              setPermissionOpen(false);
+                            }}
+                          >
+                            <span className="permission-option-icon"><svg><use href={`/icons.svg#${option.icon}`} /></svg></span>
+                            <span className="permission-option-copy">
+                              <span className="permission-option-label">{option.label}{option.tag ? <em>{option.tag}</em> : null}</span>
+                              <small>{option.description}</small>
+                            </span>
+                            {permissionMode === option.id ? <svg className="permission-check"><use href="/icons.svg#i-check" /></svg> : null}
+                          </button>
+                        ))}
+                        <p className="permission-menu-foot">完全权限会跳过人工审批，仅建议在受信任任务中使用。</p>
+                      </div>
+                    ) : null}
+                  </div>
                   <span className="model-pill"><span className="dot dot-ok" />deepseek-flash</span>
                   <span className="composer-inline-hint">工具调用受租户与角色约束</span>
                   <button className="send" type="submit" disabled={busy} aria-label="发送">

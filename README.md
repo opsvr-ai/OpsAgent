@@ -26,7 +26,13 @@ docker compose up -d --build control web
 - `postgres` / `redis` / `minio`
 - dsh 使用 `deepseek-account` 路由和 `deepseek-flash` 模型
 - `DSH_RUNTIME_ENABLED=true`、`STUDIO_DSH_ENABLED=true`
-- 本地开发使用 `DSH_PERMISSION_MODE=danger-full-access`，因为容器内没有可用的 workspace-write 沙箱后端；只应在受信任的开发环境使用
+- dsh 工作目录固定为 `/app`；输入框可在每次提问前选择执行权限：
+  - `仅可查看`：只读 Landlock 沙箱，写入被拒绝
+  - `工作区内修改`：只允许修改 `/app` 工作区，工作区外写入被拒绝
+  - `完全权限`：跳过人工审批，直接执行（仅受信任任务使用）
+  - `自动审查 EXP`：只读命令自动放行，写入/危险命令仍进入人工审批
+- `DSH_PERMISSION_MODE` 只作为默认兜底；实际权限随每次 prompt 写入会话并传给 dsh
+- 审批通过 OpsAgent 内部审批 API 完成，与 dsh 的 permission picker 对齐
 
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 

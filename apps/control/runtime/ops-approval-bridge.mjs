@@ -18,6 +18,17 @@ const CONTROL_URL = process.env.OPSAGENT_CONTROL_URL ?? 'http://127.0.0.1:8080';
 const TENANT_ID = process.env.OPSAGENT_TENANT_ID ?? '';
 const SESSION_ID = process.env.OPSAGENT_SESSION_ID ?? '';
 const TOKEN = process.env.OPSAGENT_INTERNAL_TOKEN ?? '';
+const PERMISSION_MODE = process.env.OPSAGENT_PERMISSION_MODE ?? process.env.DSH_PERMISSION_MODE ?? 'danger-full-access';
+
+const AUTO_REVIEW_RISKY = /(^|[;&|]\s*)(rm|mv|cp|touch|mkdir|rmdir|ln|chmod|chown|dd|mkfs|kill|pkill|systemctl|service|reboot|shutdown|apt|apk|npm|pnpm|yarn|pip|git\s+(push|reset|checkout|clean)|sudo|su\b|sed\s+-i|tee|truncate|install)\b|(^|[^>])>{1,2}[^&]/i;
+
+function autoReviewAllows(exec) {
+  if (exec.name === 'read' || exec.name === 'glob' || exec.name === 'grep') return true;
+  const args = exec.arguments ?? exec.input ?? {};
+  const command = typeof args.command === 'string' ? args.command : '';
+  if (!command) return false;
+  return !AUTO_REVIEW_RISKY.test(command);
+}
 
 function headers() {
   return {
@@ -74,10 +85,15 @@ export const inject = [];
 log('module loaded');
 
 export function apply(ctx) {
-  log('plugin applied');
+  log(`plugin applied mode=${PERMISSION_MODE}`);
   ctx.on('tools/pre-execute', async (exec, next) => {
-    log(`pre-execute ${exec.name}`);
+    log(`pre-execute ${exec.name} mode=${PERMISSION_MODE}`);
     if (!TOOLS.includes(exec.name)) return next();
+    if (PERMISSION_MODE === 'danger-full-access') return next();
+    if (PERMISSION_MODE === 'auto-review' && autoReviewAllows(exec)) {
+      log(`auto-reviewed allow ${exec.name}`);
+      return next();
+    }
     const callId = exec.callId ?? randomUUID();
     try {
       const id = await createApproval(exec.name, callId, `OpsAgent approval required for ${exec.name}`, exec.arguments ?? exec.input ?? {});

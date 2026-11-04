@@ -131,4 +131,17 @@ describe('session API', () => {
     const done = await readEvent();
     expect(done.type).toBe('session.done');
   });
+
+  it('rejects an unknown permission mode', async () => {
+    const cookie = await login();
+    const sessionId = await createSession(cookie);
+
+    const response = await fetch(`${baseUrl}/api/sessions/${sessionId}/prompt`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ text: 'hello', idempotencyKey: 'bad-mode', permissionMode: 'root' }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_permission_mode' });
+  });
 });

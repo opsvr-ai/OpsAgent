@@ -18,6 +18,18 @@ export const RUNTIME_EVENT_TAGS = [
 export type RuntimeEventTag = (typeof RUNTIME_EVENT_TAGS)[number];
 export type ApprovalDecision = 'approve' | 'deny';
 
+export const PERMISSION_MODES = [
+  'read-only',
+  'workspace-write',
+  'danger-full-access',
+  'auto-review',
+] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+export interface PromptOptions {
+  readonly permissionMode?: PermissionMode;
+}
+
 export interface StartSessionInput {
   readonly tenantId: TenantId;
   readonly userId: UserId;
@@ -82,7 +94,12 @@ export type RuntimeEvent =
 
 export interface RuntimeClient {
   startSession(input: StartSessionInput): Promise<RuntimeSession>;
-  prompt(sessionId: SessionId, text: string, idempotencyKey: string): AsyncIterable<RuntimeEvent>;
+  prompt(
+    sessionId: SessionId,
+    text: string,
+    idempotencyKey: string,
+    options?: PromptOptions,
+  ): AsyncIterable<RuntimeEvent>;
   respondApproval(
     sessionId: SessionId,
     approvalId: ApprovalId,

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   ApprovalDecision,
   ApprovalRequestEvent,
+  PromptOptions,
   RuntimeClient,
   RuntimeEvent,
   RuntimeSession,
@@ -31,6 +32,7 @@ export class FakeRuntime implements RuntimeClient {
     sessionId: string,
     text: string,
     _idempotencyKey: string,
+    _options?: PromptOptions,
   ): AsyncIterable<RuntimeEvent> {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`unknown session: ${sessionId}`);

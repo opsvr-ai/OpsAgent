@@ -92,6 +92,7 @@ services:
       DSH_ACCOUNT_AUTH: "true"
       DSH_ACCOUNT_MODEL: deepseek-flash
       DSH_PERMISSION_MODE: danger-full-access
+      OPSAGENT_WORKSPACE_ROOT: /app
       STUDIO_DSH_ENABLED: "true"
       OPSAGENT_AGENT_ENROLLMENT_TOKEN: opsagent-local-enroll
       OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist

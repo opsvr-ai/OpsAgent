@@ -1,4 +1,4 @@
-import type { RuntimeClient, RuntimeEvent } from '@opsagent/contracts';
+import type { PermissionMode, RuntimeClient, RuntimeEvent } from '@opsagent/contracts';
 import type { Pool } from 'pg';
 import type { AuditWriter } from '../audit/writer.js';
 
@@ -127,15 +127,24 @@ export class SessionService {
     userId: string,
     text: string,
     idempotencyKey: string,
+    permissionMode?: PermissionMode,
   ): AsyncIterable<RuntimeEvent> {
     const session = await this.get(sessionId, tenantId, userId);
     if (!session) throw new SessionNotFoundError();
+
+    if (permissionMode) {
+      await this.pool.query('UPDATE runtime_sessions SET permission_mode = $1 WHERE id = $2', [
+        permissionMode,
+        session.id,
+      ]);
+    }
 
     try {
       for await (const event of this.runtime.prompt(
         session.runtimeSessionId,
         text,
         idempotencyKey,
+        permissionMode ? { permissionMode } : undefined,
       )) {
         if (event.type === 'approval.request') {
           const approval = await this.pool.query<{ id: string }>(

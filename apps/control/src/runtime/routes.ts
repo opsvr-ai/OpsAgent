@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { RuntimeClient } from '@opsagent/contracts';
+import { PERMISSION_MODES, type PermissionMode, type RuntimeClient } from '@opsagent/contracts';
 import type { ServerResponse } from 'node:http';
 import type { Pool } from 'pg';
 import type { AuditWriter } from '../audit/writer.js';
@@ -18,6 +18,11 @@ interface CreateSessionBody {
 interface PromptBody {
   text?: unknown;
   idempotencyKey?: unknown;
+  permissionMode?: unknown;
+}
+
+function isPermissionMode(value: unknown): value is PermissionMode {
+  return typeof value === 'string' && (PERMISSION_MODES as readonly string[]).includes(value);
 }
 
 interface ApprovalBody {
@@ -98,6 +103,9 @@ export function registerRuntimeRoutes(
     if (typeof body?.text !== 'string' || typeof body.idempotencyKey !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    if (body.permissionMode !== undefined && !isPermissionMode(body.permissionMode)) {
+      return reply.code(400).send({ error: 'invalid_permission_mode' });
+    }
 
     const existing = await sessions.get(request.params.id, auth.tenantId, auth.userId);
     if (!existing) return reply.code(404).send({ error: 'session_not_found' });
@@ -116,6 +124,7 @@ export function registerRuntimeRoutes(
         auth.userId,
         body.text,
         body.idempotencyKey,
+        body.permissionMode,
       )) {
         sseWrite(reply.raw, event);
       }

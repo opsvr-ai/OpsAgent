@@ -1,4 +1,4 @@
-import type { HomeResponse, MeResponse, RuntimeEvent } from '@opsagent/contracts';
+import type { HomeResponse, MeResponse, PermissionMode, RuntimeEvent } from '@opsagent/contracts';
 import { readSse } from './sse.js';
 
 export class ApiError extends Error {
@@ -70,12 +70,13 @@ export async function* promptSession(
   sessionId: string,
   text: string,
   idempotencyKey: string,
+  permissionMode?: PermissionMode,
 ): AsyncIterable<RuntimeEvent> {
   const response = await fetch(`/api/sessions/${sessionId}/prompt`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, idempotencyKey }),
+    body: JSON.stringify({ text, idempotencyKey, ...(permissionMode ? { permissionMode } : {}) }),
   });
   if (!response.ok || !response.body) throw new ApiError(response.status, 'prompt_failed');
   yield* readSse(response.body);

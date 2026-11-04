@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
   ApprovalDecision,
+  PermissionMode,
+  PromptOptions,
   RuntimeClient,
   RuntimeEvent,
   RuntimeSession,
@@ -174,7 +176,7 @@ export class DshRuntime implements RuntimeClient {
     return session;
   }
 
-  async *prompt(sessionId: string, text: string, _idempotencyKey: string): AsyncIterable<RuntimeEvent> {
+  async *prompt(sessionId: string, text: string, _idempotencyKey: string, options?: PromptOptions): AsyncIterable<RuntimeEvent> {
     const runtimeSession = this.sessions.get(sessionId);
     if (!runtimeSession) throw new Error(`unknown session: ${sessionId}`);
     let done = false;
@@ -188,8 +190,12 @@ export class DshRuntime implements RuntimeClient {
             DEEPSEEK_MODEL: model.model,
           }
         : {};
+    const permissionMode: PermissionMode = options?.permissionMode ?? 'danger-full-access';
+    const sandboxMode = permissionMode === 'auto-review' ? 'danger-full-access' : permissionMode;
     for await (const event of this.runner.run(text, this.dshSessionIds.get(sessionId), {
       ...modelEnv,
+      DSH_PERMISSION_MODE: sandboxMode,
+      OPSAGENT_PERMISSION_MODE: permissionMode,
       OPSAGENT_TENANT_ID: runtimeSession.tenantId,
       OPSAGENT_SESSION_ID: sessionId,
       OPSAGENT_CONTROL_URL: process.env.OPSAGENT_CONTROL_URL ?? 'http://127.0.0.1:8080',

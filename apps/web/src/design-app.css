@@ -1558,3 +1558,23 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .approval-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .approval-actions .btn { height: 27px; font-size: 11px; }
 .approval-actions .btn-sm { padding: 0 10px; }
+.permission-picker { position: relative; flex: none; }
+.permission-trigger { display: inline-flex; align-items: center; gap: 5px; height: 27px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--text-soft); font-size: 11px; font-weight: 550; cursor: pointer; }
+.permission-trigger:hover, .permission-trigger[aria-expanded="true"] { border-color: var(--primary-line); background: var(--primary-soft); color: var(--text); }
+.permission-trigger:disabled { opacity: .55; cursor: not-allowed; }
+.permission-trigger > svg { width: 13px; height: 13px; color: var(--primary); }
+.permission-trigger .permission-chevron { width: 10px; height: 10px; color: var(--faint); fill: none; stroke: currentColor; stroke-width: 1.6; }
+.permission-menu { position: absolute; z-index: 80; left: 0; bottom: calc(100% + 8px); width: 286px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 16px 40px rgb(20 30 50 / 16%); }
+.permission-menu-head { padding: 5px 8px 7px; color: var(--faint); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.permission-option { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.permission-option:hover { background: var(--surface-2); }
+.permission-option[aria-pressed="true"] { background: var(--primary-soft); }
+.permission-option-icon { flex: none; width: 27px; height: 27px; display: grid; place-items: center; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
+.permission-option[aria-pressed="true"] .permission-option-icon { background: var(--surface); color: var(--primary); }
+.permission-option-icon svg { width: 14px; height: 14px; }
+.permission-option-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.permission-option-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.permission-option-label em { padding: 1px 4px; border-radius: 3px; background: var(--warning-soft, #fdf0d8); color: var(--warning, #9a6a12); font-size: 8px; font-style: normal; font-weight: 700; letter-spacing: .04em; }
+.permission-option-copy small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.permission-check { flex: none; width: 14px; height: 14px; margin-left: auto; color: var(--primary); }
+.permission-menu-foot { margin: 6px 8px 3px; padding-top: 7px; border-top: 1px solid var(--line); color: var(--faint); font-size: 10px; line-height: 1.5; }

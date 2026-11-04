@@ -404,6 +404,22 @@ export function Agents({ onBack }: AgentsProps) {
     }
   }
 
+  function exportBatchResults() {
+    if (batchResults.length === 0) return;
+    const escape = (value: string): string => `"${value.replaceAll('"', '""')}"`;
+    const rows = [
+      ['hostname', 'status', 'instructionId', 'answer'],
+      ...batchResults.map((item) => [item.hostname, item.status, item.instructionId, item.answer]),
+    ];
+    const csv = rows.map((row) => row.map(escape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `agent-instructions-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   const pageCount = fleet ? Math.max(1, Math.ceil(fleet.total / fleet.pageSize)) : 1;
   const staleAgents = (keyStatus?.agents ?? []).filter((agent) => agent.valid === false);
   const activeKeyId = keyStatus?.keys.find((key) => key.active)?.keyId ?? '未配置';
@@ -587,6 +603,7 @@ export function Agents({ onBack }: AgentsProps) {
             </div>
             <div className="row-sm">
               <button type="button" className="btn btn-primary btn-sm" disabled={batchBusy || batchIds.length === 0 || !batchText.trim()} onClick={() => void sendBatchInstruction()}>下发到 {batchIds.length} 台</button>
+              {batchResults.length > 0 ? <button type="button" className="btn btn-outline btn-sm" onClick={exportBatchResults}>导出 CSV</button> : null}
               {batchNote ? <span className="muted">{batchNote}</span> : null}
             </div>
             {batchResults.length > 0 ? (

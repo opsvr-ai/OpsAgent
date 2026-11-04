@@ -105,7 +105,7 @@ export class AgentCommandService {
       `UPDATE agent_commands SET status = 'dispatched', dispatched_at = now()
        WHERE id = (
          SELECT id FROM agent_commands
-         WHERE agent_id = $1 AND status = 'pending'
+         WHERE agent_id = $1 AND status = 'pending' AND (expires_at IS NULL OR expires_at > now())
          ORDER BY created_at ASC LIMIT 1
        )
        RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,

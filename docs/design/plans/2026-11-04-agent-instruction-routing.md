@@ -90,6 +90,21 @@ POST /api/agents/instructions
 - 统一审计 `agent.instruction.batch`
 - Web 主机清单提供「批量指令」多选面板
 - 批量结果逐台轮询状态，显示成功 / 失败 / 等待结果
+- 支持导出 CSV（hostname / status / instructionId / answer）
+
+### 超时治理
+
+`AgentInstructionMonitor` 每分钟：
+
+```text
+type = agent_instruction
+status = pending / dispatched
+expires_at < now()
+  → status = expired
+  → completed_at = now()
+```
+
+Agent 拉取命令时也过滤过期命令，避免执行已过期签名指令。
 
 写操作审批仍未实现。
 

@@ -21,6 +21,7 @@ services:
       OPSAGENT_PATROL_DISK_FREE_PCT: ${OPSAGENT_PATROL_DISK_FREE_PCT:-15}
       OPSAGENT_PATROL_MEM_LOAD_PCT: ${OPSAGENT_PATROL_MEM_LOAD_PCT:-85}
       OPSAGENT_APP_LOG_PATHS: ${OPSAGENT_APP_LOG_PATHS:-/var/log/order-service.log}
+      OPSAGENT_STATE_SECRET: ${OPSAGENT_STATE_SECRET:-}
     volumes:
       - ./agents/opsagent-agent/dist/opsagent-agent-linux-amd64:/opt/opsagent/bin/opsagent-agent:ro
       - os-agent-logs:/opt/opsagent/logs

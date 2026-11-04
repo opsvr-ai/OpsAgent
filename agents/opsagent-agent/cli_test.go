@@ -4,8 +4,38 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
+
+func TestAgentStateEncryptsResultPrivateKey(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("OPSAGENT_HOME", root)
+	t.Setenv("OPSAGENT_AGENT_CONFIG", "")
+	t.Setenv("OPSAGENT_STATE_SECRET", "unit-test-state-secret")
+	paths := resolveAgentPaths()
+	if err := paths.ensure(); err != nil {
+		t.Fatal(err)
+	}
+	state := agentState{AgentID: "a-1", AgentKey: "key", ResultPrivateKey: "private-seed"}
+	if err := saveAgentState(paths, state); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(paths.Config), "agent-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), encryptedStatePrefix) || strings.Contains(string(raw), "private-seed") {
+		t.Fatalf("result private key was not encrypted: %s", raw)
+	}
+	loaded, err := loadAgentState(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.ResultPrivateKey != "private-seed" {
+		t.Fatalf("decrypted result key = %q", loaded.ResultPrivateKey)
+	}
+}
 
 func TestAgentStateAndConfigRoundTrip(t *testing.T) {
 	root := t.TempDir()

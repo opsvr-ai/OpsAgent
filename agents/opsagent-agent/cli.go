@@ -35,6 +35,13 @@ func statePath(paths agentPaths) string {
 
 func saveAgentState(paths agentPaths, state agentState) error {
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if state.ResultPrivateKey != "" {
+		encrypted, err := encryptStateSecret(state.ResultPrivateKey, os.Getenv("OPSAGENT_STATE_SECRET"))
+		if err != nil {
+			return err
+		}
+		state.ResultPrivateKey = encrypted
+	}
 	body, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
@@ -55,6 +62,13 @@ func loadAgentState(paths agentPaths) (agentState, error) {
 	}
 	if err := json.Unmarshal(body, &state); err != nil {
 		return state, err
+	}
+	if state.ResultPrivateKey != "" {
+		decrypted, err := decryptStateSecret(state.ResultPrivateKey, os.Getenv("OPSAGENT_STATE_SECRET"))
+		if err != nil {
+			return state, err
+		}
+		state.ResultPrivateKey = decrypted
 	}
 	return state, nil
 }

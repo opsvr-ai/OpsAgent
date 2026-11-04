@@ -23,6 +23,7 @@
 - 心跳刷新：控制面在心跳响应返回当前 key 集合，Agent 自动更新并落盘；撤销上一把 key 后无需重新注册
 - 结果签名：Agent 注册时生成结果签名密钥，命令结果回传带 `resultSigned`/`resultSignature`，控制面验签后才入库
 - 结果密钥复用：Agent 重启从 `agent-state.json` 加载结果私钥，不重复轮换；实测两次重启公钥一致
+- 结果私钥加密：配置 `OPSAGENT_STATE_SECRET` 后使用 AES-256-GCM 加密落盘，测试覆盖解密/错密钥拒绝
 
 ## 数据库
 

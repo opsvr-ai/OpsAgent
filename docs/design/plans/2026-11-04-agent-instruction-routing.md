@@ -321,6 +321,15 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
 
 审批页面每 15 秒自动刷新：待审批、历史、Webhook、副作用失败、运维告警和趋势。
 
+数据保留：
+
+```text
+OPSAGENT_APPROVAL_HISTORY_RETENTION_DAYS=30（7–365）
+  → 清理超过保留期的 delivered 投递
+  → 清理已处理的副作用失败
+  → failed 投递保留，便于排障
+```
+
 批准后创建的命令可在指令历史、Incident 和审计中追踪。
 
 审批保护：

@@ -197,6 +197,26 @@ export class AgentInstructionMonitor {
           severity: 'info',
         }, this.pool);
       }
+
+      const configuredRetention = Number.parseInt(process.env.OPSAGENT_APPROVAL_HISTORY_RETENTION_DAYS ?? '30', 10);
+      const retentionDays = Number.isFinite(configuredRetention)
+        ? Math.min(Math.max(configuredRetention, 7), 365)
+        : 30;
+      await this.pool.query(
+        `DELETE FROM approval_webhook_deliveries
+         WHERE status = 'delivered' AND created_at < now() - make_interval(days => $1)`,
+        [retentionDays],
+      );
+      await this.pool.query(
+        `DELETE FROM operations_alert_deliveries
+         WHERE status = 'delivered' AND created_at < now() - make_interval(days => $1)`,
+        [retentionDays],
+      );
+      await this.pool.query(
+        `DELETE FROM approval_side_effect_failures
+         WHERE resolved_at IS NOT NULL AND created_at < now() - make_interval(days => $1)`,
+        [retentionDays],
+      );
     } catch (error) {
       console.error('agent instruction monitor failed', error);
     }

@@ -339,6 +339,7 @@ OPSAGENT_APPROVAL_HISTORY_RETENTION_DAYS=30（7–365）
   → 清理超过保留期的 delivered 投递
   → 清理已处理的副作用失败
   → failed 投递保留，便于排障
+  → 清理前归档到 approval_notification_archive
 ```
 
 批准后创建的命令可在指令历史、Incident 和审计中追踪。

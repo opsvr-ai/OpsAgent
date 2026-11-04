@@ -296,13 +296,34 @@ export class AgentInstructionMonitor {
         ? Math.min(Math.max(configuredRetention, 7), 365)
         : 30;
       await this.pool.query(
+        `INSERT INTO approval_notification_archive (tenant_id, kind, payload)
+         SELECT tenant_id, 'approval_webhook', to_jsonb(d)
+         FROM approval_webhook_deliveries d
+         WHERE status = 'delivered' AND created_at < now() - make_interval(days => $1)`,
+        [retentionDays],
+      );
+      await this.pool.query(
         `DELETE FROM approval_webhook_deliveries
+         WHERE status = 'delivered' AND created_at < now() - make_interval(days => $1)`,
+        [retentionDays],
+      );
+      await this.pool.query(
+        `INSERT INTO approval_notification_archive (tenant_id, kind, payload)
+         SELECT tenant_id, 'operations_alert', to_jsonb(d)
+         FROM operations_alert_deliveries d
          WHERE status = 'delivered' AND created_at < now() - make_interval(days => $1)`,
         [retentionDays],
       );
       await this.pool.query(
         `DELETE FROM operations_alert_deliveries
          WHERE status = 'delivered' AND created_at < now() - make_interval(days => $1)`,
+        [retentionDays],
+      );
+      await this.pool.query(
+        `INSERT INTO approval_notification_archive (tenant_id, kind, payload)
+         SELECT tenant_id, 'side_effect_failure', to_jsonb(f)
+         FROM approval_side_effect_failures f
+         WHERE resolved_at IS NOT NULL AND created_at < now() - make_interval(days => $1)`,
         [retentionDays],
       );
       await this.pool.query(

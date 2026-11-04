@@ -38,7 +38,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
       return;
     }
     const timer = setInterval(() => {
-      void listApprovals()
+      void listApprovals(sessionId)
         .then(setRuntimeApprovals)
         .catch(() => undefined);
     }, 1500);

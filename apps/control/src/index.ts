@@ -14,6 +14,9 @@ const pool = new Pool({
   connectionString:
     process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent',
 });
+pool.on('error', (error) => {
+  console.error('postgres pool error', error.message);
+});
 const tools = new ConnectorToolResolver(pool);
 const modelService = new ModelProviderService(
   pool,

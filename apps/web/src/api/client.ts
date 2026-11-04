@@ -295,8 +295,10 @@ export interface ApprovalSummary {
   readonly createdAt: string;
 }
 
-export async function listApprovals(): Promise<ApprovalSummary[]> {
-  return request<ApprovalSummary[]>('/api/approvals');
+export async function listApprovals(runtimeSessionId?: string): Promise<ApprovalSummary[]> {
+  return request<ApprovalSummary[]>(
+    `/api/approvals${runtimeSessionId ? `?runtimeSessionId=${encodeURIComponent(runtimeSessionId)}` : ''}`,
+  );
 }
 export interface ConnectorSummary {
   readonly id: string;

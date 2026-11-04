@@ -68,6 +68,24 @@ apps/desktop/release/OpsAgent Setup 0.2.0.exe
 
 安装包已验证可生成；当前未配置代码签名证书，Windows 会显示未签名提示。
 
+## 自动更新
+
+安装版启动时如果设置：
+
+```bash
+OPSAGENT_DESKTOP_UPDATE_URL=https://updates.example/opsagent/
+```
+
+会通过 `electron-updater` 检查更新。更新源需要放置：
+
+```text
+latest.yml
+OpsAgent Setup 0.2.0.exe
+OpsAgent Setup 0.2.0.exe.blockmap
+```
+
+下载完成后提示重启安装。当前更新包未做代码签名，生产环境应配置证书。
+
 打包脚本会自动定位本机 Electron 二进制，不依赖 GitHub 下载。
 
 ## 安全

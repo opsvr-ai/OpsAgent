@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { readFile, writeFile, mkdir } = require('node:fs/promises');
 const path = require('node:path');
 
@@ -73,6 +74,28 @@ app.whenReady().then(() => {
   ]));
 
   createWindow();
+  const updateUrl = process.env.OPSAGENT_DESKTOP_UPDATE_URL;
+  if (app.isPackaged && updateUrl) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: updateUrl });
+    autoUpdater.autoDownload = true;
+    autoUpdater.on('error', (error) => {
+      console.error('desktop update failed', error.message);
+    });
+    autoUpdater.on('update-downloaded', async () => {
+      const result = await dialog.showMessageBox({
+        type: 'info',
+        title: 'OpsAgent 更新',
+        message: '新版本已下载，是否立即重启安装？',
+        buttons: ['立即重启', '稍后'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (result.response === 0) autoUpdater.quitAndInstall();
+    });
+    void autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      console.error('desktop update check failed', error.message);
+    });
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

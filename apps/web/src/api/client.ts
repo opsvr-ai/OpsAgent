@@ -359,6 +359,18 @@ export async function decideIncidentApproval(
   });
 }
 
+export interface IncidentAnalysisResult {
+  readonly analysis: string;
+  readonly detail: IncidentDetail;
+}
+
+export async function analyzeIncident(id: string): Promise<IncidentAnalysisResult> {
+  return request<IncidentAnalysisResult>(`/api/incidents/${id}/analyze`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export interface ApprovalSummary {
   readonly id: string;
   readonly action: string;

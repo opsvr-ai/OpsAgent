@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  analyzeIncident,
   createIncident,
   decideIncidentApproval,
   getIncident,
@@ -52,6 +53,8 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [investigating, setInvestigating] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisText, setAnalysisText] = useState('');
 
   useEffect(() => {
     void listIncidents()
@@ -140,6 +143,20 @@ export function Incidents({ onBack }: IncidentsProps) {
       setError('审批处理失败');
     } finally {
       setApprovalBusy(false);
+    }
+  }
+
+  async function analyze(id: string) {
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const result = await analyzeIncident(id);
+      setAnalysisText(result.analysis);
+      setDetail(result.detail);
+    } catch {
+      setError('Commander 分析失败');
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -246,6 +263,9 @@ export function Incidents({ onBack }: IncidentsProps) {
                       <button type="button" className="btn btn-outline btn-sm" disabled={investigating} onClick={() => void investigate(selected.id)}>
                         {investigating ? '排障执行中…' : '自动排障'}
                       </button>
+                      <button type="button" className="btn btn-outline btn-sm" disabled={analyzing} onClick={() => void analyze(selected.id)}>
+                        {analyzing ? '分析中…' : 'Commander 分析'}
+                      </button>
                       <a className="btn btn-outline btn-sm" href={`/api/incidents/${selected.id}/report`} target="_blank" rel="noreferrer">导出报告</a>
                       <button type="button" className="btn btn-outline btn-sm" disabled={approvalBusy} onClick={() => void requestApproval(selected.id)}>申请 R2 审批</button>
                       {statusActions(selected)}
@@ -286,6 +306,12 @@ export function Incidents({ onBack }: IncidentsProps) {
                     <div className="root-cause-box">
                       <span className="eyebrow">ROOT CAUSE</span>
                       <p>{selected.rootCause}</p>
+                    </div>
+                  ) : null}
+                  {analysisText ? (
+                    <div className="root-cause-box">
+                      <span className="eyebrow">COMMANDER ANALYSIS</span>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{analysisText}</p>
                     </div>
                   ) : null}
                   <h3 style={{ marginTop: 18 }}>操作审批</h3>

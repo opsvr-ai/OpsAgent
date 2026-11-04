@@ -89,6 +89,15 @@ describe('incident API', () => {
     });
     expect(decided.statusCode).toBe(200);
     expect(decided.json()).toMatchObject({ approvals: [{ id: approvalId, status: 'approved' }] });
+    const analysis = await app.inject({
+      method: 'POST',
+      url: `/api/incidents/${id}/analyze`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(analysis.statusCode).toBe(200);
+    expect((analysis.json() as { analysis: string }).analysis.length).toBeGreaterThan(0);
+    expect((analysis.json() as { detail: { evidence: Array<{ kind: string }> } }).detail.evidence.some((item) => item.kind === 'ai_analysis')).toBe(true);
     await app.close();
   });
 

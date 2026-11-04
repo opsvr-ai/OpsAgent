@@ -537,6 +537,34 @@ export class IncidentService {
     );
   }
 
+  async addAnalysis(input: {
+    tenantId: string;
+    incidentId: string;
+    actorId: string;
+    analysis: string;
+    model: string;
+  }): Promise<Awaited<ReturnType<IncidentService['getWithEvents']>> | null> {
+    const incident = await this.get(input.tenantId, input.incidentId);
+    if (!incident) return null;
+    await this.pool.query(
+      `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+       VALUES ($1, $2, 'ai_analysis', $3, $4, $5::jsonb)`,
+      [
+        input.tenantId,
+        input.incidentId,
+        input.model,
+        input.analysis.slice(0, 800),
+        JSON.stringify({ analysis: input.analysis, model: input.model }),
+      ],
+    );
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'commander_analysis', $4::jsonb)`,
+      [input.tenantId, input.incidentId, input.actorId, JSON.stringify({ model: input.model })],
+    );
+    return this.getWithEvents(input.tenantId, input.incidentId);
+  }
+
   async report(tenantId: string, id: string): Promise<string | null> {
     const detail = await this.getWithEvents(tenantId, id);
     if (!detail) return null;

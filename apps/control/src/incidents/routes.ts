@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
+import type { RuntimeClient } from '@opsagent/contracts';
 import type { AuditWriter } from '../audit/writer.js';
 import { SESSION_COOKIE, readSession } from '../auth/session.js';
 import { createMembershipRepository } from '../tenancy/db-repo.js';
@@ -24,6 +26,7 @@ export function registerIncidentRoutes(
   pool: Pool,
   audit: AuditWriter,
   internalToken?: string,
+  runtime?: RuntimeClient,
 ): void {
   const incidents = new IncidentService(pool);
 
@@ -298,6 +301,77 @@ export function registerIncidentRoutes(
       return reply.send(detail);
     },
   );
+
+  app.post<{ Params: { id: string } }>('/api/incidents/:id/analyze', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    if (!runtime) return reply.code(503).send({ error: 'runtime_unavailable' });
+    const detail = await incidents.getWithEvents(ctx.tenantId, request.params.id);
+    if (!detail) return reply.code(404).send({ error: 'incident_not_found' });
+    const evidence = detail.evidence.slice(0, 20).map((item) => `- [${item.kind}] ${item.summary}`);
+    const hypotheses = detail.hypotheses.map((item) => `- ${item.confidence}% ${item.status}: ${item.statement}`);
+    const prompt = [
+      '你是 OpsAgent Commander 故障指挥智能体。',
+      '请只依据给定的事件证据分析，不要编造未提供的指标或日志。',
+      '输出：1) 最可能根因及依据；2) 证据缺口；3) 建议的下一步只读检查；4) 处置建议及风险。',
+      '',
+      `事件：${detail.incident.title}`,
+      `严重度：${detail.incident.severity}；状态：${detail.incident.status}；来源：${detail.incident.source}`,
+      `已知根因：${detail.incident.rootCause ?? '未确认'}`,
+      '',
+      '证据：',
+      ...(evidence.length > 0 ? evidence : ['- 暂无']),
+      '',
+      '假设：',
+      ...(hypotheses.length > 0 ? hypotheses : ['- 暂无']),
+    ].join('\n');
+    const model = process.env.OPSAGENT_COMMANDER_MODEL ?? 'deepseek-flash';
+    try {
+      const session = await runtime.startSession({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        roleView: 'incident-commander',
+      });
+      const chunks: string[] = [];
+      let runtimeError = '';
+      for await (const event of runtime.prompt(
+        session.runtimeSessionId,
+        prompt,
+        `commander-${randomUUID()}`,
+        { permissionMode: 'read-only' },
+      )) {
+        if (event.type === 'assistant.delta' && event.text) chunks.push(event.text);
+        if (event.type === 'runtime.error') runtimeError = event.message;
+      }
+      const analysis = chunks.join('').trim();
+      if (!analysis) return reply.code(502).send({ error: 'analysis_failed', message: runtimeError });
+      const updated = await incidents.addAnalysis({
+        tenantId: ctx.tenantId,
+        incidentId: request.params.id,
+        actorId: ctx.userId,
+        analysis,
+        model,
+      });
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'incident.analyze',
+        resource: request.params.id,
+        result: 'success',
+        metadata: { model, chars: analysis.length },
+      });
+      return reply.send({ analysis, detail: updated });
+    } catch (error) {
+      request.log.warn({ err: error }, 'commander analysis failed');
+      return reply.code(502).send({ error: 'analysis_failed', message: error instanceof Error ? error.message : String(error) });
+    }
+  });
 
   app.post<{ Params: { id: string } }>('/api/incidents/:id/investigate', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

@@ -34,3 +34,17 @@ test('tenant menu is a dropdown and keeps the brand visible', async ({ page }) =
   await expect(page.locator('.brand-name')).toBeVisible();
   await expect(page.locator('.tenant-menu').getByText('Demo Tenant')).toBeVisible();
 });
+
+test('composer exposes the four dsh permission modes', async ({ page }) => {
+  await login(page);
+  await page.locator('.sidebar .nav-item').filter({ hasText: '智能体会话' }).click();
+  await expect(page.getByRole('heading', { name: '运维会话' })).toBeVisible();
+  await page.getByRole('button', { name: /执行权限/ }).click();
+  const menu = page.locator('.permission-menu');
+  await expect(menu).toBeVisible();
+  for (const label of ['仅可查看', '工作区内修改', '完全权限', '自动审查']) {
+    await expect(menu.getByText(label, { exact: false }).first()).toBeVisible();
+  }
+  await menu.locator('.permission-option').filter({ hasText: '自动审查' }).click();
+  await expect(page.getByRole('button', { name: /执行权限：自动审查/ })).toBeVisible();
+});

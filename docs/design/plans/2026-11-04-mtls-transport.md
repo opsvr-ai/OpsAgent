@@ -264,33 +264,49 @@ OPSAGENT_CRL_URL=http://control.example:8080/api/pki/crl
 
 ### CA 轮换
 
-内网 CA 轮换采用维护窗口，不做在线双 CA 热切换：
+CA 轮换支持过渡窗口，不需要所有 Agent 同时断线：
 
 ```bash
 # 1. 停止控制面
 docker compose stop control
 
-# 2. 归档当前 CA / 服务端证书 / CRL
+# 2. 归档旧 CA，保留旧服务端证书
 pnpm --filter @opsagent/control rotate:ca
 
-# 3. 启动控制面，自动生成新 CA、服务端证书和 CRL
+# 3. 启动控制面，自动生成新 CA
 docker compose start control
 
-# 4. 重启 Agent（OPSAGENT_AUTO_CSR=true）重新签发客户端证书
+# 4. Agent 续期后使用新 CA 证书
 ```
 
-归档目录：
+过渡期：
 
 ```text
-.opsagent-ca/archive-<timestamp>/
+旧 CA 证书保留为 ca-previous-*.pem
+新服务端证书暂不生成，继续使用旧证书
+TLS 同时信任新旧 CA
+Agent 证书由新 CA 签发
+Agent 收到包含新旧 CA 的信任链
+CRL 暂时暂停
 ```
 
-轮换后旧客户端证书全部失效，Agent 必须重新注册证书；控制面
-会签发新 CA 下的证书。该流程用于计划性轮换，不用于在线无缝迁移。
+旧 Agent 在续期前仍可用旧证书连接；续期后使用新证书。
+
+所有 Agent 续期完成后：
+
+```bash
+# 删除旧 CA 和旧服务端证书
+rm .opsagent-ca/ca-previous-*.pem .opsagent-ca/ca-key-previous-*.pem
+rm .opsagent-ca/server.pem .opsagent-ca/server-key.pem
+docker compose restart control
+```
+
+控制面会用新 CA 重新签发服务端证书，并恢复 CRL。
 
 ## 未完成
 
-- CA 在线双证书/无缝轮换
+- CA 自动化编排与到期提醒
+- 轮换期间双 CRL
 - OCSP
 - 部署脚本自动分发 CA
 - 服务端证书到期事件接入消息中心

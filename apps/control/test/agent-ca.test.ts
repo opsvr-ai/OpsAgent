@@ -59,6 +59,28 @@ describe('agent CA', () => {
     expect(crl).toContain('BEGIN X509 CRL');
   });
 
+  it('returns current and previous CA certificates during transition', async () => {
+    const firstKeys = await crypto.subtle.generateKey(algorithm, true, ['sign', 'verify']);
+    const first = await X509CertificateGenerator.createSelfSigned({
+      name: 'CN=Old CA', keys: firstKeys, signingAlgorithm: signing, extensions: [],
+    });
+    const nextKeys = await crypto.subtle.generateKey(algorithm, true, ['sign', 'verify']);
+    const next = await X509CertificateGenerator.createSelfSigned({
+      name: 'CN=New CA', keys: nextKeys, signingAlgorithm: signing, extensions: [],
+    });
+    const service = await AgentCaService.create(
+      next.toString('pem'),
+      await pemKey(nextKeys),
+      [first.toString('pem')],
+    );
+    const keys = await crypto.subtle.generateKey(algorithm, true, ['sign', 'verify']);
+    const csr = await Pkcs10CertificateRequestGenerator.create({
+      name: 'CN=transition-agent', keys, signingAlgorithm: signing,
+    });
+    const issued = await service.issue(csr.toString('pem'));
+    expect(issued.ca.match(/BEGIN CERTIFICATE/g)).toHaveLength(2);
+  });
+
   it('creates and reuses an internal CA directory', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'opsagent-ca-'));
     const previous = process.env.OPSAGENT_AGENT_CA_DIR;

@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { createPrivateKey, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BasicConstraintsExtension,
@@ -36,10 +36,19 @@ export interface IssueOptions {
   readonly validityDays?: number;
 }
 
+function previousCaPems(directory: string): string[] {
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory)
+    .filter((name) => /^ca-previous-.*\.pem$/.test(name))
+    .sort()
+    .map((name) => readFileSync(join(directory, name), 'utf8'));
+}
+
 export class AgentCaService {
   private constructor(
     private readonly ca: X509Certificate,
     private readonly caPem: string,
+    private readonly caChainPem: string,
     private readonly signingKey: CryptoKey,
     private readonly algorithm: 'ec' | 'rsa',
   ) {}
@@ -50,7 +59,8 @@ export class AgentCaService {
     if (certFile && keyFile) {
       const caPem = readFileSync(certFile, 'utf8');
       const keyPem = readFileSync(keyFile, 'utf8');
-      return AgentCaService.create(caPem, keyPem);
+      const directory = process.env.OPSAGENT_AGENT_CA_DIR ?? '.opsagent-ca';
+      return AgentCaService.create(caPem, keyPem, previousCaPems(directory));
     }
     if (process.env.OPSAGENT_AGENT_CA_AUTO === 'false') return null;
     return AgentCaService.createInternalCa(process.env.OPSAGENT_AGENT_CA_DIR ?? '.opsagent-ca');
@@ -89,10 +99,14 @@ export class AgentCaService {
         { mode: 0o600 },
       );
     }
-    return AgentCaService.create(readFileSync(certFile, 'utf8'), readFileSync(keyFile, 'utf8'));
+    return AgentCaService.create(
+      readFileSync(certFile, 'utf8'),
+      readFileSync(keyFile, 'utf8'),
+      previousCaPems(directory),
+    );
   }
 
-  static async create(caPem: string, keyPem: string): Promise<AgentCaService> {
+  static async create(caPem: string, keyPem: string, previousPems: string[] = []): Promise<AgentCaService> {
     const ca = new X509Certificate(caPem);
     const keyObject = createPrivateKey(keyPem);
     const algorithm = keyObject.asymmetricKeyType === 'rsa' ? 'rsa' : 'ec';
@@ -105,7 +119,8 @@ export class AgentCaService {
       false,
       ['sign'],
     );
-    return new AgentCaService(ca, caPem, cryptoKey, algorithm);
+    const caChainPem = [caPem, ...previousPems].filter(Boolean).join('\n');
+    return new AgentCaService(ca, caPem, caChainPem, cryptoKey, algorithm);
   }
 
   get caCertificate(): string {
@@ -187,7 +202,7 @@ export class AgentCaService {
     });
     return {
       certificate: certificate.toString('pem'),
-      ca: this.caPem,
+      ca: this.caChainPem,
       serialNumber,
       expiresAt: notAfter.toISOString(),
     };

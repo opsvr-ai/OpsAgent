@@ -30,11 +30,28 @@ export class AgentInstructionMonitor {
            AND status IN ('pending', 'dispatched')
            AND expires_at < now()`,
       );
-      await this.pool.query(
+      const expired = await this.pool.query<{
+        tenant_id: string;
+        id: string;
+        service: string | null;
+        instruction: string;
+      }>(
         `UPDATE agent_instruction_approvals
          SET status = 'expired', decided_at = now()
-         WHERE status = 'pending' AND expires_at < now()`,
+         WHERE status = 'pending' AND expires_at < now()
+         RETURNING tenant_id, id, service, instruction`,
       );
+      for (const approval of expired.rows) {
+        await this.pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, $2, $3, 'warning')`,
+          [
+            approval.tenant_id,
+            'Agent 写操作审批已过期',
+            `${approval.service ?? approval.instruction} 的审批已超过 24 小时，未执行。`,
+          ],
+        );
+      }
     } catch (error) {
       console.error('agent instruction monitor failed', error);
     }

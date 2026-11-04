@@ -89,6 +89,7 @@ POST /api/agents/instructions
 - 每台生成独立签名命令
 - 统一审计 `agent.instruction.batch`
 - Web 主机清单提供「批量指令」多选面板
+- 批量结果逐台轮询状态，显示成功 / 失败 / 等待结果
 
 写操作审批仍未实现。
 

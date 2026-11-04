@@ -119,6 +119,13 @@ export function Agents({ onBack }: AgentsProps) {
   const [batchText, setBatchText] = useState('');
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchNote, setBatchNote] = useState<string | null>(null);
+  const [batchResults, setBatchResults] = useState<Array<{
+    agentId: string;
+    hostname: string;
+    instructionId: string;
+    status: string;
+    answer: string;
+  }>>([]);
   useEffect(() => {
     setInstructionText('');
     setInstructionNote(null);
@@ -324,7 +331,32 @@ export function Agents({ onBack }: AgentsProps) {
     setBatchNote(null);
     try {
       const created = await createAgentInstructionsBatch(batchIds, batchText.trim());
-      setBatchNote(`已下发给 ${created.instructions.length} 台：${created.intent.kind}`);
+      const initial = created.instructions.map((item) => ({
+        agentId: item.agentId,
+        hostname: item.hostname,
+        instructionId: item.instructionId,
+        status: item.status,
+        answer: '',
+      }));
+      setBatchResults(initial);
+      setBatchNote(`已下发给 ${created.instructions.length} 台，等待执行…`);
+      let current = initial;
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        current = await Promise.all(initial.map(async (item) => {
+          const detail = await getAgentInstruction(item.agentId, item.instructionId).catch(() => null);
+          return detail
+            ? {
+                ...item,
+                status: detail.status,
+                answer: detail.answer,
+              }
+            : item;
+        }));
+        setBatchResults(current);
+        if (current.every((item) => item.status === 'completed' || item.status === 'failed')) break;
+      }
+      setBatchNote(`批量指令完成：${current.filter((item) => item.status === 'completed').length} 成功 / ${current.length} 台`);
       setBatchIds([]);
       setBatchText('');
     } catch (caught) {
@@ -519,6 +551,22 @@ export function Agents({ onBack }: AgentsProps) {
               <button type="button" className="btn btn-primary btn-sm" disabled={batchBusy || batchIds.length === 0 || !batchText.trim()} onClick={() => void sendBatchInstruction()}>下发到 {batchIds.length} 台</button>
               {batchNote ? <span className="muted">{batchNote}</span> : null}
             </div>
+            {batchResults.length > 0 ? (
+              <div className="command-history">
+                {batchResults.map((item) => (
+                  <button
+                    key={item.instructionId}
+                    type="button"
+                    className="command-row"
+                    onClick={() => void openDetail(item.agentId)}
+                  >
+                    <span className="mono">{item.hostname}</span>
+                    <span className={`badge ${item.status === 'completed' ? 'badge-ok' : item.status === 'failed' ? 'badge-danger' : 'badge-neutral'}`}>{item.status}</span>
+                    <span className="muted">{item.answer ? item.answer.split('\n')[0]?.slice(0, 100) : '等待结果…'}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div className="table-wrap">

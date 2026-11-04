@@ -22,6 +22,7 @@
 - Commander 定时调度：服务启动后自动认领未排障的 open Incident，执行主机检查、连接器取证、根因收敛；支持 `OPSAGENT_COMMANDER_INTERVAL_MS`
 - 自动报告：排障完成后生成 Markdown 报告事件并推送消息中心，详情页可导出
 - 拓扑聚合：自动收集应用系统全部节点、应用、指标和在线状态，写入 topology 证据并参与根因置信度
+- 多假设竞争：保留主假设 supported，自动生成连接器证据缺口/离线节点/应用异常等 candidate 假设并随证据重建
 - R2/R3 审批闭环：事件详情可申请操作审批，审批/拒绝写入时间线与审计
 - 专用 Source 适配器：`/internal/incident-sources/alertmanager` 与 `/internal/incident-sources/zabbix`，支持告警标准化与幂等
 

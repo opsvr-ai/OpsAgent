@@ -445,9 +445,9 @@ export class IncidentService {
   }
 
   private async convergeRootCause(tenantId: string, incidentId: string, actorId: string): Promise<void> {
-    const evidence = await this.pool.query<{ kind: string; count: string }>(
-      `SELECT kind, count(*)::text AS count FROM incident_evidence
-       WHERE tenant_id = $1 AND incident_id = $2 GROUP BY kind`,
+    const evidence = await this.pool.query<{ kind: string; payload: Record<string, unknown> }>(
+      `SELECT kind, payload FROM incident_evidence
+       WHERE tenant_id = $1 AND incident_id = $2`,
       [tenantId, incidentId],
     );
     const kinds = new Set(evidence.rows.map((row) => row.kind));
@@ -463,27 +463,77 @@ export class IncidentService {
     if (kinds.has('log_signal')) confidence += 5;
     if (kinds.has('connector_error')) confidence -= 10;
     confidence = Math.max(40, Math.min(98, confidence));
-    const hypothesis = await this.pool.query<{ id: string }>(
-      `SELECT id FROM incident_hypotheses WHERE tenant_id = $1 AND incident_id = $2
-       ORDER BY created_at DESC LIMIT 1`,
+
+    const topology = evidence.rows.find((row) => row.kind === 'topology')?.payload;
+    const nodes = Array.isArray(topology?.nodes)
+      ? topology.nodes.filter((node): node is Record<string, unknown> => typeof node === 'object' && node !== null)
+      : [];
+    const offlineNodes = nodes.filter((node) => node.status !== 'online');
+    const downApps = nodes.flatMap((node) => Array.isArray(node.applications) ? node.applications : [])
+      .filter((app): app is Record<string, unknown> => typeof app === 'object' && app !== null)
+      .filter((app) => typeof app.status === 'string' && !/running|up|active|healthy/i.test(app.status));
+
+    // Rebuild candidate hypotheses on every convergence; keep the supported primary.
+    await this.pool.query(
+      `DELETE FROM incident_hypotheses WHERE tenant_id = $1 AND incident_id = $2 AND status = 'candidate'`,
       [tenantId, incidentId],
     );
+    const candidates: Array<{ statement: string; confidence: number }> = [];
+    if (kinds.has('connector_error')) {
+      candidates.push({ statement: '连接器取证失败，监控数据可能不完整，需要检查连接器配置与凭据', confidence: Math.min(confidence - 10, 45) });
+    }
+    if (offlineNodes.length > 0) {
+      candidates.push({ statement: `应用系统存在 ${offlineNodes.length} 个离线节点，可能是节点级故障`, confidence: Math.min(confidence, 60) });
+    }
+    if (downApps.length > 0) {
+      candidates.push({ statement: `${downApps.length} 个应用实例状态异常，需检查应用进程与依赖`, confidence: Math.min(confidence, 55) });
+    }
+    if (!kinds.has('connector_query') && !kinds.has('connector_error')) {
+      candidates.push({ statement: '缺少连接器监控证据，根因需要人工确认', confidence: 40 });
+    }
+
+    const rootCause = incident.rows[0]?.root_cause;
+    if (rootCause) {
+      await this.pool.query(
+        `UPDATE incident_hypotheses SET status = 'candidate'
+         WHERE tenant_id = $1 AND incident_id = $2 AND status = 'supported' AND statement <> $3`,
+        [tenantId, incidentId, rootCause],
+      );
+    }
+    const hypothesis = rootCause
+      ? await this.pool.query<{ id: string }>(
+          `SELECT id FROM incident_hypotheses WHERE tenant_id = $1 AND incident_id = $2
+           AND status = 'supported' AND statement = $3 ORDER BY created_at DESC LIMIT 1`,
+          [tenantId, incidentId, rootCause],
+        )
+      : await this.pool.query<{ id: string }>(
+          `SELECT id FROM incident_hypotheses WHERE tenant_id = $1 AND incident_id = $2
+           AND status = 'supported' ORDER BY created_at DESC LIMIT 1`,
+          [tenantId, incidentId],
+        );
     if (hypothesis.rows[0]) {
       await this.pool.query(
         `UPDATE incident_hypotheses SET confidence = $1, status = 'supported' WHERE id = $2`,
         [confidence, hypothesis.rows[0].id],
       );
-    } else if (incident.rows[0]?.root_cause) {
+    } else if (rootCause) {
       await this.pool.query(
         `INSERT INTO incident_hypotheses (tenant_id, incident_id, statement, confidence, status)
          VALUES ($1, $2, $3, $4, 'supported')`,
-        [tenantId, incidentId, incident.rows[0].root_cause, confidence],
+        [tenantId, incidentId, rootCause, confidence],
+      );
+    }
+    for (const candidate of candidates) {
+      await this.pool.query(
+        `INSERT INTO incident_hypotheses (tenant_id, incident_id, statement, confidence, status)
+         VALUES ($1, $2, $3, $4, 'candidate')`,
+        [tenantId, incidentId, candidate.statement, Math.max(20, candidate.confidence)],
       );
     }
     await this.pool.query(
       `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
        VALUES ($1, $2, $3, 'root_cause_converged', $4::jsonb)`,
-      [tenantId, incidentId, actorId, JSON.stringify({ confidence, evidenceKinds: [...kinds] })],
+      [tenantId, incidentId, actorId, JSON.stringify({ confidence, evidenceKinds: [...kinds], candidates })],
     );
   }
 
@@ -671,11 +721,6 @@ export class IncidentService {
     if (completed) {
       await this.pool.query(
         `UPDATE incident_tickets SET status = 'done' WHERE tenant_id = $1 AND incident_id = $2`,
-        [input.tenantId, input.id],
-      );
-      await this.pool.query(
-        `UPDATE incident_hypotheses SET confidence = GREATEST(confidence, 85), status = 'supported'
-         WHERE tenant_id = $1 AND incident_id = $2`,
         [input.tenantId, input.id],
       );
     }

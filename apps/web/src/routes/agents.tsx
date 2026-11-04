@@ -296,6 +296,15 @@ export function Agents({ onBack }: AgentsProps) {
             `/api/agents/${detail.id}/instructions/${created.instructionId}/events`,
             { withCredentials: true },
           );
+          const timer = window.setTimeout(() => {
+            source.close();
+            resolve(null);
+          }, 3000);
+          const finish = (value: AgentInstructionDetail | null): void => {
+            window.clearTimeout(timer);
+            source.close();
+            resolve(value);
+          };
           source.addEventListener('status', (event) => {
             const data = JSON.parse((event as MessageEvent).data) as { status: string };
             setInstructionNote(`指令状态：${data.status}`);
@@ -318,13 +327,10 @@ export function Agents({ onBack }: AgentsProps) {
                 });
           });
           source.addEventListener('done', (event) => {
-            const detail = JSON.parse((event as MessageEvent).data) as AgentInstructionDetail;
-            source.close();
-            resolve(detail);
+            finish(JSON.parse((event as MessageEvent).data) as AgentInstructionDetail);
           });
           source.addEventListener('error', () => {
-            source.close();
-            resolve(null);
+            finish(null);
           });
         });
       }
@@ -799,16 +805,15 @@ export function Agents({ onBack }: AgentsProps) {
                             {instructionBusy && activeInstructionId ? <button type="button" className="btn btn-outline" onClick={() => void cancelInstruction()}>取消指令</button> : null}
                             <button type="button" className="btn btn-outline" disabled={!instructionText.trim()} onClick={() => void saveInstructionTemplate()}>保存模板</button>
                             {instructionTemplates.length > 0 ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-sm"
-                                onClick={() => {
-                                  const latest = instructionTemplates[0];
-                                  if (latest) void removeInstructionTemplate(latest.id);
-                                }}
-                              >
-                                删除最近模板
-                              </button>
+                              <div className="command-history" style={{ width: '100%' }}>
+                                {instructionTemplates.map((template) => (
+                                  <div key={template.id} className="command-row">
+                                    <span>{template.name}</span>
+                                    <span className="muted">{template.instruction.slice(0, 80)}</span>
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => void removeInstructionTemplate(template.id)}>删除</button>
+                                  </div>
+                                ))}
+                              </div>
                             ) : null}
                             {instructionNote ? <span className="muted">{instructionNote}</span> : null}
                           </div>

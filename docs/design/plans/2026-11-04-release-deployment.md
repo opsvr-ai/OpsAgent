@@ -120,6 +120,18 @@ GET /api/releases
 GET /api/deployments
 ```
 
+### Web 页面
+
+“发布与部署”页面支持：
+
+- 查看发布记录
+- 粘贴签名创建 Release
+- 创建 rolling / canary 部署计划
+- 批准 / 拒绝
+- 制品预检
+- 手动回滚
+
+
 ## 审计
 
 ```text

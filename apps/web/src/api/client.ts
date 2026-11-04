@@ -669,6 +669,85 @@ export async function listAgentCommands(agentId: string): Promise<AgentCommandSu
   return request<AgentCommandSummary[]>(`/api/agents/${agentId}/commands`);
 }
 
+export interface ReleaseSummary {
+  readonly id: string;
+  readonly appSystemId: string | null;
+  readonly version: string;
+  readonly artifactUrl: string;
+  readonly sha256: string;
+  readonly status: string;
+  readonly createdAt: string;
+}
+
+export interface DeploymentSummary {
+  readonly id: string;
+  readonly releaseId: string;
+  readonly environment: string;
+  readonly strategy: string;
+  readonly canaryPercent: number | null;
+  readonly status: string;
+  readonly reason: string | null;
+  readonly preflight: Readonly<Record<string, unknown>> | null;
+  readonly createdAt: string;
+}
+
+export async function listReleases(): Promise<ReleaseSummary[]> {
+  return request<ReleaseSummary[]>('/api/releases');
+}
+
+export async function createRelease(input: {
+  version: string;
+  artifactUrl: string;
+  sha256: string;
+  signature: string;
+  appSystemId?: string;
+}): Promise<ReleaseSummary> {
+  return request<ReleaseSummary>('/api/releases', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listDeployments(): Promise<DeploymentSummary[]> {
+  return request<DeploymentSummary[]>('/api/deployments');
+}
+
+export async function createDeployment(input: {
+  releaseId: string;
+  environment: string;
+  strategy: 'rolling' | 'canary';
+  canaryPercent?: number;
+}): Promise<DeploymentSummary> {
+  return request<DeploymentSummary>('/api/deployments', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function decideDeployment(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<DeploymentSummary> {
+  return request<DeploymentSummary>(`/api/deployments/${id}/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ decision }),
+  });
+}
+
+export async function preflightDeployment(id: string): Promise<DeploymentSummary> {
+  return request<DeploymentSummary>(`/api/deployments/${id}/preflight`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function rollbackDeployment(id: string, reason: string): Promise<DeploymentSummary> {
+  return request<DeploymentSummary>(`/api/deployments/${id}/rollback`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export async function createAgentCommand(
   agentId: string,
   type: string,

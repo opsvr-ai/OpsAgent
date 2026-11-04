@@ -10,6 +10,7 @@ import { Audit } from './routes/audit.js';
 import { Shares } from './routes/shares.js';
 import { Studio } from './routes/studio.js';
 import { Incidents } from './routes/incidents.js';
+import { Deployments } from './routes/deployments.js';
 import { Approvals } from './routes/approvals.js';
 import { Connectors } from './routes/connectors.js';
 import { Knowledge } from './routes/knowledge.js';
@@ -30,7 +31,7 @@ export function App() {
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'deployments' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
   const navEpoch = useRef(0);
 
   async function refresh() {
@@ -91,7 +92,7 @@ export function App() {
         return;
       }
       const allowed = new Set([
-        'home', 'scenarios', 'audit', 'shares', 'studio', 'incidents', 'approvals',
+        'home', 'scenarios', 'audit', 'shares', 'studio', 'incidents', 'deployments', 'approvals',
         'connectors', 'knowledge', 'messages', 'agents', 'tasks', 'sessions',
         'members', 'models', 'data', 'appearance', 'help',
       ]);
@@ -135,6 +136,7 @@ export function App() {
   if (view === 'shares') return withSession(<Shares onBack={() => setView('home')} />);
   if (view === 'studio') return withSession(<Studio onBack={() => setView('home')} />);
   if (view === 'incidents') return withSession(<Incidents onBack={() => setView('home')} />);
+  if (view === 'deployments') return withSession(<Deployments onBack={() => setView('home')} />);
   if (view === 'approvals') return withSession(<Approvals onBack={() => setView('home')} />);
   if (view === 'connectors') return withSession(<Connectors onBack={() => setView('home')} />);
   if (view === 'knowledge') return withSession(<Knowledge onBack={() => setView('home')} />);

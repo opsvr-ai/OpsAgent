@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { notifyApprovalWebhook, replayApprovalWebhook } from './approval_webhook.js';
+import { notifyOperationsAlert } from './operations_alert.js';
 
 /** Expires pending/dispatched natural-language instructions after the signed command lifetime. */
 export class AgentInstructionMonitor {
@@ -140,6 +141,12 @@ export class AgentInstructionMonitor {
            VALUES ($1, '审批 Webhook 连续投递失败', $2, 'warning')`,
           [row.tenant_id, `${row.failed_count} 条投递失败，请检查 Webhook 配置或下游服务。`],
         );
+        notifyOperationsAlert({
+          tenantId: row.tenant_id,
+          title: '审批 Webhook 连续投递失败',
+          body: `${row.failed_count} 条投递失败，请检查 Webhook 配置或下游服务。`,
+          severity: 'warning',
+        });
       }
 
       const recovered = await this.pool.query<{ tenant_id: string; failed_count: string }>(
@@ -164,6 +171,12 @@ export class AgentInstructionMonitor {
            VALUES ($1, '审批 Webhook 投递已恢复', $2, 'info')`,
           [row.tenant_id, `剩余失败投递 ${row.failed_count} 条，已低于告警阈值。`],
         );
+        notifyOperationsAlert({
+          tenantId: row.tenant_id,
+          title: '审批 Webhook 投递已恢复',
+          body: `剩余失败投递 ${row.failed_count} 条，已低于告警阈值。`,
+          severity: 'info',
+        });
       }
     } catch (error) {
       console.error('agent instruction monitor failed', error);

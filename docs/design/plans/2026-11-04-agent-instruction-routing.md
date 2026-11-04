@@ -341,6 +341,14 @@ Windows：sc.exe restart <service>
 容器内无 systemd 时返回明确失败
 ```
 
+执行后状态确认：
+
+```text
+启动 / 停止 / 重启 / 重载后
+  → systemctl is-active / sc query
+  → 当前状态写入 answer 和 evidence
+```
+
 写操作审批仍未覆盖其他动作。
 
 写操作也可以从 Incident 发起：

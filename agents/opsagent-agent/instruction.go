@@ -95,7 +95,21 @@ func runAgentInstruction(input map[string]any) map[string]any {
 			return result
 		}
 		result["ok"] = true
-		result["answer"] = fmt.Sprintf("服务 %s 已%s。\n%s", service, label, trimEvidence(output))
+		answer := fmt.Sprintf("服务 %s 已%s。", service, label)
+		if kind != "service_enable" && kind != "service_disable" {
+			if state, _ := serviceStatus(service); strings.TrimSpace(state) != "" {
+				trimmed := strings.TrimSpace(state)
+				answer += fmt.Sprintf("当前状态：%s", trimmed)
+				if evidence, ok := result["evidence"].(map[string]string); ok {
+					evidence["state"] = trimmed
+				}
+			}
+		}
+		outputText := trimEvidence(output)
+		if outputText != "" {
+			answer += "\n" + outputText
+		}
+		result["answer"] = answer
 		return result
 	}
 	if kind != "inspect" {

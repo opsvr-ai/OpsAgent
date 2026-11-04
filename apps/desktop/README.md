@@ -114,6 +114,20 @@ pnpm --filter @opsagent/desktop package:win
 
 配置后安装包会使用证书签名；未配置时保持未签名。
 
+开发环境自签名验证：
+
+```powershell
+$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=OpsAgent Dev' -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable
+$pwd = ConvertTo-SecureString 'OpsAgent-Dev' -Force -AsPlainText
+$pfx = Join-Path $env:TEMP 'opsagent-dev-sign.pfx'
+Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pwd
+$env:CSC_LINK = $pfx
+$env:CSC_KEY_PASSWORD = 'OpsAgent-Dev'
+pnpm --filter @opsagent/desktop package:win
+```
+
+已实测可生成签名安装包；因自签名根证书不受信任，Windows 会显示 Unknown Publisher。
+
 打包脚本会自动定位本机 Electron 二进制，不依赖 GitHub 下载。
 
 ## 安全

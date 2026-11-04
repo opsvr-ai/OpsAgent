@@ -24,6 +24,7 @@ function eventLabel(type: string): string {
   if (type === 'investigation_started') return '自动排障开始';
   if (type === 'investigation_completed') return '自动排障完成';
   if (type === 'connector_evidence') return '连接器证据';
+  if (type === 'topology_collected') return '应用系统拓扑聚合';
   if (type === 'approval_requested') return '操作审批申请';
   if (type === 'approval_approved') return '审批通过';
   if (type === 'approval_denied') return '审批拒绝';

@@ -400,6 +400,50 @@ export class IncidentService {
     );
   }
 
+  private async collectTopologyEvidence(
+    tenantId: string,
+    incidentId: string,
+    actorId: string,
+    appSystemId: string | null,
+  ): Promise<void> {
+    if (!appSystemId) return;
+    const system = await this.pool.query<{ name: string; code: string }>(
+      'SELECT name, code FROM app_systems WHERE tenant_id = $1 AND id = $2',
+      [tenantId, appSystemId],
+    );
+    if (!system.rows[0]) return;
+    const nodes = await this.pool.query<{
+      hostname: string;
+      status: string;
+      applications: unknown[];
+      metrics: Record<string, unknown>;
+      last_seen: Date;
+    }>(
+      `SELECT hostname, status, applications, metrics, last_seen
+       FROM agents WHERE tenant_id = $1 AND app_system_id = $2 ORDER BY hostname`,
+      [tenantId, appSystemId],
+    );
+    const topology = nodes.rows.map((node) => ({
+      hostname: node.hostname,
+      status: node.status,
+      applications: node.applications,
+      metrics: node.metrics,
+      lastSeen: node.last_seen.toISOString(),
+    }));
+    const appCount = topology.reduce((sum, node) => sum + node.applications.length, 0);
+    const summary = `应用系统 ${system.rows[0].name}：${topology.length} 个节点，${appCount} 个应用实例；${topology.filter((node) => node.status !== 'online').length} 个节点离线`;
+    await this.pool.query(
+      `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+       VALUES ($1, $2, 'topology', 'opsagent', $3, $4::jsonb)`,
+      [tenantId, incidentId, summary, JSON.stringify({ appSystem: system.rows[0], nodes: topology })],
+    );
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'topology_collected', $4::jsonb)`,
+      [tenantId, incidentId, actorId, JSON.stringify({ appSystemId, nodeCount: topology.length, appCount })],
+    );
+  }
+
   private async convergeRootCause(tenantId: string, incidentId: string, actorId: string): Promise<void> {
     const evidence = await this.pool.query<{ kind: string; count: string }>(
       `SELECT kind, count(*)::text AS count FROM incident_evidence
@@ -415,6 +459,7 @@ export class IncidentService {
     if (incident.rows[0]?.root_cause) confidence += 10;
     if (kinds.has('host_inspection')) confidence += 15;
     if (kinds.has('connector_query')) confidence += 8;
+    if (kinds.has('topology')) confidence += 5;
     if (kinds.has('log_signal')) confidence += 5;
     if (kinds.has('connector_error')) confidence -= 10;
     confidence = Math.max(40, Math.min(98, confidence));
@@ -620,6 +665,7 @@ export class IncidentService {
       ],
     );
     await this.collectConnectorEvidence(input.tenantId, input.id, input.actorId);
+    await this.collectTopologyEvidence(input.tenantId, input.id, input.actorId, row.app_system_id);
     await this.convergeRootCause(input.tenantId, input.id, input.actorId);
     await this.generateReport(input.tenantId, input.id, input.actorId);
     if (completed) {

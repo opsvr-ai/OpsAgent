@@ -83,6 +83,28 @@ describe('PlatformAssistant', () => {
     expect(commands.create).not.toHaveBeenCalled();
   });
 
+  it('answers host-specific alert questions directly', async () => {
+    const { assistant, agents, events } = fakes();
+    agents.findByMention.mockResolvedValue(agent);
+    events.list.mockResolvedValue([{
+      id: 'e-2',
+      agentId: 'a-1',
+      fingerprint: 'disk-low',
+      severity: 'warning',
+      title: '磁盘可用空间不足',
+      detail: '根分区可用 8%',
+      metric: {},
+      status: 'open',
+      detectedAt: new Date().toISOString(),
+      resolvedAt: null,
+    }]);
+    const plan = await assistant.detect('tenant', 'opsagent-os-agent 上有告警吗？');
+    expect(plan).toMatchObject({ kind: 'host-alerts' });
+    const emitted = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
+    expect(emitted[0]).toMatchObject({ type: 'tool.call', tool: 'opsagent.agent_alerts' });
+    expect(emitted.some((event) => event.type === 'assistant.delta' && event.text.includes('磁盘可用空间不足'))).toBe(true);
+  });
+
   it('lists agent self-patrol alerts', async () => {
     const { assistant, agents, events } = fakes();
     agents.findByMention.mockResolvedValue(null);

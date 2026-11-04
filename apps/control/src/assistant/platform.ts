@@ -17,6 +17,11 @@ export type PlatformPlan =
       readonly query: string;
     }
   | {
+      readonly kind: 'host-alerts';
+      readonly agent: AgentRecord;
+      readonly query: string;
+    }
+  | {
       readonly kind: 'agent';
       readonly agent: AgentRecord;
       readonly query: string;
@@ -61,7 +66,10 @@ export class PlatformAssistant {
 
   async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
     const mentioned = await this.agents.findByMention(tenantId, text);
-    if (mentioned && /(检查|查看|看看|查询|获取|诊断|巡检|配置|系统|内核|部署|应用|端口|性能|指标|负载|cpu|内存|磁盘|状态|agent)/i.test(text)) {
+    if (mentioned && /(告警|故障|异常|健康|正常吗)/i.test(text) && !/(检查|排查|原因|为什么|分析|诊断|处理|影响)/i.test(text)) {
+      return { kind: 'host-alerts', agent: mentioned, query: text };
+    }
+    if (mentioned && /(检查|查看|看看|查询|获取|诊断|巡检|配置|系统|内核|部署|应用|端口|路径|性能|指标|负载|cpu|内存|磁盘|状态|agent)/i.test(text)) {
       const wantsConfig = /(配置|系统信息|系统配置|内核|部署|应用|端口|发现)/i.test(text)
         && !/(性能|指标|负载|cpu|内存|磁盘|诊断|使用率|水位)/i.test(text);
       return {
@@ -86,6 +94,26 @@ export class PlatformAssistant {
   }
 
   async *execute(plan: PlatformPlan, tenantId: string, sessionId: string): AsyncIterable<RuntimeEvent> {
+    if (plan.kind === 'host-alerts') {
+      yield this.toolCall(sessionId, 'opsagent.agent_alerts', { hostname: plan.agent.hostname }, 'R0');
+      const alerts = (await this.events.list(tenantId, plan.agent.id)).filter((event) => event.status === 'open');
+      yield this.toolResult(sessionId, 'opsagent.agent_alerts', {
+        hostname: plan.agent.hostname,
+        count: alerts.length,
+      });
+      if (alerts.length === 0) {
+        yield this.assistant(sessionId, `**${plan.agent.hostname}** 当前没有待处理告警。Agent 最近一次自巡航未发现磁盘或内存异常。`);
+      } else {
+        const lines = [`**${plan.agent.hostname}** 当前有 **${alerts.length}** 条待处理告警：`];
+        for (const event of alerts) {
+          lines.push('', `### ${event.severity === 'critical' ? '严重' : event.severity === 'warning' ? '警告' : '提示'} · ${event.title}`, event.detail, `发现时间：${relativeTime(event.detectedAt)}`);
+        }
+        lines.push('', '可以在「操作系统智能体」页打开该主机，在「告警」标签查看完整记录。');
+        yield this.assistant(sessionId, lines.join('\n'));
+      }
+      yield this.done(sessionId);
+      return;
+    }
     if (plan.kind === 'alerts') {
       yield this.toolCall(sessionId, 'opsagent.alerts', { query: plan.query }, 'R0');
       const alerts = await this.events.openForTenant(tenantId);

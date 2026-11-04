@@ -164,7 +164,9 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
         ? '纳管智能体清单'
         : item.tool === 'opsagent.alerts'
           ? '主动发现告警'
-          : item.tool === 'opsagent.agent_snapshot'
+          : item.tool === 'opsagent.agent_alerts'
+            ? '主机主动告警'
+            : item.tool === 'opsagent.agent_snapshot'
             ? '主机配置与性能快照'
             : '主机命令下发';
       return (

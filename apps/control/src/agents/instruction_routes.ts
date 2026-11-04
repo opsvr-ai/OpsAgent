@@ -155,6 +155,32 @@ export function registerAgentInstructionRoutes(
       });
     }
 
+    if (!plan.intent.readOnly) {
+      const service = plan.intent.params.service;
+      if (!service) return reply.code(400).send({ error: 'unsupported_instruction' });
+      const approvals = [];
+      for (const agent of agents.rows) {
+        const approval = await pool.query<{ id: string; status: string }>(
+          `INSERT INTO agent_instruction_approvals
+             (tenant_id, agent_id, instruction, action, service, risk, requested_by)
+           VALUES ($1, $2, $3, $4, $5, 'R2', $6)
+           RETURNING id, status`,
+          [ctx.tenantId, agent.id, body.instruction.trim(), plan.intent.kind, service, ctx.userId],
+        );
+        const row = approval.rows[0];
+        if (row) approvals.push({ approvalId: row.id, agentId: agent.id, hostname: agent.hostname, status: 'awaiting_approval' });
+      }
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.batch',
+        resource: approvals.map((item) => item.approvalId).join(','),
+        result: 'success',
+        metadata: { agentIds: agentIds, intent: plan.intent.kind, approvals: approvals.length },
+      });
+      return reply.code(202).send({ intent: plan.intent, approvals });
+    }
+
     const created = [];
     for (const agent of agents.rows) {
       const command = await commands.create({

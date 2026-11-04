@@ -384,7 +384,20 @@ export function Agents({ onBack }: AgentsProps) {
     setBatchNote(null);
     try {
       const created = await createAgentInstructionsBatch(batchIds, batchText.trim());
-      const initial = created.instructions.map((item) => ({
+      if (created.approvals) {
+        setBatchResults(created.approvals.map((item) => ({
+          agentId: item.agentId,
+          hostname: item.hostname,
+          instructionId: item.approvalId,
+          status: 'awaiting_approval',
+          answer: '等待审批',
+        })));
+        setBatchNote(`已提交 ${created.approvals.length} 个写操作审批`);
+        setBatchIds([]);
+        setBatchText('');
+        return;
+      }
+      const initial = (created.instructions ?? []).map((item) => ({
         agentId: item.agentId,
         hostname: item.hostname,
         instructionId: item.instructionId,
@@ -392,7 +405,7 @@ export function Agents({ onBack }: AgentsProps) {
         answer: '',
       }));
       setBatchResults(initial);
-      setBatchNote(`已下发给 ${created.instructions.length} 台，等待执行…`);
+      setBatchNote(`已下发给 ${initial.length} 台，等待执行…`);
       let current = initial;
       for (let attempt = 0; attempt < 45; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 1000));

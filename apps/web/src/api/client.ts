@@ -675,10 +675,16 @@ export async function cancelAgentInstruction(agentId: string, instructionId: str
 
 export interface AgentBatchInstructionCreated {
   readonly intent: AgentInstructionIntent;
-  readonly instructions: Array<{
+  readonly instructions?: Array<{
     readonly agentId: string;
     readonly hostname: string;
     readonly instructionId: string;
+    readonly status: string;
+  }>;
+  readonly approvals?: Array<{
+    readonly approvalId: string;
+    readonly agentId: string;
+    readonly hostname: string;
     readonly status: string;
   }>;
 }

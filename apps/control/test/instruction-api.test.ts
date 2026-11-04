@@ -109,6 +109,22 @@ describe('agent instruction API', () => {
     const body = response.json() as { instructions: Array<{ agentId: string }> };
     expect(body.instructions).toHaveLength(2);
     expect(new Set(body.instructions.map((item) => item.agentId))).toEqual(new Set([agentId, secondId]));
+    const writeBatch = await app.inject({
+      method: 'POST',
+      url: '/api/agents/instructions',
+      headers: { cookie },
+      payload: { agentIds: [agentId, secondId], instruction: '重启 nginx 服务' },
+    });
+    expect(writeBatch.statusCode).toBe(202);
+    const writeBody = writeBatch.json() as { approvals: Array<{ approvalId: string }> };
+    expect(writeBody.approvals).toHaveLength(2);
+    const approvals = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals',
+      headers: { cookie },
+    });
+    const approvalIds = new Set((approvals.json() as Array<{ id: string }>).map((item) => item.id));
+    expect(writeBody.approvals.every((item) => approvalIds.has(item.approvalId))).toBe(true);
     await app.close();
   });
 

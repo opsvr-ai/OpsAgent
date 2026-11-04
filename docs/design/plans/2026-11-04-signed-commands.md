@@ -26,6 +26,7 @@
 - 结果私钥加密：配置 `OPSAGENT_STATE_SECRET` 后使用 AES-256-GCM 加密落盘，测试覆盖解密/错密钥拒绝
 - 密钥状态可见：Agent 心跳上报当前 `commandKeyId`，控制面持久化并在 Agent 详情展示，便于确认轮换/撤销是否生效
 - 密钥状态接口：`GET /api/agents/command-keys` 返回当前/上一把 key 及每台 Agent 是否仍使用有效 key
+- 轮换安全提示：Agent 列表展示仍停留在旧 key 的 Agent 数量，提示等待下一次心跳切换
 
 ## 数据库
 

@@ -600,6 +600,20 @@ export async function listAgents(): Promise<AgentSummary[]> {
   return request<AgentSummary[]>('/api/agents');
 }
 
+export interface CommandKeyStatus {
+  readonly keys: Array<{ keyId: string; publicKey: string; active: boolean }>;
+  readonly agents: Array<{
+    id: string;
+    hostname: string;
+    commandKeyId: string | null;
+    valid: boolean | null;
+  }>;
+}
+
+export async function getCommandKeyStatus(): Promise<CommandKeyStatus> {
+  return request<CommandKeyStatus>('/api/agents/command-keys');
+}
+
 export async function getAgentFleet(params: {
   query?: string;
   status?: string;

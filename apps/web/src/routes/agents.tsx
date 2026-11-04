@@ -7,6 +7,7 @@ import {
   getAgentFleet,
   getAgentInstallCommand,
   getAppSystemHealth,
+  getCommandKeyStatus,
   listAgentCommands,
   type AgentApplication,
   type AgentCommandSummary,
@@ -14,6 +15,7 @@ import {
   type AgentFleetResponse,
   type AgentSummary,
   type AppHealthCheck,
+  type CommandKeyStatus,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 import { relativeTime } from '../format.js';
@@ -100,6 +102,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [detailEvents, setDetailEvents] = useState<AgentEventSummary[]>([]);
   const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<CommandKeyStatus | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +120,23 @@ export function Agents({ onBack }: AgentsProps) {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void getCommandKeyStatus()
+        .then((data) => {
+          if (!cancelled) setKeyStatus(data);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [reloadToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +222,8 @@ export function Agents({ onBack }: AgentsProps) {
   }
 
   const pageCount = fleet ? Math.max(1, Math.ceil(fleet.total / fleet.pageSize)) : 1;
+  const staleAgents = (keyStatus?.agents ?? []).filter((agent) => agent.valid === false);
+  const activeKeyId = keyStatus?.keys.find((key) => key.active)?.keyId ?? '未配置';
 
   return (
     <DesignShell
@@ -234,6 +256,22 @@ export function Agents({ onBack }: AgentsProps) {
         <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>已发现应用</strong><span>{fleet?.summary.applications ?? 0} 个</span></div></div>
         <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-eye" /></svg></span><div><strong>配置发现</strong><span>{fleet?.summary.discovered ?? 0} / {fleet?.summary.total ?? 0}</span></div></div>
       </div>
+
+      {staleAgents.length > 0 ? (
+        <div className="card" style={{ borderColor: 'var(--warn)', marginBottom: 12 }}>
+          <div className="card-body">
+            <div className="row-between">
+              <div>
+                <strong>命令密钥待更新</strong>
+                <p className="muted" style={{ margin: '4px 0 0' }}>
+                  当前签名密钥 {activeKeyId}；{staleAgents.length} 台 Agent 仍在使用旧 key，下一次心跳后应自动切换。
+                </p>
+              </div>
+              <span className="badge badge-warn">{staleAgents.length} 台</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <section className="app-system-strip">
         <div className="section-heading">

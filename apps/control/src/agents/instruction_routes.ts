@@ -464,12 +464,14 @@ export function registerAgentInstructionRoutes(
       }
 
       if (body.decision === 'deny') {
-        await pool.query(
+        const denied = await pool.query(
           `UPDATE agent_instruction_approvals
            SET status = 'denied', decided_by = $1, decided_at = now(), decision_reason = $2
-           WHERE tenant_id = $3 AND id = $4`,
+           WHERE tenant_id = $3 AND id = $4 AND status = 'pending' AND expires_at > now()
+           RETURNING id`,
           [ctx.userId, reason, ctx.tenantId, approval.id],
         );
+        if (!denied.rows[0]) return reply.code(409).send({ error: 'approval_not_pending' });
         if (approval.incident_id) {
           await pool.query(
             `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
@@ -504,6 +506,14 @@ export function registerAgentInstructionRoutes(
       }
       const service = approval.service ?? '';
       const intentKind = approval.action === 'service_stop' ? 'service_stop' : 'service_restart';
+      const claimed = await pool.query(
+        `UPDATE agent_instruction_approvals
+         SET status = 'approved', decided_by = $1, decided_at = now(), decision_reason = $2
+         WHERE tenant_id = $3 AND id = $4 AND status = 'pending' AND expires_at > now()
+         RETURNING id`,
+        [ctx.userId, reason, ctx.tenantId, approval.id],
+      );
+      if (!claimed.rows[0]) return reply.code(409).send({ error: 'approval_not_pending' });
       const command = await commands.create({
         tenantId: ctx.tenantId,
         agentId: approval.agent_id,
@@ -528,13 +538,18 @@ export function registerAgentInstructionRoutes(
         },
         ...(approval.incident_id ? { incidentId: approval.incident_id } : {}),
       });
-      if (!command) return reply.code(404).send({ error: 'agent_not_found' });
+      if (!command) {
+        await pool.query(
+          `UPDATE agent_instruction_approvals SET status = 'canceled', decision_reason = 'command_creation_failed'
+           WHERE tenant_id = $1 AND id = $2`,
+          [ctx.tenantId, approval.id],
+        );
+        return reply.code(404).send({ error: 'agent_not_found' });
+      }
       await pool.query(
-        `UPDATE agent_instruction_approvals
-         SET status = 'approved', decided_by = $1, decided_at = now(),
-             decision_reason = $2, command_id = $3
-         WHERE tenant_id = $4 AND id = $5`,
-        [ctx.userId, reason, command.id, ctx.tenantId, approval.id],
+        `UPDATE agent_instruction_approvals SET command_id = $1
+         WHERE tenant_id = $2 AND id = $3`,
+        [command.id, ctx.tenantId, approval.id],
       );
       if (approval.incident_id) {
         await pool.query(

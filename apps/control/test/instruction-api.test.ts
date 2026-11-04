@@ -477,6 +477,40 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('allows only one concurrent approval decision', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const requested = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '重启 nginx 服务' },
+    });
+    const approvalId = (requested.json() as { approvalId: string }).approvalId;
+    const [first, second] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/api/agent-instruction-approvals/${approvalId}/decision`,
+        headers: { cookie },
+        payload: { decision: 'approve' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/api/agent-instruction-approvals/${approvalId}/decision`,
+        headers: { cookie },
+        payload: { decision: 'approve' },
+      }),
+    ]);
+    expect([first.statusCode, second.statusCode].sort()).toEqual([202, 409]);
+    const commands = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM agent_commands c
+       JOIN agent_instruction_approvals a ON a.command_id = c.id WHERE a.id = $1`,
+      [approvalId],
+    );
+    expect(commands.rows[0]?.count).toBe('1');
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

@@ -215,6 +215,16 @@ result
 
 预检通过后逐项执行，仍保留单项独立结果。
 
+并发保护：
+
+```text
+批准前原子认领
+  UPDATE ... WHERE status = 'pending' AND expires_at > now()
+  RETURNING id
+  → 只有一个请求能认领成功
+  → 其他请求返回 409 approval_not_pending
+```
+
 审批页同时展示：
 
 ```text

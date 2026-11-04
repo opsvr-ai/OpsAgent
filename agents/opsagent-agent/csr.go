@@ -37,6 +37,22 @@ func certificateNeedsRenewal(certPath string) bool {
 	return time.Until(certificate.NotAfter) < 7*24*time.Hour
 }
 
+func certificateMetadata(certPath string) (string, string) {
+	data, err := os.ReadFile(certPath)
+	if err != nil {
+		return "", ""
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return "", ""
+	}
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", ""
+	}
+	return certificate.NotAfter.UTC().Format(time.RFC3339), certificate.SerialNumber.Text(16)
+}
+
 func enrollAgentCertificate(controlURL, agentID, agentKey, hostname string, paths agentPaths) error {
 	if os.Getenv("OPSAGENT_AUTO_CSR") != "true" {
 		return nil

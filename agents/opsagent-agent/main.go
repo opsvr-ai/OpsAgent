@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -40,10 +41,12 @@ type registerResponse struct {
 }
 
 type heartbeatRequest struct {
-	AgentKey     string           `json:"agentKey"`
-	Metrics      map[string]any   `json:"metrics"`
-	Discovery    *discoveryReport `json:"discovery,omitempty"`
-	CommandKeyID string           `json:"commandKeyId,omitempty"`
+	AgentKey         string           `json:"agentKey"`
+	Metrics          map[string]any   `json:"metrics"`
+	Discovery        *discoveryReport `json:"discovery,omitempty"`
+	CommandKeyID     string           `json:"commandKeyId,omitempty"`
+	TLSCertExpiresAt string           `json:"tlsCertExpiresAt,omitempty"`
+	TLSCertSerial    string           `json:"tlsCertSerial,omitempty"`
 }
 
 type heartbeatResponse struct {
@@ -388,11 +391,18 @@ func runDaemon(paths agentPaths) {
 			lastMetricsSnapshot = time.Now()
 		}
 		var heartbeat heartbeatResponse
+		certPath := os.Getenv("OPSAGENT_TLS_CERT")
+		if certPath == "" {
+			certPath = filepath.Join(paths.Root, "tls", "agent.pem")
+		}
+		certExpiresAt, certSerial := certificateMetadata(certPath)
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
-			AgentKey:     registered.AgentKey,
-			Metrics:      metrics,
-			Discovery:    discovery,
-			CommandKeyID: registered.CommandKeyID,
+			AgentKey:         registered.AgentKey,
+			Metrics:          metrics,
+			Discovery:        discovery,
+			CommandKeyID:     registered.CommandKeyID,
+			TLSCertExpiresAt: certExpiresAt,
+			TLSCertSerial:    certSerial,
 		}, &heartbeat); err != nil {
 			log.Printf("heartbeat: %v", err)
 		} else if len(heartbeat.CommandPublicKeys) > 0 {

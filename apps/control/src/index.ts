@@ -18,6 +18,7 @@ import { AgentKeyMonitor } from './agents/key_monitor.js';
 import { DeploymentService } from './deployments/service.js';
 import { DeploymentMonitor } from './deployments/monitor.js';
 import { AgentResourceMonitor } from './agents/resource_monitor.js';
+import { AgentCertificateMonitor } from './agents/certificate_monitor.js';
 import { AgentCaService } from './agents/ca.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10);
@@ -73,6 +74,7 @@ const commanderScheduler = new CommanderScheduler(
 const keyMonitor = new AgentKeyMonitor(pool);
 const deploymentMonitor = new DeploymentMonitor(pool, new DeploymentService(pool));
 const resourceMonitor = new AgentResourceMonitor(pool);
+const certificateMonitor = new AgentCertificateMonitor(pool);
 const auditRetention = new AuditService(pool);
 const taskService = new LongTaskService(pool, new ScenarioService(pool, tools));
 void taskService.recoverInterrupted().catch((error) => {
@@ -136,6 +138,7 @@ commanderScheduler.start();
 keyMonitor.start();
 deploymentMonitor.start();
 resourceMonitor.start();
+certificateMonitor.start();
 console.log(`opsagent-control listening on :${port}`);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -145,6 +148,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     keyMonitor.stop();
     deploymentMonitor.stop();
     resourceMonitor.stop();
+    certificateMonitor.stop();
     clearInterval(retentionTimer);
     tlsServer?.close();
     void app.close().then(() => pool.end());

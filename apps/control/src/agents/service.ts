@@ -176,6 +176,8 @@ export class AgentService {
     metrics?: Readonly<Record<string, unknown>>,
     discovery?: DiscoveryPayload,
     commandKeyId?: string,
+    tlsCertExpiresAt?: string,
+    tlsCertSerial?: string,
   ): Promise<AgentRecord | null> {
     const system = discovery ? record(discovery.system) : null;
     const applications = discovery ? applicationList(discovery.applications) : null;
@@ -193,6 +195,8 @@ export class AgentService {
            applications = COALESCE($5::jsonb, applications),
            agent_info = COALESCE($6::jsonb, agent_info),
            command_key_id = COALESCE($7, command_key_id),
+           tls_cert_expires_at = COALESCE($8::timestamptz, tls_cert_expires_at),
+           tls_cert_serial = COALESCE($9, tls_cert_serial),
            discovery_at = CASE WHEN $4::jsonb IS NULL THEN discovery_at ELSE now() END
        WHERE id = $1 AND agent_key = $2
        RETURNING tenant_id`,
@@ -204,6 +208,8 @@ export class AgentService {
         applications ? JSON.stringify(applications) : null,
         agentInfo ? JSON.stringify(agentInfo) : null,
         commandKeyId ?? null,
+        tlsCertExpiresAt ?? null,
+        tlsCertSerial ?? null,
       ],
     );
     const tenantId = result.rows[0]?.tenant_id;

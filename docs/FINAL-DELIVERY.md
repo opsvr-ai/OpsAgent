@@ -1,4 +1,4 @@
-﻿# OpsAgent 0.3.2 最终交付说明
+# OpsAgent 0.3.2 最终交付说明
 
 日期：2026-11-05
 
@@ -47,6 +47,18 @@ GET  /api/deployments/:id/traffic-canary/nginx
 - G0–G10 工程矩阵
 - 外部待签清单
 - 签字表
+
+### Windows 资源限额
+
+```text
+OPSAGENT_AGENT_MEMORY_LIMIT_MB=512
+OPSAGENT_AGENT_CPU_PERCENT=50
+```
+
+- Windows 服务模式创建 Job Object
+- 内存与 CPU 硬上限
+- 子进程继承限制
+- Linux 继续使用 systemd/cgroup
 
 ## 3. 交付物
 

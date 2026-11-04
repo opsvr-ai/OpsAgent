@@ -180,6 +180,11 @@ export class AgentService {
     const system = discovery ? record(discovery.system) : null;
     const applications = discovery ? applicationList(discovery.applications) : null;
     const agentInfo = discovery ? record(discovery.agent) : null;
+    const previous = await this.pool.query<{ command_key_id: string | null }>(
+      'SELECT command_key_id FROM agents WHERE id = $1 AND agent_key = $2',
+      [id, key],
+    );
+    const previousKeyId = previous.rows[0]?.command_key_id ?? null;
     const result = await this.pool.query<{ tenant_id: string }>(
       `UPDATE agents
        SET last_seen = now(), status = 'online',
@@ -202,7 +207,38 @@ export class AgentService {
       ],
     );
     const tenantId = result.rows[0]?.tenant_id;
+    if (tenantId && commandKeyId && commandKeyId !== previousKeyId) {
+      await this.pool.query(
+        `INSERT INTO agent_command_key_history (tenant_id, agent_id, previous_key_id, key_id)
+         VALUES ($1, $2, $3, $4)`,
+        [tenantId, id, previousKeyId, commandKeyId],
+      );
+    }
     return tenantId ? this.get(id, tenantId) : null;
+  }
+
+  async keyHistory(tenantId: string, agentId: string): Promise<Array<{
+    id: string;
+    previousKeyId: string | null;
+    keyId: string;
+    changedAt: string;
+  }>> {
+    const result = await this.pool.query<{
+      id: string;
+      previous_key_id: string | null;
+      key_id: string;
+      changed_at: Date;
+    }>(
+      `SELECT id, previous_key_id, key_id, changed_at FROM agent_command_key_history
+       WHERE tenant_id = $1 AND agent_id = $2 ORDER BY changed_at DESC LIMIT 50`,
+      [tenantId, agentId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      previousKeyId: row.previous_key_id,
+      keyId: row.key_id,
+      changedAt: row.changed_at.toISOString(),
+    }));
   }
 
   async list(tenantId: string): Promise<AgentRecord[]> {

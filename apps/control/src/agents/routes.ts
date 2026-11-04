@@ -293,6 +293,26 @@ export function registerAgentRoutes(
     return reply.send({ ...fleet, alerts: await events.openForTenant(ctx.tenantId) });
   });
 
+  app.get<{ Params: { id: string } }>('/api/agents/:id/key-history', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const agent = await agents.get(request.params.id, ctx.tenantId);
+    if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
+    return reply.send(await agents.keyHistory(ctx.tenantId, request.params.id));
+  });
+
   app.get<{ Params: { id: string } }>('/api/agents/:id', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
     if (!token) return reply.code(401).send({ error: 'unauthorized' });

@@ -83,6 +83,13 @@ describe('agent registry API', () => {
       commandKeyId: expect.any(String),
       commandPublicKeys: [{ keyId: expect.any(String), publicKey: expect.any(String) }],
     });
+    const keyHistory = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${body.agent.id}/key-history`,
+      headers: { cookie: await login(app) },
+    });
+    expect(keyHistory.statusCode).toBe(200);
+    expect(keyHistory.json()).toMatchObject([{ previousKeyId: null, keyId: body.commandKeyId }]);
 
     const appSystem = await pool.query<{ id: string }>(
       `INSERT INTO app_systems (tenant_id, code, name)

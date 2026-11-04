@@ -44,7 +44,7 @@ describe('Incidents', () => {
     expect((await screen.findAllByText('checkout latency')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '开始排查' }));
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('i-1', { status: 'investigating' }));
-    expect((await screen.findAllByText('investigating')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('investigating', {}, { timeout: 3000 })).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state', async () => {

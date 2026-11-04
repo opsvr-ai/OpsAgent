@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   analyzeIncident,
   createIncident,
@@ -48,6 +48,7 @@ function eventDetail(payload: Record<string, unknown>): string {
 
 export function Incidents({ onBack }: IncidentsProps) {
   const [incidents, setIncidents] = useState<IncidentSummary[] | null>(null);
+  const detailRequest = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IncidentDetail | null>(null);
   const [title, setTitle] = useState('');
@@ -77,8 +78,11 @@ export function Incidents({ onBack }: IncidentsProps) {
       setDetail(null);
       return;
     }
+    const request = ++detailRequest.current;
     void getIncident(selectedId)
-      .then(setDetail)
+      .then((value) => {
+        if (request === detailRequest.current) setDetail(value);
+      })
       .catch(() => setError('事件详情加载失败'));
   }, [selectedId]);
 
@@ -99,6 +103,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   }
 
   async function advance(id: string, status: string) {
+    detailRequest.current += 1;
     setError(null);
     try {
       const updated = await updateIncident(id, { status });

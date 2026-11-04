@@ -103,7 +103,6 @@ export function Agents({ onBack }: AgentsProps) {
   const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
   const [keyStatus, setKeyStatus] = useState<CommandKeyStatus | null>(null);
-
   useEffect(() => {
     let cancelled = false;
     const load = () => {

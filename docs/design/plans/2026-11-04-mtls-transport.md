@@ -121,6 +121,26 @@ apps/control/.dev-certs/
 
 该目录已加入 `.gitignore`，不得提交私钥。
 
+### 内网真机验证
+
+Compose 已启用：
+
+```text
+8443 → 8443
+OPSAGENT_TLS_AUTO=true
+```
+
+验证流程：
+
+```text
+控制面自动生成 CA 与服务端证书
+  → Agent 端 CSR 请求 /api/agents/:id/certificate
+  → 控制面签发 ClientAuth 证书
+  → Node HTTPS 客户端使用该证书
+  → GET https://127.0.0.1:8443/healthz
+  → 200 {"status":"ok","service":"opsagent-control"}
+```
+
 ## 未完成
 
 - CA 轮换、密钥托管与吊销

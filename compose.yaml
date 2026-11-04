@@ -99,9 +99,15 @@ services:
       OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist
       OPSAGENT_DESKTOP_UPDATE_DIR: /app/apps/desktop/release/feed
       OPSAGENT_PUBLIC_URL: http://127.0.0.1:8080
+      OPSAGENT_TLS_PORT: "8443"
+      OPSAGENT_TLS_AUTO: "true"
+      OPSAGENT_TLS_HOSTNAMES: localhost,opsagent-control
+      OPSAGENT_TLS_IPS: 127.0.0.1
+      OPSAGENT_TLS_REQUIRE_CLIENT_CERT: "true"
       PORT: "8080"
     ports:
       - "8080:8080"
+      - "8443:8443"
     volumes:
       - .:/app
       - ./.dsh-runtime:/root/.dsh

@@ -126,10 +126,10 @@ export class AgentInstructionMonitor {
       );
       for (const row of failedByTenant.rows) {
         const alerted = await this.pool.query<{ tenant_id: string }>(
-          `INSERT INTO approval_webhook_alert_state (tenant_id, last_alert_at, failed_count)
-           VALUES ($1, now(), $2)
+          `INSERT INTO approval_webhook_alert_state (tenant_id, last_alert_at, failed_count, alert_active)
+           VALUES ($1, now(), $2, true)
            ON CONFLICT (tenant_id) DO UPDATE
-             SET last_alert_at = now(), failed_count = EXCLUDED.failed_count
+             SET last_alert_at = now(), failed_count = EXCLUDED.failed_count, alert_active = true
              WHERE approval_webhook_alert_state.last_alert_at < now() - interval '1 hour'
            RETURNING tenant_id`,
           [row.tenant_id, Number(row.failed_count)],
@@ -139,6 +139,30 @@ export class AgentInstructionMonitor {
           `INSERT INTO messages (tenant_id, title, body, severity)
            VALUES ($1, '审批 Webhook 连续投递失败', $2, 'warning')`,
           [row.tenant_id, `${row.failed_count} 条投递失败，请检查 Webhook 配置或下游服务。`],
+        );
+      }
+
+      const recovered = await this.pool.query<{ tenant_id: string; failed_count: string }>(
+        `SELECT s.tenant_id, count(d.id)::text AS failed_count
+         FROM approval_webhook_alert_state s
+         LEFT JOIN approval_webhook_deliveries d
+           ON d.tenant_id = s.tenant_id AND d.status = 'failed'
+         WHERE s.alert_active = true
+         GROUP BY s.tenant_id
+         HAVING count(d.id) < $1`,
+        [threshold],
+      );
+      for (const row of recovered.rows) {
+        await this.pool.query(
+          `UPDATE approval_webhook_alert_state
+           SET alert_active = false, failed_count = $1
+           WHERE tenant_id = $2`,
+          [Number(row.failed_count), row.tenant_id],
+        );
+        await this.pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, '审批 Webhook 投递已恢复', $2, 'info')`,
+          [row.tenant_id, `剩余失败投递 ${row.failed_count} 条，已低于告警阈值。`],
         );
       }
     } catch (error) {

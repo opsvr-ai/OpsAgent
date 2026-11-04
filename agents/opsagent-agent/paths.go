@@ -73,6 +73,9 @@ func (p agentPaths) ensure() error {
 		if err := os.MkdirAll(directory, 0o750); err != nil {
 			return fmt.Errorf("create %s: %w", directory, err)
 		}
+		if err := os.Chmod(directory, 0o750); err != nil {
+			return fmt.Errorf("chmod %s: %w", directory, err)
+		}
 	}
 	readme := filepath.Join(p.Tools, "README.txt")
 	if _, err := os.Stat(readme); os.IsNotExist(err) {

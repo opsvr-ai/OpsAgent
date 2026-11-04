@@ -28,6 +28,28 @@ OPSAGENT_DESKTOP_URL=http://127.0.0.1:8080 pnpm --filter @opsagent/desktop start
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install
 ```
 
+## 打包
+
+生成 Windows 免安装目录：
+
+```bash
+pnpm --filter @opsagent/desktop package:dir
+```
+
+产物：
+
+```text
+apps/desktop/release/win-unpacked/OpsAgent.exe
+```
+
+生成 NSIS 安装包（需网络下载 NSIS 工具）：
+
+```bash
+pnpm --filter @opsagent/desktop package:win
+```
+
+打包脚本会自动定位本机 Electron 二进制，不依赖 GitHub 下载。
+
 ## 安全
 
 - `contextIsolation: true`

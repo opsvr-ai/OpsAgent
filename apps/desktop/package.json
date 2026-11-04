@@ -3,12 +3,43 @@
   "version": "0.0.0",
   "private": true,
   "description": "OpsAgent desktop thin client",
+  "author": "OpsAgent",
   "main": "main.cjs",
   "scripts": {
     "start": "node scripts/start.cjs",
-    "dev": "node scripts/start.cjs"
+    "dev": "node scripts/start.cjs",
+    "package:dir": "node scripts/package.cjs --dir",
+    "package:win": "node scripts/package.cjs --win nsis"
   },
   "devDependencies": {
-    "electron": "^34.3.4"
+    "electron": "^34.3.4",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ai.opsvr.opsagent.desktop",
+    "productName": "OpsAgent",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "scripts/**",
+      "README.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

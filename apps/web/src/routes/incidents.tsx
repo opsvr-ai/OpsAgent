@@ -494,7 +494,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                           <button type="button" className="btn btn-outline btn-sm" disabled={templateBusy} onClick={() => setTemplateOpen(false)}>取消</button>
                         </div>
                       </div>
-                      <p className="muted" style={{ margin: '6px 0' }}>占位符：{'{{title}} {{id}} {{severity}} {{status}} {{source}} {{rootCause}} {{evidence}} {{hypotheses}} {{tickets}} {{timeline}}'}</p>
+                      <p className="muted" style={{ margin: '6px 0' }}>占位符：{'{{title}} {{id}} {{severity}} {{status}} {{source}} {{rootCause}} {{evidence}} {{hypotheses}} {{instructions}} {{tickets}} {{timeline}}'}</p>
                       <textarea
                         value={templateBody}
                         onChange={(event) => setTemplateBody(event.target.value)}

@@ -131,6 +131,16 @@ GET /api/agents/:agentId/instructions
 - Agent 详情页「自然语言」页签展示历史
 - 点击历史项加载对应结果
 
+事件报告新增 `{{instructions}}` 段：
+
+```text
+## Agent 排查指令
+- host-1 / completed：检查磁盘...
+  > 磁盘使用率 90%
+```
+
+报告模板编辑提示同步包含 `{{instructions}}`。
+
 前端测试和 API 测试覆盖历史查询。
 
 ### 指令模板

@@ -199,6 +199,14 @@ describe('agent instruction API', () => {
     });
     expect(csv.statusCode).toBe(200);
     expect(csv.body).toContain('磁盘使用率');
+    const report = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${incidentId}/report`,
+      headers: { cookie },
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.body).toContain('Agent 排查指令');
+    expect(report.body).toContain('磁盘使用率');
     await app.close();
   });
 

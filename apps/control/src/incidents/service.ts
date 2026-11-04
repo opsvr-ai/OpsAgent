@@ -40,6 +40,10 @@ export const DEFAULT_INCIDENT_REPORT_TEMPLATE = `# 事件报告：{{title}}
 
 {{hypotheses}}
 
+## Agent 排查指令
+
+{{instructions}}
+
 ## 处置任务
 
 {{tickets}}
@@ -734,6 +738,25 @@ export class IncidentService {
     const detail = await this.getWithEvents(tenantId, id);
     if (!detail) return null;
     const template = await this.getReportTemplate(tenantId);
+    const instructionRows = await this.pool.query<{
+      hostname: string;
+      instruction: string | null;
+      status: string;
+      result: Record<string, unknown> | null;
+    }>(
+      `SELECT a.hostname, c.instruction, c.status, c.result
+       FROM agent_commands c JOIN agents a ON a.id = c.agent_id
+       WHERE c.tenant_id = $1 AND c.incident_id = $2 AND c.type = 'agent_instruction'
+       ORDER BY c.created_at DESC`,
+      [tenantId, id],
+    );
+    const instructionSummary = instructionRows.rows.length > 0
+      ? instructionRows.rows.map((row) => {
+          const answer = typeof row.result?.answer === 'string' ? row.result.answer : '';
+          const indented = answer ? `\n  > ${answer.split('\n').join('\n  > ')}` : '';
+          return `- ${row.hostname} / ${row.status}：${row.instruction ?? '自然语言指令'}${indented}`;
+        }).join('\n')
+      : '- 暂无';
     const segments: Record<string, string> = {
       title: detail.incident.title,
       id: detail.incident.id,
@@ -747,6 +770,7 @@ export class IncidentService {
       hypotheses: detail.hypotheses.length > 0
         ? detail.hypotheses.map((item) => `- ${item.confidence}% ${item.status}：${item.statement}`).join('\n')
         : '- 暂无',
+      instructions: instructionSummary,
       tickets: detail.tickets.length > 0
         ? detail.tickets.map((item) => `- ${item.title}（${item.assignee} / ${item.status}）`).join('\n')
         : '- 暂无',

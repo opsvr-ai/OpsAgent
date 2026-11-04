@@ -244,6 +244,25 @@ deployment.execute
 - 回滚状态正确
 - 审计记录
 
+### 真机实测
+
+在 `opsagent-os-agent` 上完成：
+
+```text
+签名 Release 9.9.9-live2
+  → staging 部署
+  → 审批
+  → 制品预检通过
+  → execute 200
+  → 状态 deployed
+  → Agent /tmp/opsagent-deploy-test 内容正确
+  → rollback 200
+  → 状态 rolled_back
+  → /tmp/opsagent-deploy-test 已删除
+```
+
+同时修正种子 Agent 的未来 `last_seen`，避免部署选择不会拉取命令的演示 Agent。
+
 ## 剩余
 
 - 流量/实例级灰度推进

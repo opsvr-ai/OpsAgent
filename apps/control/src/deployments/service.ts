@@ -515,7 +515,7 @@ export class DeploymentService {
 
   async getDeployment(tenantId: string, id: string): Promise<DeploymentRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, release_id, environment, strategy, canary_percent, status, reason, preflight, created_at
+      `SELECT id, release_id, environment, strategy, canary_percent, status, reason, preflight, execution, created_at
        FROM deployments WHERE tenant_id = $1 AND id = $2`,
       [tenantId, id],
     );

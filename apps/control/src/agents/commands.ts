@@ -1,5 +1,5 @@
 import { randomUUID, createPublicKey, verify as verifySignature } from 'node:crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { CommandSigner, getCommandSigner } from './signing.js';
 
 const SPKI_ED25519_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
@@ -50,8 +50,8 @@ export class AgentCommandService {
     intent?: Readonly<Record<string, unknown>>;
     clientRequestId?: string;
     incidentId?: string;
-  }): Promise<AgentCommandRecord | null> {
-    const agent = await this.pool.query(
+  }, db: Pool | PoolClient = this.pool): Promise<AgentCommandRecord | null> {
+    const agent = await db.query(
       'SELECT 1 FROM agents WHERE tenant_id = $1 AND id = $2',
       [input.tenantId, input.agentId],
     );
@@ -60,7 +60,7 @@ export class AgentCommandService {
     const nonce = randomUUID();
     const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
     const signed = this.signer.signCommand(payload, nonce, expiresAt);
-    const result = await this.pool.query(
+    const result = await db.query(
       `INSERT INTO agent_commands
          (tenant_id, agent_id, type, payload, signed_payload, signature, nonce, key_id, expires_at,
           requested_by, instruction, instruction_intent, client_request_id, incident_id)

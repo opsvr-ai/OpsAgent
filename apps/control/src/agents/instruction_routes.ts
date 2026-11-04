@@ -767,51 +767,173 @@ export function registerAgentInstructionRoutes(
       return reply.code(400).send({ error: 'invalid_approval_count' });
     }
     const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : undefined;
-    const preflight = await pool.query<{
+    const client = await pool.connect();
+    let committed = false;
+    const results: Array<Record<string, unknown>> = [];
+    const decidedRows: Array<{
       id: string;
-      status: string;
-      expires_at: Date;
-      requested_by: string;
+      agent_id: string;
       hostname: string;
-      agent_status: string;
-      last_seen: Date;
-    }>(
-      `SELECT a.id, a.status, a.expires_at, a.requested_by, g.hostname, g.status AS agent_status, g.last_seen
-       FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
-       WHERE a.tenant_id = $1 AND a.id = ANY($2::uuid[])`,
-      [ctx.tenantId, approvalIds],
-    );
-    const byId = new Map(preflight.rows.map((row) => [row.id, row]));
-    const failures = approvalIds.flatMap((approvalId) => {
-      const row = byId.get(approvalId);
-      if (!row) return [{ approvalId, reason: 'not_found' }];
-      if (row.status !== 'pending') return [{ approvalId, reason: 'not_pending' }];
-      if (row.expires_at.getTime() <= Date.now()) return [{ approvalId, reason: 'expired' }];
-      if (body.decision === 'approve'
-        && process.env.OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES === 'true'
-        && row.requested_by === ctx.userId) {
-        return [{ approvalId, reason: 'self_approval_forbidden' }];
-      }
-      if (body.decision === 'approve'
-        && (row.agent_status !== 'online' || row.last_seen.getTime() < Date.now() - 90_000)) {
-        return [{ approvalId, reason: 'agent_offline' }];
-      }
-      return [];
-    });
-    if (failures.length > 0) {
-      return reply.code(409).send({ error: 'batch_preflight_failed', failures });
-    }
-    const results = [];
-    for (const approvalId of approvalIds) {
-      const response = await app.inject({
-        method: 'POST',
-        url: `/api/agent-instruction-approvals/${encodeURIComponent(approvalId)}/decision`,
-        headers: { cookie: request.headers.cookie ?? '' },
-        payload: { decision: body.decision, ...(reason ? { reason } : {}) },
+      instruction: string;
+      action: string;
+      service: string | null;
+      requested_by: string;
+      incident_id: string | null;
+      commandId?: string;
+    }> = [];
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query<{
+        id: string;
+        agent_id: string;
+        hostname: string;
+        instruction: string;
+        action: string;
+        service: string | null;
+        status: string;
+        expires_at: Date;
+        requested_by: string;
+        incident_id: string | null;
+        agent_status: string;
+        last_seen: Date;
+      }>(
+        `SELECT a.id, a.agent_id, g.hostname, a.instruction, a.action, a.service, a.status,
+                a.expires_at, a.requested_by, a.incident_id,
+                g.status AS agent_status, g.last_seen
+         FROM agent_instruction_approvals a JOIN agents g ON g.id = a.agent_id
+         WHERE a.tenant_id = $1 AND a.id = ANY($2::uuid[])
+         FOR UPDATE OF a`,
+        [ctx.tenantId, approvalIds],
+      );
+      const byId = new Map(locked.rows.map((row) => [row.id, row]));
+      const failures = approvalIds.flatMap((approvalId) => {
+        const row = byId.get(approvalId);
+        if (!row) return [{ approvalId, reason: 'not_found' }];
+        if (row.status !== 'pending') return [{ approvalId, reason: 'not_pending' }];
+        if (row.expires_at.getTime() <= Date.now()) return [{ approvalId, reason: 'expired' }];
+        if (body.decision === 'approve'
+          && process.env.OPSAGENT_REQUIRE_SEPARATION_OF_DUTIES === 'true'
+          && row.requested_by === ctx.userId) {
+          return [{ approvalId, reason: 'self_approval_forbidden' }];
+        }
+        if (body.decision === 'approve'
+          && (row.agent_status !== 'online' || row.last_seen.getTime() < Date.now() - 90_000)) {
+          return [{ approvalId, reason: 'agent_offline' }];
+        }
+        return [];
       });
-      let result: Record<string, unknown>;
-      try { result = response.json() as Record<string, unknown>; } catch { result = { error: 'invalid_response' }; }
-      results.push({ approvalId, statusCode: response.statusCode, result });
+      if (failures.length > 0) {
+        await client.query('ROLLBACK');
+        return reply.code(409).send({ error: 'batch_preflight_failed', failures });
+      }
+      for (const approvalId of approvalIds) {
+        const row = byId.get(approvalId);
+        if (!row) throw new Error('approval_missing_after_lock');
+        if (body.decision === 'deny') {
+          await client.query(
+            `UPDATE agent_instruction_approvals
+             SET status = 'denied', decided_by = $1, decided_at = now(), decision_reason = $2
+             WHERE tenant_id = $3 AND id = $4`,
+            [ctx.userId, reason, ctx.tenantId, row.id],
+          );
+          results.push({ approvalId, statusCode: 200, result: { status: 'denied' } });
+          decidedRows.push({ ...row });
+          continue;
+        }
+        const service = row.service ?? '';
+        const intentKind = row.action === 'service_stop'
+          ? 'service_stop'
+          : row.action === 'service_start'
+            ? 'service_start'
+            : row.action === 'service_enable'
+              ? 'service_enable'
+              : row.action === 'service_disable' ? 'service_disable' : 'service_restart';
+        const command = await commands.create({
+          tenantId: ctx.tenantId,
+          agentId: row.agent_id,
+          type: 'agent_instruction',
+          input: {
+            instruction: row.instruction,
+            intent: { kind: intentKind, params: { service }, readOnly: false, risk: 'R2' },
+            readOnly: false,
+          },
+          requestedBy: row.requested_by,
+          instruction: row.instruction,
+          intent: { kind: intentKind, params: { service }, readOnly: false, risk: 'R2' },
+          ...(row.incident_id ? { incidentId: row.incident_id } : {}),
+        }, client);
+        if (!command) throw new Error('command_creation_failed');
+        await client.query(
+          `UPDATE agent_instruction_approvals
+           SET status = 'approved', decided_by = $1, decided_at = now(),
+               decision_reason = $2, command_id = $3
+           WHERE tenant_id = $4 AND id = $5`,
+          [ctx.userId, reason, command.id, ctx.tenantId, row.id],
+        );
+        results.push({ approvalId, statusCode: 202, result: { status: 'approved', instructionId: command.id } });
+        decidedRows.push({ ...row, commandId: command.id });
+      }
+      await client.query('COMMIT');
+      committed = true;
+    } catch (error) {
+      if (!committed) await client.query('ROLLBACK').catch(() => undefined);
+      console.error('batch approval failed', error);
+      return reply.code(500).send({ error: 'batch_approval_failed' });
+    } finally {
+      client.release();
+    }
+
+    for (const row of decidedRows) {
+      if (body.decision === 'deny') {
+        await audit.write({
+          tenantId: ctx.tenantId,
+          actorId: ctx.userId,
+          action: 'agent.instruction.approval.denied',
+          resource: row.id,
+          result: 'success',
+          metadata: { agentId: row.agent_id, service: row.service, batch: true },
+        });
+        notifyApprovalWebhook({
+          type: 'approval_denied',
+          tenantId: ctx.tenantId,
+          approvalId: row.id,
+          agentId: row.agent_id,
+          action: row.action,
+          service: row.service,
+          instruction: row.instruction,
+        }, pool);
+        continue;
+      }
+      if (row.incident_id) {
+        await pool.query(
+          `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+           VALUES ($1, $2, $3, 'instruction_approval_approved', $4::jsonb)`,
+          [ctx.tenantId, row.incident_id, ctx.userId, JSON.stringify({
+            approvalId: row.id,
+            commandId: row.commandId,
+            service: row.service,
+            batch: true,
+          })],
+        );
+      }
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.approval.approved',
+        resource: row.id,
+        result: 'success',
+        metadata: { agentId: row.agent_id, service: row.service, commandId: row.commandId, batch: true },
+      });
+      notifyApprovalWebhook({
+        type: 'approval_approved',
+        tenantId: ctx.tenantId,
+        approvalId: row.id,
+        agentId: row.agent_id,
+        hostname: row.hostname,
+        action: row.action,
+        service: row.service,
+        instruction: row.instruction,
+      }, pool);
     }
     return reply.send({ results });
   });

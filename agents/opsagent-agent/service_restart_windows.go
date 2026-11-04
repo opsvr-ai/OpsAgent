@@ -14,3 +14,10 @@ func controlService(action string, service string) (string, error) {
 	output, err := exec.CommandContext(ctx, "sc.exe", action, service).CombinedOutput()
 	return string(output), err
 }
+
+func serviceStatus(service string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "sc.exe", "query", service).CombinedOutput()
+	return string(output), err
+}

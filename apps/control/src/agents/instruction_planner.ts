@@ -1,7 +1,7 @@
 export type ServiceAction = 'service_restart' | 'service_stop' | 'service_start' | 'service_enable' | 'service_disable';
 
 export interface InstructionIntent {
-  readonly kind: 'inspect' | ServiceAction;
+  readonly kind: 'inspect' | 'service_status' | ServiceAction;
   readonly params: {
     readonly question?: string;
     readonly service?: string;
@@ -17,6 +17,7 @@ export type InstructionPlan =
 
 const writeIntent = /(重启|停止|启动|启用|禁用|关闭|删除|安装|卸载|修改|写入|执行命令|运行命令|kill|restart|stop|start|enable|disable|rm\s|chmod|chown|systemctl\s+(restart|stop|start|enable|disable))/i;
 const serviceActionIntent = /(重启|停止|启动|启用|禁用|restart|stop|start|enable|disable)\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})(?:\s*服务|\s*service)?/i;
+const serviceStatusIntent = /(?:查看|检查|查询|看看)?\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})\s*(?:服务)?\s*(?:状态|status)/i;
 const forbiddenServices = new Set(['system', 'host', 'server', 'os', 'all', 'service', 'restart', 'stop', 'start', 'enable', 'disable']);
 const protectedServices = new Set([
   'systemd', 'sshd', 'ssh', 'network', 'networking', 'dbus',
@@ -68,6 +69,22 @@ export function planInstruction(instruction: string): InstructionPlan {
         risk: 'R2',
       },
     };
+  }
+
+  const statusMatch = serviceStatusIntent.exec(question);
+  if (statusMatch) {
+    const service = (statusMatch[1] ?? '').toLowerCase();
+    if (service && !forbiddenServices.has(service)) {
+      return {
+        ok: true,
+        intent: {
+          kind: 'service_status',
+          params: { service },
+          readOnly: true,
+          confidence: 0.8,
+        },
+      };
+    }
   }
 
   if (writeIntent.test(question)) {

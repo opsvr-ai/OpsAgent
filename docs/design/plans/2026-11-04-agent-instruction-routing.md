@@ -131,9 +131,9 @@ POST /api/agents/:agentId/instructions/:instructionId/cancel
 
 写操作审批仍未实现。
 
-### 写操作审批：服务重启
+### 写操作审批：服务生命周期
 
-支持唯一受控写操作：
+支持受控写操作：
 
 ```text
 重启 nginx 服务
@@ -148,6 +148,16 @@ start nginx service
 enable nginx service
 disable nginx service
 ```
+
+只读服务状态：
+
+```text
+查看 nginx 服务状态
+nginx 服务状态
+service nginx status
+```
+
+状态查询不需要审批，Agent 执行 `systemctl is-active` / `sc query`。
 
 流程：
 

@@ -26,6 +26,30 @@ func runAgentInstruction(input map[string]any) map[string]any {
 	if kind == "" {
 		kind = "inspect"
 	}
+	if kind == "service_status" {
+		params, _ := intent["params"].(map[string]any)
+		service, _ := params["service"].(string)
+		service = strings.TrimSpace(service)
+		if !serviceNamePattern.MatchString(service) {
+			result["error"] = "invalid service name"
+			result["intent"] = intent
+			return result
+		}
+		output, err := serviceStatus(service)
+		result["instruction"] = instruction
+		result["intent"] = intent
+		result["toolsUsed"] = []string{"service.status"}
+		result["evidence"] = map[string]string{"service": service, "output": trimEvidence(output)}
+		if err != nil {
+			result["error"] = fmt.Sprintf("service %s status failed: %v", service, err)
+			result["answer"] = fmt.Sprintf("服务 %s 状态查询失败：%v\n%s", service, err, trimEvidence(output))
+			return result
+		}
+		result["ok"] = true
+		result["answer"] = fmt.Sprintf("服务 %s 状态：%s", service, strings.TrimSpace(output))
+		return result
+	}
+
 	if kind == "service_restart" || kind == "service_stop" || kind == "service_start" ||
 		kind == "service_enable" || kind == "service_disable" {
 		readOnly, _ := input["readOnly"].(bool)

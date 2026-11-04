@@ -52,6 +52,30 @@ export class AgentInstructionMonitor {
           ],
         );
       }
+
+      const expiring = await this.pool.query<{
+        tenant_id: string;
+        service: string | null;
+        instruction: string;
+        expires_at: Date;
+      }>(
+        `UPDATE agent_instruction_approvals
+         SET reminded_at = now()
+         WHERE status = 'pending' AND reminded_at IS NULL
+           AND expires_at > now() AND expires_at <= now() + interval '1 hour'
+         RETURNING tenant_id, service, instruction, expires_at`,
+      );
+      for (const approval of expiring.rows) {
+        await this.pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, $2, $3, 'warning')`,
+          [
+            approval.tenant_id,
+            'Agent 写操作审批即将过期',
+            `${approval.service ?? approval.instruction} 的审批将在 ${approval.expires_at.toISOString()} 过期，请及时处理。`,
+          ],
+        );
+      }
     } catch (error) {
       console.error('agent instruction monitor failed', error);
     }

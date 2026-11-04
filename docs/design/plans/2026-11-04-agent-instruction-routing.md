@@ -197,6 +197,7 @@ POST /api/agent-instruction-approvals/:id/decision
 监控每分钟将过期审批标记为 expired
 待审批页面显示到期时间
 过期时写入消息中心通知
+剩余 1 小时时写入提前提醒（仅一次）
 ```
 
 职责分离：

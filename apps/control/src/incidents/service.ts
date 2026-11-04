@@ -16,6 +16,9 @@ export interface IncidentRecord {
   readonly severity: string;
   readonly status: string;
   readonly commanderId: string | null;
+  readonly source: string;
+  readonly appSystemId: string | null;
+  readonly rootCause: string | null;
 }
 
 export class IncidentService {
@@ -30,7 +33,7 @@ export class IncidentService {
     const incident = await this.pool.query(
       `INSERT INTO incidents (tenant_id, title, severity, created_by)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, title, severity, status, commander_id`,
+       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause`,
       [input.tenantId, input.title, input.severity, input.actorId],
     );
     const row = incident.rows[0];
@@ -54,7 +57,7 @@ export class IncidentService {
 
   async list(tenantId: string): Promise<IncidentRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, title, severity, status, commander_id FROM incidents
+      `SELECT id, title, severity, status, commander_id, source, app_system_id, root_cause FROM incidents
        WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
@@ -63,7 +66,7 @@ export class IncidentService {
 
   async get(tenantId: string, id: string): Promise<IncidentRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, title, severity, status, commander_id FROM incidents
+      `SELECT id, title, severity, status, commander_id, source, app_system_id, root_cause FROM incidents
        WHERE tenant_id = $1 AND id = $2`,
       [tenantId, id],
     );
@@ -73,6 +76,9 @@ export class IncidentService {
   async getWithEvents(tenantId: string, id: string): Promise<{
     incident: IncidentRecord;
     events: Array<{ id: string; type: string; payload: Record<string, unknown>; createdAt: string }>;
+    evidence: Array<{ id: string; kind: string; source: string; summary: string; payload: Record<string, unknown>; createdAt: string }>;
+    hypotheses: Array<{ id: string; statement: string; confidence: number; status: string; createdAt: string }>;
+    tickets: Array<{ id: string; title: string; assignee: string; status: string; createdAt: string }>;
   } | null> {
     const incident = await this.get(tenantId, id);
     if (!incident) return null;
@@ -86,12 +92,55 @@ export class IncidentService {
        WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
       [tenantId, id],
     );
+    const evidence = await this.pool.query<{
+      id: string; kind: string; source: string; summary: string; payload: Record<string, unknown>; created_at: Date;
+    }>(
+      `SELECT id, kind, source, summary, payload, created_at FROM incident_evidence
+       WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
+      [tenantId, id],
+    );
+    const hypotheses = await this.pool.query<{
+      id: string; statement: string; confidence: number; status: string; created_at: Date;
+    }>(
+      `SELECT id, statement, confidence, status, created_at FROM incident_hypotheses
+       WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
+      [tenantId, id],
+    );
+    const tickets = await this.pool.query<{
+      id: string; title: string; assignee: string; status: string; created_at: Date;
+    }>(
+      `SELECT id, title, assignee, status, created_at FROM incident_tickets
+       WHERE tenant_id = $1 AND incident_id = $2 ORDER BY created_at ASC`,
+      [tenantId, id],
+    );
     return {
       incident,
       events: events.rows.map((row) => ({
         id: row.id,
         type: row.type,
         payload: row.payload,
+        createdAt: row.created_at.toISOString(),
+      })),
+      evidence: evidence.rows.map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        source: row.source,
+        summary: row.summary,
+        payload: row.payload,
+        createdAt: row.created_at.toISOString(),
+      })),
+      hypotheses: hypotheses.rows.map((row) => ({
+        id: row.id,
+        statement: row.statement,
+        confidence: row.confidence,
+        status: row.status,
+        createdAt: row.created_at.toISOString(),
+      })),
+      tickets: tickets.rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        assignee: row.assignee,
+        status: row.status,
         createdAt: row.created_at.toISOString(),
       })),
     };
@@ -110,7 +159,7 @@ export class IncidentService {
            commander_id = CASE WHEN $2::boolean THEN $3::uuid ELSE commander_id END,
            updated_at = now()
        WHERE tenant_id = $4 AND id = $5
-       RETURNING id, title, severity, status, commander_id`,
+       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause`,
       [
         input.status ?? null,
         input.commanderId !== undefined,
@@ -140,6 +189,9 @@ export class IncidentService {
     severity: string;
     status: string;
     commander_id: string | null;
+    source?: string;
+    app_system_id?: string | null;
+    root_cause?: string | null;
   }): IncidentRecord {
     return {
       id: row.id,
@@ -147,6 +199,9 @@ export class IncidentService {
       severity: row.severity,
       status: row.status,
       commanderId: row.commander_id,
+      source: row.source ?? 'manual',
+      appSystemId: row.app_system_id ?? null,
+      rootCause: row.root_cause ?? null,
     };
   }
 }

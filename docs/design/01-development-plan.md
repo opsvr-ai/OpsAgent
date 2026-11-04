@@ -1,6 +1,9 @@
 # OpsAgent 开发落地路径（v1.1，执行基线已确认）
 
-> 状态：**计划阶段，不写产品代码**。本文用于确认范围、顺序、验收与人力；确认后才进入开发。
+> **执行状态 2026-11-04（校准）**：本文是 48 周目标计划，**不是已完成清单**。
+> 已落地：G1 主链路、9 个连接器、场景/调度/报告/分享、Studio 基础生成、知识/消息/数据/长任务基础模块、Host Agent 安装/发现/自巡航/告警/应用健康根因/CLI/SSE/只读 exec；P1.6 已完成“异常→应用健康→Incident/证据/假设/任务”事件域切片（见 `docs/design/plans/2026-11-04-commander-slice.md`）。
+> 未完成：P1.5 Desktop 薄客户端；P1.6 Commander fork/事件域/Executor；P2-A Eino ADK Agent Runtime、CSR/mTLS、cgroup 限额；P2-B 签名诊断、受控部署/回滚；G0–G10 未完整签字。
+> Sprint 1 的逐项校准见 `docs/design/plans/2026-11-03-p1-sprint-1.md`。
 > 设计基线：`docs/design/00-platform-design.md`（19 屏原型在 `design/`）。
 > 本轮仅更新开发计划与融合分析；总体设计/汇报材料里的创造模式仍是上一版描述，Commander/P1.6 也尚未回写 00/汇报材料。
 

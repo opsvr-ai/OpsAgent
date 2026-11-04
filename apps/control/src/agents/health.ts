@@ -183,6 +183,17 @@ export class AppHealthService {
           severity,
         ],
       );
+      await this.createIncident({
+        tenantId: agent.tenant_id,
+        appSystemId: agent.app_system_id,
+        eventId,
+        title: `应用系统 ${system.name} 节点异常：${agent.hostname}`,
+        severity: severity === 'critical' ? 'P1' : 'P2',
+        summary,
+        rootCause,
+        findings,
+        triggerAgent: agent.hostname,
+      });
     }
     const row = inserted.rows[0];
     return row ? this.get(agent.tenant_id, String(row.id)) : null;
@@ -212,6 +223,70 @@ export class AppHealthService {
       appSystemId ? [tenantId, appSystemId] : [tenantId],
     );
     return result.rows.map((row) => this.map(row));
+  }
+
+  private async createIncident(input: {
+    tenantId: string;
+    appSystemId: string;
+    eventId: string;
+    title: string;
+    severity: string;
+    summary: string;
+    rootCause: string;
+    findings: AppHealthFinding[];
+    triggerAgent: string;
+  }): Promise<void> {
+    const existing = await this.pool.query('SELECT id FROM incidents WHERE trigger_event_id = $1 LIMIT 1', [input.eventId]);
+    if (existing.rows[0]) return;
+    const user = await this.pool.query<{ id: string }>(
+      `SELECT u.id FROM users u
+       JOIN memberships m ON m.user_id = u.id AND m.tenant_id = $1 AND m.status = 'active'
+       ORDER BY u.created_at LIMIT 1`,
+      [input.tenantId],
+    );
+    const actorId = user.rows[0]?.id;
+    if (!actorId) return;
+    const incident = await this.pool.query<{ id: string }>(
+      `INSERT INTO incidents
+         (tenant_id, title, severity, source, app_system_id, trigger_event_id, root_cause, created_by)
+       VALUES ($1, $2, $3, 'agent_health', $4, $5, $6, $7)
+       RETURNING id`,
+      [input.tenantId, input.title, input.severity, input.appSystemId, input.eventId, input.rootCause, actorId],
+    );
+    const incidentId = incident.rows[0]?.id;
+    if (!incidentId) return;
+    await this.pool.query(
+      `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+       VALUES ($1, $2, $3, 'source_detected', $4::jsonb)`,
+      [input.tenantId, incidentId, actorId, JSON.stringify({
+        source: 'agent_health',
+        triggerAgent: input.triggerAgent,
+        summary: input.summary,
+      })],
+    );
+    await this.pool.query(
+      `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+       VALUES ($1, $2, 'root_cause', 'opsagent-agent', $3, $4::jsonb)`,
+      [input.tenantId, incidentId, input.rootCause, JSON.stringify({ findings: input.findings })],
+    );
+    const logSignals = input.findings.flatMap((finding) => finding.logSignals);
+    if (logSignals.length > 0) {
+      await this.pool.query(
+        `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+         VALUES ($1, $2, 'log_signal', 'application_log', $3, $4::jsonb)`,
+        [input.tenantId, incidentId, logSignals[0]?.slice(0, 500) ?? '', JSON.stringify({ signals: logSignals })],
+      );
+    }
+    await this.pool.query(
+      `INSERT INTO incident_hypotheses (tenant_id, incident_id, statement, confidence, status)
+       VALUES ($1, $2, $3, 80, 'supported')`,
+      [input.tenantId, incidentId, input.rootCause],
+    );
+    await this.pool.query(
+      `INSERT INTO incident_tickets (tenant_id, incident_id, title, assignee, status)
+       VALUES ($1, $2, $3, '值班 SRE', 'todo')`,
+      [input.tenantId, incidentId, `检查 ${input.triggerAgent} 主机与日志证据`],
+    );
   }
 
   private map(row: Record<string, unknown>): AppHealthCheck {

@@ -245,6 +245,9 @@ export interface IncidentSummary {
   readonly severity: string;
   readonly status: string;
   readonly commanderId: string | null;
+  readonly source?: string;
+  readonly appSystemId?: string | null;
+  readonly rootCause?: string | null;
 }
 
 export async function listIncidents(): Promise<IncidentSummary[]> {
@@ -281,6 +284,34 @@ export interface IncidentEvent {
 export interface IncidentDetail {
   readonly incident: IncidentSummary;
   readonly events: readonly IncidentEvent[];
+  readonly evidence?: readonly IncidentEvidence[];
+  readonly hypotheses?: readonly IncidentHypothesis[];
+  readonly tickets?: readonly IncidentTicket[];
+}
+
+export interface IncidentEvidence {
+  readonly id: string;
+  readonly kind: string;
+  readonly source: string;
+  readonly summary: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+}
+
+export interface IncidentHypothesis {
+  readonly id: string;
+  readonly statement: string;
+  readonly confidence: number;
+  readonly status: string;
+  readonly createdAt: string;
+}
+
+export interface IncidentTicket {
+  readonly id: string;
+  readonly title: string;
+  readonly assignee: string;
+  readonly status: string;
+  readonly createdAt: string;
 }
 
 export async function getIncident(id: string): Promise<IncidentDetail> {

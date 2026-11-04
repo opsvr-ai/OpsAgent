@@ -214,14 +214,54 @@ export function Incidents({ onBack }: IncidentsProps) {
                       </div>
                     </div>
                   </div>
+                  {selected.rootCause ? (
+                    <div className="root-cause-box">
+                      <span className="eyebrow">ROOT CAUSE</span>
+                      <p>{selected.rootCause}</p>
+                    </div>
+                  ) : null}
+                  <div className="grid grid-2" style={{ alignItems: 'start', marginTop: 18 }}>
+                    <div>
+                      <h3>证据</h3>
+                      {(detail?.evidence ?? []).length === 0 ? <p className="muted">暂无证据</p> : (
+                        <div className="stack">
+                          {(detail?.evidence ?? []).map((item) => (
+                            <div key={item.id} className="incident-evidence">
+                              <div className="row-between"><strong>{item.kind}</strong><span className="badge badge-neutral">{item.source}</span></div>
+                              <p>{item.summary}</p>
+                              <span className="muted">{formatTime(item.createdAt)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3>故障假设</h3>
+                      {(detail?.hypotheses ?? []).length === 0 ? <p className="muted">暂无假设</p> : (
+                        <div className="stack">
+                          {(detail?.hypotheses ?? []).map((item) => (
+                            <div key={item.id} className="incident-evidence">
+                              <div className="row-between"><strong>{item.confidence}% 置信度</strong><span className="badge badge-warn">{item.status}</span></div>
+                              <p>{item.statement}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <h3 style={{ marginTop: 18 }}>处置任务</h3>
                   <table className="table">
                     <thead><tr><th>任务</th><th>负责人</th><th>状态</th></tr></thead>
                     <tbody>
-                      <tr><td>确认影响范围与用户反馈</td><td>值班 SRE</td><td><span className="badge badge-ok">完成</span></td></tr>
-                      <tr><td>检查数据库连接池与等待事件</td><td>DBA</td><td><span className="badge badge-warn">进行中</span></td></tr>
-                      <tr><td>核对最近发布与配置变更</td><td>SRE</td><td><span className="badge badge-neutral">待办</span></td></tr>
-                      <tr><td>输出根因与复盘材料</td><td>指挥人</td><td><span className="badge badge-neutral">待办</span></td></tr>
+                      {(detail?.tickets ?? []).length === 0 ? (
+                        <tr><td colSpan={3} className="muted">暂无自动生成任务</td></tr>
+                      ) : (detail?.tickets ?? []).map((ticket) => (
+                        <tr key={ticket.id}>
+                          <td>{ticket.title}</td>
+                          <td>{ticket.assignee}</td>
+                          <td><span className={`badge ${ticket.status === 'done' ? 'badge-ok' : 'badge-neutral'}`}>{ticket.status}</span></td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </>

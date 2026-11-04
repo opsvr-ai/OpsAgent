@@ -121,6 +121,17 @@ describe('agent registry API', () => {
       appSystemName: expect.any(String),
       rootCause: expect.stringContaining('磁盘可用空间不足'),
     }]);
+    const incident = await pool.query<{ title: string; source: string; root_cause: string }>(
+      `SELECT title, source, root_cause FROM incidents
+       WHERE tenant_id = $1 AND source = 'agent_health' ORDER BY created_at DESC LIMIT 1`,
+      [tenant],
+    );
+    expect(incident.rows[0]).toMatchObject({
+      source: 'agent_health',
+      root_cause: expect.stringContaining('磁盘可用空间不足'),
+    });
+    const evidence = await pool.query('SELECT 1 FROM incident_evidence WHERE incident_id = (SELECT id FROM incidents WHERE source = $1 LIMIT 1)', ['agent_health']);
+    expect(evidence.rowCount).toBeGreaterThan(0);
 
     const cli = await app.inject({
       method: 'POST',

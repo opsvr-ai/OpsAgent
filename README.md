@@ -2,7 +2,7 @@
 
 Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools + Commander + Eino-based host agents.
 
-> Status: development started. Current: G1 auth/tenant/session/approval/audit/Web, 9 connectors + config/probes, scenarios + scheduler + sharing, Studio + real dsh headless generation, Commander incident API. Dev stack runs in Docker; dsh is installed in the control image and uses the DeepSeek account credentials copied from the host. Next = production hardening.
+> Status (2026-11-04): all current tests/build/E2E pass and the latest commit is pushed to `opsvr-ai/OpsAgent`. Delivered: G1 identity/session/approval/audit/Web, 9 connectors, scenarios/scheduler/sharing, Studio generation, knowledge/messages/data-store/long-task basics, Host Agent install/discovery/patrol/app-health/CLI/SSE/read-only exec, Commander incident evidence/hypothesis/ticket slice. Not complete: P1.5 Desktop, P1.6 Commander executor/approval loop, P2-A Eino ADK/CSR/mTLS/cgroup, P2-B signed deploy/rollback. See `docs/design/plans/2026-11-03-p1-sprint-1.md` and `docs/design/plans/2026-11-04-commander-slice.md`.
 
 ## 容器化开发（推荐）
 

@@ -1739,3 +1739,8 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-health-nodes { display: flex; flex-wrap: wrap; gap: 5px; }
 .health-node { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; font-size: 9.5px; color: var(--text-soft); }
 .health-node.critical { border-color: var(--danger-line, #efd0cc); color: var(--danger, #b5312a); }
+.root-cause-box { margin: 14px 0 0; padding: 11px 13px; border: 1px solid var(--danger-line, #efd0cc); border-radius: 8px; background: var(--danger-soft, #fdf3f1); }
+.root-cause-box p { margin: 5px 0 0; font-size: 11px; line-height: 1.55; color: var(--text); }
+.incident-evidence { padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.incident-evidence p { margin: 6px 0; font-size: 10.5px; line-height: 1.5; color: var(--text-soft); }
+.incident-evidence .muted { font-size: 9.5px; }

@@ -326,6 +326,15 @@ x-opsagent-signature: sha256=<hex>
 
 Webhook 异步发送，3 秒超时，失败不影响审批操作。
 
+重试：
+
+```text
+OPSAGENT_APPROVAL_WEBHOOK_RETRIES=3（默认，1–5）
+非 2xx / 网络错误重试
+间隔 500ms、1000ms...
+最终失败写日志
+```
+
 ### 指令历史
 
 ```http

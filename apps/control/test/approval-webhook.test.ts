@@ -7,6 +7,7 @@ const servers: Array<ReturnType<typeof createServer>> = [];
 afterEach(async () => {
   delete process.env.OPSAGENT_APPROVAL_WEBHOOK_URL;
   delete process.env.OPSAGENT_APPROVAL_WEBHOOK_SECRET;
+  delete process.env.OPSAGENT_APPROVAL_WEBHOOK_RETRIES;
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
 });
 
@@ -49,5 +50,30 @@ describe('approval webhook', () => {
     expect(received?.body).toContain('"approval_requested"');
     expect(received?.body).toContain('"service":"nginx"');
     expect(received?.signature).toMatch(/^sha256=[0-9a-f]{64}$/);
+  });
+
+  it('retries a transient webhook failure', async () => {
+    let calls = 0;
+    const server = createServer((_request, response) => {
+      calls += 1;
+      response.statusCode = calls === 1 ? 500 : 204;
+      response.end();
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no address');
+    process.env.OPSAGENT_APPROVAL_WEBHOOK_URL = `http://127.0.0.1:${address.port}/hook`;
+    process.env.OPSAGENT_APPROVAL_WEBHOOK_RETRIES = '2';
+    notifyApprovalWebhook({
+      type: 'approval_approved',
+      tenantId: 't-1',
+      approvalId: 'a-2',
+      service: 'nginx',
+    });
+    for (let attempt = 0; attempt < 50 && calls < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(calls).toBe(2);
   });
 });

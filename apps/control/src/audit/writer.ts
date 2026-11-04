@@ -43,7 +43,8 @@ export type AuditAction =
   | 'deployment.create'
   | 'deployment.approve'
   | 'deployment.reject'
-  | 'deployment.rollback';
+  | 'deployment.rollback'
+  | 'deployment.preflight';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

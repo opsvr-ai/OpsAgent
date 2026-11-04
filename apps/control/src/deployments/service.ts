@@ -1,4 +1,4 @@
-import { createPublicKey, verify as verifySignature } from 'node:crypto';
+import { createHash, createPublicKey, verify as verifySignature } from 'node:crypto';
 import type { Pool } from 'pg';
 import { canonicalJson, getCommandSigner } from '../agents/signing.js';
 
@@ -22,6 +22,7 @@ export interface DeploymentRecord {
   readonly canaryPercent: number | null;
   readonly status: string;
   readonly reason: string | null;
+  readonly preflight: Record<string, unknown> | null;
   readonly createdAt: string;
 }
 
@@ -121,7 +122,7 @@ export class DeploymentService {
       `INSERT INTO deployments
          (tenant_id, release_id, environment, strategy, canary_percent, status, requested_by)
        VALUES ($1, $2, $3, $4, $5, 'pending', $6)
-       RETURNING id, release_id, environment, strategy, canary_percent, status, reason, created_at`,
+       RETURNING id, release_id, environment, strategy, canary_percent, status, reason, preflight, created_at`,
       [
         input.tenantId,
         input.releaseId,
@@ -146,7 +147,7 @@ export class DeploymentService {
        SET status = $1, approved_by = $2, reason = $3, decided_at = now(),
            finished_at = CASE WHEN $1 = 'rejected' THEN now() ELSE finished_at END
        WHERE id = $4 AND tenant_id = $5 AND status = 'pending'
-       RETURNING id, release_id, environment, strategy, canary_percent, status, reason, created_at`,
+       RETURNING id, release_id, environment, strategy, canary_percent, status, reason, preflight, created_at`,
       [input.decision === 'approve' ? 'approved' : 'rejected', input.actorId, input.reason ?? null, input.deploymentId, input.tenantId],
     );
     return result.rows[0] ? this.mapDeployment(result.rows[0]) : null;
@@ -161,15 +162,57 @@ export class DeploymentService {
       `UPDATE deployments
        SET status = 'rolled_back', reason = $1, finished_at = now()
        WHERE id = $2 AND tenant_id = $3 AND status IN ('approved', 'canary', 'deploying')
-       RETURNING id, release_id, environment, strategy, canary_percent, status, reason, created_at`,
+       RETURNING id, release_id, environment, strategy, canary_percent, status, reason, preflight, created_at`,
       [input.reason, input.deploymentId, input.tenantId],
     );
     return result.rows[0] ? this.mapDeployment(result.rows[0]) : null;
   }
 
+  async preflight(tenantId: string, id: string): Promise<DeploymentRecord | null> {
+    const result = await this.pool.query<{
+      artifact_url: string;
+      sha256: string;
+      version: string;
+      status: string;
+    }>(
+      `SELECT r.artifact_url, r.sha256, r.version, d.status
+       FROM deployments d JOIN releases r ON r.id = d.release_id
+       WHERE d.tenant_id = $1 AND d.id = $2`,
+      [tenantId, id],
+    );
+    const row = result.rows[0];
+    if (!row || !['approved', 'pending'].includes(row.status)) return null;
+    let preflight: Record<string, unknown>;
+    let status = 'preflight_failed';
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const response = await fetch(row.artifact_url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`artifact returned ${response.status}`);
+        const contentLength = Number(response.headers.get('content-length') ?? 0);
+        if (contentLength > 100 * 1024 * 1024) throw new Error('artifact is too large');
+        const body = Buffer.from(await response.arrayBuffer());
+        const actual = createHash('sha256').update(body).digest('hex');
+        const ok = actual === row.sha256;
+        preflight = { ok, expected: row.sha256, actual, bytes: body.length, checkedAt: new Date().toISOString() };
+        if (ok) status = 'preflighted';
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (error) {
+      preflight = { ok: false, error: error instanceof Error ? error.message : String(error), checkedAt: new Date().toISOString() };
+    }
+    await this.pool.query(
+      `UPDATE deployments SET status = $1, preflight = $2::jsonb WHERE tenant_id = $3 AND id = $4`,
+      [status, JSON.stringify(preflight), tenantId, id],
+    );
+    return this.getDeployment(tenantId, id);
+  }
+
   async getDeployment(tenantId: string, id: string): Promise<DeploymentRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, release_id, environment, strategy, canary_percent, status, reason, created_at
+      `SELECT id, release_id, environment, strategy, canary_percent, status, reason, preflight, created_at
        FROM deployments WHERE tenant_id = $1 AND id = $2`,
       [tenantId, id],
     );
@@ -178,7 +221,7 @@ export class DeploymentService {
 
   async listDeployments(tenantId: string): Promise<DeploymentRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, release_id, environment, strategy, canary_percent, status, reason, created_at
+      `SELECT id, release_id, environment, strategy, canary_percent, status, reason, preflight, created_at
        FROM deployments WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
@@ -213,6 +256,7 @@ export class DeploymentService {
     canary_percent: number | null;
     status: string;
     reason: string | null;
+    preflight: Record<string, unknown> | null;
     created_at: Date;
   }): DeploymentRecord {
     return {
@@ -223,6 +267,7 @@ export class DeploymentService {
       canaryPercent: row.canary_percent,
       status: row.status,
       reason: row.reason,
+      preflight: row.preflight,
       createdAt: row.created_at.toISOString(),
     };
   }

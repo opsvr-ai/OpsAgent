@@ -85,6 +85,34 @@ approved / canary / deploying
 rolled_back
 ```
 
+### 制品预检
+
+```text
+POST /api/deployments/:id/preflight
+```
+
+控制面拉取制品并校验：
+
+```text
+HTTP 状态可访问
+尺寸 ≤ 100 MB
+SHA-256 与 Release 清单一致
+```
+
+通过：
+
+```text
+status = preflighted
+preflight = { ok, expected, actual, bytes, checkedAt }
+```
+
+失败：
+
+```text
+status = preflight_failed
+preflight = { ok: false, error, checkedAt }
+```
+
 ### 查询
 
 ```text
@@ -100,6 +128,7 @@ deployment.create
 deployment.approve
 deployment.reject
 deployment.rollback
+deployment.preflight
 ```
 
 ## 验证

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { hash } from '@node-rs/argon2';
 import { Pool } from 'pg';
 import { buildServer } from '../src/server.js';
@@ -87,6 +88,55 @@ describe('release and deployment API', () => {
     });
     expect(rolledBack.statusCode).toBe(200);
     expect(rolledBack.json()).toMatchObject({ status: 'rolled_back' });
+    await app.close();
+  });
+
+  it('preflights the deployment artifact checksum', async () => {
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+    });
+    const cookie = await login(app);
+    const signer = getCommandSigner();
+    const body = Buffer.from('opsagent-release-artifact');
+    const manifest = {
+      appSystemId: null,
+      version: '2.0.0',
+      artifactUrl: `data:application/octet-stream;base64,${body.toString('base64')}`,
+      sha256: createHash('sha256').update(body).digest('hex'),
+    };
+    const signed = signer.sign(manifest);
+    const release = await app.inject({
+      method: 'POST',
+      url: '/api/releases',
+      headers: { cookie },
+      payload: { ...manifest, signature: signed.signature },
+    });
+    const releaseId = (release.json() as { id: string }).id;
+    const deployment = await app.inject({
+      method: 'POST',
+      url: '/api/deployments',
+      headers: { cookie },
+      payload: { releaseId, strategy: 'rolling' },
+    });
+    const deploymentId = (deployment.json() as { id: string }).id;
+    await app.inject({
+      method: 'POST',
+      url: `/api/deployments/${deploymentId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    const preflight = await app.inject({
+      method: 'POST',
+      url: `/api/deployments/${deploymentId}/preflight`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(preflight.statusCode).toBe(200);
+    expect(preflight.json()).toMatchObject({
+      status: 'preflighted',
+      preflight: { ok: true, bytes: body.length },
+    });
     await app.close();
   });
 

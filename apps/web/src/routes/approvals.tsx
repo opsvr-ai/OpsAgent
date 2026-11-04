@@ -49,30 +49,39 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void listApprovals()
-      .then(setApprovals)
-      .catch(() => setError('审批加载失败'));
-    void listAgentInstructionApprovals()
-      .then(setInstructionApprovals)
-      .catch(() => undefined);
-    void listAgentInstructionApprovals('decided')
-      .then(setInstructionHistory)
-      .catch(() => undefined);
-    void listApprovalWebhookDeliveries('failed')
-      .then(setWebhookFailures)
-      .catch(() => undefined);
-    void listApprovalWebhookDeliveries('delivered')
-      .then(setWebhookDelivered)
-      .catch(() => undefined);
-    void listApprovalSideEffectFailures()
-      .then(setSideEffectFailures)
-      .catch(() => undefined);
-    void listOperationsAlertDeliveries()
-      .then(setOperationsAlerts)
-      .catch(() => undefined);
-    void listNotificationStats(statsHours)
-      .then(setNotificationStats)
-      .catch(() => undefined);
+    let cancelled = false;
+    const load = (): void => {
+      void listApprovals()
+        .then((value) => { if (!cancelled) setApprovals(value); })
+        .catch(() => { if (!cancelled) setError('审批加载失败'); });
+      void listAgentInstructionApprovals()
+        .then((value) => { if (!cancelled) setInstructionApprovals(value); })
+        .catch(() => undefined);
+      void listAgentInstructionApprovals('decided')
+        .then((value) => { if (!cancelled) setInstructionHistory(value); })
+        .catch(() => undefined);
+      void listApprovalWebhookDeliveries('failed')
+        .then((value) => { if (!cancelled) setWebhookFailures(value); })
+        .catch(() => undefined);
+      void listApprovalWebhookDeliveries('delivered')
+        .then((value) => { if (!cancelled) setWebhookDelivered(value); })
+        .catch(() => undefined);
+      void listApprovalSideEffectFailures()
+        .then((value) => { if (!cancelled) setSideEffectFailures(value); })
+        .catch(() => undefined);
+      void listOperationsAlertDeliveries()
+        .then((value) => { if (!cancelled) setOperationsAlerts(value); })
+        .catch(() => undefined);
+      void listNotificationStats(statsHours)
+        .then((value) => { if (!cancelled) setNotificationStats(value); })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [statsHours]);
 
   async function decideInstruction(id: string, decision: 'approve' | 'deny') {

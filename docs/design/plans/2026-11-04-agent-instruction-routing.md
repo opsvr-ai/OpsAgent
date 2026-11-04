@@ -311,6 +311,8 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
 
 审批历史支持导出 CSV：hostname / service / action / status / decidedAt / reason。
 
+审批页面每 15 秒自动刷新：待审批、历史、Webhook、副作用失败、运维告警和趋势。
+
 批准后创建的命令可在指令历史、Incident 和审计中追踪。
 
 审批保护：

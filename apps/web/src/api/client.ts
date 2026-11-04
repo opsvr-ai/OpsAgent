@@ -711,10 +711,11 @@ export async function listAgentInstructionApprovals(
 export async function decideAgentInstructionApproval(
   id: string,
   decision: 'approve' | 'deny',
+  reason?: string,
 ): Promise<void> {
   await request<{ status: string }>(`/api/agent-instruction-approvals/${id}/decision`, {
     method: 'POST',
-    body: JSON.stringify({ decision }),
+    body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
   });
 }
 

@@ -180,8 +180,10 @@ POST /api/agent-instruction-approvals/:id/decision
 
 ```text
 待审批
-最近审批历史（approved / denied / canceled）
+剩余有效期（分钟 / 小时）
+最近审批历史（approved / denied / canceled / expired）
 决定时间
+拒绝原因
 批量批准 / 批量拒绝
 ```
 

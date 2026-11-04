@@ -13,6 +13,15 @@ export interface ApprovalsProps {
   readonly onBack: () => void;
 }
 
+function expiryLabel(value?: string | null): string | null {
+  if (!value) return null;
+  const remaining = new Date(value).getTime() - Date.now();
+  if (remaining <= 0) return '已过期';
+  const minutes = Math.ceil(remaining / 60_000);
+  if (minutes < 60) return `${minutes} 分钟后过期`;
+  return `${Math.ceil(minutes / 60)} 小时后过期`;
+}
+
 export function Approvals({ onBack }: ApprovalsProps) {
   const [approvals, setApprovals] = useState<ApprovalSummary[] | null>(null);
   const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
@@ -34,8 +43,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
 
   async function decideInstruction(id: string, decision: 'approve' | 'deny') {
     setError(null);
+    const reason = decision === 'deny' ? window.prompt('拒绝原因（可选）') ?? undefined : undefined;
     try {
-      await decideAgentInstructionApproval(id, decision);
+      await decideAgentInstructionApproval(id, decision, reason || undefined);
       setInstructionApprovals((current) => current.filter((item) => item.id !== id));
       setInstructionHistory(await listAgentInstructionApprovals('decided'));
     } catch {
@@ -47,9 +57,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
     if (instructionApprovals.length === 0) return;
     setInstructionBusy(true);
     setError(null);
+    const reason = decision === 'deny' ? window.prompt('批量拒绝原因（可选）') ?? undefined : undefined;
     try {
       const results = await Promise.allSettled(
-        instructionApprovals.map((item) => decideAgentInstructionApproval(item.id, decision)),
+        instructionApprovals.map((item) => decideAgentInstructionApproval(item.id, decision, reason || undefined)),
       );
       const succeeded = new Set(
         instructionApprovals
@@ -109,7 +120,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span className="badge badge-neutral">{approval.risk}</span>
                 </div>
                 <p>{approval.instruction}</p>
-                {approval.expiresAt ? <span className="muted">审批到期：{new Date(approval.expiresAt).toLocaleString()}</span> : null}
+                {approval.expiresAt ? <span className="muted">审批到期：{new Date(approval.expiresAt).toLocaleString()}（{expiryLabel(approval.expiresAt)}）</span> : null}
                 <div className="row-sm">
                   <button type="button" className="btn btn-primary btn-sm" onClick={() => void decideInstruction(approval.id, 'approve')}>批准</button>
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => void decideInstruction(approval.id, 'deny')}>拒绝</button>
@@ -130,6 +141,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                   <span>{approval.service ?? approval.action}</span>
                   <span className={`badge ${approval.status === 'approved' ? 'badge-ok' : 'badge-neutral'}`}>{approval.status}</span>
                   <span className="muted">{approval.decidedAt ? new Date(approval.decidedAt).toLocaleString() : '—'}</span>
+                  {approval.decisionReason ? <span className="muted">原因：{approval.decisionReason}</span> : null}
                 </div>
               ))}
             </div>

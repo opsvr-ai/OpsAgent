@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type certificateResponse struct {
@@ -18,6 +19,22 @@ type certificateResponse struct {
 	CA           string `json:"ca"`
 	SerialNumber string `json:"serialNumber"`
 	ExpiresAt    string `json:"expiresAt"`
+}
+
+func certificateNeedsRenewal(certPath string) bool {
+	data, err := os.ReadFile(certPath)
+	if err != nil {
+		return true
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return true
+	}
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return true
+	}
+	return time.Until(certificate.NotAfter) < 7*24*time.Hour
 }
 
 func enrollAgentCertificate(controlURL, agentID, agentKey, hostname string, paths agentPaths) error {
@@ -37,7 +54,7 @@ func enrollAgentCertificate(controlURL, agentID, agentKey, hostname string, path
 	if caPath == "" {
 		caPath = filepath.Join(dir, "ca.pem")
 	}
-	if _, err := os.Stat(certPath); err == nil {
+	if !certificateNeedsRenewal(certPath) {
 		return nil
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

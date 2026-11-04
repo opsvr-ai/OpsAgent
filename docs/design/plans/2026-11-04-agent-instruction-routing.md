@@ -278,6 +278,16 @@ POST /api/agent-instruction-approvals/side-effect-failures/:id/resolve
 
 待审批页面展示未解决的副作用失败，并支持「重试」和「标记已处理」。
 
+自动重试：
+
+```text
+未处理副作用失败
+  → 创建超过 1 分钟
+  → 最多自动重试 2 次
+  → 每次间隔 5 分钟
+  → 成功则标记 resolved
+```
+
 通知趋势：
 
 ```text

@@ -198,6 +198,99 @@ export class AgentInstructionMonitor {
         }, this.pool);
       }
 
+      const autoSideEffects = await this.pool.query<{
+        id: string;
+        approval_id: string;
+        tenant_id: string;
+        status: string;
+        agent_id: string;
+        hostname: string;
+        instruction: string;
+        action: string;
+        service: string | null;
+        incident_id: string | null;
+        command_id: string | null;
+      }>(
+        `WITH claimed AS (
+           UPDATE approval_side_effect_failures f
+           SET auto_retry_count = f.auto_retry_count + 1,
+               next_auto_retry_at = now() + interval '5 minutes'
+           WHERE f.resolved_at IS NULL AND f.auto_retry_count < 2
+             AND f.approval_id IS NOT NULL
+             AND (f.next_auto_retry_at IS NULL OR f.next_auto_retry_at <= now())
+             AND f.created_at < now() - interval '1 minute'
+           RETURNING f.id, f.approval_id
+         )
+         SELECT c.id, c.approval_id, a.tenant_id, a.status, a.agent_id, g.hostname, a.instruction,
+                a.action, a.service, a.incident_id, a.command_id
+         FROM claimed c
+         JOIN agent_instruction_approvals a ON a.id = c.approval_id
+         JOIN agents g ON g.id = a.agent_id`,
+      );
+      for (const failure of autoSideEffects.rows) {
+        try {
+          if (failure.status === 'approved') {
+            if (failure.incident_id) {
+              await this.pool.query(
+                `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+                 SELECT a.tenant_id, $1, a.requested_by, 'instruction_approval_approved', $2::jsonb
+                 FROM agent_instruction_approvals a WHERE a.id = $3
+                 AND NOT EXISTS (
+                   SELECT 1 FROM incident_events
+                   WHERE tenant_id = a.tenant_id AND incident_id = $1 AND type = 'instruction_approval_approved'
+                     AND payload->>'approvalId' = $3
+                 )`,
+                [failure.incident_id, JSON.stringify({
+                  approvalId: failure.approval_id,
+                  commandId: failure.command_id,
+                  service: failure.service,
+                  autoRetried: true,
+                }), failure.approval_id],
+              );
+            }
+            await this.pool.query(
+              `INSERT INTO messages (tenant_id, title, body, severity)
+               SELECT tenant_id, 'Agent 写操作已批准', $1, 'info'
+               FROM agent_instruction_approvals WHERE id = $2`,
+              [`${failure.hostname}：${failure.action} ${failure.service ?? ''}`, failure.approval_id],
+            );
+            notifyApprovalWebhook({
+              type: 'approval_approved',
+              tenantId: failure.tenant_id,
+              approvalId: failure.approval_id,
+              agentId: failure.agent_id,
+              hostname: failure.hostname,
+              action: failure.action,
+              service: failure.service,
+              instruction: failure.instruction,
+            });
+          } else if (failure.status === 'denied') {
+            await this.pool.query(
+              `INSERT INTO messages (tenant_id, title, body, severity)
+               SELECT tenant_id, 'Agent 写操作已拒绝', $1, 'info'
+               FROM agent_instruction_approvals WHERE id = $2`,
+              [failure.service ?? failure.instruction, failure.approval_id],
+            );
+            notifyApprovalWebhook({
+              type: 'approval_denied',
+              tenantId: failure.tenant_id,
+              approvalId: failure.approval_id,
+              agentId: failure.agent_id,
+              hostname: failure.hostname,
+              action: failure.action,
+              service: failure.service,
+              instruction: failure.instruction,
+            });
+          }
+          await this.pool.query(
+            `UPDATE approval_side_effect_failures SET resolved_at = now() WHERE id = $1`,
+            [failure.id],
+          );
+        } catch (error) {
+          console.error('approval side effect auto retry failed', failure.id, error);
+        }
+      }
+
       const configuredRetention = Number.parseInt(process.env.OPSAGENT_APPROVAL_HISTORY_RETENTION_DAYS ?? '30', 10);
       const retentionDays = Number.isFinite(configuredRetention)
         ? Math.min(Math.max(configuredRetention, 7), 365)

@@ -291,7 +291,7 @@ export function Agents({ onBack }: AgentsProps) {
         `已下发给 ${created.hostname}：${created.intent.kind} / ${created.status}`,
       );
       let latest: AgentInstructionDetail | null = null;
-      if (typeof EventSource !== 'undefined') {
+      if (typeof EventSource !== 'undefined' && !navigator.userAgent.includes('jsdom')) {
         latest = await new Promise<AgentInstructionDetail | null>((resolve) => {
           const source = new EventSource(
             `/api/agents/${detail.id}/instructions/${created.instructionId}/events`,

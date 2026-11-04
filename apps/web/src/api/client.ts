@@ -291,6 +291,16 @@ export interface IncidentDetail {
   readonly approvals?: readonly IncidentApproval[];
 }
 
+export interface IncidentInstruction {
+  readonly instructionId: string;
+  readonly hostname: string;
+  readonly instruction: string | null;
+  readonly status: string;
+  readonly answer: string;
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+}
+
 export interface IncidentEvidence {
   readonly id: string;
   readonly kind: string;
@@ -329,6 +339,10 @@ export interface IncidentApproval {
 
 export async function getIncident(id: string): Promise<IncidentDetail> {
   return request<IncidentDetail>(`/api/incidents/${id}`);
+}
+
+export async function getIncidentInstructions(id: string): Promise<IncidentInstruction[]> {
+  return request<IncidentInstruction[]>(`/api/incidents/${id}/instructions`);
 }
 
 export async function investigateIncident(id: string): Promise<IncidentDetail> {

@@ -7,6 +7,7 @@ import {
   getAgentFleet,
   getAgentInstruction,
   getIncident,
+  getIncidentInstructions,
   getIncidentReportTemplate,
   investigateIncident,
   listIncidents,
@@ -18,6 +19,7 @@ import {
   type AgentInstructionDetail,
   type AgentSummary,
   type IncidentDetail,
+  type IncidentInstruction,
   type IncidentSummary,
   type MemberSummary,
 } from '../api/client.js';
@@ -90,6 +92,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [instructionNote, setInstructionNote] = useState<string | null>(null);
   const [instructionError, setInstructionError] = useState<string | null>(null);
   const [instructionResult, setInstructionResult] = useState<AgentInstructionDetail | null>(null);
+  const [linkedInstructions, setLinkedInstructions] = useState<IncidentInstruction[]>([]);
 
   useEffect(() => {
     void listIncidents()
@@ -106,6 +109,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      setLinkedInstructions([]);
       return;
     }
     const request = ++detailRequest.current;
@@ -114,7 +118,8 @@ export function Incidents({ onBack }: IncidentsProps) {
         if (request === detailRequest.current) setDetail(value);
       })
       .catch(() => setError('事件详情加载失败'));
-  }, [selectedId]);
+    void getIncidentInstructions(selectedId).then(setLinkedInstructions).catch(() => undefined);
+  }, [selectedId, instructionResult?.status]);
 
   async function create() {
     if (!title.trim()) {
@@ -290,6 +295,7 @@ export function Incidents({ onBack }: IncidentsProps) {
       }
       setInstructionNote(latest ? `指令状态：${latest.status}` : null);
       setDetail(await getIncident(incidentId));
+      setLinkedInstructions(await getIncidentInstructions(incidentId));
     } catch {
       setInstructionError('指令下发失败');
     } finally {
@@ -611,6 +617,23 @@ export function Incidents({ onBack }: IncidentsProps) {
                       )}
                     </div>
                   </div>
+                  <h3 style={{ marginTop: 18 }}>Agent 排查指令</h3>
+                  {linkedInstructions.length === 0 ? <p className="muted">暂无关联指令</p> : (
+                    <table className="table">
+                      <thead><tr><th>Agent</th><th>指令</th><th>状态</th><th>结果</th><th>时间</th></tr></thead>
+                      <tbody>
+                        {linkedInstructions.map((item) => (
+                          <tr key={item.instructionId}>
+                            <td className="mono">{item.hostname}</td>
+                            <td>{item.instruction ?? '—'}</td>
+                            <td><span className={`badge ${item.status === 'completed' ? 'badge-ok' : item.status === 'failed' ? 'badge-danger' : 'badge-neutral'}`}>{item.status}</span></td>
+                            <td><pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{item.answer || '—'}</pre></td>
+                            <td className="muted">{formatTime(item.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                   <h3 style={{ marginTop: 18 }}>处置任务</h3>
                   <table className="table">
                     <thead><tr><th>任务</th><th>负责人</th><th>状态</th></tr></thead>

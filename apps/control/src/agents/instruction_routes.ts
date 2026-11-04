@@ -21,10 +21,14 @@ async function context(pool: Pool, request: FastifyRequest) {
 
 interface InstructionDetailRow {
   id: string;
+  agent_id: string;
   status: string;
   result: Record<string, unknown> | null;
   instruction: string | null;
   instruction_intent: Record<string, unknown> | null;
+  requested_by: string | null;
+  incident_id: string | null;
+  incident_linked_at: Date | null;
   created_at: Date;
   completed_at: Date | null;
 }
@@ -36,12 +40,53 @@ async function loadInstruction(
   instructionId: string,
 ): Promise<InstructionDetailRow | null> {
   const result = await pool.query<InstructionDetailRow>(
-    `SELECT id, status, result, instruction, instruction_intent, created_at, completed_at
+    `SELECT id, agent_id, status, result, instruction, instruction_intent, requested_by,
+            incident_id, incident_linked_at, created_at, completed_at
      FROM agent_commands
      WHERE tenant_id = $1 AND agent_id = $2 AND id = $3 AND type = 'agent_instruction'`,
     [tenantId, agentId, instructionId],
   );
   return result.rows[0] ?? null;
+}
+
+async function linkInstructionToIncident(
+  pool: Pool,
+  tenantId: string,
+  row: InstructionDetailRow,
+  actorId: string,
+): Promise<void> {
+  if (!row.incident_id || row.incident_linked_at || !['completed', 'failed'].includes(row.status)) return;
+  const claim = await pool.query(
+    `UPDATE agent_commands SET incident_linked_at = now()
+     WHERE id = $1 AND tenant_id = $2 AND incident_linked_at IS NULL RETURNING id`,
+    [row.id, tenantId],
+  );
+  if (!claim.rows[0]) return;
+  const payload = row.result ?? {};
+  const answer = typeof payload.answer === 'string' ? payload.answer : '';
+  const summary = answer.length > 1200 ? `${answer.slice(0, 1200)}\n…` : answer || `指令状态 ${row.status}`;
+  await pool.query(
+    `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
+     VALUES ($1, $2, 'agent_instruction', 'opsagent-agent', $3, $4::jsonb)`,
+    [tenantId, row.incident_id, summary, JSON.stringify({
+      commandId: row.id,
+      instruction: row.instruction,
+      status: row.status,
+      intent: row.instruction_intent,
+      answer,
+      evidence: payload.evidence ?? null,
+      toolsUsed: payload.toolsUsed ?? null,
+    })],
+  );
+  await pool.query(
+    `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+     VALUES ($1, $2, $3, 'instruction_completed', $4::jsonb)`,
+    [tenantId, row.incident_id, row.requested_by ?? actorId, JSON.stringify({
+      commandId: row.id,
+      agentId: row.agent_id,
+      status: row.status,
+    })],
+  );
 }
 
 function instructionResponse(row: InstructionDetailRow): Record<string, unknown> {
@@ -239,10 +284,21 @@ export function registerAgentInstructionRoutes(
     const body = request.body as {
       instruction?: unknown;
       clientRequestId?: unknown;
+      incidentId?: unknown;
     } | undefined;
     if (typeof body?.instruction !== 'string') return reply.code(400).send({ error: 'invalid_request' });
     const plan = planInstruction(body.instruction);
     if (!plan.ok) return reply.code(400).send({ error: plan.error, message: plan.reason });
+
+    let incidentId: string | undefined;
+    if (typeof body.incidentId === 'string') {
+      const incident = await pool.query('SELECT 1 FROM incidents WHERE id = $1 AND tenant_id = $2', [
+        body.incidentId,
+        ctx.tenantId,
+      ]);
+      if (!incident.rows[0]) return reply.code(404).send({ error: 'incident_not_found' });
+      incidentId = body.incidentId;
+    }
 
     const agent = await pool.query<{
       hostname: string;
@@ -295,6 +351,7 @@ export function registerAgentInstructionRoutes(
       instruction: body.instruction.trim(),
       intent: plan.intent as unknown as Record<string, unknown>,
       ...(clientRequestId ? { clientRequestId } : {}),
+      ...(incidentId ? { incidentId } : {}),
     });
     if (!command) return reply.code(404).send({ error: 'agent_not_found' });
 
@@ -314,6 +371,7 @@ export function registerAgentInstructionRoutes(
       hostname: target.hostname,
       status: command.status,
       intent: plan.intent,
+      ...(incidentId ? { incidentId } : {}),
     });
   });
 
@@ -330,6 +388,7 @@ export function registerAgentInstructionRoutes(
       }
       const row = await loadInstruction(pool, ctx.tenantId, request.params.id, request.params.instructionId);
       if (!row) return reply.code(404).send({ error: 'instruction_not_found' });
+      await linkInstructionToIncident(pool, ctx.tenantId, row, ctx.userId);
       return reply.send(instructionResponse(row));
     },
   );
@@ -344,7 +403,8 @@ export function registerAgentInstructionRoutes(
       throw error;
     }
     const result = await pool.query<InstructionDetailRow>(
-      `SELECT id, status, result, instruction, instruction_intent, created_at, completed_at
+      `SELECT id, agent_id, status, result, instruction, instruction_intent, requested_by,
+              incident_id, incident_linked_at, created_at, completed_at
        FROM agent_commands
        WHERE tenant_id = $1 AND agent_id = $2 AND type = 'agent_instruction'
        ORDER BY created_at DESC LIMIT 20`,
@@ -396,6 +456,7 @@ export function registerAgentInstructionRoutes(
           break;
         }
         if (row.status === 'completed' || row.status === 'failed') {
+          await linkInstructionToIncident(pool, ctx.tenantId, row, ctx.userId);
           const detail = instructionResponse(row);
           const answer = typeof detail.answer === 'string' ? detail.answer : '';
           for (let index = 0; index < answer.length && !closed; index += 80) {

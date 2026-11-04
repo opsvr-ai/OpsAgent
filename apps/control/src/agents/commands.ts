@@ -49,6 +49,7 @@ export class AgentCommandService {
     instruction?: string;
     intent?: Readonly<Record<string, unknown>>;
     clientRequestId?: string;
+    incidentId?: string;
   }): Promise<AgentCommandRecord | null> {
     const agent = await this.pool.query(
       'SELECT 1 FROM agents WHERE tenant_id = $1 AND id = $2',
@@ -62,8 +63,8 @@ export class AgentCommandService {
     const result = await this.pool.query(
       `INSERT INTO agent_commands
          (tenant_id, agent_id, type, payload, signed_payload, signature, nonce, key_id, expires_at,
-          requested_by, instruction, instruction_intent, client_request_id)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
+          requested_by, instruction, instruction_intent, client_request_id, incident_id)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14)
        RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
       [
         input.tenantId,
@@ -79,6 +80,7 @@ export class AgentCommandService {
         input.instruction ?? null,
         input.intent ? JSON.stringify(input.intent) : null,
         input.clientRequestId ?? null,
+        input.incidentId ?? null,
       ],
     );
     return this.map(result.rows[0]);

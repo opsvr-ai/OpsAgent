@@ -150,6 +150,15 @@ describe('agent instruction API', () => {
     expect(write.statusCode).toBe(400);
     expect((write.json() as { error: string }).error).toBe('unsupported_instruction');
 
+    const badIncident = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '看看磁盘', incidentId: randomUUID() },
+    });
+    expect(badIncident.statusCode).toBe(404);
+    expect((badIncident.json() as { error: string }).error).toBe('incident_not_found');
+
     await pool.query('UPDATE agents SET last_seen = now() - interval \'10 minutes\' WHERE id = $1', [agentId]);
     const offline = await app.inject({
       method: 'POST',

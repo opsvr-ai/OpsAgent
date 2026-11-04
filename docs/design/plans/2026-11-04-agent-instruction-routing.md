@@ -126,6 +126,30 @@ agent.instruction.template.create
 agent.instruction.template.delete
 ```
 
+### Incident 证据联动
+
+创建指令时可选：
+
+```json
+{
+  "instruction": "检查磁盘为什么满了",
+  "incidentId": "uuid"
+}
+```
+
+完成后首次查询 / SSE 终态时：
+
+```text
+incident_evidence
+  kind = agent_instruction
+  包含 answer / evidence / toolsUsed / commandId
+
+incident_events
+  type = instruction_completed
+```
+
+使用 `incident_linked_at` 做幂等，重复查询不会重复写证据。
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

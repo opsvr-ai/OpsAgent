@@ -614,6 +614,31 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('resolves an approval side-effect failure', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const inserted = await pool.query<{ id: string }>(
+      `INSERT INTO approval_side_effect_failures (tenant_id, approval_id, effect, error)
+       VALUES ($1, NULL, 'approval_denied_notification', 'message_insert_failed') RETURNING id`,
+      [tenantId],
+    );
+    const failureId = inserted.rows[0]?.id;
+    const resolved = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/side-effect-failures/${failureId}/resolve`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(resolved.statusCode).toBe(200);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals/side-effect-failures',
+      headers: { cookie },
+    });
+    expect((list.json() as Array<{ id: string }>).some((item) => item.id === failureId)).toBe(false);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

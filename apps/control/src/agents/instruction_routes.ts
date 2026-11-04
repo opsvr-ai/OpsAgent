@@ -794,6 +794,36 @@ export function registerAgentInstructionRoutes(
     })));
   });
 
+  app.post<{ Params: { failureId: string } }>(
+    '/api/agent-instruction-approvals/side-effect-failures/:failureId/resolve',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'approval.decide');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const result = await pool.query<{ id: string }>(
+        `UPDATE approval_side_effect_failures
+         SET resolved_at = now()
+         WHERE tenant_id = $1 AND id = $2 AND resolved_at IS NULL
+         RETURNING id`,
+        [ctx.tenantId, request.params.failureId],
+      );
+      if (!result.rows[0]) return reply.code(404).send({ error: 'failure_not_found' });
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.approval.side_effect.resolve',
+        resource: request.params.failureId,
+        result: 'success',
+      });
+      return reply.send({ ok: true, failureId: request.params.failureId });
+    },
+  );
+
   app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

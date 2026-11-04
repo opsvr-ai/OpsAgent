@@ -57,7 +57,8 @@ export type AuditAction =
   | 'agent.instruction.approval.requested'
   | 'agent.instruction.approval.approved'
   | 'agent.instruction.approval.denied'
-  | 'agent.instruction.approval.canceled';
+  | 'agent.instruction.approval.canceled'
+  | 'agent.instruction.approval.side_effect.resolve';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

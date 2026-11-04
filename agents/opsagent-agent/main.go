@@ -71,6 +71,8 @@ func runCommand(commandType string, metrics map[string]any) map[string]any {
 func runCommandWithInput(commandType string, metrics map[string]any, input map[string]any) map[string]any {
 	result := map[string]any{"type": commandType, "ok": true}
 	switch commandType {
+	case "agent_instruction":
+		return runAgentInstruction(input)
 	case "diagnostics":
 		result["metrics"] = metrics
 	case "deployment_execute":
@@ -271,7 +273,7 @@ func runDaemon(paths agentPaths) {
 		OS:              runtime.GOOS,
 		Arch:            runtime.GOARCH,
 		Version:         agentVersion,
-		Capabilities:    []string{"cpu", "memory", "disk", "network", "uptime", "load", "processes", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot", "deployment.execute"},
+		Capabilities:    []string{"cpu", "memory", "disk", "network", "uptime", "load", "processes", "system.discover", "applications.discover", "self.patrol", "inspect", "agent.instruction", "snapshot", "deployment.execute"},
 		ResultPublicKey: resultPublicKeyBase64,
 		Discovery:       &initialDiscovery,
 	}, &registered); err != nil {

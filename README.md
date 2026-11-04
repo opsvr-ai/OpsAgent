@@ -8,6 +8,8 @@ Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools
 >
 > 多 Agent 异常分析与协同排查：[2026-11-04-agent-collaboration.md](docs/design/plans/2026-11-04-agent-collaboration.md)。
 >
+> 指定 Agent 下发自然语言指令（Phase 1 后端）：[2026-11-04-agent-instruction-routing.md](docs/design/plans/2026-11-04-agent-instruction-routing.md)。
+>
 > Agent 运行时长与主机概览能力：[2026-11-04-agent-capabilities.md](docs/design/plans/2026-11-04-agent-capabilities.md)。
 >
 > 发布说明：[RELEASE.md](docs/RELEASE.md)。

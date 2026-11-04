@@ -296,7 +296,7 @@ func collectDiscovery(started time.Time, metrics map[string]any) discoveryReport
 		"snapshotPath":  paths.Snapshots,
 		"controlURL":    env("OPSAGENT_CONTROL_URL", ""),
 		"startedAt":     started.UTC().Format(time.RFC3339),
-		"capabilities":  []string{"system.discover", "applications.discover", "metrics", "uptime", "load", "processes", "diagnostics", "controlled_exec", "self.patrol", "inspect", "snapshot"},
+		"capabilities":  []string{"system.discover", "applications.discover", "metrics", "uptime", "load", "processes", "diagnostics", "controlled_exec", "self.patrol", "inspect", "agent.instruction", "snapshot"},
 	}
 	return discoveryReport{
 		System:       system,

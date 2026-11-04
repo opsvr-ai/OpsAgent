@@ -1,5 +1,36 @@
 # 指定 Agent 下发自然语言指令：设计
 
+## Phase 1 已实现
+
+```text
+POST /api/agents/:agentId/instructions
+GET  /api/agents/:agentId/instructions/:instructionId
+```
+
+- 操作员 Session 认证 + `agent.manage` 权限
+- 目标 Agent 必须属于当前租户
+- 离线超过 90 秒返回 409
+- 自然语言由服务端规则规划为只读 `inspect`
+- 写操作（重启/删除/安装等）返回 400
+- 命令类型 `agent_instruction`，使用现有签名命令队列
+- 指令原文、intent、requested_by、client_request_id 入库
+- `clientRequestId` 幂等
+- 创建指令写审计 `agent.instruction.create`
+- Agent 只执行 `inspect`，不执行 Shell
+- 查询接口返回 answer / evidence / toolsUsed
+
+真机验证：
+
+```text
+created pending inspect
+status completed
+- 系统运行时长：2 小时 33 分钟（启动于 2026-11-04T11:19:21Z）
+- 进程数：2
+- 1 分钟负载：0.27
+```
+
+Phase 2 Web 面板和 Phase 3 SSE/批量尚未实现。
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

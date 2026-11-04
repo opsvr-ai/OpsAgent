@@ -119,6 +119,27 @@ func TestInspectCommandAnswersUptimeQuestion(t *testing.T) {
 	}
 }
 
+func TestAgentInstructionRunsReadOnlyInspect(t *testing.T) {
+	result := runCommandWithInput("agent_instruction", map[string]any{
+		"hostUptimeSec": int64(3661),
+		"memTotalGB":    16.0, "memAvailableGB": 8.0, "diskTotalGB": 100.0, "diskFreeGB": 40.0,
+	}, map[string]any{
+		"instruction": "系统运行多久了",
+		"intent": map[string]any{
+			"kind":   "inspect",
+			"params": map[string]any{"question": "系统运行多久了"},
+		},
+		"readOnly": true,
+	})
+	if result["ok"] != true {
+		t.Fatalf("expected instruction ok, got %#v", result)
+	}
+	answer, _ := result["answer"].(string)
+	if !strings.Contains(answer, "系统运行时长") {
+		t.Fatalf("instruction answer missing uptime: %s", answer)
+	}
+}
+
 func TestRunCommandAIDiagnoseWithoutCredentials(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	result := runCommand("ai_diagnose", map[string]any{"memLoadPct": 50})

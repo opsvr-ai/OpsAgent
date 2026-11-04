@@ -45,6 +45,10 @@ export class AgentCommandService {
     agentId: string;
     type: string;
     input?: Readonly<Record<string, unknown>>;
+    requestedBy?: string;
+    instruction?: string;
+    intent?: Readonly<Record<string, unknown>>;
+    clientRequestId?: string;
   }): Promise<AgentCommandRecord | null> {
     const agent = await this.pool.query(
       'SELECT 1 FROM agents WHERE tenant_id = $1 AND id = $2',
@@ -56,8 +60,10 @@ export class AgentCommandService {
     const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
     const signed = this.signer.signCommand(payload, nonce, expiresAt);
     const result = await this.pool.query(
-      `INSERT INTO agent_commands (tenant_id, agent_id, type, payload, signed_payload, signature, nonce, key_id, expires_at)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
+      `INSERT INTO agent_commands
+         (tenant_id, agent_id, type, payload, signed_payload, signature, nonce, key_id, expires_at,
+          requested_by, instruction, instruction_intent, client_request_id)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
        RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
       [
         input.tenantId,
@@ -69,6 +75,10 @@ export class AgentCommandService {
         nonce,
         this.signer.keyId,
         expiresAt,
+        input.requestedBy ?? null,
+        input.instruction ?? null,
+        input.intent ? JSON.stringify(input.intent) : null,
+        input.clientRequestId ?? null,
       ],
     );
     return this.map(result.rows[0]);

@@ -6,6 +6,7 @@ import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext, type TenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { INCIDENT_STATUSES, IncidentService, type IncidentStatus } from './service.js';
+import { normalizeAlertmanager, normalizeZabbix } from './sources.js';
 
 async function context(pool: Pool, request: FastifyRequest): Promise<TenantContext | null> {
   const token = request.cookies[SESSION_COOKIE];
@@ -183,6 +184,48 @@ export function registerIncidentRoutes(
       request.log.warn({ err: error }, 'incident source ingestion failed');
       return reply.code(409).send({ error: 'source_conflict' });
     }
+  });
+
+  app.post('/internal/incident-sources/alertmanager', async (request, reply) => {
+    if (internalToken && request.headers['x-opsagent-token'] !== internalToken) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+    const query = request.query as { tenantId?: string };
+    const body = request.body as Record<string, unknown> | undefined;
+    const tenantId = query.tenantId ?? (typeof body?.tenantId === 'string' ? body.tenantId : undefined);
+    if (!tenantId) return reply.code(400).send({ error: 'tenant_required' });
+    const appSystemId = typeof body?.appSystemId === 'string' ? body.appSystemId : undefined;
+    const normalized = normalizeAlertmanager(body, appSystemId);
+    const results: Array<{ id: string; title: string; created: boolean }> = [];
+    for (const source of normalized) {
+      const result = await incidents.createFromSource({ tenantId, ...source });
+      if (result) results.push({ id: result.incident.id, title: result.incident.title, created: result.created });
+    }
+    return reply.code(results.some((item) => item.created) ? 201 : 200).send({
+      total: results.length,
+      created: results.filter((item) => item.created).length,
+      incidents: results,
+    });
+  });
+
+  app.post('/internal/incident-sources/zabbix', async (request, reply) => {
+    if (internalToken && request.headers['x-opsagent-token'] !== internalToken) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+    const query = request.query as { tenantId?: string };
+    const body = request.body as Record<string, unknown> | undefined;
+    const tenantId = query.tenantId ?? (typeof body?.tenantId === 'string' ? body.tenantId : undefined);
+    if (!tenantId) return reply.code(400).send({ error: 'tenant_required' });
+    const appSystemId = typeof body?.appSystemId === 'string' ? body.appSystemId : undefined;
+    const [source] = normalizeZabbix(body, appSystemId);
+    if (!source) return reply.code(400).send({ error: 'invalid_payload' });
+    const result = await incidents.createFromSource({ tenantId, ...source });
+    if (!result) return reply.code(404).send({ error: 'tenant_not_found' });
+    return reply.code(result.created ? 201 : 200).send({
+      total: 1,
+      created: result.created ? 1 : 0,
+      incidents: [{ id: result.incident.id, title: result.incident.title, created: result.created }],
+    });
   });
 
   app.post<{ Params: { id: string } }>('/api/incidents/:id/approvals', async (request, reply) => {

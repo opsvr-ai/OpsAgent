@@ -139,6 +139,53 @@ describe('incident API', () => {
     await app.close();
   });
 
+  it('normalizes alertmanager and zabbix payloads', async () => {
+    const tenant = await pool.query<{ id: string }>('SELECT id FROM tenants ORDER BY created_at LIMIT 1');
+    const tenantId = tenant.rows[0]?.id;
+    if (!tenantId) throw new Error('missing tenant');
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+      internalToken: 'source-token',
+    });
+    const alertmanagerPayload = {
+      status: 'firing',
+      alerts: [{
+        status: 'firing',
+        fingerprint: 'fp-1',
+        labels: { alertname: 'HighErrorRate', severity: 'critical', instance: 'order-1' },
+        annotations: { summary: '订单错误率过高' },
+        startsAt: new Date().toISOString(),
+      }],
+    };
+    const first = await app.inject({
+      method: 'POST',
+      url: '/internal/incident-sources/alertmanager?tenantId=' + tenantId,
+      headers: { 'x-opsagent-token': 'source-token' },
+      payload: alertmanagerPayload,
+    });
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toMatchObject({ total: 1, created: 1 });
+    const second = await app.inject({
+      method: 'POST',
+      url: '/internal/incident-sources/alertmanager?tenantId=' + tenantId,
+      headers: { 'x-opsagent-token': 'source-token' },
+      payload: alertmanagerPayload,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({ total: 1, created: 0 });
+
+    const zabbix = await app.inject({
+      method: 'POST',
+      url: '/internal/incident-sources/zabbix?tenantId=' + tenantId,
+      headers: { 'x-opsagent-token': 'source-token' },
+      payload: { eventId: 'zbx-1', title: 'Disk full', host: 'db-01', severity: 'high', message: '/var/lib/postgresql 90%' },
+    });
+    expect(zabbix.statusCode).toBe(201);
+    expect(zabbix.json()).toMatchObject({ created: 1, incidents: [{ title: 'Disk full（db-01）' }] });
+    await app.close();
+  });
+
   it('rejects an invalid status', async () => {
     const app = buildServer({
       pool,

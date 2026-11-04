@@ -6,9 +6,12 @@ import {
   BasicConstraintsExtension,
   ExtendedKeyUsage,
   ExtendedKeyUsageExtension,
+  type Extension,
   KeyUsagesExtension,
   KeyUsageFlags,
   Pkcs10CertificateRequest,
+  Pkcs10CertificateRequestGenerator,
+  SubjectAlternativeNameExtension,
   X509Certificate,
   X509CertificateGenerator,
 } from '@peculiar/x509';
@@ -18,6 +21,17 @@ export interface IssuedCertificate {
   readonly ca: string;
   readonly serialNumber: string;
   readonly expiresAt: string;
+}
+
+export interface IssuedServerCertificate extends IssuedCertificate {
+  readonly privateKey: string;
+}
+
+export interface IssueOptions {
+  readonly usage?: 'client' | 'server';
+  readonly dnsNames?: string[];
+  readonly ipAddresses?: string[];
+  readonly validityDays?: number;
 }
 
 export class AgentCaService {
@@ -92,12 +106,55 @@ export class AgentCaService {
     return new AgentCaService(ca, caPem, cryptoKey, algorithm);
   }
 
-  async issue(csrPem: string): Promise<IssuedCertificate> {
+  get caCertificate(): string {
+    return this.caPem;
+  }
+
+  async issueServer(dnsNames: string[], ipAddresses: string[]): Promise<IssuedServerCertificate> {
+    const keys = await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify'],
+    );
+    const csr = await Pkcs10CertificateRequestGenerator.create({
+      name: 'CN=opsagent-control',
+      keys,
+      signingAlgorithm: { name: 'ECDSA', hash: 'SHA-256' },
+    });
+    const issued = await this.issue(csr.toString('pem'), {
+      usage: 'server',
+      dnsNames,
+      ipAddresses,
+      validityDays: 90,
+    });
+    const keyDer = await crypto.subtle.exportKey('pkcs8', keys.privateKey);
+    const keyBase64 = Buffer.from(keyDer).toString('base64').replace(/(.{64})/g, '$1\n');
+    return {
+      ...issued,
+      privateKey: `-----BEGIN PRIVATE KEY-----\n${keyBase64}\n-----END PRIVATE KEY-----\n`,
+    };
+  }
+
+  async issue(csrPem: string, options: IssueOptions = {}): Promise<IssuedCertificate> {
     const csr = new Pkcs10CertificateRequest(csrPem);
     if (!(await csr.verify())) throw new Error('invalid_csr_signature');
     const serialNumber = randomBytes(16).toString('hex');
     const notBefore = new Date(Date.now() - 60_000);
-    const notAfter = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const notAfter = new Date(Date.now() + (options.validityDays ?? 30) * 24 * 60 * 60 * 1000);
+    const usage = options.usage ?? 'client';
+    const extensions: Extension[] = [
+      new BasicConstraintsExtension(false),
+      new KeyUsagesExtension(KeyUsageFlags.digitalSignature, true),
+      new ExtendedKeyUsageExtension([
+        usage === 'server' ? ExtendedKeyUsage.serverAuth : ExtendedKeyUsage.clientAuth,
+      ]),
+    ];
+    if (usage === 'server') {
+      extensions.push(new SubjectAlternativeNameExtension([
+        ...(options.dnsNames ?? []).map((value) => ({ type: 'dns' as const, value })),
+        ...(options.ipAddresses ?? []).map((value) => ({ type: 'ip' as const, value })),
+      ]));
+    }
     const certificate = await X509CertificateGenerator.create({
       serialNumber,
       subject: csr.subject,
@@ -106,11 +163,7 @@ export class AgentCaService {
       notAfter,
       publicKey: csr.publicKey,
       signingKey: this.signingKey,
-      extensions: [
-        new BasicConstraintsExtension(false),
-        new KeyUsagesExtension(KeyUsageFlags.digitalSignature, true),
-        new ExtendedKeyUsageExtension([ExtendedKeyUsage.clientAuth]),
-      ],
+      extensions,
     });
     return {
       certificate: certificate.toString('pem'),

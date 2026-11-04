@@ -17,6 +17,25 @@ OPSAGENT_TLS_CA=/etc/opsagent/tls/ca.pem
 OPSAGENT_TLS_REQUIRE_CLIENT_CERT=true
 ```
 
+内网可以省略证书文件，由控制面内置 CA 自动签发服务端证书：
+
+```text
+OPSAGENT_TLS_AUTO=true
+OPSAGENT_TLS_DIR=.opsagent-ca
+OPSAGENT_TLS_HOSTNAMES=localhost,opsagent-control
+OPSAGENT_TLS_IPS=127.0.0.1
+```
+
+生成：
+
+```text
+server.pem
+server-key.pem
+ca.pem
+```
+
+服务端证书有效期 90 天，包含配置的 DNS/IP SAN。
+
 行为：
 
 - 原有 HTTP 8080 仍服务 Web/内部调用
@@ -107,3 +126,4 @@ apps/control/.dev-certs/
 - CA 轮换、密钥托管与吊销
 - 部署脚本自动分发 CA
 - 证书续期与旧证书并行
+- 服务端证书自动续期

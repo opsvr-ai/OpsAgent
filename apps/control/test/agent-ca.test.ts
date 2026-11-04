@@ -42,6 +42,21 @@ describe('agent CA', () => {
     expect(certificate.issuer).toContain('OpsAgent Test CA');
   });
 
+  it('issues an internal server certificate with SANs', async () => {
+    const caKeys = await crypto.subtle.generateKey(algorithm, true, ['sign', 'verify']);
+    const ca = await X509CertificateGenerator.createSelfSigned({
+      name: 'CN=OpsAgent Test CA',
+      keys: caKeys,
+      signingAlgorithm: signing,
+      extensions: [],
+    });
+    const service = await AgentCaService.create(ca.toString('pem'), await pemKey(caKeys));
+    const issued = await service.issueServer(['localhost'], ['127.0.0.1']);
+    expect(issued.privateKey).toContain('BEGIN PRIVATE KEY');
+    const certificate = new X509Certificate(issued.certificate);
+    expect(certificate.subject).toContain('opsagent-control');
+  });
+
   it('creates and reuses an internal CA directory', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'opsagent-ca-'));
     const previous = process.env.OPSAGENT_AGENT_CA_DIR;

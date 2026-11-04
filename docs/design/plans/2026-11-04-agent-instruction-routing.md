@@ -277,6 +277,15 @@ POST /api/agent-instruction-approvals/side-effect-failures/:id/resolve
 
 待审批页面展示未解决的副作用失败，并支持「标记已处理」。
 
+通知趋势：
+
+```text
+GET /api/agent-instruction-approvals/notification-stats
+  → 最近 24 小时按小时聚合
+  → 审批 Webhook 成功 / 失败
+  → 运维告警 成功 / 失败
+```
+
 并发保护：
 
 ```text

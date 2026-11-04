@@ -797,6 +797,18 @@ export async function replayOperationsAlertDelivery(id: string): Promise<void> {
   });
 }
 
+export interface NotificationStatPoint {
+  readonly hour: string;
+  readonly approvalDelivered: number;
+  readonly approvalFailed: number;
+  readonly operationsDelivered: number;
+  readonly operationsFailed: number;
+}
+
+export async function listNotificationStats(): Promise<NotificationStatPoint[]> {
+  return request<NotificationStatPoint[]>('/api/agent-instruction-approvals/notification-stats');
+}
+
 export async function resolveApprovalSideEffectFailure(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/agent-instruction-approvals/side-effect-failures/${id}/resolve`, {
     method: 'POST',

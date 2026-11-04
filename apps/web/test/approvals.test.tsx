@@ -13,6 +13,7 @@ vi.mock('../src/api/client.js', () => ({
   listApprovalWebhookDeliveries: vi.fn().mockResolvedValue([]),
   listApprovalSideEffectFailures: vi.fn().mockResolvedValue([]),
   listOperationsAlertDeliveries: vi.fn().mockResolvedValue([]),
+  listNotificationStats: vi.fn().mockResolvedValue([]),
   replayOperationsAlertDelivery: vi.fn(),
   resolveApprovalSideEffectFailure: vi.fn(),
   replayApprovalWebhookDelivery: vi.fn(),

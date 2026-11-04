@@ -10,12 +10,14 @@ import {
   replayOperationsAlertDelivery,
   listApprovalWebhookDeliveries,
   listApprovals,
+  listNotificationStats,
   replayApprovalWebhookDelivery,
   resolveApprovalSideEffectFailure,
   type AgentInstructionApproval,
   type ApprovalSideEffectFailure,
   type ApprovalSummary,
   type ApprovalWebhookDelivery,
+  type NotificationStatPoint,
   type OperationsAlertDelivery,
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
@@ -41,6 +43,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [webhookDelivered, setWebhookDelivered] = useState<ApprovalWebhookDelivery[]>([]);
   const [sideEffectFailures, setSideEffectFailures] = useState<ApprovalSideEffectFailure[]>([]);
   const [operationsAlerts, setOperationsAlerts] = useState<OperationsAlertDelivery[]>([]);
+  const [notificationStats, setNotificationStats] = useState<NotificationStatPoint[]>([]);
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +68,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
       .catch(() => undefined);
     void listOperationsAlertDeliveries()
       .then(setOperationsAlerts)
+      .catch(() => undefined);
+    void listNotificationStats()
+      .then(setNotificationStats)
       .catch(() => undefined);
   }, []);
 
@@ -153,6 +159,16 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
+  const maxNotification = Math.max(
+    1,
+    ...notificationStats.flatMap((item) => [
+      item.approvalDelivered,
+      item.approvalFailed,
+      item.operationsDelivered,
+      item.operationsFailed,
+    ]),
+  );
+
   return (
     <DesignShell
       active="approvals"
@@ -170,6 +186,28 @@ export function Approvals({ onBack }: ApprovalsProps) {
         <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>Webhook</strong><span>{webhookDelivered.length} 成功 / {webhookFailures.length} 失败</span></div></div>
         <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-alert" /></svg></span><div><strong>运维告警</strong><span>{operationsAlerts.filter((item) => item.status === 'failed').length} 失败</span></div></div>
       </div>
+      {notificationStats.length > 0 ? (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><h2>最近 24 小时通知趋势</h2><span className="muted">{notificationStats.length} 个小时</span></div>
+          <div className="card-body">
+            <div className="command-history">
+              {notificationStats.map((point) => (
+                <div key={point.hour} className="command-row">
+                  <span className="mono">{new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="muted">审批 {point.approvalDelivered} 成功 / {point.approvalFailed} 失败</span>
+                  <span className="muted">运维 {point.operationsDelivered} 成功 / {point.operationsFailed} 失败</span>
+                  <div style={{ display: 'flex', gap: 2, flex: 1, height: 6 }}>
+                    <div style={{ width: `${(point.approvalDelivered / maxNotification) * 100}%`, background: 'var(--ok)' }} />
+                    <div style={{ width: `${(point.approvalFailed / maxNotification) * 100}%`, background: 'var(--danger)' }} />
+                    <div style={{ width: `${(point.operationsDelivered / maxNotification) * 100}%`, background: 'var(--accent)' }} />
+                    <div style={{ width: `${(point.operationsFailed / maxNotification) * 100}%`, background: 'var(--warn)' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
       {webhookFailures.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>
           <div className="card-head"><h2>审批 Webhook 投递失败</h2><span className="badge badge-danger">{webhookFailures.length} 条</span></div>

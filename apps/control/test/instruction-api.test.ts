@@ -681,6 +681,30 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('returns notification statistics', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    await pool.query(
+      `INSERT INTO approval_webhook_deliveries (tenant_id, event_type, payload, status, attempts)
+       VALUES ($1, 'approval_requested', '{}'::jsonb, 'delivered', 1)`,
+      [tenantId],
+    );
+    await pool.query(
+      `INSERT INTO operations_alert_deliveries (tenant_id, title, payload, status, attempts)
+       VALUES ($1, '统计测试', '{}'::jsonb, 'failed', 3)`,
+      [tenantId],
+    );
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/agent-instruction-approvals/notification-stats',
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(200);
+    const points = response.json() as Array<{ approvalDelivered: number; operationsFailed: number }>;
+    expect(points.some((item) => item.approvalDelivered >= 1 && item.operationsFailed >= 1)).toBe(true);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

@@ -889,6 +889,68 @@ export function registerAgentInstructionRoutes(
     },
   );
 
+  app.get('/api/agent-instruction-approvals/notification-stats', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'approval.decide');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const approval = await pool.query<{ hour: Date; delivered: string; failed: string }>(
+      `SELECT date_trunc('hour', created_at) AS hour,
+              count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
+              count(*) FILTER (WHERE status = 'failed')::text AS failed
+       FROM approval_webhook_deliveries
+       WHERE tenant_id = $1 AND created_at > now() - interval '24 hours'
+       GROUP BY 1 ORDER BY 1`,
+      [ctx.tenantId],
+    );
+    const operations = await pool.query<{ hour: Date; delivered: string; failed: string }>(
+      `SELECT date_trunc('hour', created_at) AS hour,
+              count(*) FILTER (WHERE status = 'delivered')::text AS delivered,
+              count(*) FILTER (WHERE status = 'failed')::text AS failed
+       FROM operations_alert_deliveries
+       WHERE tenant_id = $1 AND created_at > now() - interval '24 hours'
+       GROUP BY 1 ORDER BY 1`,
+      [ctx.tenantId],
+    );
+    const hours = new Map<string, {
+      hour: string;
+      approvalDelivered: number;
+      approvalFailed: number;
+      operationsDelivered: number;
+      operationsFailed: number;
+    }>();
+    const at = (hour: Date): {
+      hour: string;
+      approvalDelivered: number;
+      approvalFailed: number;
+      operationsDelivered: number;
+      operationsFailed: number;
+    } => {
+      const key = hour.toISOString();
+      let value = hours.get(key);
+      if (!value) {
+        value = { hour: key, approvalDelivered: 0, approvalFailed: 0, operationsDelivered: 0, operationsFailed: 0 };
+        hours.set(key, value);
+      }
+      return value;
+    };
+    for (const row of approval.rows) {
+      const value = at(row.hour);
+      value.approvalDelivered += Number(row.delivered);
+      value.approvalFailed += Number(row.failed);
+    }
+    for (const row of operations.rows) {
+      const value = at(row.hour);
+      value.operationsDelivered += Number(row.delivered);
+      value.operationsFailed += Number(row.failed);
+    }
+    return reply.send([...hours.values()].sort((a, b) => a.hour.localeCompare(b.hour)));
+  });
+
   app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

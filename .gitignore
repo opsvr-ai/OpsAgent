@@ -5,6 +5,7 @@ coverage/
 *.log
 .DS_Store
 .pnpm-store/
+apps/control/.dev-certs/
 playwright-report/
 test-results/
 

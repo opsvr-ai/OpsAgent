@@ -123,7 +123,7 @@ func redactURL(raw string) string {
 
 func getJSON(url string, target any) (int, error) {
 	started := time.Now()
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := newHTTPClient(15 * time.Second)
 	response, err := client.Get(url)
 	if err != nil {
 		log.Printf("http GET %s failed duration=%s error=%v", redactURL(url), time.Since(started), err)
@@ -161,7 +161,7 @@ func post(url string, headers map[string]string, payload any, target any) error 
 	for key, value := range headers {
 		request.Header.Set(key, value)
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := newHTTPClient(15 * time.Second)
 	response, err := client.Do(request)
 	if err != nil {
 		log.Printf("http POST %s failed duration=%s error=%v", redactURL(url), time.Since(started), err)

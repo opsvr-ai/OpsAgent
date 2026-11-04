@@ -1,4 +1,7 @@
 import { Pool } from 'pg';
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:https';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { buildServer } from './server.js';
 import { ConnectorToolResolver } from './connectors/runtime.js';
 import { ScenarioService } from './scenarios/service.js';
@@ -82,6 +85,26 @@ retentionTimer.unref();
 void auditRetention.purgeOlderThan(180).catch(() => undefined);
 
 await app.listen({ host: '0.0.0.0', port });
+let tlsServer: ReturnType<typeof createServer> | undefined;
+const tlsPort = Number.parseInt(process.env.OPSAGENT_TLS_PORT ?? '0', 10);
+if (tlsPort > 0 && process.env.OPSAGENT_TLS_CERT && process.env.OPSAGENT_TLS_KEY) {
+  const ca = process.env.OPSAGENT_TLS_CA ? readFileSync(process.env.OPSAGENT_TLS_CA) : undefined;
+  const requireClientCert = process.env.OPSAGENT_TLS_REQUIRE_CLIENT_CERT !== 'false';
+  const handler = app.server.listeners('request')[0] as
+    | ((request: IncomingMessage, response: ServerResponse) => void)
+    | undefined;
+  if (handler) {
+    tlsServer = createServer({
+      key: readFileSync(process.env.OPSAGENT_TLS_KEY),
+      cert: readFileSync(process.env.OPSAGENT_TLS_CERT),
+      ...(ca ? { ca } : {}),
+      requestCert: requireClientCert,
+      rejectUnauthorized: requireClientCert,
+    }, handler);
+    await new Promise<void>((resolve) => tlsServer?.listen(tlsPort, '0.0.0.0', resolve));
+    console.log(`opsagent-control TLS listening on :${tlsPort}`);
+  }
+}
 scheduler.start();
 commanderScheduler.start();
 keyMonitor.start();
@@ -97,6 +120,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     deploymentMonitor.stop();
     resourceMonitor.stop();
     clearInterval(retentionTimer);
+    tlsServer?.close();
     void app.close().then(() => pool.end());
   });
 }

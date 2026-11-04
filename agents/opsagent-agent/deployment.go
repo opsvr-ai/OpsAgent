@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -25,7 +24,7 @@ func runDeploymentCommand(input map[string]any) map[string]any {
 		return result
 	}
 	started := time.Now()
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := newHTTPClient(120 * time.Second)
 	response, err := client.Get(artifactURL)
 	if err != nil {
 		result["error"] = fmt.Sprintf("download artifact: %v", err)

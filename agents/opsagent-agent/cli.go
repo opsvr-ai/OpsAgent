@@ -111,7 +111,7 @@ func cliPost(url string, payload any, target any) error {
 		return err
 	}
 	request.Header.Set("content-type", "application/json")
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := newHTTPClient(120 * time.Second)
 	response, err := client.Do(request)
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func askPlatformStream(state agentState, question string, onDelta func(string), 
 	}
 	request.Header.Set("content-type", "application/json")
 	request.Header.Set("accept", "text/event-stream")
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := newHTTPClient(120 * time.Second)
 	response, err := client.Do(request)
 	if err != nil {
 		return false, err

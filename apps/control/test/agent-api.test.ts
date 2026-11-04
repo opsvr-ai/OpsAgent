@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { buildServer } from '../src/server.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
+import { IncidentService } from '../src/incidents/service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 const tenant = '00000000-0000-4000-8000-000000000001';
@@ -245,6 +246,20 @@ describe('agent registry API', () => {
       keys: [{ keyId: body.commandKeyId, active: true }],
       agents: [{ id: body.agent.id, commandKeyId: body.commandKeyId, valid: true }],
     });
+
+    const resolve = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/events`,
+      payload: { agentKey: body.agentKey, events: [], resolveMissing: true },
+    });
+    expect(resolve.statusCode).toBe(200);
+    const incidents = new IncidentService(pool);
+    expect(await incidents.resolveRecovered(tenant)).toBeGreaterThan(0);
+    const autoResolved = await pool.query<{ status: string }>(
+      `SELECT status FROM incidents WHERE tenant_id = $1 AND source = 'agent_health'`,
+      [tenant],
+    );
+    expect(autoResolved.rows[0]?.status).toBe('resolved');
     await app.close();
   });
 

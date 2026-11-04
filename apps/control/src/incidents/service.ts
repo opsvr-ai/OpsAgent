@@ -645,6 +645,56 @@ export class IncidentService {
     };
   }
 
+  async resolveRecovered(tenantId?: string): Promise<number> {
+    const result = await this.pool.query<{
+      id: string;
+      tenant_id: string;
+      created_by: string;
+      title: string;
+    }>(
+      `SELECT i.id, i.tenant_id, i.created_by, i.title FROM incidents i
+       WHERE i.status = 'open'
+         AND i.source = 'agent_health'
+         AND i.app_system_id IS NOT NULL
+         ${tenantId ? 'AND i.tenant_id = $1' : ''}
+         AND EXISTS (
+           SELECT 1 FROM agents a
+           WHERE a.app_system_id = i.app_system_id AND a.tenant_id = i.tenant_id
+             AND a.status = 'online' AND a.last_seen > now() - interval '90 seconds'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM agent_events e
+           JOIN agents a ON a.id = e.agent_id
+           WHERE a.app_system_id = i.app_system_id AND e.status = 'open'
+         )`,
+      tenantId ? [tenantId] : [],
+    );
+    let resolved = 0;
+    for (const row of result.rows) {
+      await this.pool.query(
+        `UPDATE incidents SET status = 'resolved', updated_at = now() WHERE id = $1`,
+        [row.id],
+      );
+      await this.pool.query(
+        `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+         VALUES ($1, $2, $3, 'auto_resolved', $4::jsonb)`,
+        [row.tenant_id, row.id, row.created_by, JSON.stringify({ reason: 'all_agent_events_resolved' })],
+      );
+      await this.pool.query(
+        `UPDATE incident_tickets SET status = 'done' WHERE tenant_id = $1 AND incident_id = $2`,
+        [row.tenant_id, row.id],
+      );
+      await this.pool.query(
+        `INSERT INTO messages (tenant_id, title, body, severity)
+         VALUES ($1, $2, $3, 'info')`,
+        [row.tenant_id, `事件已自动恢复：${row.title}`, '所有 Agent 异常事件已关闭，应用系统恢复在线'],
+      );
+      await this.generateReport(row.tenant_id, row.id, row.created_by);
+      resolved += 1;
+    }
+    return resolved;
+  }
+
   async report(tenantId: string, id: string): Promise<string | null> {
     const detail = await this.getWithEvents(tenantId, id);
     if (!detail) return null;

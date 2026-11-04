@@ -34,6 +34,7 @@ function eventLabel(type: string): string {
   if (type === 'approval_denied') return '审批拒绝';
   if (type === 'root_cause_converged') return '根因置信度收敛';
   if (type === 'report_generated') return '事件报告已生成';
+  if (type === 'auto_resolved') return '异常恢复，事件自动关闭';
   if (type === 'commander_assigned') return '指派指挥官';
   if (type === 'note') return '指挥记录';
   if (type === 'status_changed') return '状态变更';

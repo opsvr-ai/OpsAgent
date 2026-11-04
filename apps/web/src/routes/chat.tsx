@@ -53,6 +53,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
   const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('danger-full-access');
   const [permissionOpen, setPermissionOpen] = useState(false);
+  const [expandedApproval, setExpandedApproval] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -259,33 +260,57 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             {runtimeApprovals.length > 0 ? (
               <div className="approval-queue">
                 <div className="approval-queue-head">
-                  <span className="icon-tile is-amber"><svg><use href="/icons.svg#i-shield" /></svg></span>
+                  <span className="approval-shield"><svg><use href="/icons.svg#i-shield" /></svg></span>
                   <div className="grow">
-                    <strong>需要你确认</strong>
-                    <span>执行权限：{permissionLabel(permissionMode)} · dsh 正在等待，{runtimeApprovals.length} 个操作暂停执行</span>
+                    <strong>等待你的审批</strong>
+                    <span>{runtimeApprovals.length} 个操作暂停执行 · {permissionLabel(permissionMode)}</span>
                   </div>
+                  <span className="approval-dsh-wait"><span className="dot dot-warn" />dsh 正在等待</span>
                 </div>
                 <div className="approval-queue-list">
                   {runtimeApprovals.map((approval) => {
                     const details = approval.details as Record<string, unknown>;
                     const command = typeof details.command === 'string' ? details.command : null;
                     const description = typeof details.description === 'string' ? details.description : null;
+                    const expanded = expandedApproval === approval.id;
+                    const highRisk = approval.risk === 'R3';
                     return (
-                      <div key={approval.id} className="approval-item">
-                        <div className="approval-item-main">
-                          <div className="approval-item-title">
-                            <strong>{approval.action}</strong>
-                            <span className="badge badge-warn">{approval.risk}</span>
-                            <span className="approval-time">{new Date(approval.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <article key={approval.id} className={`approval-item${expanded ? ' is-expanded' : ''}`}>
+                        <div className="approval-item-head">
+                          <span className={`approval-tool-mark${highRisk ? ' is-high' : ''}`}>
+                            <svg><use href="/icons.svg#i-terminal" /></svg>
+                          </span>
+                          <div className="approval-item-copy">
+                            <strong>{description || `${approval.action} 请求执行`}</strong>
+                            <span>{approval.action} · {highRisk ? '高风险' : '中风险'} · {permissionLabel(permissionMode)}</span>
                           </div>
-                          {description ? <p className="approval-desc">{description}</p> : null}
-                          {command ? <pre className="approval-command">{command}</pre> : null}
+                          <span className="approval-time">{new Date(approval.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <div className="approval-actions">
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
-                          <button type="button" className="btn btn-primary btn-sm" onClick={() => void decideRuntime(approval.id, 'approve')}>批准执行</button>
+                        {command ? (
+                          <div className="approval-command-wrap">
+                            <div className="approval-command-head">
+                              <span className="mono">$ {approval.action}</span>
+                              {command.length > 180 ? (
+                                <button
+                                  type="button"
+                                  className="approval-expand"
+                                  onClick={() => setExpandedApproval(expanded ? null : approval.id)}
+                                >
+                                  {expanded ? '收起' : '展开完整命令'}
+                                </button>
+                              ) : null}
+                            </div>
+                            <pre className="approval-command">{command}</pre>
+                          </div>
+                        ) : null}
+                        <div className="approval-item-foot">
+                          <span className="approval-scope"><svg><use href="/icons.svg#i-shield" /></svg>批准后仅执行本次调用</span>
+                          <div className="approval-actions">
+                            <button type="button" className="btn btn-outline" onClick={() => void decideRuntime(approval.id, 'deny')}>拒绝</button>
+                            <button type="button" className="btn btn-primary" onClick={() => void decideRuntime(approval.id, 'approve')}>批准执行</button>
+                          </div>
                         </div>
-                      </div>
+                      </article>
                     );
                   })}
                 </div>

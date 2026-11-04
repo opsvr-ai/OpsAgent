@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { buildServer } from '../src/server.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
+import { IncidentService } from '../src/incidents/service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
 let pool: Pool;
@@ -50,6 +51,7 @@ describe('incident API', () => {
       payload: { title: 'checkout latency', severity: 'P1' },
     });
     expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ dueAt: expect.any(String) });
     const id = (created.json() as { id: string }).id;
 
     const updated = await app.inject({
@@ -243,6 +245,31 @@ describe('incident API', () => {
     });
     expect(report.statusCode).toBe(200);
     expect(report.body).toContain('# 自定义：templated incident');
+    await app.close();
+  });
+
+  it('flags an SLA breach once', async () => {
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+    });
+    const cookie = await login(app);
+    const tenant = await pool.query<{ id: string }>('SELECT id FROM tenants ORDER BY created_at LIMIT 1');
+    const tenantId = tenant.rows[0]?.id;
+    if (!tenantId) throw new Error('missing tenant');
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/incidents',
+      headers: { cookie },
+      payload: { title: 'SLA breach candidate', severity: 'P1' },
+    });
+    const id = (created.json() as { id: string }).id;
+    await pool.query(`UPDATE incidents SET due_at = now() - interval '1 minute' WHERE id = $1`, [id]);
+    const incidents = new IncidentService(pool);
+    expect(await incidents.flagBreachedSla(tenantId)).toBeGreaterThan(0);
+    expect(await incidents.flagBreachedSla(tenantId)).toBe(0);
+    const events = await pool.query(`SELECT 1 FROM incident_events WHERE incident_id = $1 AND type = 'sla_breached'`, [id]);
+    expect(events.rowCount).toBe(1);
     await app.close();
   });
 

@@ -21,6 +21,7 @@ export interface IncidentRecord {
   readonly source: string;
   readonly appSystemId: string | null;
   readonly rootCause: string | null;
+  readonly dueAt: string | null;
 }
 
 export const DEFAULT_INCIDENT_REPORT_TEMPLATE = `# 事件报告：{{title}}
@@ -63,7 +64,7 @@ export class IncidentService {
     const incident = await this.pool.query(
       `INSERT INTO incidents (tenant_id, title, severity, created_by)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause`,
+       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause, due_at`,
       [input.tenantId, input.title, input.severity, input.actorId],
     );
     const row = incident.rows[0];
@@ -87,7 +88,7 @@ export class IncidentService {
 
   async list(tenantId: string): Promise<IncidentRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, title, severity, status, commander_id, source, app_system_id, root_cause FROM incidents
+      `SELECT id, title, severity, status, commander_id, source, app_system_id, root_cause, due_at FROM incidents
        WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
@@ -96,7 +97,7 @@ export class IncidentService {
 
   async get(tenantId: string, id: string): Promise<IncidentRecord | null> {
     const result = await this.pool.query(
-      `SELECT id, title, severity, status, commander_id, source, app_system_id, root_cause FROM incidents
+      `SELECT id, title, severity, status, commander_id, source, app_system_id, root_cause, due_at FROM incidents
        WHERE tenant_id = $1 AND id = $2`,
       [tenantId, id],
     );
@@ -208,7 +209,7 @@ export class IncidentService {
            commander_id = CASE WHEN $2::boolean THEN $3::uuid ELSE commander_id END,
            updated_at = now()
        WHERE tenant_id = $4 AND id = $5
-       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause`,
+       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause, due_at`,
       [
         input.status ?? null,
         input.commanderId !== undefined,
@@ -262,7 +263,7 @@ export class IncidentService {
       `INSERT INTO incidents
          (tenant_id, title, severity, source, source_ref, app_system_id, root_cause, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause`,
+       RETURNING id, title, severity, status, commander_id, source, app_system_id, root_cause, due_at`,
       [
         input.tenantId,
         input.title,
@@ -645,6 +646,40 @@ export class IncidentService {
     };
   }
 
+  async flagBreachedSla(tenantId?: string): Promise<number> {
+    const result = await this.pool.query<{
+      id: string;
+      tenant_id: string;
+      created_by: string;
+      title: string;
+      due_at: Date;
+    }>(
+      `SELECT i.id, i.tenant_id, i.created_by, i.title, i.due_at FROM incidents i
+       WHERE i.status NOT IN ('resolved', 'closed')
+         AND i.due_at IS NOT NULL AND i.due_at < now()
+         ${tenantId ? 'AND i.tenant_id = $1' : ''}
+         AND NOT EXISTS (
+           SELECT 1 FROM incident_events e
+           WHERE e.incident_id = i.id AND e.type = 'sla_breached'
+         )
+       ORDER BY i.due_at ASC LIMIT 50`,
+      tenantId ? [tenantId] : [],
+    );
+    for (const row of result.rows) {
+      await this.pool.query(
+        `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+         VALUES ($1, $2, $3, 'sla_breached', $4::jsonb)`,
+        [row.tenant_id, row.id, row.created_by, JSON.stringify({ dueAt: row.due_at.toISOString() })],
+      );
+      await this.pool.query(
+        `INSERT INTO messages (tenant_id, title, body, severity)
+         VALUES ($1, $2, $3, 'warning')`,
+        [row.tenant_id, `SLA 已逾期：${row.title}`, `应完成时间 ${row.due_at.toISOString()}，事件仍未关闭`],
+      );
+    }
+    return result.rows.length;
+  }
+
   async resolveRecovered(tenantId?: string): Promise<number> {
     const result = await this.pool.query<{
       id: string;
@@ -891,6 +926,7 @@ export class IncidentService {
     source?: string;
     app_system_id?: string | null;
     root_cause?: string | null;
+    due_at?: Date | null;
   }): IncidentRecord {
     return {
       id: row.id,
@@ -901,6 +937,7 @@ export class IncidentService {
       source: row.source ?? 'manual',
       appSystemId: row.app_system_id ?? null,
       rootCause: row.root_cause ?? null,
+      dueAt: row.due_at ? row.due_at.toISOString() : null,
     };
   }
 }

@@ -37,6 +37,7 @@ function eventLabel(type: string): string {
   if (type === 'root_cause_converged') return '根因置信度收敛';
   if (type === 'report_generated') return '事件报告已生成';
   if (type === 'auto_resolved') return '异常恢复，事件自动关闭';
+  if (type === 'sla_breached') return 'SLA 已逾期';
   if (type === 'commander_assigned') return '指派指挥官';
   if (type === 'note') return '指挥记录';
   if (type === 'status_changed') return '状态变更';
@@ -47,6 +48,14 @@ function eventDetail(payload: Record<string, unknown>): string {
   if (typeof payload.markdown === 'string') return '报告已生成，可在顶部导出完整 Markdown';
   const note = payload.note ?? payload.commander ?? payload.to ?? payload.source;
   return typeof note === 'string' ? note : JSON.stringify(payload);
+}
+
+function slaLabel(dueAt?: string | null): { text: string; className: string } | null {
+  if (!dueAt) return null;
+  const minutes = Math.round((new Date(dueAt).getTime() - Date.now()) / 60000);
+  if (minutes < 0) return { text: `SLA 逾期 ${Math.abs(minutes)} 分钟`, className: 'badge-danger' };
+  if (minutes < 60) return { text: `SLA 剩余 ${minutes} 分钟`, className: minutes <= 15 ? 'badge-warn' : 'badge-neutral' };
+  return { text: `SLA 剩余 ${Math.round(minutes / 60)} 小时`, className: 'badge-neutral' };
 }
 
 export function Incidents({ onBack }: IncidentsProps) {
@@ -226,6 +235,7 @@ export function Incidents({ onBack }: IncidentsProps) {
   }
 
   const selected = detail?.incident ?? incidents?.find((item) => item.id === selectedId) ?? null;
+  const selectedSla = slaLabel(selected?.dueAt);
   const topologyEvidence = (detail?.evidence ?? []).find((item) => item.kind === 'topology');
   const topologyNodes = (() => {
     const raw = topologyEvidence?.payload?.nodes;
@@ -344,6 +354,7 @@ export function Incidents({ onBack }: IncidentsProps) {
                   <div className="row-between" style={{ marginBottom: 12 }}>
                     <div className="row-sm">
                       <span className="badge badge-neutral">{selected.severity}</span>
+                      {selectedSla ? <span className={`badge ${selectedSla.className}`}>{selectedSla.text}</span> : null}
                       <span className="muted">事件 ID {selected.id.slice(0, 18)}</span>
                       <label className="muted">指挥官
                         <select

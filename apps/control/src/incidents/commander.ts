@@ -35,6 +35,7 @@ export class CommanderScheduler {
     this.running = true;
     try {
       await this.incidents.resolveRecovered();
+      await this.incidents.flagBreachedSla();
       const candidates = await this.pool.query<{ id: string; tenant_id: string }>(
         `SELECT i.id, i.tenant_id FROM incidents i
          WHERE i.status = 'open'

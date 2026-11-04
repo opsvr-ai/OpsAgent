@@ -248,6 +248,7 @@ export interface IncidentSummary {
   readonly source?: string;
   readonly appSystemId?: string | null;
   readonly rootCause?: string | null;
+  readonly dueAt?: string | null;
 }
 
 export async function listIncidents(): Promise<IncidentSummary[]> {

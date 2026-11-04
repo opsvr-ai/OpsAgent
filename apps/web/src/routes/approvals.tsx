@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  cancelAgentInstructionApproval,
   decideAgentInstructionApproval,
   decideAgentInstructionApprovals,
   decideApproval,
@@ -54,8 +55,18 @@ export function Approvals({ onBack }: ApprovalsProps) {
     }
   }
 
-  async function decideAllInstruction(decision: 'approve' | 'deny') {
-    if (instructionApprovals.length === 0) return;
+  async function cancelInstruction(id: string) {
+    setError(null);
+    try {
+      await cancelAgentInstructionApproval(id);
+      setInstructionApprovals((current) => current.filter((item) => item.id !== id));
+      setInstructionHistory(await listAgentInstructionApprovals('decided'));
+    } catch {
+      setError('撤销审批失败，只有请求人可以撤销');
+    }
+  }
+
+  async function decideAllInstruction(decision: 'approve' | 'deny') {    if (instructionApprovals.length === 0) return;
     setInstructionBusy(true);
     setError(null);
     const reason = decision === 'deny' ? window.prompt('批量拒绝原因（可选）') ?? undefined : undefined;
@@ -125,6 +136,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                 <div className="row-sm">
                   <button type="button" className="btn btn-primary btn-sm" onClick={() => void decideInstruction(approval.id, 'approve')}>批准</button>
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => void decideInstruction(approval.id, 'deny')}>拒绝</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => void cancelInstruction(approval.id)}>撤销</button>
                 </div>
               </div>
             ))}

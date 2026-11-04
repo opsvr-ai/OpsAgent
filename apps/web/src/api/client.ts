@@ -733,6 +733,13 @@ export async function decideAgentInstructionApprovals(
   return response.results;
 }
 
+export async function cancelAgentInstructionApproval(id: string): Promise<void> {
+  await request<{ status: string }>(`/api/agent-instruction-approvals/${id}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export interface AgentInstructionTemplate {
   readonly id: string;
   readonly name: string;

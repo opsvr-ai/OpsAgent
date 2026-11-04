@@ -187,6 +187,14 @@ POST /api/agent-instruction-approvals/batch-decision
 }
 ```
 
+撤销：
+
+```http
+POST /api/agent-instruction-approvals/:id/cancel
+```
+
+只有请求人可以撤销 pending 审批；撤销后不创建命令。
+
 返回每项结果：
 
 ```text

@@ -532,6 +532,42 @@ export function registerAgentInstructionRoutes(
     },
   );
 
+  app.post<{ Params: { approvalId: string } }>(
+    '/api/agent-instruction-approvals/:approvalId/cancel',
+    async (request, reply) => {
+      const ctx = await context(pool, request);
+      if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+      try {
+        requirePermission(ctx, 'agent.manage');
+      } catch (error) {
+        if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+        throw error;
+      }
+      const row = await pool.query<{ id: string; requested_by: string; status: string }>(
+        `SELECT id, requested_by, status FROM agent_instruction_approvals
+         WHERE tenant_id = $1 AND id = $2`,
+        [ctx.tenantId, request.params.approvalId],
+      );
+      const approval = row.rows[0];
+      if (!approval || approval.status !== 'pending') return reply.code(409).send({ error: 'approval_not_pending' });
+      if (approval.requested_by !== ctx.userId) return reply.code(403).send({ error: 'requester_only' });
+      await pool.query(
+        `UPDATE agent_instruction_approvals
+         SET status = 'canceled', decided_by = $1, decided_at = now()
+         WHERE tenant_id = $2 AND id = $3 AND status = 'pending'`,
+        [ctx.userId, ctx.tenantId, approval.id],
+      );
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.approval.canceled',
+        resource: approval.id,
+        result: 'success',
+      });
+      return reply.send({ status: 'canceled', approvalId: approval.id });
+    },
+  );
+
   app.post('/api/agent-instruction-approvals/batch-decision', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

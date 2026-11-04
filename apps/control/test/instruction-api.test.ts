@@ -371,6 +371,22 @@ describe('agent instruction API', () => {
       headers: { cookie },
       payload: { decision: 'deny' },
     });
+
+    const cancelRequest = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '重启 nginx 服务' },
+    });
+    const cancelApprovalId = (cancelRequest.json() as { approvalId: string }).approvalId;
+    const canceled = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${cancelApprovalId}/cancel`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(canceled.statusCode).toBe(200);
+    expect((canceled.json() as { status: string }).status).toBe('canceled');
     await app.close();
   });
 

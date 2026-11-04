@@ -9,6 +9,7 @@ vi.mock('../src/api/client.js', () => ({
   listAgentInstructionApprovals: vi.fn().mockResolvedValue([]),
   decideAgentInstructionApproval: vi.fn(),
   decideAgentInstructionApprovals: vi.fn(),
+  cancelAgentInstructionApproval: vi.fn(),
 }));
 
 const listMock = vi.mocked(listApprovals);

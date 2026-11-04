@@ -96,6 +96,29 @@ func TestInspectCommandAnswersDiskQuestion(t *testing.T) {
 	}
 }
 
+func TestInspectCommandAnswersUptimeQuestion(t *testing.T) {
+	result := runCommandWithInput("inspect", map[string]any{
+		"hostUptimeSec":  int64(90061),
+		"bootTime":       "2026-11-03T08:00:00Z",
+		"load1":          0.42,
+		"processCount":   123,
+		"memTotalGB":     16.0,
+		"memAvailableGB": 8.0,
+		"diskTotalGB":    100.0,
+		"diskFreeGB":     40.0,
+	}, map[string]any{"question": "系统运行多久了"})
+	if result["ok"] != true {
+		t.Fatalf("expected inspect ok, got %#v", result)
+	}
+	answer, _ := result["answer"].(string)
+	if !strings.Contains(answer, "系统运行时长") || !strings.Contains(answer, "1 天 1 小时 1 分钟") {
+		t.Fatalf("uptime missing: %s", answer)
+	}
+	if !strings.Contains(answer, "启动于 2026-11-03T08:00:00Z") {
+		t.Fatalf("boot time missing: %s", answer)
+	}
+}
+
 func TestRunCommandAIDiagnoseWithoutCredentials(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	result := runCommand("ai_diagnose", map[string]any{"memLoadPct": 50})

@@ -4,6 +4,7 @@ package main
 
 import (
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -11,6 +12,7 @@ var (
 	kernel32           = syscall.NewLazyDLL("kernel32.dll")
 	globalMemoryStatus = kernel32.NewProc("GlobalMemoryStatusEx")
 	getDiskFreeSpaceEx = kernel32.NewProc("GetDiskFreeSpaceExW")
+	getTickCount64     = kernel32.NewProc("GetTickCount64")
 )
 
 type memoryStatusEx struct {
@@ -27,6 +29,11 @@ type memoryStatusEx struct {
 
 func hostMetrics() map[string]any {
 	metrics := map[string]any{}
+	if ticks, _, _ := getTickCount64.Call(); ticks > 0 {
+		uptime := int64(ticks / 1000)
+		metrics["hostUptimeSec"] = uptime
+		metrics["bootTime"] = time.Now().Add(-time.Duration(uptime) * time.Second).UTC().Format(time.RFC3339)
+	}
 	var memory memoryStatusEx
 	memory.Length = uint32(unsafe.Sizeof(memory))
 	if ok, _, _ := globalMemoryStatus.Call(uintptr(unsafe.Pointer(&memory))); ok != 0 {

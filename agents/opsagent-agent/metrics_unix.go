@@ -7,10 +7,36 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 func hostMetrics() map[string]any {
 	metrics := map[string]any{}
+	if uptime := hostUptimeSeconds(); uptime > 0 {
+		metrics["hostUptimeSec"] = uptime
+		metrics["bootTime"] = time.Now().Add(-time.Duration(uptime) * time.Second).UTC().Format(time.RFC3339)
+	}
+	if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+		fields := strings.Fields(string(data))
+		if len(fields) >= 3 {
+			for index, key := range []string{"load1", "load5", "load15"} {
+				if value, err := strconv.ParseFloat(fields[index], 64); err == nil {
+					metrics[key] = value
+				}
+			}
+		}
+	}
+	if entries, err := os.ReadDir("/proc"); err == nil {
+		processes := 0
+		for _, entry := range entries {
+			if _, err := strconv.Atoi(entry.Name()); err == nil {
+				processes += 1
+			}
+		}
+		if processes > 0 {
+			metrics["processCount"] = processes
+		}
+	}
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs("/", &stat); err == nil {
 		total := float64(stat.Blocks) * float64(stat.Bsize) / 1024 / 1024 / 1024

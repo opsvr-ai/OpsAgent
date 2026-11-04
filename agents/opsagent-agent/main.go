@@ -271,7 +271,7 @@ func runDaemon(paths agentPaths) {
 		OS:              runtime.GOOS,
 		Arch:            runtime.GOARCH,
 		Version:         agentVersion,
-		Capabilities:    []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot", "deployment.execute"},
+		Capabilities:    []string{"cpu", "memory", "disk", "network", "uptime", "load", "processes", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot", "deployment.execute"},
 		ResultPublicKey: resultPublicKeyBase64,
 		Discovery:       &initialDiscovery,
 	}, &registered); err != nil {

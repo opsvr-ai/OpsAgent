@@ -65,6 +65,7 @@ var evidenceLabels = map[string]string{
 	"hostname":        "主机名",
 	"time":            "时间",
 	"timezone":        "时区",
+	"uptime":          "系统运行时长",
 }
 
 func compactDf(output string) string {
@@ -77,6 +78,22 @@ func compactDf(output string) string {
 		kept = append(kept, line)
 	}
 	return strings.Join(kept, "\n")
+}
+
+func formatUptime(seconds int64) string {
+	if seconds <= 0 {
+		return "未知"
+	}
+	days := seconds / 86400
+	hours := (seconds % 86400) / 3600
+	minutes := (seconds % 3600) / 60
+	if days > 0 {
+		return fmt.Sprintf("%d 天 %d 小时 %d 分钟", days, hours, minutes)
+	}
+	if hours > 0 {
+		return fmt.Sprintf("%d 小时 %d 分钟", hours, minutes)
+	}
+	return fmt.Sprintf("%d 分钟", minutes)
 }
 
 func inspectHost(question string, metrics map[string]any) map[string]any {
@@ -119,11 +136,14 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		return false
 	}
 
-	if wants("时间", "time", "时区", "timezone") {
+	if wants("时间", "time", "时区", "timezone", "运行", "多久", "uptime", "启动", "开机", "boot") {
 		include["time"] = true
 		include["timezone"] = true
 		add("time", "date", "-R")
 		add("timezone", "cat", "/etc/timezone")
+	}
+	if wants("运行", "多久", "uptime", "启动", "开机", "boot") {
+		include["uptime"] = true
 	}
 	if wants("配置", "系统", "概况", "overview", "资源", "状态") {
 		include["memory"] = true
@@ -220,6 +240,20 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		fmt.Sprintf("- CPU：**%d 核**", runtime.NumCPU()),
 		fmt.Sprintf("- 内存总量 / 可用：**%.1f / %.1f GB**", numberValue(metrics["memTotalGB"]), numberValue(metrics["memAvailableGB"])),
 		fmt.Sprintf("- 磁盘总量 / 可用：**%.1f / %.1f GB**", numberValue(metrics["diskTotalGB"]), numberValue(metrics["diskFreeGB"])),
+	}
+	uptimeSeconds := int64(numberValue(metrics["hostUptimeSec"]))
+	if uptimeSeconds > 0 {
+		bootAt := ""
+		if value, ok := metrics["bootTime"].(string); ok {
+			bootAt = fmt.Sprintf("（启动于 %s）", value)
+		}
+		lines = append(lines, fmt.Sprintf("- 系统运行时长：**%s**%s", formatUptime(uptimeSeconds), bootAt))
+	}
+	if processCount := int(numberValue(metrics["processCount"])); processCount > 0 {
+		lines = append(lines, fmt.Sprintf("- 进程数：**%d**", processCount))
+	}
+	if load1, ok := metrics["load1"]; ok {
+		lines = append(lines, fmt.Sprintf("- 1 分钟负载：**%.2f**", numberValue(load1)))
 	}
 
 	if value, ok := evidence["disk-usage"]; ok {

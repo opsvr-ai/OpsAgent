@@ -151,12 +151,16 @@ export class AgentCommandService {
         throw new Error('invalid_result_payload');
       }
     }
+    const resultOk = typeof result === 'object' && result !== null && 'ok' in result
+      ? (result as { ok?: unknown }).ok !== false
+      : true;
     const updated = await this.pool.query(
       `UPDATE agent_commands
-       SET status = 'completed', result = $1::jsonb, completed_at = now()
-       WHERE id = $2 AND agent_id = $3
+       SET status = CASE WHEN $2::boolean THEN 'completed' ELSE 'failed' END,
+           result = $1::jsonb, completed_at = now()
+       WHERE id = $3 AND agent_id = $4
        RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
-      [JSON.stringify(result), input.commandId, input.agentId],
+      [JSON.stringify(result), resultOk, input.commandId, input.agentId],
     );
     const record = updated.rows[0];
     if (record && typeof result === 'object' && result !== null) {

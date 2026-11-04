@@ -221,6 +221,20 @@ describe('agent registry API', () => {
     });
     expect(completed.json()).toMatchObject({ status: 'completed' });
 
+    const failing = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/commands`,
+      headers: { cookie },
+      payload: { type: 'diagnostics' },
+    });
+    const failingId = (failing.json() as { id: string }).id;
+    const failed = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${body.agent.id}/commands/${failingId}/complete`,
+      payload: { agentKey: body.agentKey, result: { ok: false, error: 'probe_failed' } },
+    });
+    expect(failed.json()).toMatchObject({ status: 'failed' });
+
     const list = await app.inject({ method: 'GET', url: '/api/agents', headers: { cookie } });
     expect(list.json()).toMatchObject([{ hostname: 'prod-host-1', status: 'online' }]);
 

@@ -221,6 +221,7 @@ POST /api/platform/agents/:id/certificate/revoke
   → HTTPS 请求检查客户端证书序列号
   → 已吊销证书返回 403
   → 证书签发接口拒绝继续签发
+  → 写审计事件 agent.certificate.revoke
 ```
 
 缓存每 60 秒刷新。

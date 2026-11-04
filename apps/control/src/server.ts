@@ -99,7 +99,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     });
     registerMemberRoutes(app, options.pool, audit);
     registerModelRoutes(app, options.pool, audit, options.modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret');
-    registerPlatformRoutes(app, options.pool);
+    registerPlatformRoutes(app, options.pool, audit);
     registerDataStoreRoutes(app, options.pool, audit);
     registerStudioRoutes(app, options.pool, audit, options.studioGenerator);
     registerIncidentRoutes(app, options.pool, audit, options.internalToken, runtime);

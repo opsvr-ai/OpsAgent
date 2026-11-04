@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SESSION_COOKIE, readSession } from '../auth/session.js';
 import { certificateRevocations } from '../agents/revocations.js';
+import type { AuditWriter } from '../audit/writer.js';
 import { PlatformTenantService } from './service.js';
 
 async function platformAdmin(pool: Pool, request: FastifyRequest): Promise<string | null> {
@@ -19,7 +20,7 @@ async function platformAdmin(pool: Pool, request: FastifyRequest): Promise<strin
   return result.rows[0]?.is_platform_admin ? session.user.id : null;
 }
 
-export function registerPlatformRoutes(app: FastifyInstance, pool: Pool): void {
+export function registerPlatformRoutes(app: FastifyInstance, pool: Pool, audit?: AuditWriter): void {
   const tenants = new PlatformTenantService(pool);
 
   app.get('/api/platform/tls', async (request, reply) => {
@@ -51,15 +52,30 @@ export function registerPlatformRoutes(app: FastifyInstance, pool: Pool): void {
   });
 
   app.post<{ Params: { id: string } }>('/api/platform/agents/:id/certificate/revoke', async (request, reply) => {
-    if (!(await platformAdmin(pool, request))) {
+    const actor = await platformAdmin(pool, request);
+    if (!actor) {
       return reply.code(403).send({ error: 'forbidden' });
     }
+    const owner = await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM agents WHERE id = $1',
+      [request.params.id],
+    );
+    const tenantId = owner.rows[0]?.tenant_id;
+    if (!tenantId) return reply.code(404).send({ error: 'agent_not_found' });
     const body = request.body as { reason?: unknown } | undefined;
     const reason = typeof body?.reason === 'string' && body.reason.trim()
       ? body.reason.trim()
       : 'revoked by platform administrator';
     const serial = await certificateRevocations.revoke(request.params.id, reason);
     if (!serial) return reply.code(404).send({ error: 'agent_certificate_not_found' });
+    await audit?.write({
+      tenantId,
+      actorId: actor,
+      action: 'agent.certificate.revoke',
+      resource: request.params.id,
+      result: 'success',
+      metadata: { serialNumber: serial, reason },
+    });
     return reply.send({ ok: true, serialNumber: serial });
   });
 

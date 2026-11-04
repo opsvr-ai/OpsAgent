@@ -445,6 +445,11 @@ describe('agent instruction API', () => {
       [incidentId],
     );
     expect(requestedEvents.rows.some((row) => row.type === 'instruction_approval_requested')).toBe(true);
+    const requestedNotice = await pool.query<{ title: string }>(
+      `SELECT title FROM messages WHERE tenant_id = $1 AND title = 'Agent 写操作待审批' LIMIT 1`,
+      [tenantId],
+    );
+    expect(requestedNotice.rows[0]?.title).toBe('Agent 写操作待审批');
     const approved = await app.inject({
       method: 'POST',
       url: `/api/agent-instruction-approvals/${approvalId}/decision`,

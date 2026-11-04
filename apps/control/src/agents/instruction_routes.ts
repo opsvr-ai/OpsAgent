@@ -170,6 +170,11 @@ export function registerAgentInstructionRoutes(
         const row = approval.rows[0];
         if (row) approvals.push({ approvalId: row.id, agentId: agent.id, hostname: agent.hostname, status: 'awaiting_approval' });
       }
+      await pool.query(
+        `INSERT INTO messages (tenant_id, title, body, severity)
+         VALUES ($1, 'Agent 批量写操作待审批', $2, 'warning')`,
+        [ctx.tenantId, `${approvals.length} 台：${plan.intent.kind} ${service}`],
+      );
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,
@@ -472,6 +477,11 @@ export function registerAgentInstructionRoutes(
             [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({ approvalId: approval.id, reason })],
           );
         }
+        await pool.query(
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, 'Agent 写操作已拒绝', $2, 'info')`,
+          [ctx.tenantId, `${approval.service ?? approval.instruction}${reason ? `：${reason}` : ''}`],
+        );
         await audit.write({
           tenantId: ctx.tenantId,
           actorId: ctx.userId,
@@ -537,6 +547,11 @@ export function registerAgentInstructionRoutes(
           })],
         );
       }
+      await pool.query(
+        `INSERT INTO messages (tenant_id, title, body, severity)
+         VALUES ($1, 'Agent 写操作已批准', $2, 'info')`,
+        [ctx.tenantId, `${target.hostname}：${intentKind} ${service}`],
+      );
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,
@@ -730,6 +745,11 @@ export function registerAgentInstructionRoutes(
           })],
         );
       }
+      await pool.query(
+        `INSERT INTO messages (tenant_id, title, body, severity)
+         VALUES ($1, 'Agent 写操作待审批', $2, 'warning')`,
+        [ctx.tenantId, `${target.hostname}：${plan.intent.kind} ${service}`],
+      );
       await audit.write({
         tenantId: ctx.tenantId,
         actorId: ctx.userId,

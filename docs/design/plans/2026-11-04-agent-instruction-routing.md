@@ -289,6 +289,17 @@ instruction_approval_denied
 instruction_completed
 ```
 
+消息中心通知：
+
+```text
+Agent 写操作待审批
+Agent 批量写操作待审批
+Agent 写操作已批准
+Agent 写操作已拒绝
+审批即将过期
+审批已过期
+```
+
 ### 指令历史
 
 ```http

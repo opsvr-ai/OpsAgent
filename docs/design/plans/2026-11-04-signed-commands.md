@@ -28,6 +28,7 @@
 - 密钥状态接口：`GET /api/agents/command-keys` 返回当前/上一把 key 及每台 Agent 是否仍使用有效 key
 - 轮换安全提示：Agent 列表展示仍停留在旧 key 的 Agent 数量，提示等待下一次心跳切换
 - 密钥变更历史：心跳检测到 `commandKeyId` 变化时写入 `agent_command_key_history`，`GET /api/agents/:id/key-history` 可审计每次切换
+- 旧 key 告警：`AgentKeyMonitor` 每分钟检查最近心跳 Agent，发现仍使用已撤销 key 时每天最多推送一条待处理消息
 
 ## 数据库
 

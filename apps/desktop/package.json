@@ -10,7 +10,8 @@
     "dev": "node scripts/start.cjs",
     "package:dir": "node scripts/package.cjs --dir",
     "package:zip": "node scripts/package-zip.cjs",
-    "package:win": "node scripts/package.cjs --win nsis"
+    "package:win": "node scripts/package.cjs --win nsis",
+    "package:feed": "node scripts/feed.cjs"
   },
   "devDependencies": {
     "electron": "^34.3.4",

@@ -86,6 +86,34 @@ OpsAgent Setup 0.2.0.exe.blockmap
 
 下载完成后提示重启安装。当前更新包未做代码签名，生产环境应配置证书。
 
+生成更新目录：
+
+```bash
+pnpm --filter @opsagent/desktop package:feed
+```
+
+产物：
+
+```text
+apps/desktop/release/feed/latest.yml
+apps/desktop/release/feed/OpsAgent Setup 0.2.0.exe
+apps/desktop/release/feed/OpsAgent Setup 0.2.0.exe.blockmap
+```
+
+将该目录部署到静态服务器后，设置 `OPSAGENT_DESKTOP_UPDATE_URL` 即可。
+
+## 代码签名
+
+配置 Electron Builder 标准环境变量后重新打包：
+
+```bash
+CSC_LINK=/path/to/certificate.pfx
+CSC_KEY_PASSWORD=***
+pnpm --filter @opsagent/desktop package:win
+```
+
+配置后安装包会使用证书签名；未配置时保持未签名。
+
 打包脚本会自动定位本机 Electron 二进制，不依赖 GitHub 下载。
 
 ## 安全

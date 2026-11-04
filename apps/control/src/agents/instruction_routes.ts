@@ -485,35 +485,39 @@ export function registerAgentInstructionRoutes(
           [ctx.userId, reason, ctx.tenantId, approval.id],
         );
         if (!denied.rows[0]) return reply.code(409).send({ error: 'approval_not_pending' });
-        if (approval.incident_id) {
+        try {
+          if (approval.incident_id) {
+            await pool.query(
+              `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+               VALUES ($1, $2, $3, 'instruction_approval_denied', $4::jsonb)`,
+              [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({ approvalId: approval.id, reason })],
+            );
+          }
           await pool.query(
-            `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
-             VALUES ($1, $2, $3, 'instruction_approval_denied', $4::jsonb)`,
-            [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({ approvalId: approval.id, reason })],
+            `INSERT INTO messages (tenant_id, title, body, severity)
+             VALUES ($1, 'Agent 写操作已拒绝', $2, 'info')`,
+            [ctx.tenantId, `${approval.service ?? approval.instruction}${reason ? `：${reason}` : ''}`],
           );
+          notifyApprovalWebhook({
+            type: 'approval_denied',
+            tenantId: ctx.tenantId,
+            approvalId: approval.id,
+            agentId: approval.agent_id,
+            action: approval.action,
+            service: approval.service,
+            instruction: approval.instruction,
+          }, pool);
+          await audit.write({
+            tenantId: ctx.tenantId,
+            actorId: ctx.userId,
+            action: 'agent.instruction.approval.denied',
+            resource: approval.id,
+            result: 'success',
+            metadata: { agentId: approval.agent_id, service: approval.service },
+          });
+        } catch (error) {
+          console.error('approval deny side effect failed', approval.id, error);
         }
-        await pool.query(
-          `INSERT INTO messages (tenant_id, title, body, severity)
-           VALUES ($1, 'Agent 写操作已拒绝', $2, 'info')`,
-          [ctx.tenantId, `${approval.service ?? approval.instruction}${reason ? `：${reason}` : ''}`],
-        );
-        notifyApprovalWebhook({
-          type: 'approval_denied',
-          tenantId: ctx.tenantId,
-          approvalId: approval.id,
-          agentId: approval.agent_id,
-          action: approval.action,
-          service: approval.service,
-          instruction: approval.instruction,
-        }, pool);
-        await audit.write({
-          tenantId: ctx.tenantId,
-          actorId: ctx.userId,
-          action: 'agent.instruction.approval.denied',
-          resource: approval.id,
-          result: 'success',
-          metadata: { agentId: approval.agent_id, service: approval.service },
-        });
         return reply.send({ status: 'denied', approvalId: approval.id });
       }
 
@@ -579,40 +583,44 @@ export function registerAgentInstructionRoutes(
          WHERE tenant_id = $2 AND id = $3`,
         [command.id, ctx.tenantId, approval.id],
       );
-      if (approval.incident_id) {
+      try {
+        if (approval.incident_id) {
+          await pool.query(
+            `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
+             VALUES ($1, $2, $3, 'instruction_approval_approved', $4::jsonb)`,
+            [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({
+              approvalId: approval.id,
+              commandId: command.id,
+              service,
+            })],
+          );
+        }
         await pool.query(
-          `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)
-           VALUES ($1, $2, $3, 'instruction_approval_approved', $4::jsonb)`,
-          [ctx.tenantId, approval.incident_id, ctx.userId, JSON.stringify({
-            approvalId: approval.id,
-            commandId: command.id,
-            service,
-          })],
+          `INSERT INTO messages (tenant_id, title, body, severity)
+           VALUES ($1, 'Agent 写操作已批准', $2, 'info')`,
+          [ctx.tenantId, `${target.hostname}：${intentKind} ${service}`],
         );
+        notifyApprovalWebhook({
+          type: 'approval_approved',
+          tenantId: ctx.tenantId,
+          approvalId: approval.id,
+          agentId: approval.agent_id,
+          hostname: target.hostname,
+          action: intentKind,
+          service,
+          instruction: approval.instruction,
+        }, pool);
+        await audit.write({
+          tenantId: ctx.tenantId,
+          actorId: ctx.userId,
+          action: 'agent.instruction.approval.approved',
+          resource: approval.id,
+          result: 'success',
+          metadata: { agentId: approval.agent_id, service, commandId: command.id },
+        });
+      } catch (error) {
+        console.error('approval approve side effect failed', approval.id, error);
       }
-      await pool.query(
-        `INSERT INTO messages (tenant_id, title, body, severity)
-         VALUES ($1, 'Agent 写操作已批准', $2, 'info')`,
-        [ctx.tenantId, `${target.hostname}：${intentKind} ${service}`],
-      );
-      notifyApprovalWebhook({
-        type: 'approval_approved',
-        tenantId: ctx.tenantId,
-        approvalId: approval.id,
-        agentId: approval.agent_id,
-        hostname: target.hostname,
-        action: intentKind,
-        service,
-        instruction: approval.instruction,
-      }, pool);
-      await audit.write({
-        tenantId: ctx.tenantId,
-        actorId: ctx.userId,
-        action: 'agent.instruction.approval.approved',
-        resource: approval.id,
-        result: 'success',
-        metadata: { agentId: approval.agent_id, service, commandId: command.id },
-      });
       return reply.code(202).send({
         status: 'approved',
         approvalId: approval.id,

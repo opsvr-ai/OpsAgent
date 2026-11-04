@@ -195,6 +195,40 @@ describe('incident API', () => {
     await app.close();
   });
 
+  it('configures the incident report template', async () => {
+    const app = buildServer({
+      pool,
+      localAdmin: { enabled: true, username: 'tenant-admin' },
+    });
+    const cookie = await login(app);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/incidents',
+      headers: { cookie },
+      payload: { title: 'templated incident', severity: 'P2' },
+    });
+    const id = (created.json() as { id: string }).id;
+    const initial = await app.inject({ method: 'GET', url: '/api/incident-report-templates', headers: { cookie } });
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json()).toMatchObject({ custom: false });
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/api/incident-report-templates',
+      headers: { cookie },
+      payload: { body: '# 自定义：{{title}}\n根因：{{rootCause}}\n证据：\n{{evidence}}' },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({ custom: true });
+    const report = await app.inject({
+      method: 'GET',
+      url: `/api/incidents/${id}/report`,
+      headers: { cookie },
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.body).toContain('# 自定义：templated incident');
+    await app.close();
+  });
+
   it('rejects an invalid status', async () => {
     const app = buildServer({
       pool,

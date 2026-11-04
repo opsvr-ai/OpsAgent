@@ -120,6 +120,43 @@ export function registerIncidentRoutes(
     return reply.send(incident);
   });
 
+  app.get('/api/incident-report-templates', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await incidents.getReportTemplate(ctx.tenantId));
+  });
+
+  app.put('/api/incident-report-templates', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'incident.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { body?: unknown } | undefined;
+    if (typeof body?.body !== 'string' || body.body.trim().length < 20 || body.body.length > 20_000) {
+      return reply.code(400).send({ error: 'invalid_template' });
+    }
+    const template = await incidents.saveReportTemplate(ctx.tenantId, body.body, ctx.userId);
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'incident.report_template.update',
+      resource: 'default',
+      result: 'success',
+      metadata: { chars: body.body.length },
+    });
+    return reply.send(template);
+  });
+
   app.get<{ Params: { id: string } }>('/api/incidents/:id/report', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

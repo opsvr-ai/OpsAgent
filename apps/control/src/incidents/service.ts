@@ -23,6 +23,31 @@ export interface IncidentRecord {
   readonly rootCause: string | null;
 }
 
+export const DEFAULT_INCIDENT_REPORT_TEMPLATE = `# 事件报告：{{title}}
+
+- 事件 ID：{{id}}
+- 严重度：{{severity}}
+- 状态：{{status}}
+- 来源：{{source}}
+- 根因：{{rootCause}}
+
+## 证据
+
+{{evidence}}
+
+## 故障假设
+
+{{hypotheses}}
+
+## 处置任务
+
+{{tickets}}
+
+## 时间线
+
+{{timeline}}
+`;
+
 export class IncidentService {
   constructor(
     private readonly pool: Pool,
@@ -565,35 +590,68 @@ export class IncidentService {
     return this.getWithEvents(input.tenantId, input.incidentId);
   }
 
+  async getReportTemplate(tenantId: string): Promise<{
+    body: string;
+    custom: boolean;
+    updatedAt: string | null;
+  }> {
+    const result = await this.pool.query<{ body: string; updated_at: Date }>(
+      `SELECT body, updated_at FROM incident_report_templates
+       WHERE tenant_id = $1 AND name = 'default' LIMIT 1`,
+      [tenantId],
+    );
+    const row = result.rows[0];
+    return row
+      ? { body: row.body, custom: true, updatedAt: row.updated_at.toISOString() }
+      : { body: DEFAULT_INCIDENT_REPORT_TEMPLATE, custom: false, updatedAt: null };
+  }
+
+  async saveReportTemplate(
+    tenantId: string,
+    body: string,
+    actorId: string,
+  ): Promise<{ body: string; custom: boolean; updatedAt: string | null }> {
+    const result = await this.pool.query<{ updated_at: Date }>(
+      `INSERT INTO incident_report_templates (tenant_id, name, body, is_default, updated_by)
+       VALUES ($1, 'default', $2, true, $3)
+       ON CONFLICT (tenant_id, name) DO UPDATE
+         SET body = EXCLUDED.body, updated_by = EXCLUDED.updated_by, updated_at = now()
+       RETURNING updated_at`,
+      [tenantId, body, actorId],
+    );
+    return {
+      body,
+      custom: true,
+      updatedAt: result.rows[0]?.updated_at.toISOString() ?? null,
+    };
+  }
+
   async report(tenantId: string, id: string): Promise<string | null> {
     const detail = await this.getWithEvents(tenantId, id);
     if (!detail) return null;
-    const lines = [
-      `# 事件报告：${detail.incident.title}`,
-      '',
-      `- 事件 ID：${detail.incident.id}`,
-      `- 严重度：${detail.incident.severity}`,
-      `- 状态：${detail.incident.status}`,
-      `- 来源：${detail.incident.source}`,
-      `- 根因：${detail.incident.rootCause ?? '未确认'}`,
-      '',
-      '## 证据',
-      '',
-      ...detail.evidence.map((item) => `- [${item.kind}] ${item.summary}`),
-      '',
-      '## 故障假设',
-      '',
-      ...detail.hypotheses.map((item) => `- ${item.confidence}% ${item.status}：${item.statement}`),
-      '',
-      '## 处置任务',
-      '',
-      ...detail.tickets.map((item) => `- ${item.title}（${item.assignee} / ${item.status}）`),
-      '',
-      '## 时间线',
-      '',
-      ...detail.events.map((event) => `- ${event.createdAt} ${event.type} ${JSON.stringify(event.payload)}`),
-    ];
-    return lines.join('\n');
+    const template = await this.getReportTemplate(tenantId);
+    const segments: Record<string, string> = {
+      title: detail.incident.title,
+      id: detail.incident.id,
+      severity: detail.incident.severity,
+      status: detail.incident.status,
+      source: detail.incident.source,
+      rootCause: detail.incident.rootCause ?? '未确认',
+      evidence: detail.evidence.length > 0
+        ? detail.evidence.map((item) => `- [${item.kind}] ${item.summary}`).join('\n')
+        : '- 暂无',
+      hypotheses: detail.hypotheses.length > 0
+        ? detail.hypotheses.map((item) => `- ${item.confidence}% ${item.status}：${item.statement}`).join('\n')
+        : '- 暂无',
+      tickets: detail.tickets.length > 0
+        ? detail.tickets.map((item) => `- ${item.title}（${item.assignee} / ${item.status}）`).join('\n')
+        : '- 暂无',
+      timeline: detail.events.length > 0
+        ? detail.events.map((event) => `- ${event.createdAt} ${event.type} ${JSON.stringify(event.payload)}`).join('\n')
+        : '- 暂无',
+      generatedAt: new Date().toISOString(),
+    };
+    return template.body.replace(/\{\{(\w+)\}\}/g, (match, key: string) => segments[key] ?? match);
   }
 
   async requestApproval(input: {

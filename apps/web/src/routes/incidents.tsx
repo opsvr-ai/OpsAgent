@@ -4,9 +4,11 @@ import {
   createIncident,
   decideIncidentApproval,
   getIncident,
+  getIncidentReportTemplate,
   investigateIncident,
   listIncidents,
   requestIncidentApproval,
+  saveIncidentReportTemplate,
   updateIncident,
   type IncidentDetail,
   type IncidentSummary,
@@ -55,6 +57,9 @@ export function Incidents({ onBack }: IncidentsProps) {
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisText, setAnalysisText] = useState('');
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateBody, setTemplateBody] = useState('');
+  const [templateBusy, setTemplateBusy] = useState(false);
 
   useEffect(() => {
     void listIncidents()
@@ -143,6 +148,30 @@ export function Incidents({ onBack }: IncidentsProps) {
       setError('审批处理失败');
     } finally {
       setApprovalBusy(false);
+    }
+  }
+
+  async function openTemplate() {
+    setTemplateOpen(true);
+    setError(null);
+    try {
+      const template = await getIncidentReportTemplate();
+      setTemplateBody(template.body);
+    } catch {
+      setError('报告模板加载失败');
+    }
+  }
+
+  async function saveTemplate() {
+    setTemplateBusy(true);
+    setError(null);
+    try {
+      await saveIncidentReportTemplate(templateBody);
+      setTemplateOpen(false);
+    } catch {
+      setError('报告模板保存失败');
+    } finally {
+      setTemplateBusy(false);
     }
   }
 
@@ -267,10 +296,31 @@ export function Incidents({ onBack }: IncidentsProps) {
                         {analyzing ? '分析中…' : 'Commander 分析'}
                       </button>
                       <a className="btn btn-outline btn-sm" href={`/api/incidents/${selected.id}/report`} target="_blank" rel="noreferrer">导出报告</a>
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => void openTemplate()}>报告模板</button>
                       <button type="button" className="btn btn-outline btn-sm" disabled={approvalBusy} onClick={() => void requestApproval(selected.id)}>申请 R2 审批</button>
                       {statusActions(selected)}
                     </div>
                   </div>
+                  {templateOpen ? (
+                    <div className="incident-evidence" style={{ marginBottom: 14 }}>
+                      <div className="row-between">
+                        <strong>事件报告模板</strong>
+                        <div className="row-sm">
+                          <button type="button" className="btn btn-primary btn-sm" disabled={templateBusy} onClick={() => void saveTemplate()}>
+                            {templateBusy ? '保存中…' : '保存'}
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" disabled={templateBusy} onClick={() => setTemplateOpen(false)}>取消</button>
+                        </div>
+                      </div>
+                      <p className="muted" style={{ margin: '6px 0' }}>占位符：{'{{title}} {{id}} {{severity}} {{status}} {{source}} {{rootCause}} {{evidence}} {{hypotheses}} {{tickets}} {{timeline}}'}</p>
+                      <textarea
+                        value={templateBody}
+                        onChange={(event) => setTemplateBody(event.target.value)}
+                        rows={10}
+                        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                      />
+                    </div>
+                  ) : null}
                   <div className="grid grid-2" style={{ alignItems: 'start' }}>
                     <div>
                       <h3>时间线</h3>

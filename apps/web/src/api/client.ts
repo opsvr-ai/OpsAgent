@@ -371,6 +371,23 @@ export async function analyzeIncident(id: string): Promise<IncidentAnalysisResul
   });
 }
 
+export interface IncidentReportTemplate {
+  readonly body: string;
+  readonly custom: boolean;
+  readonly updatedAt: string | null;
+}
+
+export async function getIncidentReportTemplate(): Promise<IncidentReportTemplate> {
+  return request<IncidentReportTemplate>('/api/incident-report-templates');
+}
+
+export async function saveIncidentReportTemplate(body: string): Promise<IncidentReportTemplate> {
+  return request<IncidentReportTemplate>('/api/incident-report-templates', {
+    method: 'PUT',
+    body: JSON.stringify({ body }),
+  });
+}
+
 export interface ApprovalSummary {
   readonly id: string;
   readonly action: string;

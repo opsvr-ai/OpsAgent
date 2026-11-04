@@ -119,6 +119,7 @@ export class AgentService {
     arch: string;
     version: string;
     capabilities: readonly string[];
+    resultPublicKey?: string;
     discovery?: DiscoveryPayload;
   }): Promise<{ agent: AgentRecord; agentKey: string }> {
     const agentKey = randomUUID();
@@ -126,9 +127,9 @@ export class AgentService {
     const result = await this.pool.query<{ id: string }>(
       `INSERT INTO agents
          (tenant_id, name, hostname, os, arch, version, status, capabilities, agent_key, last_seen,
-          system_info, applications, agent_info, discovery_at)
+          result_public_key, system_info, applications, agent_info, discovery_at)
        VALUES ($1, $2, $3, $4, $5, $6, 'online', $7::jsonb, $8, now(),
-               $9::jsonb, $10::jsonb, $11::jsonb, now())
+               $9, $10::jsonb, $11::jsonb, $12::jsonb, now())
        ON CONFLICT (tenant_id, hostname) DO UPDATE SET
          name = EXCLUDED.name,
          os = EXCLUDED.os,
@@ -138,6 +139,7 @@ export class AgentService {
          capabilities = EXCLUDED.capabilities,
          agent_key = EXCLUDED.agent_key,
          last_seen = now(),
+         result_public_key = COALESCE(EXCLUDED.result_public_key, agents.result_public_key),
          system_info = EXCLUDED.system_info,
          applications = EXCLUDED.applications,
          agent_info = EXCLUDED.agent_info,
@@ -152,6 +154,7 @@ export class AgentService {
         input.version,
         JSON.stringify(input.capabilities),
         agentKey,
+        input.resultPublicKey ?? null,
         JSON.stringify(record(discovery.system)),
         JSON.stringify(applicationList(discovery.applications)),
         JSON.stringify(record(discovery.agent)),

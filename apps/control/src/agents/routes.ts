@@ -47,6 +47,7 @@ export function registerAgentRoutes(
       arch?: unknown;
       version?: unknown;
       capabilities?: unknown;
+      resultPublicKey?: unknown;
       discovery?: unknown;
     } | undefined;
     if (
@@ -69,6 +70,9 @@ export function registerAgentRoutes(
       capabilities: Array.isArray(body.capabilities)
         ? body.capabilities.filter((item): item is string => typeof item === 'string')
         : [],
+      ...(typeof body.resultPublicKey === 'string' && body.resultPublicKey.length > 20
+        ? { resultPublicKey: body.resultPublicKey }
+        : {}),
       ...(discovery ? { discovery } : {}),
     });
     const commandSigners = getCommandSigners();
@@ -384,18 +388,32 @@ export function registerAgentRoutes(
   app.post<{ Params: { id: string; commandId: string } }>(
     '/api/agents/:id/commands/:commandId/complete',
     async (request, reply) => {
-      const body = request.body as { agentKey?: unknown; result?: unknown } | undefined;
+      const body = request.body as {
+        agentKey?: unknown;
+        result?: unknown;
+        resultSigned?: unknown;
+        resultSignature?: unknown;
+      } | undefined;
       if (typeof body?.agentKey !== 'string') {
         return reply.code(400).send({ error: 'invalid_request' });
       }
-      const command = await commands.complete({
-        agentId: request.params.id,
-        commandId: request.params.commandId,
-        key: body.agentKey,
-        result: body.result ?? {},
-      });
-      if (!command) return reply.code(404).send({ error: 'command_not_found' });
-      return reply.send(command);
+      try {
+        const command = await commands.complete({
+          agentId: request.params.id,
+          commandId: request.params.commandId,
+          key: body.agentKey,
+          result: body.result ?? {},
+          ...(typeof body.resultSigned === 'string' ? { resultSigned: body.resultSigned } : {}),
+          ...(typeof body.resultSignature === 'string' ? { resultSignature: body.resultSignature } : {}),
+        });
+        if (!command) return reply.code(404).send({ error: 'command_not_found' });
+        return reply.send(command);
+      } catch (error) {
+        if (error instanceof Error && (error.message === 'invalid_result_signature' || error.message === 'result_signature_required' || error.message === 'invalid_result_payload')) {
+          return reply.code(400).send({ error: error.message });
+        }
+        throw error;
+      }
     },
   );
 }

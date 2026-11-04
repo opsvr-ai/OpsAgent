@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,14 +18,15 @@ import (
 )
 
 type registerRequest struct {
-	TenantID     string           `json:"tenantId"`
-	Name         string           `json:"name"`
-	Hostname     string           `json:"hostname"`
-	OS           string           `json:"os"`
-	Arch         string           `json:"arch"`
-	Version      string           `json:"version"`
-	Capabilities []string         `json:"capabilities"`
-	Discovery    *discoveryReport `json:"discovery,omitempty"`
+	TenantID        string           `json:"tenantId"`
+	Name            string           `json:"name"`
+	Hostname        string           `json:"hostname"`
+	OS              string           `json:"os"`
+	Arch            string           `json:"arch"`
+	Version         string           `json:"version"`
+	Capabilities    []string         `json:"capabilities"`
+	ResultPublicKey string           `json:"resultPublicKey,omitempty"`
+	Discovery       *discoveryReport `json:"discovery,omitempty"`
 }
 
 type registerResponse struct {
@@ -229,20 +233,27 @@ func runDaemon(paths agentPaths) {
 	registered := registerResponse{}
 	agentStarted = time.Now()
 	started := agentStarted
+	resultPublicKey, resultPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatalf("generate result key: %v", err)
+	}
+	resultPublicKeyBase64 := base64.StdEncoding.EncodeToString(resultPublicKey)
+	resultPrivateSeedBase64 := base64.StdEncoding.EncodeToString(resultPrivateKey.Seed())
 	initialMetrics := hostMetrics()
 	initialDiscovery := collectDiscovery(started, initialMetrics)
 	if err := paths.writeSnapshot("discovery.json", initialDiscovery); err != nil {
 		log.Printf("initial discovery snapshot: %v", err)
 	}
 	if err := post(controlURL+"/api/agents/register", headers, registerRequest{
-		TenantID:     tenantID,
-		Name:         name,
-		Hostname:     hostname,
-		OS:           runtime.GOOS,
-		Arch:         runtime.GOARCH,
-		Version:      agentVersion,
-		Capabilities: []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot"},
-		Discovery:    &initialDiscovery,
+		TenantID:        tenantID,
+		Name:            name,
+		Hostname:        hostname,
+		OS:              runtime.GOOS,
+		Arch:            runtime.GOARCH,
+		Version:         agentVersion,
+		Capabilities:    []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot"},
+		ResultPublicKey: resultPublicKeyBase64,
+		Discovery:       &initialDiscovery,
 	}, &registered); err != nil {
 		log.Fatalf("register: %v", err)
 	}
@@ -256,6 +267,8 @@ func runDaemon(paths agentPaths) {
 		CommandPublicKey:  registered.CommandPublicKey,
 		CommandKeyID:      registered.CommandKeyID,
 		CommandPublicKeys: registered.CommandPublicKeys,
+		ResultPrivateKey:  resultPrivateSeedBase64,
+		ResultPublicKey:   resultPublicKeyBase64,
 	}); err != nil {
 		log.Printf("save agent state: %v", err)
 	} else {
@@ -365,6 +378,8 @@ func runDaemon(paths agentPaths) {
 				CommandPublicKey:  registered.CommandPublicKey,
 				CommandKeyID:      registered.CommandKeyID,
 				CommandPublicKeys: registered.CommandPublicKeys,
+				ResultPrivateKey:  resultPrivateSeedBase64,
+				ResultPublicKey:   resultPublicKeyBase64,
 			}); err != nil {
 				log.Printf("save rotated command keys: %v", err)
 			}
@@ -428,10 +443,21 @@ func runDaemon(paths agentPaths) {
 					log.Printf("last command snapshot: %v", err)
 				}
 				pruneCommandSnapshots(paths, 20)
+				resultSigned, marshalErr := json.Marshal(result)
+				if marshalErr != nil {
+					log.Printf("command result marshal id=%s: %v", command.ID, marshalErr)
+					resultSigned = []byte("{}")
+				}
+				resultSignature := ed25519.Sign(resultPrivateKey, resultSigned)
 				if err := post(
 					controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
 					nil,
-					map[string]any{"agentKey": registered.AgentKey, "result": result},
+					map[string]any{
+						"agentKey":        registered.AgentKey,
+						"result":          result,
+						"resultSigned":    string(resultSigned),
+						"resultSignature": base64.StdEncoding.EncodeToString(resultSignature),
+					},
 					nil,
 				); err != nil {
 					log.Printf("command complete id=%s: %v", command.ID, err)

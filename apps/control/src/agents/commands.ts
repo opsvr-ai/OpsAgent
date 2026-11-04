@@ -1,6 +1,23 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createPublicKey, verify as verifySignature } from 'node:crypto';
 import type { Pool } from 'pg';
 import { CommandSigner, getCommandSigner } from './signing.js';
+
+const SPKI_ED25519_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+function verifyAgentResult(publicKeyBase64: string, payload: string, signature: string): boolean {
+  try {
+    const raw = Buffer.from(publicKeyBase64, 'base64');
+    if (raw.length !== 32) return false;
+    const key = createPublicKey({
+      key: Buffer.concat([SPKI_ED25519_PREFIX, raw]),
+      format: 'der',
+      type: 'spki',
+    });
+    return verifySignature(null, Buffer.from(payload, 'utf8'), key, Buffer.from(signature, 'base64'));
+  } catch {
+    return false;
+  }
+}
 
 export interface AgentCommandRecord {
   readonly id: string;
@@ -99,22 +116,39 @@ export class AgentCommandService {
     commandId: string;
     key: string;
     result: unknown;
+    resultSigned?: string;
+    resultSignature?: string;
   }): Promise<AgentCommandRecord | null> {
-    const agent = await this.pool.query<{ tenant_id: string }>(
-      'SELECT tenant_id FROM agents WHERE id = $1 AND agent_key = $2',
+    const agent = await this.pool.query<{ tenant_id: string; result_public_key: string | null }>(
+      'SELECT tenant_id, result_public_key FROM agents WHERE id = $1 AND agent_key = $2',
       [input.agentId, input.key],
     );
     if (agent.rowCount === 0) return null;
-    const result = await this.pool.query(
+    let result = input.result;
+    const resultPublicKey = agent.rows[0]?.result_public_key;
+    if (resultPublicKey) {
+      if (!input.resultSigned || !input.resultSignature) {
+        throw new Error('result_signature_required');
+      }
+      if (!verifyAgentResult(resultPublicKey, input.resultSigned, input.resultSignature)) {
+        throw new Error('invalid_result_signature');
+      }
+      try {
+        result = JSON.parse(input.resultSigned);
+      } catch {
+        throw new Error('invalid_result_payload');
+      }
+    }
+    const updated = await this.pool.query(
       `UPDATE agent_commands
        SET status = 'completed', result = $1::jsonb, completed_at = now()
        WHERE id = $2 AND agent_id = $3
        RETURNING id, agent_id, type, status, payload, result, signed_payload, signature, nonce, key_id, expires_at, created_at`,
-      [JSON.stringify(input.result), input.commandId, input.agentId],
+      [JSON.stringify(result), input.commandId, input.agentId],
     );
-    const record = result.rows[0];
-    if (record && typeof input.result === 'object' && input.result !== null) {
-      const discovery = (input.result as Record<string, unknown>).discovery;
+    const record = updated.rows[0];
+    if (record && typeof result === 'object' && result !== null) {
+      const discovery = (result as Record<string, unknown>).discovery;
       if (typeof discovery === 'object' && discovery !== null && !Array.isArray(discovery)) {
         const report = discovery as Record<string, unknown>;
         const tenantId = agent.rows[0]?.tenant_id;

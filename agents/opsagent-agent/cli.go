@@ -24,6 +24,8 @@ type agentState struct {
 	CommandPublicKey  string       `json:"commandPublicKey,omitempty"`
 	CommandKeyID      string       `json:"commandKeyId,omitempty"`
 	CommandPublicKeys []commandKey `json:"commandPublicKeys,omitempty"`
+	ResultPrivateKey  string       `json:"resultPrivateKey,omitempty"`
+	ResultPublicKey   string       `json:"resultPublicKey,omitempty"`
 	UpdatedAt         string       `json:"updatedAt"`
 }
 

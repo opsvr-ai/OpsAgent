@@ -21,6 +21,7 @@
 - 兼容旧 Agent：未配置公钥的 Agent 继续接受命令
 - 支持平滑轮换：`OPSAGENT_COMMAND_SIGNING_PREVIOUS_SEED` 保留上一把公钥，Agent 同时接受当前/上一把 key
 - 心跳刷新：控制面在心跳响应返回当前 key 集合，Agent 自动更新并落盘；撤销上一把 key 后无需重新注册
+- 结果签名：Agent 注册时生成结果签名密钥，命令结果回传带 `resultSigned`/`resultSignature`，控制面验签后才入库
 
 ## 数据库
 
@@ -33,6 +34,9 @@ agent_commands.signature
 agent_commands.nonce
 agent_commands.key_id
 agent_commands.expires_at
+
+0035_agent_result_signing.sql
+agents.result_public_key
 ```
 
 ## 验证
@@ -40,6 +44,7 @@ agent_commands.expires_at
 - `go test ./...`：签名验证/篡改/缺签/过期测试通过
 - `agent-api`：注册返回公钥与 key id，pending 命令返回 signedPayload/signature
 - 容器实测：Agent 注册拿到公钥与 key id，命令 `diagnostics` 信封验签成功并完成
+- 结果实测：Agent 回传结果签名，控制面验签通过后入库
 - 篡改 payload、过期、重复 nonce 会被拒绝
 
 ## 剩余安全项

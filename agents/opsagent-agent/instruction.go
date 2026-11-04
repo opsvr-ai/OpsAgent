@@ -117,6 +117,24 @@ func runAgentInstruction(input map[string]any) map[string]any {
 				}
 			}
 		}
+		if kind == "service_enable" || kind == "service_disable" {
+			expectedEnabled := "enabled"
+			if kind == "service_disable" {
+				expectedEnabled = "disabled"
+			}
+			if enabled, _ := serviceEnabledState(service); strings.TrimSpace(enabled) != "" {
+				trimmed := strings.TrimSpace(enabled)
+				answer += fmt.Sprintf("开机状态：%s", trimmed)
+				if evidence, ok := result["evidence"].(map[string]string); ok {
+					evidence["enabledState"] = trimmed
+				}
+				if trimmed != expectedEnabled {
+					result["ok"] = false
+					result["error"] = fmt.Sprintf("service %s enabled state %s, expected %s", service, trimmed, expectedEnabled)
+					answer += fmt.Sprintf("（预期 %s）", expectedEnabled)
+				}
+			}
+		}
 		outputText := trimEvidence(output)
 		if outputText != "" {
 			answer += "\n" + outputText

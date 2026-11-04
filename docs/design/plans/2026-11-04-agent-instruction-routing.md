@@ -366,6 +366,8 @@ Windows：sc.exe restart <service>
 期望状态：
   start / restart / reload → active
   stop                     → inactive
+  enable                   → enabled
+  disable                  → disabled
 
 状态不符时命令标记 failed
 ```

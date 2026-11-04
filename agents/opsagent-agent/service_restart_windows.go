@@ -21,3 +21,7 @@ func serviceStatus(service string) (string, error) {
 	output, err := exec.CommandContext(ctx, "sc.exe", "query", service).CombinedOutput()
 	return string(output), err
 }
+
+func serviceEnabledState(_ string) (string, error) {
+	return "", nil
+}

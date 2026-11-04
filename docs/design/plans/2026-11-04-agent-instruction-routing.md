@@ -286,6 +286,8 @@ GET /api/agent-instruction-approvals/notification-stats?hours=24
   → 运维告警 成功 / 失败
   → Web 支持 1h / 12h / 24h / 72h / 7 天切换
   → 折线图展示双通道成功 / 失败
+  → 点位悬浮提示
+  → 数据点较多时横向滚动
   → 支持导出 CSV
 ```
 

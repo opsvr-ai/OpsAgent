@@ -223,9 +223,10 @@ export function Approvals({ onBack }: ApprovalsProps) {
     ]),
   );
   const chartHeight = 100;
+  const chartWidth = Math.max(600, notificationStats.length * 10);
   const chartLine = (key: keyof Pick<NotificationStatPoint, 'approvalDelivered' | 'approvalFailed' | 'operationsDelivered' | 'operationsFailed'>): string =>
     notificationStats.map((point, index) => {
-      const x = notificationStats.length <= 1 ? 300 : (index / (notificationStats.length - 1)) * 600;
+      const x = notificationStats.length <= 1 ? chartWidth / 2 : (index / (notificationStats.length - 1)) * chartWidth;
       const y = chartHeight - (point[key] / maxNotification) * chartHeight;
       return `${x},${y}`;
     }).join(' ');
@@ -266,13 +267,14 @@ export function Approvals({ onBack }: ApprovalsProps) {
             </div>
           </div>
           <div className="card-body">
-            <svg viewBox="0 0 600 100" preserveAspectRatio="none" style={{ width: '100%', height: 100, marginBottom: 8 }}>
+            <div style={{ overflowX: 'auto', marginBottom: 8 }}>
+            <svg viewBox={`0 0 ${chartWidth} 100`} preserveAspectRatio="none" style={{ width: chartWidth, height: 100, display: 'block' }}>
               <polyline fill="none" stroke="var(--ok)" strokeWidth="1.5" points={chartLine('approvalDelivered')} />
               <polyline fill="none" stroke="var(--danger)" strokeWidth="1.5" points={chartLine('approvalFailed')} />
               <polyline fill="none" stroke="var(--accent)" strokeWidth="1.5" points={chartLine('operationsDelivered')} />
               <polyline fill="none" stroke="var(--warn)" strokeWidth="1.5" points={chartLine('operationsFailed')} />
               {notificationStats.map((point, index) => {
-                const x = notificationStats.length <= 1 ? 300 : (index / (notificationStats.length - 1)) * 600;
+                const x = notificationStats.length <= 1 ? chartWidth / 2 : (index / (notificationStats.length - 1)) * chartWidth;
                 const y = chartHeight - (point.approvalDelivered / maxNotification) * chartHeight;
                 return (
                   <circle key={`${point.hour}-point`} cx={x} cy={y} r={3} fill="var(--ok)" opacity={0.8}>
@@ -283,6 +285,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
                 );
               })}
             </svg>
+            </div>
             <div className="row-sm" style={{ marginBottom: 8 }}>
               <span className="badge badge-ok">审批成功</span>
               <span className="badge badge-danger">审批失败</span>

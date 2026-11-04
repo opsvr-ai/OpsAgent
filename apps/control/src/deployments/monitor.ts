@@ -13,6 +13,7 @@ export class DeploymentMonitor {
     private readonly pool: Pool,
     private readonly deployments: DeploymentService,
     private readonly intervalMs = 30_000,
+    private readonly autoPromoteSeconds = Number.parseInt(process.env.OPSAGENT_CANARY_AUTO_PROMOTE_SECONDS ?? '0', 10),
   ) {}
 
   start(): void {
@@ -62,6 +63,38 @@ export class DeploymentMonitor {
               `部署后出现新异常事件，已执行 signed rollback。当前状态：${rolledBack.status}`,
             ],
           );
+        }
+      }
+      if (this.autoPromoteSeconds > 0) {
+        const stable = await this.pool.query<{ id: string; tenant_id: string; version: string }>(
+          `SELECT d.id, d.tenant_id, r.version FROM deployments d
+           JOIN releases r ON r.id = d.release_id
+           WHERE d.status = 'canary'
+             AND d.finished_at IS NOT NULL
+             AND d.finished_at < now() - ($1 * interval '1 second')
+             AND r.app_system_id IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM agent_events e
+               JOIN agents a ON a.id = e.agent_id
+               WHERE a.app_system_id = r.app_system_id AND a.tenant_id = d.tenant_id
+                 AND e.status = 'open' AND e.detected_at > d.finished_at
+             )
+           ORDER BY d.finished_at ASC LIMIT 5`,
+          [this.autoPromoteSeconds],
+        );
+        for (const row of stable.rows) {
+          const promoted = await this.deployments.promoteDeployment(row.tenant_id, row.id);
+          if (promoted) {
+            await this.pool.query(
+              `INSERT INTO messages (tenant_id, title, body, severity)
+               VALUES ($1, $2, $3, 'info')`,
+              [
+                row.tenant_id,
+                `灰度自动全量：${row.version}`,
+                `灰度观察期结束且无新异常，状态：${promoted.status}`,
+              ],
+            );
+          }
         }
       }
     } catch (error) {

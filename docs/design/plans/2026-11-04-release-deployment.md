@@ -193,6 +193,32 @@ POST /api/deployments/:id/promote
 
 canary 阶段出现新 Agent 异常时，健康监控会只回滚已灰度节点。
 
+### 自动全量
+
+可选：
+
+```text
+OPSAGENT_CANARY_AUTO_PROMOTE_SECONDS=600
+```
+
+条件：
+
+```text
+status = canary
+灰度观察期结束
+期间没有新的 open Agent 事件
+```
+
+动作：
+
+```text
+自动推进剩余 Agent
+  → deployed
+  → 消息中心通知
+```
+
+默认关闭，生产建议先人工观察。
+
 部署成功后（含 canary 阶段）：
 
 ```text

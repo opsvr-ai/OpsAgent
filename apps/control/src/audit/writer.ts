@@ -49,7 +49,9 @@ export type AuditAction =
   | 'deployment.promote'
   | 'agent.certificate.revoke'
   | 'agent.instruction.create'
-  | 'agent.instruction.batch';
+  | 'agent.instruction.batch'
+  | 'agent.instruction.template.create'
+  | 'agent.instruction.template.delete';
 
 export interface AuditEventInput {
   readonly tenantId?: string | null;

@@ -653,6 +653,31 @@ export async function createAgentInstructionsBatch(
   });
 }
 
+export interface AgentInstructionTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly instruction: string;
+  readonly createdAt: string;
+}
+
+export async function listAgentInstructionTemplates(): Promise<AgentInstructionTemplate[]> {
+  return request<AgentInstructionTemplate[]>('/api/agents/instruction-templates');
+}
+
+export async function createAgentInstructionTemplate(
+  name: string,
+  instruction: string,
+): Promise<AgentInstructionTemplate> {
+  return request<AgentInstructionTemplate>('/api/agents/instruction-templates', {
+    method: 'POST',
+    body: JSON.stringify({ name, instruction }),
+  });
+}
+
+export async function deleteAgentInstructionTemplate(id: string): Promise<void> {
+  await request<{ ok: true }>(`/api/agents/instruction-templates/${id}`, { method: 'DELETE' });
+}
+
 export interface AgentFleetResponse {
   readonly items: AgentSummary[];
   readonly total: number;

@@ -136,6 +136,97 @@ export function registerAgentInstructionRoutes(
     return reply.code(202).send({ intent: plan.intent, instructions: created });
   });
 
+  app.get('/api/agents/instruction-templates', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const result = await pool.query(
+      `SELECT id, name, instruction, created_at FROM agent_instruction_templates
+       WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [ctx.tenantId],
+    );
+    return reply.send(result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      instruction: row.instruction,
+      createdAt: row.created_at.toISOString(),
+    })));
+  });
+
+  app.post('/api/agents/instruction-templates', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { name?: unknown; instruction?: unknown } | undefined;
+    if (typeof body?.name !== 'string' || typeof body.instruction !== 'string') {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const name = body.name.trim();
+    const instruction = body.instruction.trim();
+    if (!name || name.length > 80 || !instruction || instruction.length > 4000) {
+      return reply.code(400).send({ error: 'invalid_template' });
+    }
+    try {
+      const result = await pool.query(
+        `INSERT INTO agent_instruction_templates (tenant_id, name, instruction, created_by)
+         VALUES ($1, $2, $3, $4) RETURNING id, name, instruction, created_at`,
+        [ctx.tenantId, name, instruction, ctx.userId],
+      );
+      await audit.write({
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        action: 'agent.instruction.template.create',
+        resource: result.rows[0].id,
+        result: 'success',
+      });
+      return reply.code(201).send({
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        instruction: result.rows[0].instruction,
+        createdAt: result.rows[0].created_at.toISOString(),
+      });
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+        return reply.code(409).send({ error: 'template_exists' });
+      }
+      throw error;
+    }
+  });
+
+  app.delete<{ Params: { templateId: string } }>('/api/agents/instruction-templates/:templateId', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const result = await pool.query(
+      'DELETE FROM agent_instruction_templates WHERE tenant_id = $1 AND id = $2 RETURNING id',
+      [ctx.tenantId, request.params.templateId],
+    );
+    if (!result.rows[0]) return reply.code(404).send({ error: 'template_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'agent.instruction.template.delete',
+      resource: request.params.templateId,
+      result: 'success',
+    });
+    return reply.send({ ok: true });
+  });
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/instructions', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

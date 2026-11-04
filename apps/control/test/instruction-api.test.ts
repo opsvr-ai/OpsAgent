@@ -112,6 +112,32 @@ describe('agent instruction API', () => {
     await app.close();
   });
 
+  it('creates, lists and deletes instruction templates', async () => {
+    const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
+    const cookie = await login(app);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/agents/instruction-templates',
+      headers: { cookie },
+      payload: { name: '磁盘模板', instruction: '检查磁盘使用率和 inode' },
+    });
+    expect(created.statusCode).toBe(201);
+    const template = created.json() as { id: string };
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/agents/instruction-templates',
+      headers: { cookie },
+    });
+    expect((list.json() as Array<{ id: string }>).some((item) => item.id === template.id)).toBe(true);
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/agents/instruction-templates/${template.id}`,
+      headers: { cookie },
+    });
+    expect(removed.statusCode).toBe(200);
+    await app.close();
+  });
+
   it('rejects write instructions and offline targets', async () => {
     const app = buildServer({ pool, localAdmin: { enabled: true, username: 'tenant-admin' } });
     const cookie = await login(app);

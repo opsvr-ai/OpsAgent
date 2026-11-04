@@ -106,6 +106,26 @@ GET /api/agents/:agentId/instructions
 
 前端测试和 API 测试覆盖历史查询。
 
+### 指令模板
+
+```http
+GET    /api/agents/instruction-templates
+POST   /api/agents/instruction-templates
+DELETE /api/agents/instruction-templates/:id
+```
+
+- 租户级模板
+- 名称唯一
+- 内置模板：运行时长、磁盘、服务端口、日志、应用系统健康
+- Agent 详情页可选择模板、保存模板、删除最近模板
+
+审计：
+
+```text
+agent.instruction.template.create
+agent.instruction.template.delete
+```
+
 ## 1. 目标
 
 平台操作员在服务端选择**一台明确的 Agent 客户端**，输入自然语言指令，例如：

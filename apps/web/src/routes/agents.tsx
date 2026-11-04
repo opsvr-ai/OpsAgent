@@ -4,6 +4,8 @@ import {
   createAgentCommand,
   createAgentInstruction,
   createAgentInstructionsBatch,
+  createAgentInstructionTemplate,
+  deleteAgentInstructionTemplate,
   getAgentDetail,
   getAgentEvents,
   getAgentFleet,
@@ -12,12 +14,14 @@ import {
   getAppSystemHealth,
   getCommandKeyStatus,
   listAgentCommands,
+  listAgentInstructionTemplates,
   listAgentInstructions,
   type AgentApplication,
   type AgentCommandSummary,
   type AgentEventSummary,
   type AgentFleetResponse,
   type AgentInstructionDetail,
+  type AgentInstructionTemplate,
   type AgentSummary,
   type AppHealthCheck,
   type CommandKeyStatus,
@@ -61,6 +65,14 @@ const AGENT_LABELS: Record<string, string> = {
   startedAt: '启动时间',
   capabilities: '能力',
 };
+
+const BUILTIN_INSTRUCTION_TEMPLATES = [
+  { name: '运行时长与负载', instruction: '系统运行多久了？当前负载和进程数是多少？' },
+  { name: '磁盘巡检', instruction: '检查磁盘分区、使用率和可用空间。' },
+  { name: '服务与端口', instruction: '检查运行中的服务、监听端口和异常进程。' },
+  { name: '日志异常', instruction: '检查最近的系统日志和应用日志异常。' },
+  { name: '应用系统健康', instruction: '检查当前应用系统健康情况和跨节点异常。' },
+];
 
 function text(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -126,6 +138,7 @@ export function Agents({ onBack }: AgentsProps) {
     status: string;
     answer: string;
   }>>([]);
+  const [instructionTemplates, setInstructionTemplates] = useState<AgentInstructionTemplate[]>([]);
   useEffect(() => {
     setInstructionText('');
     setInstructionNote(null);
@@ -139,6 +152,9 @@ export function Agents({ onBack }: AgentsProps) {
       .then(setInstructionHistory)
       .catch(() => undefined);
   }, [detailId, instructionResult?.status]);
+  useEffect(() => {
+    void listAgentInstructionTemplates().then(setInstructionTemplates).catch(() => undefined);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     const load = () => {
@@ -363,6 +379,28 @@ export function Agents({ onBack }: AgentsProps) {
       setBatchNote(caught instanceof Error ? caught.message : '批量指令下发失败');
     } finally {
       setBatchBusy(false);
+    }
+  }
+
+  async function saveInstructionTemplate() {
+    if (!instructionText.trim()) return;
+    const name = window.prompt('模板名称', instructionText.trim().slice(0, 20));
+    if (!name?.trim()) return;
+    try {
+      const template = await createAgentInstructionTemplate(name.trim(), instructionText.trim());
+      setInstructionTemplates((current) => [template, ...current]);
+      setInstructionNote('模板已保存');
+    } catch {
+      setInstructionError('模板保存失败：名称可能已存在');
+    }
+  }
+
+  async function removeInstructionTemplate(id: string) {
+    try {
+      await deleteAgentInstructionTemplate(id);
+      setInstructionTemplates((current) => current.filter((item) => item.id !== id));
+    } catch {
+      setInstructionError('模板删除失败');
     }
   }
 
@@ -694,6 +732,25 @@ export function Agents({ onBack }: AgentsProps) {
                         <div className="card-body stack">
                           <p className="muted">目标固定为当前智能体：<strong>{detail.hostname}</strong>。首版只执行只读检查，写操作请在审批流程中发起。</p>
                           <div className="field">
+                            <label htmlFor="agent-instruction-template">模板</label>
+                            <select
+                              id="agent-instruction-template"
+                              defaultValue=""
+                              onChange={(event) => {
+                                if (event.target.value) setInstructionText(event.target.value);
+                                event.target.value = '';
+                              }}
+                            >
+                              <option value="">选择模板…</option>
+                              {BUILTIN_INSTRUCTION_TEMPLATES.map((template) => (
+                                <option key={`builtin-${template.name}`} value={template.instruction}>{template.name}</option>
+                              ))}
+                              {instructionTemplates.map((template) => (
+                                <option key={template.id} value={template.instruction}>{template.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="field">
                             <label htmlFor="agent-instruction">指令内容</label>
                             <textarea
                               id="agent-instruction"
@@ -707,6 +764,19 @@ export function Agents({ onBack }: AgentsProps) {
                             <button type="button" className="btn btn-primary" disabled={instructionBusy || !instructionText.trim()} onClick={() => void sendInstruction()}>
                               {instructionBusy ? '执行中…' : '下发指令'}
                             </button>
+                            <button type="button" className="btn btn-outline" disabled={!instructionText.trim()} onClick={() => void saveInstructionTemplate()}>保存模板</button>
+                            {instructionTemplates.length > 0 ? (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => {
+                                  const latest = instructionTemplates[0];
+                                  if (latest) void removeInstructionTemplate(latest.id);
+                                }}
+                              >
+                                删除最近模板
+                              </button>
+                            ) : null}
                             {instructionNote ? <span className="muted">{instructionNote}</span> : null}
                           </div>
                           {instructionError ? <p role="alert">{instructionError}</p> : null}

@@ -88,7 +88,7 @@ export function registerAgentRoutes(
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/heartbeat', async (request, reply) => {
-    const body = request.body as { agentKey?: unknown; metrics?: unknown; discovery?: unknown } | undefined;
+    const body = request.body as { agentKey?: unknown; metrics?: unknown; discovery?: unknown; commandKeyId?: unknown } | undefined;
     if (typeof body?.agentKey !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
@@ -101,6 +101,7 @@ export function registerAgentRoutes(
       body.agentKey,
       metrics,
       discoveryBody(body.discovery),
+      typeof body.commandKeyId === 'string' ? body.commandKeyId : undefined,
     );
     if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
     const commandSigners = getCommandSigners();

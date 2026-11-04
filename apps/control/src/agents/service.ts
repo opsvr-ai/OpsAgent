@@ -26,6 +26,7 @@ export interface AgentRecord {
   readonly agentInfo: Readonly<Record<string, unknown>>;
   readonly tags: readonly string[];
   readonly discoveryAt: string | null;
+  readonly commandKeyId: string | null;
   readonly appSystem: AppSystemSummary | null;
 }
 
@@ -78,6 +79,7 @@ interface AgentRow {
   agent_info: Record<string, unknown> | null;
   tags: string[] | null;
   discovery_at: Date | null;
+  command_key_id: string | null;
   app_system_id: string | null;
   app_system_code: string | null;
   app_system_name: string | null;
@@ -88,6 +90,7 @@ interface AgentRow {
 const AGENT_SELECT = `SELECT a.id, a.name, a.hostname, a.os, a.arch, a.version,
   CASE WHEN a.last_seen < now() - interval '90 seconds' THEN 'offline' ELSE a.status END AS status,
   a.last_seen, a.metrics, a.system_info, a.applications, a.agent_info, a.tags, a.discovery_at,
+  a.command_key_id,
   a.app_system_id, s.code AS app_system_code, s.name AS app_system_name,
   s.owner AS app_system_owner, s.criticality AS app_system_criticality
   FROM agents a LEFT JOIN app_systems s ON s.id = a.app_system_id`;
@@ -172,6 +175,7 @@ export class AgentService {
     key: string,
     metrics?: Readonly<Record<string, unknown>>,
     discovery?: DiscoveryPayload,
+    commandKeyId?: string,
   ): Promise<AgentRecord | null> {
     const system = discovery ? record(discovery.system) : null;
     const applications = discovery ? applicationList(discovery.applications) : null;
@@ -183,6 +187,7 @@ export class AgentService {
            system_info = COALESCE($4::jsonb, system_info),
            applications = COALESCE($5::jsonb, applications),
            agent_info = COALESCE($6::jsonb, agent_info),
+           command_key_id = COALESCE($7, command_key_id),
            discovery_at = CASE WHEN $4::jsonb IS NULL THEN discovery_at ELSE now() END
        WHERE id = $1 AND agent_key = $2
        RETURNING tenant_id`,
@@ -193,6 +198,7 @@ export class AgentService {
         system ? JSON.stringify(system) : null,
         applications ? JSON.stringify(applications) : null,
         agentInfo ? JSON.stringify(agentInfo) : null,
+        commandKeyId ?? null,
       ],
     );
     const tenantId = result.rows[0]?.tenant_id;
@@ -353,6 +359,7 @@ export class AgentService {
       agentInfo: row.agent_info ?? {},
       tags: tagList(row.tags),
       discoveryAt: row.discovery_at ? row.discovery_at.toISOString() : null,
+      commandKeyId: row.command_key_id ?? null,
       appSystem: row.app_system_id && row.app_system_code && row.app_system_name
         ? {
             id: row.app_system_id,

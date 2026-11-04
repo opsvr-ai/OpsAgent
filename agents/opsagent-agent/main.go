@@ -40,9 +40,10 @@ type registerResponse struct {
 }
 
 type heartbeatRequest struct {
-	AgentKey  string           `json:"agentKey"`
-	Metrics   map[string]any   `json:"metrics"`
-	Discovery *discoveryReport `json:"discovery,omitempty"`
+	AgentKey     string           `json:"agentKey"`
+	Metrics      map[string]any   `json:"metrics"`
+	Discovery    *discoveryReport `json:"discovery,omitempty"`
+	CommandKeyID string           `json:"commandKeyId,omitempty"`
 }
 
 type heartbeatResponse struct {
@@ -374,9 +375,10 @@ func runDaemon(paths agentPaths) {
 		}
 		var heartbeat heartbeatResponse
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
-			AgentKey:  registered.AgentKey,
-			Metrics:   metrics,
-			Discovery: discovery,
+			AgentKey:     registered.AgentKey,
+			Metrics:      metrics,
+			Discovery:    discovery,
+			CommandKeyID: registered.CommandKeyID,
 		}, &heartbeat); err != nil {
 			log.Printf("heartbeat: %v", err)
 		} else if len(heartbeat.CommandPublicKeys) > 0 {

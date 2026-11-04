@@ -24,6 +24,7 @@
 - 结果签名：Agent 注册时生成结果签名密钥，命令结果回传带 `resultSigned`/`resultSignature`，控制面验签后才入库
 - 结果密钥复用：Agent 重启从 `agent-state.json` 加载结果私钥，不重复轮换；实测两次重启公钥一致
 - 结果私钥加密：配置 `OPSAGENT_STATE_SECRET` 后使用 AES-256-GCM 加密落盘，测试覆盖解密/错密钥拒绝
+- 密钥状态可见：Agent 心跳上报当前 `commandKeyId`，控制面持久化并在 Agent 详情展示，便于确认轮换/撤销是否生效
 
 ## 数据库
 
@@ -39,6 +40,9 @@ agent_commands.expires_at
 
 0035_agent_result_signing.sql
 agents.result_public_key
+
+0036_agent_command_key_status.sql
+agents.command_key_id
 ```
 
 ## 验证

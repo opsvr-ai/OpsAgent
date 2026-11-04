@@ -358,12 +358,16 @@ async function main(): Promise<void> {
       };
       const agentInfo = {
         version: '0.2.0',
-        installPath: '/usr/local/bin/opsagent-agent',
+        installPath: '/opt/opsagent/bin/opsagent-agent',
+        homePath: '/opt/opsagent',
         serviceName: 'opsagent-agent',
         serviceStatus: 'running',
-        configPath: '/etc/opsagent/agent.env',
+        configPath: '/opt/opsagent/config/agent.env',
+        logPath: '/opt/opsagent/logs/agent.log',
+        snapshotPath: '/opt/opsagent/snapshots',
+        toolsPath: '/opt/opsagent/tools',
         startedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-        capabilities: ['system.discover', 'applications.discover', 'metrics', 'diagnostics'],
+        capabilities: ['system.discover', 'applications.discover', 'metrics', 'diagnostics', 'self.patrol', 'inspect', 'snapshot'],
       };
       await client.query(
         `INSERT INTO agents

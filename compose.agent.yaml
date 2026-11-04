@@ -4,19 +4,29 @@ services:
     image: node:22-alpine
     container_name: opsagent-os-agent
     hostname: opsagent-os-agent
-    command: ["/usr/local/bin/opsagent-agent"]
+    command: ["/opt/opsagent/bin/opsagent-agent"]
     environment:
+      OPSAGENT_HOME: /opt/opsagent
       OPSAGENT_CONTROL_URL: http://control:8080
       OPSAGENT_TENANT_ID: ${OPSAGENT_AGENT_TENANT_ID:-00000000-0000-4000-8000-000000000001}
       OPSAGENT_AGENT_ENROLLMENT_TOKEN: ${OPSAGENT_AGENT_ENROLLMENT_TOKEN:-opsagent-local-enroll}
       OPSAGENT_AGENT_NAME: ${OPSAGENT_AGENT_NAME:-容器测试主机}
       OPSAGENT_AGENT_SERVICE: os-agent
-      OPSAGENT_AGENT_CONFIG: /etc/opsagent/agent.env
+      OPSAGENT_AGENT_CONFIG: /opt/opsagent/config/agent.env
+      OPSAGENT_TOOLS_DIR: /opt/opsagent/tools
+      OPSAGENT_LOG_DIR: /opt/opsagent/logs
+      OPSAGENT_SNAPSHOT_DIR: /opt/opsagent/snapshots
       OPSAGENT_PATROL_DISK_FREE_PCT: ${OPSAGENT_PATROL_DISK_FREE_PCT:-15}
       OPSAGENT_PATROL_MEM_LOAD_PCT: ${OPSAGENT_PATROL_MEM_LOAD_PCT:-85}
     volumes:
-      - ./agents/opsagent-agent/dist/opsagent-agent-linux-amd64:/usr/local/bin/opsagent-agent:ro
+      - ./agents/opsagent-agent/dist/opsagent-agent-linux-amd64:/opt/opsagent/bin/opsagent-agent:ro
+      - os-agent-logs:/opt/opsagent/logs
+      - os-agent-snapshots:/opt/opsagent/snapshots
     depends_on:
       control:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  os-agent-logs:
+  os-agent-snapshots:

@@ -48,23 +48,38 @@ set -euo pipefail
 CONTROL_URL='${safe(input.baseUrl)}'
 TENANT_ID='${safe(input.tenantId)}'
 TOKEN='${safe(input.token)}'
+ROOT='/opt/opsagent'
+BIN_DIR="$ROOT/bin"
+CONFIG_DIR="$ROOT/config"
+TOOLS_DIR="$ROOT/tools"
+LOG_DIR="$ROOT/logs"
+SNAPSHOT_DIR="$ROOT/snapshots"
+RUN_DIR="$ROOT/run"
+CONFIG_FILE="$CONFIG_DIR/agent.env"
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64|amd64) ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
   *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
+systemctl stop opsagent-agent 2>/dev/null || true
+install -d -m 0750 "$ROOT" "$BIN_DIR" "$CONFIG_DIR" "$TOOLS_DIR" "$LOG_DIR" "$SNAPSHOT_DIR" "$RUN_DIR"
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 curl -fsSL "$CONTROL_URL/api/agents/binary?os=linux&arch=$ARCH&token=$TOKEN" -o "$TMP"
-install -m 0755 "$TMP" /usr/local/bin/opsagent-agent
-install -d -m 0755 /etc/opsagent
-cat > /etc/opsagent/agent.env <<EOF
+install -m 0755 "$TMP" "$BIN_DIR/opsagent-agent"
+cat > "$CONFIG_FILE" <<EOF
+OPSAGENT_HOME=$ROOT
 OPSAGENT_CONTROL_URL=$CONTROL_URL
 OPSAGENT_TENANT_ID=$TENANT_ID
 OPSAGENT_AGENT_ENROLLMENT_TOKEN=$TOKEN
+OPSAGENT_AGENT_CONFIG=$CONFIG_FILE
+OPSAGENT_TOOLS_DIR=$TOOLS_DIR
+OPSAGENT_LOG_DIR=$LOG_DIR
+OPSAGENT_SNAPSHOT_DIR=$SNAPSHOT_DIR
+OPSAGENT_AGENT_SERVICE=opsagent-agent
 EOF
-chmod 0600 /etc/opsagent/agent.env
+chmod 0600 "$CONFIG_FILE"
 cat > /etc/systemd/system/opsagent-agent.service <<'EOF'
 [Unit]
 Description=OpsAgent host agent
@@ -72,17 +87,35 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-EnvironmentFile=/etc/opsagent/agent.env
-ExecStart=/usr/local/bin/opsagent-agent
+Type=simple
+WorkingDirectory=/opt/opsagent
+EnvironmentFile=/opt/opsagent/config/agent.env
+ExecStart=/opt/opsagent/bin/opsagent-agent
 Restart=always
 RestartSec=5
+StandardOutput=append:/opt/opsagent/logs/stdout.log
+StandardError=append:/opt/opsagent/logs/stderr.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
+cat > /etc/logrotate.d/opsagent <<'EOF'
+/opt/opsagent/logs/*.log {
+  daily
+  rotate 14
+  compress
+  missingok
+  notifempty
+  copytruncate
+}
+EOF
 systemctl daemon-reload
 systemctl enable --now opsagent-agent
-echo "OpsAgent agent installed and started"
+echo "OpsAgent agent installed at $ROOT and started"
+echo "  binary:    $BIN_DIR/opsagent-agent"
+echo "  config:    $CONFIG_FILE"
+echo "  logs:      $LOG_DIR/agent.log"
+echo "  snapshots: $SNAPSHOT_DIR"
 `;
   }
   const ps = (value: string): string => value.replaceAll("'", "''");
@@ -90,17 +123,40 @@ echo "OpsAgent agent installed and started"
 $ControlUrl = '${ps(input.baseUrl)}'
 $TenantId = '${ps(input.tenantId)}'
 $Token = '${ps(input.token)}'
-$Dir = Join-Path $env:ProgramData 'OpsAgent'
-New-Item -ItemType Directory -Force -Path $Dir | Out-Null
-$Binary = Join-Path $Dir 'opsagent-agent.exe'
+$Root = Join-Path $env:ProgramData 'OpsAgent'
+$BinDir = Join-Path $Root 'bin'
+$ConfigDir = Join-Path $Root 'config'
+$ToolsDir = Join-Path $Root 'tools'
+$LogDir = Join-Path $Root 'logs'
+$SnapshotDir = Join-Path $Root 'snapshots'
+$RunDir = Join-Path $Root 'run'
+$ConfigFile = Join-Path $ConfigDir 'agent.env'
+New-Item -ItemType Directory -Force -Path $Root,$BinDir,$ConfigDir,$ToolsDir,$LogDir,$SnapshotDir,$RunDir | Out-Null
+$Binary = Join-Path $BinDir 'opsagent-agent.exe'
 Invoke-WebRequest -Uri "$ControlUrl/api/agents/binary?os=windows&arch=amd64&token=$Token" -OutFile $Binary -UseBasicParsing
+@(
+  "OPSAGENT_HOME=$Root",
+  "OPSAGENT_CONTROL_URL=$ControlUrl",
+  "OPSAGENT_TENANT_ID=$TenantId",
+  "OPSAGENT_AGENT_ENROLLMENT_TOKEN=$Token",
+  "OPSAGENT_AGENT_CONFIG=$ConfigFile",
+  "OPSAGENT_TOOLS_DIR=$ToolsDir",
+  "OPSAGENT_LOG_DIR=$LogDir",
+  "OPSAGENT_SNAPSHOT_DIR=$SnapshotDir",
+  "OPSAGENT_AGENT_SERVICE=OpsAgent"
+) | Set-Content -Encoding UTF8 $ConfigFile
+[Environment]::SetEnvironmentVariable('OPSAGENT_HOME', $Root, 'Machine')
 [Environment]::SetEnvironmentVariable('OPSAGENT_CONTROL_URL', $ControlUrl, 'Machine')
 [Environment]::SetEnvironmentVariable('OPSAGENT_TENANT_ID', $TenantId, 'Machine')
 [Environment]::SetEnvironmentVariable('OPSAGENT_AGENT_ENROLLMENT_TOKEN', $Token, 'Machine')
+[Environment]::SetEnvironmentVariable('OPSAGENT_AGENT_CONFIG', $ConfigFile, 'Machine')
+[Environment]::SetEnvironmentVariable('OPSAGENT_LOG_DIR', $LogDir, 'Machine')
+[Environment]::SetEnvironmentVariable('OPSAGENT_SNAPSHOT_DIR', $SnapshotDir, 'Machine')
+[Environment]::SetEnvironmentVariable('OPSAGENT_TOOLS_DIR', $ToolsDir, 'Machine')
 $Action = $Binary
 schtasks /Create /TN "OpsAgent" /TR $Action /SC ONSTART /RU SYSTEM /RL HIGHEST /F | Out-Null
 schtasks /Run /TN "OpsAgent" | Out-Null
-Write-Host "OpsAgent agent installed and started"
+Write-Host "OpsAgent agent installed at $Root and started"
 `;
 }
 

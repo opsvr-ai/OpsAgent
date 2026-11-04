@@ -121,9 +121,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr 'http://<control>/ap
 安装脚本会：
 
 1. 下载对应平台 Agent 二进制。
-2. 安装到 `/usr/local/bin/opsagent-agent` 或 `C:\ProgramData\OpsAgent`。
-3. 写入 enrollment token 和租户配置。
+2. Linux 安装到 `/opt/opsagent` 根目录；Windows 使用 `C:\ProgramData\OpsAgent`。
+3. 写入 enrollment token、租户和目录配置。
 4. 注册 systemd 或 Windows 计划任务并启动。
+
+Linux 目录规范：
+
+```text
+/opt/opsagent/
+├── bin/opsagent-agent
+├── config/agent.env
+├── tools/
+├── logs/agent.log
+├── snapshots/
+└── run/
+```
+
+日志记录详细执行过程，并由 logrotate 每日轮转、保留 14 份。
 
 前置条件：
 

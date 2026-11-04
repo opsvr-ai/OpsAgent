@@ -87,13 +87,31 @@ func runCommandWithInput(commandType string, metrics map[string]any, input map[s
 	return result
 }
 
+func redactURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	query := parsed.Query()
+	for _, key := range []string{"agentKey", "token"} {
+		if query.Has(key) {
+			query.Set(key, "***")
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
 func getJSON(url string, target any) (int, error) {
+	started := time.Now()
 	client := &http.Client{Timeout: 15 * time.Second}
 	response, err := client.Get(url)
 	if err != nil {
+		log.Printf("http GET %s failed duration=%s error=%v", redactURL(url), time.Since(started), err)
 		return 0, err
 	}
 	defer response.Body.Close()
+	log.Printf("http GET %s status=%d duration=%s", redactURL(url), response.StatusCode, time.Since(started))
 	if response.StatusCode == http.StatusNoContent {
 		return response.StatusCode, nil
 	}
@@ -111,6 +129,7 @@ func env(key, fallback string) string {
 }
 
 func post(url string, headers map[string]string, payload any, target any) error {
+	started := time.Now()
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -126,9 +145,11 @@ func post(url string, headers map[string]string, payload any, target any) error 
 	client := &http.Client{Timeout: 15 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
+		log.Printf("http POST %s failed duration=%s error=%v", redactURL(url), time.Since(started), err)
 		return err
 	}
 	defer response.Body.Close()
+	log.Printf("http POST %s status=%d duration=%s bytes=%d", redactURL(url), response.StatusCode, time.Since(started), len(body))
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("%s returned %d", url, response.StatusCode)
 	}
@@ -139,6 +160,18 @@ func post(url string, headers map[string]string, payload any, target any) error 
 }
 
 func main() {
+	paths := resolveAgentPaths()
+	if err := paths.ensure(); err != nil {
+		log.Fatalf("prepare agent directories: %v", err)
+	}
+	logFile, logErr := setupLogging(paths)
+	if logErr != nil {
+		log.Printf("file logging disabled: %v", logErr)
+	} else {
+		defer logFile.Close()
+	}
+	log.Printf("agent starting version=%s home=%s config=%s logs=%s snapshots=%s", agentVersion, paths.Root, paths.Config, paths.Logs, paths.Snapshots)
+
 	controlURL := env("OPSAGENT_CONTROL_URL", "http://127.0.0.1:8080")
 	tenantID := os.Getenv("OPSAGENT_TENANT_ID")
 	if tenantID == "" {
@@ -150,6 +183,7 @@ func main() {
 	}
 	name := env("OPSAGENT_AGENT_NAME", hostname)
 	token := os.Getenv("OPSAGENT_AGENT_ENROLLMENT_TOKEN")
+	log.Printf("agent identity tenant=%s hostname=%s name=%s control=%s", tenantID, hostname, name, controlURL)
 
 	headers := map[string]string{}
 	if token != "" {
@@ -160,6 +194,9 @@ func main() {
 	started := agentStarted
 	initialMetrics := hostMetrics()
 	initialDiscovery := collectDiscovery(started, initialMetrics)
+	if err := paths.writeSnapshot("discovery.json", initialDiscovery); err != nil {
+		log.Printf("initial discovery snapshot: %v", err)
+	}
 	if err := post(controlURL+"/api/agents/register", headers, registerRequest{
 		TenantID:     tenantID,
 		Name:         name,
@@ -167,14 +204,15 @@ func main() {
 		OS:           runtime.GOOS,
 		Arch:         runtime.GOARCH,
 		Version:      agentVersion,
-		Capabilities: []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover"},
+		Capabilities: []string{"cpu", "memory", "disk", "network", "system.discover", "applications.discover", "self.patrol", "inspect", "snapshot"},
 		Discovery:    &initialDiscovery,
 	}, &registered); err != nil {
 		log.Fatalf("register: %v", err)
 	}
-	log.Printf("registered agent %s", registered.Agent.ID)
+	log.Printf("registered agent id=%s key=%s", registered.Agent.ID, mask(registered.AgentKey))
 	lastDiscovery := time.Now()
 	lastPatrol := time.Time{}
+	lastMetricsSnapshot := time.Time{}
 	activePatrol := map[string]bool{}
 
 	reportPatrol := func(metrics map[string]any) {
@@ -194,6 +232,10 @@ func main() {
 				})
 			}
 		}
+		_ = paths.writeSnapshot("patrol.json", map[string]any{
+			"events":    payload,
+			"checkedAt": time.Now().UTC().Format(time.RFC3339),
+		})
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/events", nil, map[string]any{
 			"agentKey":       registered.AgentKey,
 			"events":         payload,
@@ -201,6 +243,9 @@ func main() {
 		}, nil); err != nil {
 			log.Printf("patrol report: %v", err)
 			return
+		}
+		if len(payload) > 0 {
+			log.Printf("patrol reported events=%d fingerprints=%v", len(payload), fingerprints(payload))
 		}
 		for fingerprint := range activePatrol {
 			if !currentSet[fingerprint] {
@@ -225,6 +270,19 @@ func main() {
 			report := collectDiscovery(started, metrics)
 			discovery = &report
 			lastDiscovery = time.Now()
+			if err := paths.writeSnapshot("discovery.json", report); err != nil {
+				log.Printf("discovery snapshot: %v", err)
+			}
+		}
+		if time.Since(lastMetricsSnapshot) >= time.Minute {
+			if err := paths.writeSnapshot("metrics.json", map[string]any{
+				"metrics":      metrics,
+				"capturedAt":   time.Now().UTC().Format(time.RFC3339),
+				"agentVersion": agentVersion,
+			}); err != nil {
+				log.Printf("metrics snapshot: %v", err)
+			}
+			lastMetricsSnapshot = time.Now()
 		}
 		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
 			AgentKey:  registered.AgentKey,
@@ -244,14 +302,36 @@ func main() {
 		if err != nil {
 			log.Printf("command poll: %v", err)
 		} else if status == http.StatusOK && command.ID != "" {
+			log.Printf("command received id=%s type=%s input=%s", command.ID, command.Type, compactJSON(command.Input))
+			commandStarted := time.Now()
 			result := runCommandWithInput(command.Type, metrics, command.Input)
+			commandDuration := time.Since(commandStarted)
+			log.Printf("command completed id=%s type=%s duration=%s ok=%v", command.ID, command.Type, commandDuration, result["ok"])
+			resultSnapshot := map[string]any{
+				"commandId":  command.ID,
+				"type":       command.Type,
+				"input":      command.Input,
+				"result":     result,
+				"startedAt":  commandStarted.UTC().Format(time.RFC3339),
+				"finishedAt": time.Now().UTC().Format(time.RFC3339),
+				"durationMs": commandDuration.Milliseconds(),
+			}
+			if err := paths.writeSnapshot(commandSnapshotName(command.ID), resultSnapshot); err != nil {
+				log.Printf("command snapshot: %v", err)
+			}
+			if err := paths.writeSnapshot("last-command.json", resultSnapshot); err != nil {
+				log.Printf("last command snapshot: %v", err)
+			}
+			pruneCommandSnapshots(paths, 20)
 			if err := post(
 				controlURL+"/api/agents/"+registered.Agent.ID+"/commands/"+command.ID+"/complete",
 				nil,
 				map[string]any{"agentKey": registered.AgentKey, "result": result},
 				nil,
 			); err != nil {
-				log.Printf("command complete: %v", err)
+				log.Printf("command complete id=%s: %v", command.ID, err)
+			} else {
+				log.Printf("command result uploaded id=%s", command.ID)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -78,6 +79,7 @@ func compactDf(output string) string {
 }
 
 func inspectHost(question string, metrics map[string]any) map[string]any {
+	log.Printf("inspect start question=%q", question)
 	lower := strings.ToLower(question)
 	scope := strings.ReplaceAll(lower, strings.ToLower(mustHostname()), "")
 	scope = strings.ReplaceAll(scope, "opsagent", "")
@@ -88,6 +90,7 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 			return
 		}
 		output := commandOutput(5*time.Second, args[0], args[1:]...)
+		log.Printf("inspect probe key=%s command=%s bytes=%d", key, strings.Join(args, " "), len(output))
 		if output != "" {
 			evidence[key] = trimEvidence(output)
 		}
@@ -98,6 +101,7 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 				continue
 			}
 			output := commandOutput(5*time.Second, args[0], args[1:]...)
+			log.Printf("inspect probe key=%s command=%s bytes=%d", key, strings.Join(args, " "), len(output))
 			if output != "" {
 				evidence[key] = trimEvidence(output)
 				return
@@ -184,8 +188,10 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 	if wants("部署", "路径", "安装", "配置文件", "agent状态", "agent版本", "智能体") {
 		include["agent"] = true
 		executable, _ := os.Executable()
-		evidence["agent"] = fmt.Sprintf("版本: %s\n安装路径: %s\n配置文件: %s\n服务名: %s\n服务状态: running",
-			agentVersion, executable, env("OPSAGENT_AGENT_CONFIG", ""), env("OPSAGENT_AGENT_SERVICE", "opsagent-agent"))
+		paths := resolveAgentPaths()
+		evidence["agent"] = fmt.Sprintf("版本: %s\n根目录: %s\n安装路径: %s\n配置文件: %s\n工具目录: %s\n日志目录: %s\n快照目录: %s\n服务名: %s\n服务状态: running",
+			agentVersion, paths.Root, executable, paths.Config, paths.Tools, paths.Logs, paths.Snapshots,
+			env("OPSAGENT_AGENT_SERVICE", "opsagent-agent"))
 	}
 
 	osRelease := parseOSRelease()

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -281,15 +282,21 @@ func collectDiscovery(started time.Time, metrics map[string]any) discoveryReport
 		system["bootTime"] = time.Now().Add(-time.Duration(uptime) * time.Second).UTC().Format(time.RFC3339)
 	}
 	executable, _ := os.Executable()
+	paths := resolveAgentPaths()
 	agentInfo := map[string]any{
 		"version":       agentVersion,
 		"installPath":   executable,
+		"homePath":      paths.Root,
+		"binPath":       executable,
+		"toolsPath":     paths.Tools,
 		"serviceName":   env("OPSAGENT_AGENT_SERVICE", "opsagent-agent"),
 		"serviceStatus": "running",
-		"configPath":    os.Getenv("OPSAGENT_AGENT_CONFIG"),
+		"configPath":    paths.Config,
+		"logPath":       filepath.Join(paths.Logs, "agent.log"),
+		"snapshotPath":  paths.Snapshots,
 		"controlURL":    env("OPSAGENT_CONTROL_URL", ""),
 		"startedAt":     started.UTC().Format(time.RFC3339),
-		"capabilities":  []string{"system.discover", "applications.discover", "metrics", "diagnostics", "controlled_exec"},
+		"capabilities":  []string{"system.discover", "applications.discover", "metrics", "diagnostics", "controlled_exec", "self.patrol", "inspect", "snapshot"},
 	}
 	return discoveryReport{
 		System:       system,

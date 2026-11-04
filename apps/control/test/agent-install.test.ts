@@ -68,6 +68,10 @@ describe('agent install API', () => {
       url: '/api/agents/install.sh?tenantId=tenant-1&token=enroll-secret',
     });
     expect(script.statusCode).toBe(200);
+    expect(script.body).toContain('/opt/opsagent/bin/opsagent-agent');
+    expect(script.body).toContain('OPSAGENT_HOME=$ROOT');
+    expect(script.body).toContain('OPSAGENT_LOG_DIR=$LOG_DIR');
+    expect(script.body).toContain('OPSAGENT_SNAPSHOT_DIR=$SNAPSHOT_DIR');
     expect(script.body).toContain('systemctl enable --now opsagent-agent');
 
     const powershell = await app.inject({

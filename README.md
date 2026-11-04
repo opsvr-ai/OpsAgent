@@ -49,6 +49,20 @@ docker compose -f compose.yaml -f compose.agent.yaml --profile agent up -d os-ag
 
 Agent 的入站端口为零，仅主动连接 `http://control:8080`；运行日志用 `docker logs opsagent-os-agent` 查看。
 
+Linux 主机标准安装目录为 `/opt/opsagent`：
+
+```text
+/opt/opsagent/
+├── bin/opsagent-agent       主程序
+├── config/agent.env         配置
+├── tools/                   诊断辅助工具
+├── logs/agent.log           详细执行日志
+├── snapshots/               配置/性能/自巡航/命令快照
+└── run/
+```
+
+日志记录启动、注册、心跳、HTTP 请求、自巡航、命令输入与执行、结果上传和错误；配置 `/etc/logrotate.d/opsagent` 每日轮转并保留 14 份。Windows 使用 `C:\ProgramData\OpsAgent` 下的同名目录结构。
+
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 
 ```bash

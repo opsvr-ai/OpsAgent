@@ -250,7 +250,11 @@ export class PlatformAssistant {
       `- 时区：**${value(agent.systemInfo.timezone)}**`,
       `- Agent：**${value(agent.agentInfo.version || agent.version)}**，服务状态 **${value(agent.agentInfo.serviceStatus)}**`,
       `- Agent 安装路径：**${value(agent.agentInfo.installPath)}**`,
+      `- Agent 根目录：**${value(agent.agentInfo.homePath)}**`,
       `- Agent 配置文件：**${value(agent.agentInfo.configPath)}**`,
+      `- Agent 日志目录：**${value(agent.agentInfo.logPath)}**`,
+      `- Agent 快照目录：**${value(agent.agentInfo.snapshotPath)}**`,
+      `- Agent 工具目录：**${value(agent.agentInfo.toolsPath)}**`,
       `- Agent 服务：**${value(agent.agentInfo.serviceName)}**`,
     ];
     if (agent.applications.length > 0) {

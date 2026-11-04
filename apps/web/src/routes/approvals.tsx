@@ -263,6 +263,17 @@ export function Approvals({ onBack }: ApprovalsProps) {
               <polyline fill="none" stroke="var(--danger)" strokeWidth="1.5" points={chartLine('approvalFailed')} />
               <polyline fill="none" stroke="var(--accent)" strokeWidth="1.5" points={chartLine('operationsDelivered')} />
               <polyline fill="none" stroke="var(--warn)" strokeWidth="1.5" points={chartLine('operationsFailed')} />
+              {notificationStats.map((point, index) => {
+                const x = notificationStats.length <= 1 ? 300 : (index / (notificationStats.length - 1)) * 600;
+                const y = chartHeight - (point.approvalDelivered / maxNotification) * chartHeight;
+                return (
+                  <circle key={`${point.hour}-point`} cx={x} cy={y} r={3} fill="var(--ok)" opacity={0.8}>
+                    <title>
+                      {new Date(point.hour).toLocaleString()} · 审批 {point.approvalDelivered} 成功 / {point.approvalFailed} 失败 · 运维 {point.operationsDelivered} 成功 / {point.operationsFailed} 失败
+                    </title>
+                  </circle>
+                );
+              })}
             </svg>
             <div className="row-sm" style={{ marginBottom: 8 }}>
               <span className="badge badge-ok">审批成功</span>

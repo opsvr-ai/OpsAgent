@@ -38,6 +38,7 @@ export function Approvals({ onBack }: ApprovalsProps) {
   const [instructionApprovals, setInstructionApprovals] = useState<AgentInstructionApproval[]>([]);
   const [instructionHistory, setInstructionHistory] = useState<AgentInstructionApproval[]>([]);
   const [webhookFailures, setWebhookFailures] = useState<ApprovalWebhookDelivery[]>([]);
+  const [webhookDelivered, setWebhookDelivered] = useState<ApprovalWebhookDelivery[]>([]);
   const [sideEffectFailures, setSideEffectFailures] = useState<ApprovalSideEffectFailure[]>([]);
   const [operationsAlerts, setOperationsAlerts] = useState<OperationsAlertDelivery[]>([]);
   const [instructionBusy, setInstructionBusy] = useState(false);
@@ -55,6 +56,9 @@ export function Approvals({ onBack }: ApprovalsProps) {
       .catch(() => undefined);
     void listApprovalWebhookDeliveries('failed')
       .then(setWebhookFailures)
+      .catch(() => undefined);
+    void listApprovalWebhookDeliveries('delivered')
+      .then(setWebhookDelivered)
       .catch(() => undefined);
     void listApprovalSideEffectFailures()
       .then(setSideEffectFailures)
@@ -163,6 +167,8 @@ export function Approvals({ onBack }: ApprovalsProps) {
         <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-activity" /></svg></span><div><strong>R2 只读</strong><span>{approvals?.filter((item) => item.risk === 'R2').length ?? 0} 项</span></div></div>
         <div className="status-cell"><span className="icon-tile is-blue"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>R3 写操作</strong><span>{approvals?.filter((item) => item.risk === 'R3').length ?? 0} 项</span></div></div>
         <div className="status-cell"><span className="icon-tile is-green"><svg><use href="/icons.svg#i-server" /></svg></span><div><strong>Agent 写操作</strong><span>{instructionApprovals.length} 项</span></div></div>
+        <div className="status-cell"><span className="icon-tile is-amber"><svg><use href="/icons.svg#i-bolt" /></svg></span><div><strong>Webhook</strong><span>{webhookDelivered.length} 成功 / {webhookFailures.length} 失败</span></div></div>
+        <div className="status-cell"><span className="icon-tile"><svg><use href="/icons.svg#i-alert" /></svg></span><div><strong>运维告警</strong><span>{operationsAlerts.filter((item) => item.status === 'failed').length} 失败</span></div></div>
       </div>
       {webhookFailures.length > 0 ? (
         <section className="card" style={{ marginBottom: 18 }}>

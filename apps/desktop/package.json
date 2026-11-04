@@ -1,0 +1,14 @@
+{
+  "name": "@opsagent/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "OpsAgent desktop thin client",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "node scripts/start.cjs",
+    "dev": "node scripts/start.cjs"
+  },
+  "devDependencies": {
+    "electron": "^34.3.4"
+  }
+}

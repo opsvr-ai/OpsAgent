@@ -43,6 +43,10 @@ export class CertificateRevocations {
     return normalized.length > 0 && this.serials.has(normalized);
   }
 
+  listSerials(): string[] {
+    return [...this.serials];
+  }
+
   async revoke(agentId: string, reason: string): Promise<string | null> {
     if (!this.pool) return null;
     const result = await this.pool.query<{ tls_cert_serial: string | null }>(

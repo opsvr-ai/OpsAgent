@@ -14,6 +14,7 @@ import {
   SubjectAlternativeNameExtension,
   X509Certificate,
   X509CertificateGenerator,
+  X509CrlGenerator,
 } from '@peculiar/x509';
 
 export interface IssuedCertificate {
@@ -133,6 +134,22 @@ export class AgentCaService {
       ...issued,
       privateKey: `-----BEGIN PRIVATE KEY-----\n${keyBase64}\n-----END PRIVATE KEY-----\n`,
     };
+  }
+
+  async createCrl(serials: string[]): Promise<string> {
+    const crl = await X509CrlGenerator.create({
+      issuer: this.ca.subject,
+      signingKey: this.signingKey,
+      signingAlgorithm: this.algorithm === 'rsa'
+        ? { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }
+        : { name: 'ECDSA', hash: 'SHA-256' },
+      thisUpdate: new Date(Date.now() - 60_000),
+      nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      entries: serials.map((serialNumber) => ({ serialNumber })),
+    });
+    return crl.toString('pem')
+      .replace('BEGIN CRL', 'BEGIN X509 CRL')
+      .replace('END CRL', 'END X509 CRL');
   }
 
   async issue(csrPem: string, options: IssueOptions = {}): Promise<IssuedCertificate> {

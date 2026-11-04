@@ -225,10 +225,26 @@ POST /api/platform/agents/:id/certificate/revoke
 
 缓存每 60 秒刷新。
 
+### 标准 CRL
+
+控制面从吊销序列号生成 X.509 CRL：
+
+```text
+.opsagent-ca/crl.pem
+```
+
+- 使用同一内置 CA 签名
+- 有效期 7 天
+- 每 60 秒重新生成
+- 通过 `tlsServer.setSecureContext({ crl })` 热更新
+- Node TLS 在客户端证书校验时使用 CRL
+
+语义化 403 检查作为第二层兜底。
+
 ## 未完成
 
 - CA 轮换、密钥托管
-- 吊销列表持久化到 CA/CRL
+- CRL 分发端点与 OCSP
 - 部署脚本自动分发 CA
 - 服务端证书到期事件接入消息中心
 - 到期事件接入工单/通知路由

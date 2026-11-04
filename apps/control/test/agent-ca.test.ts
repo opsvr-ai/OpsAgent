@@ -55,6 +55,8 @@ describe('agent CA', () => {
     expect(issued.privateKey).toContain('BEGIN PRIVATE KEY');
     const certificate = new X509Certificate(issued.certificate);
     expect(certificate.subject).toContain('opsagent-control');
+    const crl = await service.createCrl(['deadbeef']);
+    expect(crl).toContain('BEGIN X509 CRL');
   });
 
   it('creates and reuses an internal CA directory', async () => {

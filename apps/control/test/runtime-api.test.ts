@@ -92,6 +92,21 @@ describe('session API', () => {
     const text = await response.text();
     expect(text).toContain('"tool":"mock.echo"');
     expect(text).toContain('"type":"session.done"');
+
+    const transcript = await fetch(`${baseUrl}/api/sessions/${sessionId}/transcript`, {
+      headers: { cookie },
+    });
+    expect(transcript.status).toBe(200);
+    const history = (await transcript.json()) as {
+      items: Array<{ kind: string; text?: string; event?: { type: string } }>;
+    };
+    expect(history.items[0]).toMatchObject({ kind: 'user', text: 'echo hello' });
+    expect(history.items.some((item) => item.kind === 'event' && item.event?.type === 'tool.call')).toBe(true);
+
+    const sessions = await fetch(`${baseUrl}/api/sessions`, { headers: { cookie } });
+    const listed = (await sessions.json()) as Array<{ id: string; title: string; messageCount: number }>;
+    expect(listed.find((item) => item.id === sessionId)).toMatchObject({ title: 'echo hello' });
+    expect(listed.find((item) => item.id === sessionId)?.messageCount).toBeGreaterThan(0);
   });
 
   it('pauses for approval and continues after approve', async () => {

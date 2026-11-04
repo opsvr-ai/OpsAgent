@@ -57,6 +57,11 @@ export function App() {
     }
   }
 
+  function openSession(id: string) {
+    navEpoch.current += 1;
+    setSessionId(id);
+  }
+
   async function switchTenant(tenantId: string) {
     await selectTenant(tenantId);
     setHome(await getHome());
@@ -120,6 +125,8 @@ export function App() {
         sessionId={sessionId}
         roleView={home?.roleView ?? 'default'}
         onBack={() => setSessionId(null)}
+        onOpenSession={openSession}
+        onNewSession={() => void startSession()}
       />,
     );
   }
@@ -134,7 +141,7 @@ export function App() {
   if (view === 'messages') return withSession(<Messages onBack={() => setView('home')} />);
   if (view === 'agents') return withSession(<Agents onBack={() => setView('home')} />);
   if (view === 'tasks') return withSession(<Tasks onBack={() => setView('home')} />);
-  if (view === 'sessions') return withSession(<Sessions onBack={() => setView('home')} />);
+  if (view === 'sessions') return withSession(<Sessions onBack={() => setView('home')} onOpenSession={openSession} />);
   if (view === 'members') return withSession(<Members onBack={() => setView('home')} />);
   if (view === 'models') return withSession(<Models onBack={() => setView('home')} />);
   if (view === 'data') return withSession(<DataStore onBack={() => setView('home')} />);

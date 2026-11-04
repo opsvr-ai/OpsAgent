@@ -74,6 +74,20 @@ export function registerRuntimeRoutes(
     return reply.send(await sessions.list(auth.tenantId, auth.userId));
   });
 
+  app.get<{ Params: { id: string } }>('/api/sessions/:id/transcript', async (request, reply) => {
+    const auth = await authContext(pool, request);
+    if (!auth) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      const items = await sessions.transcript(request.params.id, auth.tenantId, auth.userId);
+      return reply.send({ items });
+    } catch (error) {
+      if (error instanceof SessionNotFoundError) {
+        return reply.code(404).send({ error: 'session_not_found' });
+      }
+      throw error;
+    }
+  });
+
   app.post('/api/sessions', async (request, reply) => {
     const auth = await authContext(pool, request);
     if (!auth) return reply.code(401).send({ error: 'unauthorized' });

@@ -7,6 +7,8 @@ vi.mock('../src/api/client.js', () => ({
   promptSession: vi.fn(),
   decideApproval: vi.fn(),
   listApprovals: vi.fn().mockResolvedValue([]),
+  listSessions: vi.fn().mockResolvedValue([]),
+  getSessionTranscript: vi.fn().mockResolvedValue([]),
 }));
 
 const promptMock = vi.mocked(promptSession);
@@ -25,7 +27,8 @@ describe('Chat', () => {
       yield { type: 'session.done', sessionId: 's', at: 't' };
     });
 
-    render(<Chat sessionId="s" roleView="sre_duty" onBack={vi.fn()} />);
+    render(<Chat sessionId="s" roleView="sre_duty" onBack={vi.fn()} onOpenSession={vi.fn()} onNewSession={vi.fn()} />);
+    await waitFor(() => expect(screen.getByLabelText('输入')).toBeEnabled());
     fireEvent.change(screen.getByLabelText('输入'), { target: { value: 'echo hello' } });
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
 
@@ -48,7 +51,8 @@ describe('Chat', () => {
     });
     decideMock.mockResolvedValue(undefined);
 
-    render(<Chat sessionId="s" roleView="sre_duty" onBack={vi.fn()} />);
+    render(<Chat sessionId="s" roleView="sre_duty" onBack={vi.fn()} onOpenSession={vi.fn()} onNewSession={vi.fn()} />);
+    await waitFor(() => expect(screen.getByLabelText('输入')).toBeEnabled());
     fireEvent.change(screen.getByLabelText('输入'), { target: { value: 'restart' } });
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
 

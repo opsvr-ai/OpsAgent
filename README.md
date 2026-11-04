@@ -33,6 +33,8 @@ docker compose up -d --build control web
   - `自动审查 EXP`：只读命令自动放行，写入/危险命令仍进入人工审批
 - `DSH_PERMISSION_MODE` 只作为默认兜底；实际权限随每次 prompt 写入会话并传给 dsh
 - 审批通过 OpsAgent 内部审批 API 完成，与 dsh 的 permission picker 对齐
+- 会话记录写入 `session_transcripts`；`dsh_session_id` 持久化到 `runtime_sessions`，重启后仍可继续历史会话
+- 会话历史入口：智能体会话页右上角「历史」，或左侧「会话历史」页；可打开旧会话继续追问
 
 宿主机直跑（不推荐，可能和宿主机 dsh 冲突）：
 

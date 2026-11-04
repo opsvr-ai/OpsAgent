@@ -476,9 +476,21 @@ export async function approveTask(
 
 export interface SessionSummary {
   readonly id: string;
+  readonly title: string;
   readonly roleView: string;
   readonly status: string;
   readonly createdAt: string;
+  readonly lastActivityAt: string;
+  readonly messageCount: number;
+}
+
+export type SessionTranscriptItem =
+  | { readonly id: string; readonly kind: 'user'; readonly text: string; readonly at: string }
+  | { readonly id: string; readonly kind: 'event'; readonly event: RuntimeEvent; readonly at: string };
+
+export async function getSessionTranscript(id: string): Promise<SessionTranscriptItem[]> {
+  const body = await request<{ items: SessionTranscriptItem[] }>(`/api/sessions/${id}/transcript`);
+  return body.items;
 }
 
 export async function listSessions(): Promise<SessionSummary[]> {

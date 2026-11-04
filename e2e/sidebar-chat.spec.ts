@@ -48,3 +48,29 @@ test('composer exposes the four dsh permission modes', async ({ page }) => {
   await menu.locator('.permission-option').filter({ hasText: '自动审查' }).click();
   await expect(page.getByRole('button', { name: /执行权限：自动审查/ })).toBeVisible();
 });
+
+test('previous conversations can be listed, opened, and restored', async ({ page }) => {
+  await login(page);
+  await page.locator('.sidebar .nav-item').filter({ hasText: '智能体会话' }).click();
+  await page.getByLabel('输入').waitFor({ timeout: 15000 });
+  await page.getByLabel('输入').fill('历史记录测试');
+  await page.getByRole('button', { name: '发送' }).click();
+  await expect(page.locator('.msg.msg-user')).toContainText('历史记录测试');
+
+  await page.getByRole('button', { name: '历史', exact: true }).click();
+  const drawer = page.locator('.history-drawer');
+  await expect(drawer).toBeVisible();
+  const item = drawer.locator('.history-item').filter({ hasText: '历史记录测试' }).first();
+  await expect(item).toBeVisible();
+  const firstSessionId = await page.locator('.chat-head .badge').nth(1).innerText();
+  await drawer.getByRole('button', { name: '新对话' }).click();
+  await expect(page.locator('.chat-head .badge').nth(1)).not.toHaveText(firstSessionId);
+  await expect(page.locator('.msg.msg-user')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '历史', exact: true }).click();
+  const restored = page.locator('.history-drawer .history-item').filter({ hasText: '历史记录测试' }).first();
+  await expect(restored).toBeVisible();
+  await restored.click();
+  await expect(page.locator('.msg.msg-user')).toContainText('历史记录测试');
+  await expect(page.locator('.tool-card').first()).toBeVisible();
+});

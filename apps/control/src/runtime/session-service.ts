@@ -7,6 +7,7 @@ export interface SessionRecord {
   readonly tenantId: string;
   readonly userId: string;
   readonly runtimeSessionId: string;
+  readonly dshSessionId?: string;
   readonly roleView: string;
   readonly status: string;
 }
@@ -66,12 +67,13 @@ export class SessionService {
       tenant_id: string;
       user_id: string;
       runtime_session_id: string;
+      dsh_session_id: string | null;
       role_view: string;
       status: string;
     }>(
       `INSERT INTO runtime_sessions (tenant_id, user_id, runtime_session_id, role_view, status)
        VALUES ($1, $2, $3, $4, 'active')
-       RETURNING id, tenant_id, user_id, runtime_session_id, role_view, status`,
+       RETURNING id, tenant_id, user_id, runtime_session_id, dsh_session_id, role_view, status`,
       [input.tenantId, input.userId, runtimeSession.runtimeSessionId, input.roleView],
     );
 
@@ -82,38 +84,95 @@ export class SessionService {
 
   async list(tenantId: string, userId: string): Promise<Array<{
     id: string;
+    title: string;
     roleView: string;
     status: string;
     createdAt: string;
+    lastActivityAt: string;
+    messageCount: number;
   }>> {
     const result = await this.pool.query<{
       id: string;
       role_view: string;
       status: string;
       created_at: Date;
+      title: string;
+      last_activity_at: Date;
+      message_count: number;
     }>(
-      `SELECT id, role_view, status, created_at FROM runtime_sessions
-       WHERE tenant_id = $1 AND user_id = $2
-       ORDER BY created_at DESC LIMIT 50`,
+      `SELECT s.id, s.role_view, s.status, s.created_at,
+         COALESCE((
+           SELECT t.payload->>'text' FROM session_transcripts t
+           WHERE t.session_id = s.id AND t.role = 'user'
+           ORDER BY t.created_at, t.id LIMIT 1
+         ), '新会话') AS title,
+         COALESCE((
+           SELECT max(t.created_at) FROM session_transcripts t WHERE t.session_id = s.id
+         ), s.created_at) AS last_activity_at,
+         (SELECT count(*)::int FROM session_transcripts t WHERE t.session_id = s.id) AS message_count
+       FROM runtime_sessions s
+       WHERE s.tenant_id = $1 AND s.user_id = $2
+         AND EXISTS (SELECT 1 FROM session_transcripts t WHERE t.session_id = s.id)
+       ORDER BY last_activity_at DESC
+       LIMIT 50`,
       [tenantId, userId],
     );
     return result.rows.map((row) => ({
       id: row.id,
+      title: row.title,
       roleView: row.role_view,
       status: row.status,
       createdAt: row.created_at.toISOString(),
+      lastActivityAt: row.last_activity_at.toISOString(),
+      messageCount: row.message_count,
     }));
   }
 
-  async get(id: string, tenantId: string, userId: string): Promise<SessionRecord | null> {    const result = await this.pool.query<{
+  async transcript(id: string, tenantId: string, userId: string): Promise<Array<
+    | { readonly id: string; readonly kind: 'user'; readonly text: string; readonly at: string }
+    | { readonly id: string; readonly kind: 'event'; readonly event: RuntimeEvent; readonly at: string }
+  >> {
+    const session = await this.get(id, tenantId, userId);
+    if (!session) throw new SessionNotFoundError();
+    const result = await this.pool.query<{
+      id: string;
+      role: 'user' | 'event';
+      payload: Record<string, unknown>;
+      created_at: Date;
+    }>(
+      `SELECT id, role, payload, created_at FROM session_transcripts
+       WHERE session_id = $1 AND tenant_id = $2
+       ORDER BY created_at, id`,
+      [id, tenantId],
+    );
+    return result.rows.map((row) =>
+      row.role === 'user'
+        ? {
+            id: String(row.id),
+            kind: 'user' as const,
+            text: typeof row.payload.text === 'string' ? row.payload.text : '',
+            at: row.created_at.toISOString(),
+          }
+        : {
+            id: String(row.id),
+            kind: 'event' as const,
+            event: row.payload as unknown as RuntimeEvent,
+            at: row.created_at.toISOString(),
+          },
+    );
+  }
+
+  async get(id: string, tenantId: string, userId: string): Promise<SessionRecord | null> {
+    const result = await this.pool.query<{
       id: string;
       tenant_id: string;
       user_id: string;
       runtime_session_id: string;
+      dsh_session_id: string | null;
       role_view: string;
       status: string;
     }>(
-      `SELECT id, tenant_id, user_id, runtime_session_id, role_view, status
+      `SELECT id, tenant_id, user_id, runtime_session_id, dsh_session_id, role_view, status
        FROM runtime_sessions WHERE id = $1 AND tenant_id = $2 AND user_id = $3`,
       [id, tenantId, userId],
     );
@@ -138,6 +197,16 @@ export class SessionService {
         session.id,
       ]);
     }
+    await this.updateStatus(session.id, 'active');
+
+    if (this.runtime.attachSession) {
+      await this.runtime.attachSession(
+        session.runtimeSessionId,
+        { tenantId, userId },
+        session.dshSessionId,
+      );
+    }
+    await this.appendTranscript(session.id, tenantId, 'user', { text });
 
     try {
       for await (const event of this.runtime.prompt(
@@ -146,6 +215,7 @@ export class SessionService {
         idempotencyKey,
         permissionMode ? { permissionMode } : undefined,
       )) {
+        await this.appendTranscript(session.id, tenantId, 'event', event as unknown as Record<string, unknown>);
         if (event.type === 'approval.request') {
           const approval = await this.pool.query<{ id: string }>(
             `INSERT INTO approvals (tenant_id, session_id, runtime_approval_id, action, risk, status)
@@ -169,7 +239,28 @@ export class SessionService {
       await this.cancelPendingApprovals(session.id);
       await this.updateStatus(session.id, 'failed');
       throw error;
+    } finally {
+      const dshSessionId = this.runtime.getSessionRef?.(session.runtimeSessionId);
+      if (dshSessionId && dshSessionId !== session.dshSessionId) {
+        await this.pool.query(
+          'UPDATE runtime_sessions SET dsh_session_id = $1 WHERE id = $2',
+          [dshSessionId, session.id],
+        );
+      }
     }
+  }
+
+  private async appendTranscript(
+    sessionId: string,
+    tenantId: string,
+    role: 'user' | 'event',
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO session_transcripts (tenant_id, session_id, role, payload)
+       VALUES ($1, $2, $3, $4::jsonb)`,
+      [tenantId, sessionId, role, JSON.stringify(payload)],
+    );
   }
 
   private async cancelPendingApprovals(sessionId: string): Promise<void> {
@@ -267,6 +358,7 @@ export class SessionService {
     tenant_id: string;
     user_id: string;
     runtime_session_id: string;
+    dsh_session_id: string | null;
     role_view: string;
     status: string;
   }): SessionRecord {
@@ -275,6 +367,7 @@ export class SessionService {
       tenantId: row.tenant_id,
       userId: row.user_id,
       runtimeSessionId: row.runtime_session_id,
+      ...(row.dsh_session_id ? { dshSessionId: row.dsh_session_id } : {}),
       roleView: row.role_view,
       status: row.status,
     };

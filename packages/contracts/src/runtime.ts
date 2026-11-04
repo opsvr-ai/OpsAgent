@@ -30,6 +30,11 @@ export interface PromptOptions {
   readonly permissionMode?: PermissionMode;
 }
 
+export interface AttachSessionInput {
+  readonly tenantId: TenantId;
+  readonly userId: UserId;
+}
+
 export interface StartSessionInput {
   readonly tenantId: TenantId;
   readonly userId: UserId;
@@ -100,6 +105,14 @@ export interface RuntimeClient {
     idempotencyKey: string,
     options?: PromptOptions,
   ): AsyncIterable<RuntimeEvent>;
+  /** Reattach a persisted session after a control-plane restart. */
+  attachSession?(
+    runtimeSessionId: RuntimeSessionId,
+    input: AttachSessionInput,
+    dshSessionId?: string,
+  ): Promise<void>;
+  /** The underlying dsh session id after the first prompt. */
+  getSessionRef?(runtimeSessionId: RuntimeSessionId): string | undefined;
   respondApproval(
     sessionId: SessionId,
     approvalId: ApprovalId,

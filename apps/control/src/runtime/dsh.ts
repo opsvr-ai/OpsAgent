@@ -176,6 +176,21 @@ export class DshRuntime implements RuntimeClient {
     return session;
   }
 
+  async attachSession(runtimeSessionId: string, input: { tenantId: string; userId: string }, dshSessionId?: string): Promise<void> {
+    if (!this.sessions.has(runtimeSessionId)) {
+      this.sessions.set(runtimeSessionId, {
+        runtimeSessionId,
+        tenantId: input.tenantId,
+        userId: input.userId,
+      });
+    }
+    if (dshSessionId) this.dshSessionIds.set(runtimeSessionId, dshSessionId);
+  }
+
+  getSessionRef(runtimeSessionId: string): string | undefined {
+    return this.dshSessionIds.get(runtimeSessionId);
+  }
+
   async *prompt(sessionId: string, text: string, _idempotencyKey: string, options?: PromptOptions): AsyncIterable<RuntimeEvent> {
     const runtimeSession = this.sessions.get(sessionId);
     if (!runtimeSession) throw new Error(`unknown session: ${sessionId}`);

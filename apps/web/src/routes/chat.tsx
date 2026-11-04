@@ -6,10 +6,14 @@ import type { PermissionMode } from '@opsagent/contracts';
 import type { ApprovalRequestEvent, RuntimeEvent } from '@opsagent/contracts';
 import {
   decideApproval,
+  getSessionTranscript,
   listApprovals,
+  listSessions,
   promptSession,
   type ApprovalSummary,
+  type SessionSummary,
 } from '../api/client.js';
+import { relativeTime } from '../format.js';
 import { AppSidebar } from './app-sidebar.js';
 import { GlobalSearch } from './global-search.js';
 import { ThemeToggle } from '../theme/use-theme.js';
@@ -19,10 +23,12 @@ export interface ChatProps {
   readonly sessionId: string;
   readonly roleView: string;
   readonly onBack: () => void;
+  readonly onOpenSession: (id: string) => void;
+  readonly onNewSession: () => void;
 }
 
 type ChatTimelineEntry =
-  | { readonly kind: 'user'; readonly id: string; readonly text: string }
+  | { readonly kind: 'user'; readonly id: string; readonly text: string; readonly at?: string }
   | { readonly kind: 'event'; readonly event: RuntimeEvent };
 
 const PERMISSION_OPTIONS: ReadonlyArray<{
@@ -42,13 +48,17 @@ function permissionLabel(mode: PermissionMode): string {
   return PERMISSION_OPTIONS.find((option) => option.id === mode)?.label ?? mode;
 }
 
-export function Chat({ sessionId, roleView, onBack }: ChatProps) {
+export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession }: ChatProps) {
   const session = useSession();
   const [timeline, setTimeline] = useState<ChatTimelineEntry[]>([]);
   const events = timeline.filter((entry): entry is { kind: 'event'; event: RuntimeEvent } => entry.kind === 'event').map((entry) => entry.event);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loadingTranscript, setLoadingTranscript] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequestEvent | null>(null);
   const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('danger-full-access');
@@ -65,6 +75,38 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [permissionOpen]);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingTranscript(true);
+    setTimeline([]);
+    setError(null);
+    void getSessionTranscript(sessionId)
+      .then((items) => {
+        if (!active) return;
+        setTimeline(items.map((item) => item.kind === 'user'
+          ? { kind: 'user' as const, id: item.id, text: item.text, at: item.at }
+          : { kind: 'event' as const, event: item.event }));
+      })
+      .catch(() => {
+        if (active) setError('会话历史加载失败');
+      })
+      .finally(() => {
+        if (active) setLoadingTranscript(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    setSessions(null);
+    setHistoryError(null);
+    void listSessions()
+      .then(setSessions)
+      .catch(() => setHistoryError('会话历史加载失败'));
+  }, [historyOpen]);
 
   useEffect(() => {
     const log = logRef.current;
@@ -91,7 +133,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
     setInput('');
     setBusy(true);
     setError(null);
-    setTimeline((current) => [...current, { kind: 'user', id: crypto.randomUUID(), text }]);
+    setTimeline((current) => [...current, { kind: 'user', id: crypto.randomUUID(), text, at: new Date().toISOString() }]);
     try {
       for await (const item of promptSession(sessionId, text, crypto.randomUUID(), permissionMode)) {
         setTimeline((current) => [...current, { kind: 'event', event: item }]);
@@ -122,7 +164,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
         <div key={index} className="msg">
           <span className="msg-avatar is-agent">A</span>
           <div className="msg-body">
-            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">deepseek-flash</span><span>刚刚</span></div>
+            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">deepseek-flash</span><span>{relativeTime(item.at)}</span></div>
             <div className="msg-text markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown></div>
           </div>
         </div>
@@ -220,6 +262,10 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
               <div className="row-sm">
                 <span className="badge badge-ok">已连接</span>
                 <span className="badge badge-neutral mono">{sessionId.slice(0, 12)}</span>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setHistoryOpen(true)} disabled={busy}>
+                  <svg><use href="/icons.svg#i-history" /></svg>
+                  历史
+                </button>
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => void navigator.clipboard?.writeText(sessionId)}>复制会话 ID</button>
               </div>
             </header>
@@ -227,7 +273,9 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
             <div className="chat-log" ref={logRef}>
               <div className="chat-inner" aria-live="polite">
                 {error ? <p role="alert">{error}</p> : null}
-                {timeline.length === 0 ? (
+                {loadingTranscript ? (
+                  <div className="chat-loading"><span className="dot dot-warn" />正在加载会话历史…</div>
+                ) : timeline.length === 0 ? (
                   <div className="msg">
                     <div className="msg-body">
                       <div className="msg-meta"><strong>OpsAgent</strong><span>ready</span></div>
@@ -248,7 +296,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                   <div key={entry.id} className="msg msg-user">
                     <span className="msg-avatar is-user">{session?.me.user.displayName?.slice(0, 1) ?? '我'}</span>
                     <div className="msg-body">
-                      <div className="msg-meta"><strong>{session?.me.user.displayName ?? '我'}</strong><span>刚刚</span></div>
+                      <div className="msg-meta"><strong>{session?.me.user.displayName ?? '我'}</strong><span>{entry.at ? relativeTime(entry.at) : '刚刚'}</span></div>
                       <div className="msg-text"><p>{entry.text}</p></div>
                     </div>
                   </div>
@@ -323,7 +371,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  disabled={busy}
+                  disabled={busy || loadingTranscript}
                   placeholder="描述告警、服务或主机问题，输入 / 运行场景，@ 引用数据源…"
                 />
                 <div className="composer-bar">
@@ -369,7 +417,7 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
                   </div>
                   <span className="model-pill"><span className="dot dot-ok" />deepseek-flash</span>
                   <span className="composer-inline-hint">工具调用受租户与角色约束</span>
-                  <button className="send" type="submit" disabled={busy} aria-label="发送">
+                  <button className="send" type="submit" disabled={busy || loadingTranscript} aria-label="发送">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5" /><path d="M5 12l7-7 7 7" /></svg>
                   </button>
                 </div>
@@ -415,6 +463,57 @@ export function Chat({ sessionId, roleView, onBack }: ChatProps) {
           </aside>
         </main>
       </section>
+
+      {historyOpen ? (
+        <div className="history-overlay" onClick={() => setHistoryOpen(false)}>
+          <aside className="history-drawer" aria-label="会话历史" onClick={(event) => event.stopPropagation()}>
+            <header className="history-head">
+              <div>
+                <div className="eyebrow">History</div>
+                <h2>会话历史</h2>
+              </div>
+              <button type="button" className="topbar-icon" aria-label="关闭会话历史" onClick={() => setHistoryOpen(false)}>
+                <svg><use href="/icons.svg#i-x" /></svg>
+              </button>
+            </header>
+            <button type="button" className="history-new" onClick={() => { setHistoryOpen(false); onNewSession(); }}>
+              <svg><use href="/icons.svg#i-plus" /></svg>
+              新对话
+            </button>
+            <div className="history-list">
+              {historyError ? <p role="alert">{historyError}</p> : null}
+              {sessions === null && !historyError ? <p className="muted history-loading">加载中…</p> : null}
+              {sessions?.length === 0 ? <p className="muted history-loading">还没有历史会话</p> : null}
+              {sessions?.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`history-item${item.id === sessionId ? ' is-active' : ''}`}
+                  aria-current={item.id === sessionId ? 'true' : undefined}
+                  onClick={() => {
+                    setHistoryOpen(false);
+                    if (item.id !== sessionId) onOpenSession(item.id);
+                  }}
+                >
+                  <span className="history-item-top">
+                    <strong>{item.title || '新会话'}</strong>
+                    <span className={`badge ${item.status === 'active' ? 'badge-ok' : 'badge-neutral'}`}>
+                      {item.status === 'active' ? '进行中' : item.status === 'failed' ? '失败' : '已结束'}
+                    </span>
+                  </span>
+                  <span className="history-item-meta">
+                    <span>{relativeTime(item.lastActivityAt)}</span>
+                    <span>{item.messageCount} 条记录</span>
+                    <span>{item.roleView}</span>
+                  </span>
+                  <span className="mono history-item-id">{item.id.slice(0, 12)}</span>
+                </button>
+              ))}
+            </div>
+            <p className="history-foot">点击历史会话即可恢复聊天记录并继续对话。</p>
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }

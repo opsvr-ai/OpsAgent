@@ -1,4 +1,4 @@
-export type ServiceAction = 'service_restart' | 'service_stop';
+export type ServiceAction = 'service_restart' | 'service_stop' | 'service_start';
 
 export interface InstructionIntent {
   readonly kind: 'inspect' | ServiceAction;
@@ -18,7 +18,8 @@ export type InstructionPlan =
 const writeIntent = /(重启|停止|关闭|删除|安装|卸载|修改|写入|执行命令|运行命令|kill|restart|stop|rm\s|chmod|chown|systemctl\s+(restart|stop|disable))/i;
 const restartIntent = /(?:重启|restart)\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})(?:\s*服务|\s*service)?/i;
 const stopIntent = /(?:停止|stop)\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})(?:\s*服务|\s*service)?/i;
-const forbiddenServices = new Set(['system', 'host', 'server', 'os', 'all', 'service', 'restart', 'stop']);
+const startIntent = /(?:启动|start)\s*(?:服务\s*)?([a-z0-9][a-z0-9_.@-]{0,63})(?:\s*服务|\s*service)?/i;
+const forbiddenServices = new Set(['system', 'host', 'server', 'os', 'all', 'service', 'restart', 'stop', 'start']);
 const protectedServices = new Set([
   'systemd', 'sshd', 'ssh', 'network', 'networking', 'dbus',
   'docker', 'containerd', 'kubelet', 'k3s',
@@ -34,7 +35,7 @@ export function planInstruction(instruction: string): InstructionPlan {
   if (!question) return { ok: false, error: 'empty_instruction', reason: '指令为空' };
   if (question.length > 4000) return { ok: false, error: 'instruction_too_long', reason: '指令超过 4000 字' };
 
-  const actionMatch = stopIntent.exec(question) ?? restartIntent.exec(question);
+  const actionMatch = stopIntent.exec(question) ?? startIntent.exec(question) ?? restartIntent.exec(question);
   if (actionMatch) {
     const service = actionMatch[1]?.toLowerCase() ?? '';
     if (!service || forbiddenServices.has(service)) {
@@ -52,10 +53,12 @@ export function planInstruction(instruction: string): InstructionPlan {
       };
     }
     const isStop = stopIntent.test(question);
+    const isStart = !isStop && startIntent.test(question);
+    const kind: ServiceAction = isStop ? 'service_stop' : isStart ? 'service_start' : 'service_restart';
     return {
       ok: true,
       intent: {
-        kind: isStop ? 'service_stop' : 'service_restart',
+        kind,
         params: { service },
         readOnly: false,
         confidence: 0.85,
@@ -68,7 +71,7 @@ export function planInstruction(instruction: string): InstructionPlan {
     return {
       ok: false,
       error: 'unsupported_instruction',
-      reason: '当前只支持只读检查和审批后的服务重启/停止，其他写操作暂不支持',
+      reason: '当前只支持只读检查和审批后的服务启动/停止/重启，其他写操作暂不支持',
     };
   }
   return {

@@ -8,7 +8,7 @@ Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools
 >
 > 多 Agent 异常分析与协同排查：[2026-11-04-agent-collaboration.md](docs/design/plans/2026-11-04-agent-collaboration.md)。
 >
-> 指定 Agent 下发自然语言指令（后端 + 详情页 + SSE 流式/重连 + 批量 + 批量写审批/服务端批量审批/撤销/并发认领 + 审批过期/通知/提前提醒/倒计时/拒绝原因 + Webhook 通知/重试 + 职责分离 + CSV + 历史 + 模板管理 + 模板可见范围 + Incident 证据联动 + Incident 页面发起 + 写审批关联 Incident + Incident 审批时间线 + 审批消息中心 + 指令列表 + 超时治理 + 取消 + 指令导出 + 报告内嵌 + 服务重启/停止审批）：[2026-11-04-agent-instruction-routing.md](docs/design/plans/2026-11-04-agent-instruction-routing.md)。
+> 指定 Agent 下发自然语言指令（后端 + 详情页 + SSE 流式/重连 + 批量 + 批量写审批/服务端批量审批/撤销/并发认领 + 审批过期/通知/提前提醒/倒计时/拒绝原因 + Webhook 通知/重试 + 职责分离 + CSV + 历史 + 模板管理 + 模板可见范围 + Incident 证据联动 + Incident 页面发起 + 写审批关联 Incident + Incident 审批时间线 + 审批消息中心 + 指令列表 + 超时治理 + 取消 + 指令导出 + 报告内嵌 + 服务启动/停止/重启审批）：[2026-11-04-agent-instruction-routing.md](docs/design/plans/2026-11-04-agent-instruction-routing.md)。
 >
 > Agent 运行时长与主机概览能力：[2026-11-04-agent-capabilities.md](docs/design/plans/2026-11-04-agent-capabilities.md)。
 >

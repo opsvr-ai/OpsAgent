@@ -527,7 +527,9 @@ export function registerAgentInstructionRoutes(
         return reply.code(409).send({ error: 'agent_offline', hostname: target.hostname });
       }
       const service = approval.service ?? '';
-      const intentKind = approval.action === 'service_stop' ? 'service_stop' : 'service_restart';
+      const intentKind = approval.action === 'service_stop'
+        ? 'service_stop'
+        : approval.action === 'service_start' ? 'service_start' : 'service_restart';
       const claimed = await pool.query(
         `UPDATE agent_instruction_approvals
          SET status = 'approved', decided_by = $1, decided_at = now(), decision_reason = $2

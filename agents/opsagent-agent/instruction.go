@@ -26,7 +26,7 @@ func runAgentInstruction(input map[string]any) map[string]any {
 	if kind == "" {
 		kind = "inspect"
 	}
-	if kind == "service_restart" || kind == "service_stop" {
+	if kind == "service_restart" || kind == "service_stop" || kind == "service_start" {
 		readOnly, _ := input["readOnly"].(bool)
 		if readOnly {
 			result["error"] = "service action cannot be read-only"
@@ -46,6 +46,9 @@ func runAgentInstruction(input map[string]any) map[string]any {
 		if kind == "service_stop" {
 			action = "stop"
 			label = "停止"
+		} else if kind == "service_start" {
+			action = "start"
+			label = "启动"
 		}
 		output, err := controlService(action, service)
 		result["instruction"] = instruction

@@ -139,8 +139,10 @@ POST /api/agents/:agentId/instructions/:instructionId/cancel
 重启 nginx 服务
 重启服务 redis
 停止 nginx 服务
+启动 nginx 服务
 restart nginx service
 stop nginx service
+start nginx service
 ```
 
 流程：

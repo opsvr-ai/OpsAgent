@@ -387,6 +387,26 @@ describe('agent instruction API', () => {
     });
     expect(canceled.statusCode).toBe(200);
     expect((canceled.json() as { status: string }).status).toBe('canceled');
+
+    const startRequest = await app.inject({
+      method: 'POST',
+      url: `/api/agents/${agentId}/instructions`,
+      headers: { cookie },
+      payload: { instruction: '启动 redis 服务' },
+    });
+    const startApprovalId = (startRequest.json() as { approvalId: string }).approvalId;
+    const startApproved = await app.inject({
+      method: 'POST',
+      url: `/api/agent-instruction-approvals/${startApprovalId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'approve' },
+    });
+    const startCommandId = (startApproved.json() as { instructionId: string }).instructionId;
+    const startCommand = await pool.query<{ instruction_intent: Record<string, unknown> }>(
+      'SELECT instruction_intent FROM agent_commands WHERE id = $1',
+      [startCommandId],
+    );
+    expect(startCommand.rows[0]?.instruction_intent).toMatchObject({ kind: 'service_start', params: { service: 'redis' } });
     await app.close();
   });
 

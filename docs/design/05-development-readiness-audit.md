@@ -1,9 +1,9 @@
 # 正式开发前校验（Platform Readiness Audit）
 
 > 日期：2026-11-03  
-> 状态：**未开工；不改代码**  
+> 状态：**历史审计（2026-11-03 的开发前时点）**；当前代码已进入 0.3.2 交付，最新状态见 [`2026-11-04-acceptance-status.md`](plans/2026-11-04-acceptance-status.md) 与 [`FINAL-DELIVERY.md`](../FINAL-DELIVERY.md)。  
 > 范围：平台架构、功能点、功能设计、前端/后端契合、技术选型、计划与验收。  
-> 结论：**P1 编码 No-Go；P0 技术验证 Conditional-Go。** 还有 7 个阻塞项必须在 P1 前关闭（B7 已在本次审计中关闭）。
+> 结论（历史）：**P1 编码 No-Go；P0 技术验证 Conditional-Go。** 还有 7 个阻塞项必须在 P1 前关闭（B7 已在本次审计中关闭）。
 
 ## 1. 结论摘要
 

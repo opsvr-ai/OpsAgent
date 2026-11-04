@@ -119,20 +119,20 @@ export function Help({ onBack }: HelpProps) {
       active="help"
       eyebrow="Help"
       title="用户手册"
-      subtitle="平台使用、Agent 安装、安全建议与故障排查。"
+      subtitle="平台使用、Agent 安装、审批、发布灰度、证书与故障排查。"
       onBack={onBack}
     >
       <section className="grid grid-3">
         <article className="card">
           <div className="card-body">
             <div className="eyebrow">快速开始</div>
-            <p className="muted">登录 → 选租户 → 新建会话 → 处理审批。</p>
+            <p className="muted">登录 → 选租户 → 新建会话 → 处理审批；写操作必须有审批。</p>
           </div>
         </article>
         <article className="card">
           <div className="card-body">
-            <div className="eyebrow">Agent 安装</div>
-            <p className="muted">操作系统智能体页按应用系统纳管主机，展示配置发现、应用部署与 Agent 状态，并可一键生成安装命令。</p>
+            <div className="eyebrow">发布与灰度</div>
+            <p className="muted">签名 Release、主机级 canary、流量级 canary、Nginx 配置和回滚。</p>
           </div>
         </article>
         <article className="card">

@@ -94,9 +94,9 @@
 |---|---|---|
 | Go 单二进制 + systemd + CLI | P2-A | Linux 安装/升级/回滚；默认 root + 动作门控 |
 | 安装 CLI + 配置加密 | P2-A | `--server/--tenant/--join-token-file/--ca-cert`；IP 明文；认证字段 AES-256-GCM |
-| 资源限额 | P2-A | CPUQuota/MemoryMax/GOMEMLIMIT/Tasks/IO；空闲 CPU<1%、RSS<100MB |
-| Eino ADK 轻量 Agent Runtime | P2-A | Eino ADK；模型走服务端 Gateway；≤8–12 步/预算；空闲不调模型 |
-| 注册/证书/自动纳管 | P2-A | 令牌+CSR；未知主机隔离；证书轮换/吊销 |
+| 资源限额 | P2-A | Linux systemd/cgroup + Windows Job Object 内存/CPU；容器 mem_limit/cpus |
+| Eino ADK 轻量 Agent Runtime | P2-A | 当前使用 dsh 运行时；模型走服务端 Gateway；类型化工具 |
+| 注册/证书/自动纳管 | P2-A | 令牌+CSR；未知主机隔离；证书轮换/吊销；CRL/OCSP |
 | 受控发现 | P2-A | OS/服务/应用/部署/配置/日志；证据+置信度；不越界 |
 | 应用/数据中心归属 | P2-A | IP/主机名/CMDB；多候选/冲突可审计 |
 | 常驻采集/快照 | P2-A | 最长 1 天：5s 1h/30s 6h/5m 24h；1GB/2% 上限 |
@@ -104,7 +104,7 @@
 | CLI 对话 | P2-A | 本地 socket；LLM 走服务端；R2+ 不能本地批准 |
 | 签名诊断指令 | P2-B | 动作 ID/参数/过期/nonce/签名全校验 |
 | 排障闭环 | P2-B | 服务端下发→本机证据→结论→审计；工具插件并行 |
-| 受控部署/升级 | P2-B | 签名 DeployOrder/制品；预检/canary/回滚；R3 审批 |
+| 受控部署/升级 | P2-B | 签名 DeployOrder/制品；预检/主机 canary/流量级 canary/回滚；R3 审批 |
 | 本地知识 | P2-B | 应用画像/归属/排障缓存；服务端主数据 |
 | 安全加固 | P2-B | 伪造/重放/错发/提示注入测试；隔离 |
 | 虚拟化/存储/网络 Agent | P3 预留 | 插件协议一致；独立权限 |

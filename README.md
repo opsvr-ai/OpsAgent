@@ -1,4 +1,4 @@
-﻿# OpsAgent
+# OpsAgent
 
 Multi-tenant AIOps agent platform: dsh runtime + control plane + connector tools + Commander + Go host agents.
 
@@ -109,30 +109,66 @@ curl http://localhost:8080/healthz
 ## Layout
 
 ```text
-apps/control          Fastify control plane
+apps/control          Fastify control plane, migrations, PKI/OCSP, deployments
+apps/web              React console and built-in user manual
 packages/contracts    roles, permissions, theme, runtime/API contracts
-runtime/              dsh bundle (next)
-apps/web              React console (next)
+agents/opsagent-agent Go host agent (Linux/Windows)
+apps/desktop          Electron thin shell and update feed
 design/               HTML design prototypes
-docs/design/          architecture, plan, contracts, audits
+docs/design/          architecture, plans, contracts, acceptance, audits
+docs/FINAL-DELIVERY.md 0.3.2 final delivery package
 ```
 
 ## Tests
 
 ```bash
-pnpm test             # unit/component tests
-pnpm e2e              # Playwright G1 browser flow
+pnpm test             # unit/API/component tests
+pnpm e2e              # Playwright browser flows
 pnpm build            # TypeScript builds
+cd agents/opsagent-agent && go test ./...
 ```
 
-## Next
+## Delivered
 
-1. PostgreSQL schema + RLS + seed.
-2. LDAP/local-admin auth + sessions.
-3. Tenant context / multi-role guards.
-4. Audit writer + redaction.
-5. Fake/dsh runtime + mock tools + approvals.
-6. Web login/home/theme.
-7. G1 E2E.
+```text
+identity / tenant / RBAC / audit / Web
+9 connectors, scenarios, scheduler, reports, sharing
+Studio generation and sandbox install
+knowledge, messages, data store, long tasks
+Commander incidents, evidence, hypotheses, reports, SLA, approvals
+Host Agent install/discovery/patrol/read-only exec
+service status + start/stop/restart/reload/enable/disable approval
+Ed25519 signed commands and results
+signed releases, preflight, host canary, traffic-level canary
+health-gated deployment, automatic rollback and incident
+internal CA, CSR/mTLS, CRL, OCSP, certificate rotation/revocation
+systemd/container/Windows Job Object resource limits
+Desktop portable/NSIS builds and update feed
+```
 
-Plan: `docs/design/plans/2026-11-03-p1-sprint-1.md`.
+## Documentation
+
+- [Final delivery](docs/FINAL-DELIVERY.md)
+- [G0–G10 acceptance package](docs/design/plans/2026-11-04-acceptance-status.md)
+- [Release notes](docs/RELEASE.md)
+- [User manual](apps/web/src/content/user-manual.md)
+- [mTLS / CRL / OCSP](docs/design/plans/2026-11-04-mtls-transport.md)
+- [Release and traffic canary](docs/design/plans/2026-11-04-release-deployment.md)
+- [Agent resource limits](docs/design/plans/2026-11-04-agent-resource-limits.md)
+
+## External sign-off
+
+Code and automated acceptance are complete. The remaining items require an
+external environment or a human signature:
+
+```text
+G0 dsh compatibility sign-off
+10-host mixed Linux lab
+Windows Job Object load test on a real Windows host
+enterprise code-signing certificate
+production ingress applying generated Nginx canary config
+production OCSP/AIA domain and firewall
+security / operations / product sign-off
+```
+
+See [FINAL-DELIVERY.md](docs/FINAL-DELIVERY.md) for the full list.

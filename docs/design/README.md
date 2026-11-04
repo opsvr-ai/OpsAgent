@@ -1,6 +1,23 @@
-# OpsAgent 设计交付物（v0.1）
+# OpsAgent 设计交付物（v0.3.2）
 
-本目录是运维智能体平台的**设计 + 开发计划交付**，用于确认产品全景、权限模型、智能体底座、插件与分享机制、UI 方向，以及 48 周开发落地路径。**当前尚未进入编码**。
+本目录是运维智能体平台的**设计 + 开发计划交付**，用于确认产品全景、权限模型、智能体底座、插件与分享机制、UI 方向，以及开发落地路径。**平台已完成 0.3.2 交付，代码、验收材料与用户手册见：**
+
+- [最终交付说明](../FINAL-DELIVERY.md)
+- [G0–G10 正式验收包](plans/2026-11-04-acceptance-status.md)
+- [发布说明](../RELEASE.md)
+- [用户手册](../../apps/web/src/content/user-manual.md)
+
+## 当前状态（2026-11-05）
+
+```text
+平台代码：完成
+自动化验收：217 passed | 3 skipped
+E2E：13 passed
+Go Agent：通过
+OCSP：标准响应 + 实时验证
+流量级 canary：控制面 + Nginx 配置生成
+正式签字：外部环境/人员待签
+```
 
 ## 建议阅读顺序
 
@@ -28,8 +45,8 @@
     平台能力、前后端契合、计划合理性、G0/P1.6 缺口与开工前动作。
 12. **平台全景汇报（HTML）**：[`platform-report/index.html`](platform-report/index.html)  
     整个平台的功能、服务端/客户端 Agent 架构、通信、知识热更新、场景/创造、消息/长任务/Commander、路线图与创新点；配套 [`agent-commander.html`](platform-report/agent-commander.html) 协同/排障示例、[`os-agent-tech.html`](platform-report/os-agent-tech.html) OS Agent 技术选型与落地。
-13. **正式开发前校验**：[`05-development-readiness-audit.md`](05-development-readiness-audit.md)  
-    平台架构/功能覆盖/前后端契合/技术选型/计划一致性与 7 个未关闭阻塞项；P1 编码 No-Go，P0 Conditional-Go。
+13. **历史开发前校验（2026-11-03 时点）**：[`05-development-readiness-audit.md`](05-development-readiness-audit.md)  
+    平台架构/功能覆盖/前后端契合/技术选型/计划一致性与当时的阻塞项；当前状态见验收包。
 14. **功能覆盖与契约**：[`06-functional-coverage-and-contracts.md`](06-functional-coverage-and-contracts.md)  
     功能域→页面→API→数据→验收；Sprint 契约冻结门、测试夹具、待补设计。
 15. **计划补强**：[`01-development-plan.md`](01-development-plan.md) 第 14 节  

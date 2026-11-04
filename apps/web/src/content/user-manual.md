@@ -24,10 +24,26 @@
 
 ## 4. 审批
 
-- 审批来源包括：运行时工具、场景步骤、场景共享。
-- 审批页只展示当前用户有权处理的待审批项。
-- 批准/拒绝会写审计；拒绝不会执行工具。
+审批来源：
+
+- 运行时工具
+- 场景步骤
+- 场景共享
+- Agent 服务启动 / 停止 / 重启 / 重载 / 启用 / 禁用
+- 部署 / 回滚
+
+操作说明：
+
+- 批准 / 拒绝会写审计；拒绝不会执行工具。
 - 运行时审批在会话页也可以直接处理。
+- Agent 写操作审批支持单条批准、单条拒绝、撤销、批量批准和批量拒绝。
+- 批量写审批由服务端事务完成：任一失败会整体回滚，不会出现部分执行。
+- 审批默认 24 小时过期；过期前 1 小时会提醒；过期后不可执行。
+- 可配置职责分离，禁止请求人审批自己的写操作。
+- 过期、拒绝、取消和批准都会进入消息中心，并写入关联 Incident 时间线。
+- “审批副作用失败”表示业务已成功但通知/时间线写入失败；可以点击“重试”或“标记已处理”。
+- “审批 Webhook 投递失败”和“运维告警投递失败”可以手工重放；失败的投递会保留，成功投递按保留策略清理。
+- 通知趋势支持 1h / 12h / 24h / 72h / 7 天、自定义时间范围、按小时/按天聚合、图例开关、缩放和 CSV 导出。
 
 ## 5. 集成与连接器
 
@@ -187,33 +203,119 @@ pnpm agent:dist
 - `opsagent-agent-linux-arm64`
 - `opsagent-agent-windows-amd64.exe`
 
-## 11. 模型配置
+### 10.4 服务生命周期指令
+
+在「操作系统智能体」详情页的「自然语言」页签可以向指定 Agent 下发：
+
+```text
+查看 nginx 服务状态
+重启 nginx 服务
+停止 nginx 服务
+启动 nginx 服务
+重载 nginx 服务
+设置 nginx 开机启动
+关闭 nginx 开机启动
+```
+
+只读的状态查询不需要审批。启动、停止、重启、重载、启用、禁用需要审批；
+批准后控制面生成 Ed25519 签名命令，只有目标 Agent 能执行。
+
+执行后 Agent 会检查实际状态：
+
+```text
+启动 / 重启 / 重载 → active
+停止               → inactive
+启用               → enabled
+禁用               → disabled
+```
+
+状态不符合预期时命令标记 failed，结果会进入 Incident 证据和审计。
+
+受保护服务（sshd、network、docker、containerd、kubelet、systemd 等）禁止操作。
+
+### 10.5 资源限额
+
+Linux：
+
+```text
+systemd MemoryMax / CPUQuota / IO 限额 / TasksMax
+compose mem_limit / cpus
+```
+
+Windows 服务模式使用 Job Object：
+
+```text
+OPSAGENT_AGENT_MEMORY_LIMIT_MB=512
+OPSAGENT_AGENT_CPU_PERCENT=50
+```
+
+限制会覆盖 Agent 子进程；未配置时不创建 Job Object。
+
+## 11. 发布与流量灰度
+
+### 11.1 主机级灰度
+
+1. 在「发布与部署」创建签名 Release。
+2. 创建部署计划，策略选择 `canary`，填写灰度比例。
+3. 审批后执行制品预检。
+4. 按比例选择 Agent 执行部署，状态变为 `canary`。
+5. 点击「推进全量」部署剩余 Agent；失败会生成 Incident。
+6. 出现异常时可回滚已灰度节点。
+
+### 11.2 流量级灰度
+
+流量级灰度控制入口流量，而不是 Agent 数量。
+
+1. 在部署卡片点击「流量灰度」。
+2. 填写入口域名、稳定上游、灰度上游和灰度比例。
+3. 保存后平台生成 Nginx 配置。
+4. 把配置应用到企业入口代理并 reload。
+5. 观察错误率和延迟。
+6. 使用 10% / 25% / 50% / 100% 调整；0% 回滚，100% 转正。
+
+生成的核心配置：
+
+```nginx
+split_clients "${remote_addr}${request_id}" $order_example_com_backend {
+    10% order_example_com_canary;
+    *   order_example_com_stable;
+}
+```
+
+注意：
+
+- 控制面负责策略、配置生成和审计。
+- 实际流量切换由入口代理执行。
+- 修改配置后必须由入口代理 reload 才会生效。
+- 入口域名不允许通配符。
+
+## 12. 模型配置
 
 - 支持 DeepSeek 和 OpenAI-compatible provider。
 - API Key 使用 AES-256-GCM 加密，接口不返回明文。
 - 租户配置会注入真实 dsh 会话和 Studio 生成器。
 - 设置 `OPSAGENT_SECRET_KEY`；生产不要使用开发默认密钥。
 
-## 12. 成员与角色
+## 13. 成员与角色
 
 - 角色可多选，权限取并集。
 - 不能移除租户最后一个 `tenant_admin`。
 - 修改角色会写审计。
 
-## 13. 平台管理
+## 14. 平台管理
 
 - 平台管理员可以查看和创建租户。
 - 普通租户管理员无法访问平台租户 API。
 - 平台管理员默认不需要选择租户。
 
-## 14. 审计
+## 15. 审计
 
 - 记录登录、审批、连接器测试、场景执行、模型配置、成员变更等。
 - 支持按 action/result 筛选。
 - 支持 CSV 导出。
 - 默认保留 180 天，启动时和每日清理。
 
-## 15. 安全建议
+## 16. 安全建议
 
 - 生产必须设置 `OPSAGENT_SECRET_KEY` 和 `OPSAGENT_AGENT_ENROLLMENT_TOKEN`。
 - 不要把 enrollment token 提交到仓库。
@@ -221,7 +323,7 @@ pnpm agent:dist
 - 审批是最后一道防线，不要给普通账号 `connector.authorize` 和 `deployment.approve` 的无关组合。
 - 对外部署时配置 HTTPS 和反向代理。
 
-## 16. 故障排查
+## 17. 故障排查
 
 ### 登录后一直回到登录页
 
@@ -254,9 +356,70 @@ pnpm agent:dist
 - Agent 进程环境缺少 `DEEPSEEK_API_KEY`。
 - 可选设置 `DEEPSEEK_BASE_URL` 和 `DEEPSEEK_MODEL`。
 
-## 17. 已知限制
+## 18. 已知限制
 
 - 真实外部 Prometheus/Grafana/Zabbix 等需要用户自备环境。
 - AI 诊断依赖外部模型服务。
 - MySQL live 验证当前使用 MariaDB 兼容实例。
-- 设计稿部分高级配置为近似实现。
+- 流量级灰度只生成入口配置，实际切换需入口代理应用并 reload。
+- OCSP 生产使用需要配置客户端可达的 AIA 域名和防火墙。
+- Windows Job Object 限额已实现，需在 Windows 执行主机实机压测。
+- 正式代码签名证书、十台混合主机和 G0–G10 人工签字需外部完成。
+
+## 19. 证书、CRL 与 OCSP
+
+平台使用内网 CA 或外部 CA 签发 Agent 客户端证书和控制面服务端证书。
+
+### 19.1 查看证书状态
+
+「平台证书」页展示：
+
+- CA 证书
+- 服务端证书到期时间
+- Agent 证书状态
+- 吊销记录
+- 证书剩余天数
+
+### 19.2 吊销
+
+平台管理员可以吊销 Agent 当前客户端证书。吊销后：
+
+- 新连接被拒绝
+- 证书签发接口拒绝继续签发
+- 生成新的 CRL
+- 写审计
+
+### 19.3 CRL
+
+```text
+GET /api/pki/crl
+Content-Type: application/pkix-crl
+```
+
+### 19.4 OCSP
+
+```text
+POST /api/pki/ocsp
+Content-Type: application/ocsp-request
+Response: application/ocsp-response
+```
+
+或：
+
+```text
+GET /api/pki/ocsp/<base64url-request>
+```
+
+支持的证书状态：
+
+- good
+- revoked（含吊销时间）
+- unknown
+
+客户端证书包含 AIA OCSP 扩展；配置：
+
+```text
+OPSAGENT_OCSP_URL=http://control.example:8080/api/pki/ocsp
+```
+
+生产环境需要保证 OCSP 地址对证书使用方可达。

@@ -252,6 +252,18 @@ OOMScoreAdjust=200
 - 磁盘：快照 `min(1GB, 磁盘2%)`；80% 清旧高频，95% 停高频并告警。
 - 不限制业务进程；Agent 自身 OOM 优先于业务被杀（`OOMScoreAdjust=200`）。
 
+Windows 服务模式使用 Job Object 限制自身和子进程：
+
+```text
+OPSAGENT_AGENT_MEMORY_LIMIT_MB=512
+OPSAGENT_AGENT_CPU_PERCENT=50
+```
+
+- 内存使用 `JOB_OBJECT_LIMIT_JOB_MEMORY`
+- CPU 使用 `JobObjectCpuRateControlInformation` 硬上限
+- 子进程自动继承作业限制
+- 未配置时不创建 Job Object
+
 ### 10.3 配置与敏感信息加密
 
 配置文件 `/etc/opsagent/agent.yaml` 采用**字段级加密**，不是整文件加密：

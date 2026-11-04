@@ -115,6 +115,39 @@ export function registerAgentRoutes(
     });
   });
 
+  app.get('/api/agents/command-keys', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const signers = getCommandSigners();
+    const keyIds = new Set(signers.map((item) => item.keyId));
+    const list = await agents.list(ctx.tenantId);
+    return reply.send({
+      keys: signers.map((item, index) => ({
+        keyId: item.keyId,
+        publicKey: item.publicKey,
+        active: index === 0,
+      })),
+      agents: list.map((agent) => ({
+        id: agent.id,
+        hostname: agent.hostname,
+        commandKeyId: agent.commandKeyId,
+        valid: agent.commandKeyId ? keyIds.has(agent.commandKeyId) : null,
+      })),
+    });
+  });
+
   app.get('/api/agents', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
     if (!token) return reply.code(401).send({ error: 'unauthorized' });

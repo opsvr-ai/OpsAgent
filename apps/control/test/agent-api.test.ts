@@ -75,7 +75,7 @@ describe('agent registry API', () => {
     const heartbeat = await app.inject({
       method: 'POST',
       url: `/api/agents/${body.agent.id}/heartbeat`,
-      payload: { agentKey: body.agentKey, metrics: { cpuCores: 8, heapMB: 3 }, commandKeyId: 'key-1' },
+      payload: { agentKey: body.agentKey, metrics: { cpuCores: 8, heapMB: 3 }, commandKeyId: body.commandKeyId },
     });
     expect(heartbeat.statusCode).toBe(200);
     expect(heartbeat.json()).toMatchObject({
@@ -227,7 +227,17 @@ describe('agent registry API', () => {
 
     const detail = await app.inject({ method: 'GET', url: `/api/agents/${body.agent.id}`, headers: { cookie } });
     expect(detail.statusCode).toBe(200);
-    expect(detail.json()).toMatchObject({ hostname: 'prod-host-1', discoveryAt: expect.any(String), commandKeyId: 'key-1' });
+    expect(detail.json()).toMatchObject({ hostname: 'prod-host-1', discoveryAt: expect.any(String), commandKeyId: body.commandKeyId });
+    const keyStatus = await app.inject({
+      method: 'GET',
+      url: '/api/agents/command-keys',
+      headers: { cookie },
+    });
+    expect(keyStatus.statusCode).toBe(200);
+    expect(keyStatus.json()).toMatchObject({
+      keys: [{ keyId: body.commandKeyId, active: true }],
+      agents: [{ id: body.agent.id, commandKeyId: body.commandKeyId, valid: true }],
+    });
     await app.close();
   });
 

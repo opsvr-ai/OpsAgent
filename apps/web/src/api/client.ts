@@ -1191,8 +1191,43 @@ export interface FaultAnalysisSummary {
   readonly completedAt: string | null;
 }
 
+export interface FaultTopologyNode {
+  readonly id?: string;
+  readonly hostname: string;
+  readonly status: string;
+  readonly ip?: string;
+  readonly anomalies: string[];
+  readonly processes: string[];
+  readonly ports: string[];
+}
+
+export interface FaultTopologyEdge {
+  readonly fromHost: string;
+  readonly fromApp: string;
+  readonly fromPort: number;
+  readonly toHost: string;
+  readonly toApp: string;
+  readonly toPort: number;
+  readonly protocol: string;
+  readonly count: number;
+}
+
+export interface FaultTopology {
+  readonly nodes: FaultTopologyNode[];
+  readonly edges: FaultTopologyEdge[];
+}
+
 export interface FaultAnalysisDetail extends FaultAnalysisSummary {
   readonly findings: Array<{ title?: string; detail?: string; severity?: string }>;
+  readonly evidence?: {
+    readonly context?: {
+      readonly appSystem?: string;
+      readonly nodes?: Array<{ hostname: string; status: string; metrics?: Record<string, unknown> }>;
+      readonly events?: Array<{ hostname: string; title: string; detail: string; severity: string }>;
+      readonly topology?: FaultTopology;
+    };
+    readonly evidence?: Array<{ hostname: string; question: string; status: string; analysis?: string; answer?: string }>;
+  };
   readonly steps: Array<{
     id: string; seq: number; type: string; title: string; detail: string; status: string; createdAt: string;
   }>;

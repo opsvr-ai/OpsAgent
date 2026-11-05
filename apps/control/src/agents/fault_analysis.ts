@@ -96,13 +96,27 @@ export class FaultAnalysisService {
   }
 
   async list(tenantId: string): Promise<unknown[]> {
-    const result = await this.pool.query(
+    const result = await this.pool.query<{
+      id: string; app_system_id: string | null; app_system_name: string; title: string; status: string;
+      summary: string; root_cause: string; confidence: string; created_at: Date; completed_at: Date | null;
+    }>(
       `SELECT id, app_system_id, app_system_name, title, status, summary, root_cause,
-              confidence, trigger_event_id, created_at, completed_at
+              confidence, created_at, completed_at
        FROM fault_analyses WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100`,
       [tenantId],
     );
-    return result.rows;
+    return result.rows.map((row) => ({
+      id: row.id,
+      appSystemId: row.app_system_id,
+      appSystemName: row.app_system_name,
+      title: row.title,
+      status: row.status,
+      summary: row.summary,
+      rootCause: row.root_cause,
+      confidence: Number(row.confidence),
+      createdAt: row.created_at.toISOString(),
+      completedAt: row.completed_at?.toISOString() ?? null,
+    }));
   }
 
   async get(tenantId: string, id: string): Promise<unknown | null> {
@@ -146,9 +160,10 @@ export class FaultAnalysisService {
     if (!analysis?.app_system_id) return;
     const tenants = analysis.tenant_id;
     const agents = await this.pool.query<{
-      id: string; hostname: string; status: string; metrics: Record<string, unknown>; last_seen: Date;
+      id: string; hostname: string; status: string; metrics: Record<string, unknown>;
+      system_info: Record<string, unknown>; last_seen: Date;
     }>(
-      `SELECT id, hostname, status, metrics, last_seen FROM agents
+      `SELECT id, hostname, status, metrics, system_info, last_seen FROM agents
        WHERE tenant_id = $1 AND app_system_id = $2 ORDER BY hostname`,
       [tenants, analysis.app_system_id],
     );
@@ -162,6 +177,7 @@ export class FaultAnalysisService {
       [tenants, analysis.app_system_id],
     );
     await this.step(analysisId, 1, 'collect', '汇总应用系统异常与指标', `收集 ${agents.rows.length} 个节点、${events.rows.length} 条异常`);
+    const topology = await this.collectTopology(tenants, analysis.app_system_id, agents.rows, events.rows);
     const context = {
       appSystem: analysis.app_system_name,
       nodes: agents.rows.map((agent) => ({
@@ -177,6 +193,7 @@ export class FaultAnalysisService {
         severity: event.severity,
         detectedAt: event.detected_at.toISOString(),
       })),
+      topology,
     };
     let decision: {
       rootCause?: string; confidence?: number; summary?: string;
@@ -256,6 +273,89 @@ export class FaultAnalysisService {
       ],
     );
     await this.step(analysisId, 40, 'result', '故障定界完成', rootCause);
+  }
+
+  private async collectTopology(
+    tenantId: string,
+    appSystemId: string,
+    agents: Array<{
+      id: string; hostname: string; status: string;
+      system_info: Record<string, unknown>;
+    }>,
+    events: Array<{ agent_id: string; title: string; detail: string; severity: string }>,
+  ): Promise<Record<string, unknown>> {
+    try {
+      const connections = await this.pool.query<{
+        agent_id: string; local_address: string; local_port: number;
+        remote_address: string; remote_port: number; process: string; count: string;
+      }>(
+        `SELECT c.agent_id, c.local_address, c.local_port, c.remote_address, c.remote_port,
+                c.process, count(*)::text AS count
+         FROM agent_connections c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE c.tenant_id = $1 AND a.app_system_id = $2
+         GROUP BY c.agent_id, c.local_address, c.local_port, c.remote_address, c.remote_port, c.process
+         ORDER BY count(*) DESC LIMIT 200`,
+        [tenantId, appSystemId],
+      );
+      const inventory = await this.pool.query<{
+        agent_id: string; kind: string; name: string; detail: Record<string, unknown>;
+      }>(
+        `SELECT i.agent_id, i.kind, i.name, i.detail
+         FROM agent_inventory i
+         JOIN agents a ON a.id = i.agent_id
+         WHERE i.tenant_id = $1 AND a.app_system_id = $2 AND i.kind IN ('process', 'port')`,
+        [tenantId, appSystemId],
+      );
+      const appForPort = (agentId: string, port: number): string => {
+        const entry = inventory.rows.find((row) => row.agent_id === agentId && row.kind === 'port' && row.name.endsWith(`:${port}`));
+        if (entry && typeof entry.detail.process === 'string' && entry.detail.process) return entry.detail.process;
+        return entry?.name ?? '';
+      };
+      const cleanProcess = (value: string): string => value.match(/"([^"]+)"/)?.[1] ?? value;
+      const byIp = new Map<string, (typeof agents)[number]>();
+      for (const agent of agents) {
+        const ip = agent.system_info?.ip;
+        if (typeof ip === 'string') byIp.set(ip, agent);
+        const addresses = agent.system_info?.ipAddresses;
+        if (Array.isArray(addresses)) {
+          for (const address of addresses) if (typeof address === 'string') byIp.set(address, agent);
+        }
+      }
+      const anomalies = new Map<string, string[]>();
+      for (const event of events) {
+        const current = anomalies.get(event.agent_id) ?? [];
+        current.push(`${event.severity}: ${event.title}`);
+        anomalies.set(event.agent_id, current);
+      }
+      const nodes = agents.map((agent) => ({
+        id: agent.id,
+        hostname: agent.hostname,
+        status: agent.status,
+        ip: typeof agent.system_info?.ip === 'string' ? agent.system_info.ip : '',
+        anomalies: anomalies.get(agent.id) ?? [],
+        processes: inventory.rows.filter((row) => row.agent_id === agent.id && row.kind === 'process').map((row) => row.name).slice(0, 30),
+        ports: inventory.rows.filter((row) => row.agent_id === agent.id && row.kind === 'port').map((row) => row.name).slice(0, 50),
+      }));
+      const edges = connections.rows.flatMap((connection) => {
+        const source = agents.find((agent) => agent.id === connection.agent_id);
+        const target = byIp.get(connection.remote_address);
+        if (!source || !target) return [];
+        return [{
+          fromHost: source.hostname,
+          fromApp: cleanProcess(connection.process) || appForPort(connection.agent_id, connection.local_port),
+          fromPort: connection.local_port,
+          toHost: target.hostname,
+          toApp: appForPort(target.id, connection.remote_port),
+          toPort: connection.remote_port,
+          protocol: 'TCP',
+          count: Number(connection.count),
+        }];
+      }).slice(0, 200);
+      return { nodes, edges };
+    } catch {
+      return { nodes: [], edges: [] };
+    }
   }
 
   private parseDecision(answer: string): {

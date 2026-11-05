@@ -232,12 +232,37 @@ func askPlatform(state agentState, question string) (string, bool, error) {
 
 func isSkillsQuestion(question string) bool {
 	normalized := strings.ToLower(question)
-	for _, word := range []string{"技能", "skill", "会什么", "能做什么", "有什么能力"} {
+	for _, word := range []string{"技能", "skill"} {
 		if strings.Contains(normalized, word) {
 			return true
 		}
 	}
 	return false
+}
+
+func isCapabilityQuestion(question string) bool {
+	normalized := strings.ToLower(question)
+	for _, word := range []string{"能力", "能做什么", "会什么", "能帮我做什么", "使用帮助", "help", "哪些功能", "那些功能"} {
+		if strings.Contains(normalized, word) {
+			return true
+		}
+	}
+	return false
+}
+
+func capabilitiesAnswer() string {
+	return strings.Join([]string{
+		fmt.Sprintf("我是 **%s** 上的 OpsAgent，具备以下运维能力：", mustHostname()),
+		"",
+		"- **主机巡检**：CPU、内存、磁盘、负载、进程、端口、服务、网络、日志、容器",
+		"- **运维技能**：调用 `/opt/opsagent/skills` 下的技能执行只读检查",
+		"- **记忆**：保留最近 50 条检查和技能观察",
+		"- **平台数据**：纳管主机、应用系统、告警和健康检查",
+		"- **故障分析**：跨节点异常关联、根因定位和处置建议",
+		"- **自主巡航**：30 秒级指标巡检，超阈值自动触发平台模型分析",
+		"",
+		"直接输入运维问题即可，例如「查看磁盘分区」「看看最近的系统日志」「当前有哪些告警」。",
+	}, "\n")
 }
 
 func skillsAnswer() string {
@@ -287,6 +312,9 @@ func askPlatformExplain(state agentState, question string, evidence map[string]s
 }
 
 func localAnswer(question string, state agentState, stateErr error) string {
+	if isCapabilityQuestion(question) {
+		return capabilitiesAnswer()
+	}
 	if isSkillsQuestion(question) {
 		return skillsAnswer()
 	}
@@ -359,6 +387,12 @@ func runCLI(paths agentPaths) {
 				fmt.Printf("Agent ID: %s\n主机: %s\n控制面: %s\n配置文件: %s\n日志: %s\n快照: %s\n技能: %s\n状态: %s\n工作区: %s\n",
 					state.AgentID, state.Hostname, state.ControlURL, paths.Config, paths.Logs, paths.Snapshots, paths.Skills, paths.State, paths.Workspace)
 			}
+			continue
+		}
+		if isCapabilityQuestion(question) {
+			fmt.Println()
+			fmt.Println(capabilitiesAnswer())
+			fmt.Println()
 			continue
 		}
 		if isSkillsQuestion(question) {

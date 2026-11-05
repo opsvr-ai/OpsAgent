@@ -78,7 +78,7 @@ export function registerAgentCliRoutes(
       yield { type: 'done' };
       return;
     }
-    if (/(你能做什么|你会什么|有什么能力|能帮我做什么|使用帮助)/i.test(question)) {
+    if (/(能力|能做什么|会什么|能帮我做什么|使用帮助|哪些功能|那些功能)/i.test(question)) {
       yield {
         type: 'delta',
         text: [

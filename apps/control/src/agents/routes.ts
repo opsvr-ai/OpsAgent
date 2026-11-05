@@ -9,6 +9,8 @@ import { AgentCommandService } from './commands.js';
 import { getCommandSigners } from './signing.js';
 import { AgentEventService, type AgentEventInput } from './events.js';
 import { AppHealthService } from './health.js';
+import { ModelCompletionService } from '../models/completion.js';
+import { ModelProviderService } from '../models/service.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -29,11 +31,13 @@ export function registerAgentRoutes(
   app: FastifyInstance,
   pool: Pool,
   enrollmentToken?: string,
+  modelSecret = process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
 ): void {
   const agents = new AgentService(pool);
   const commands = new AgentCommandService(pool);
   const events = new AgentEventService(pool);
   const health = new AppHealthService(pool);
+  const modelCompletion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -205,6 +209,51 @@ export function registerAgentRoutes(
       }
     }
     return reply.send({ events: reported });
+  });
+
+  app.post<{ Params: { id: string } }>('/api/agents/:id/analyze', async (request, reply) => {
+    if (!enrollmentAuthorized(request, enrollmentToken)) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+    const body = request.body as {
+      agentKey?: unknown;
+      question?: unknown;
+      metrics?: unknown;
+      events?: unknown;
+    } | undefined;
+    if (typeof body?.agentKey !== 'string') {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const agent = await pool.query<{ tenant_id: string; hostname: string }>(
+      'SELECT tenant_id, hostname FROM agents WHERE id = $1 AND agent_key = $2',
+      [request.params.id, body.agentKey],
+    );
+    const row = agent.rows[0];
+    if (!row) return reply.code(404).send({ error: 'agent_not_found' });
+    const metrics = typeof body.metrics === 'object' && body.metrics !== null ? body.metrics : {};
+    const patrolEvents = Array.isArray(body.events) ? body.events.slice(0, 20) : [];
+    try {
+      const analysis = await modelCompletion.complete({
+        tenantId: row.tenant_id,
+        system: [
+          '你是 OpsAgent 主机自主巡航分析器。',
+          '根据给定的主机指标和异常事件给出：异常判断、最可能原因、建议的下一步检查或处置。',
+          '只使用提供的数据，不编造；回答简洁，使用简体中文，控制在 300 字以内。',
+        ].join('\n'),
+        prompt: JSON.stringify({
+          hostname: row.hostname,
+          question: typeof body.question === 'string' ? body.question : '请分析当前主机异常',
+          metrics,
+          events: patrolEvents,
+        }).slice(0, 20_000),
+        maxTokens: 700,
+      });
+      request.log.info({ agentId: row.hostname, event: 'agent_analyze', chars: analysis.length }, 'agent analysis completed');
+      return reply.send({ analysis });
+    } catch (error) {
+      request.log.warn({ err: error, agentId: row.hostname }, 'agent analysis failed');
+      return reply.code(503).send({ error: 'model_unavailable' });
+    }
   });
 
   app.get('/api/app-systems/health', async (request, reply) => {
@@ -403,7 +452,7 @@ export function registerAgentRoutes(
     const body = request.body as { type?: unknown; input?: unknown } | undefined;
     if (
       typeof body?.type !== 'string' ||
-      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect', 'exec'].includes(body.type)
+      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect', 'exec', 'skills', 'memory', 'skill', 'script'].includes(body.type)
     ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }

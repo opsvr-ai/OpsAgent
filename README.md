@@ -124,6 +124,51 @@ docker compose up -d control
 - 修改 Agent 代码后重新构建 control 镜像；镜像会在 `golang:1.26-alpine` 阶段自动编译三个平台二进制到 `/opt/opsagent-agent-dist`，宿主机不需要安装 Go
 - 非容器开发时才需要执行 `pnpm agent:dist`，输出到 `agents/opsagent-agent/dist`
 
+### 操作系统智能体运行能力
+
+```text
+skills    system.overview / disk.usage / memory.usage / network.status /
+          service.status / process.top / logs.recent / container.status / agent.health
+memory    snapshots/memory.json，保留最近 50 条检查与技能观察
+script    受控脚本执行（默认关闭，需 OPSAGENT_ALLOW_SCRIPTS=true）
+patrol    指标异常自动调用平台模型分析，并把分析写入异常 detail 上报
+```
+
+调用技能：
+
+```bash
+POST /api/agents/:id/commands
+{ "type": "skill", "input": { "name": "network.status" } }
+```
+
+查看记忆：
+
+```bash
+POST /api/agents/:id/commands
+{ "type": "memory", "input": { "limit": 20 } }
+```
+
+执行脚本（高风险，需显式开启）：
+
+```bash
+POST /api/agents/:id/commands
+{ "type": "script", "input": { "script": "df -h", "timeoutSeconds": 30 } }
+```
+
+脚本命令只有 `agent.manage` 权限可下发，Agent 侧还必须设置：
+
+```text
+OPSAGENT_ALLOW_SCRIPTS=true
+```
+
+自主巡航检测到磁盘或内存阈值异常时，Agent 会请求：
+
+```http
+POST /api/agents/:id/analyze
+```
+
+控制面使用当前租户模型分析，分析结果写入异常详情后上报平台。
+
 ### 日志排查
 
 控制面默认输出结构化请求日志：

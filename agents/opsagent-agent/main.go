@@ -102,6 +102,27 @@ func runCommandWithInput(commandType string, metrics map[string]any, input map[s
 			}
 		}
 		result = inspectHost(question, metrics)
+		rememberObservation("inspect", question, map[string]any{"type": "inspect"})
+	case "skills":
+		result["skills"] = listSkills()
+	case "skill":
+		name := ""
+		if input != nil {
+			if value, ok := input["name"].(string); ok {
+				name = value
+			}
+		}
+		result = runSkill(name, metrics)
+	case "memory":
+		limit := 20
+		if input != nil {
+			if value, ok := input["limit"].(float64); ok {
+				limit = int(value)
+			}
+		}
+		result = memorySummary(limit)
+	case "script":
+		result = runScriptCommand(input)
 	case "exec":
 		result = execHost(input)
 	default:
@@ -274,7 +295,7 @@ func runDaemon(paths agentPaths) {
 		OS:              runtime.GOOS,
 		Arch:            runtime.GOARCH,
 		Version:         agentVersion,
-		Capabilities:    []string{"cpu", "memory", "disk", "network", "uptime", "load", "processes", "system.discover", "applications.discover", "self.patrol", "inspect", "agent.instruction", "snapshot", "deployment.execute"},
+		Capabilities:    []string{"cpu", "memory", "disk", "network", "uptime", "load", "processes", "system.discover", "applications.discover", "self.patrol", "inspect", "skills", "memory", "script", "agent.instruction", "snapshot", "deployment.execute", "platform.model"},
 		ResultPublicKey: resultPublicKeyBase64,
 		Discovery:       &initialDiscovery,
 	}, &registered); err != nil {
@@ -309,13 +330,37 @@ func runDaemon(paths agentPaths) {
 	activePatrol := map[string]bool{}
 	var diagnosticsCache map[string]any
 	var diagnosticsAt time.Time
+	var lastPatrolAnalysisAt time.Time
+	var lastPatrolAnalysis string
 
 	reportPatrol := func(metrics map[string]any) {
 		current := patrolEvents(metrics)
 		currentSet := map[string]bool{}
+		if len(current) > 0 && (lastPatrolAnalysisAt.IsZero() || time.Since(lastPatrolAnalysisAt) > 5*time.Minute) {
+			analysis, err := platformAnalyze(
+				controlURL,
+				registered.Agent.ID,
+				registered.AgentKey,
+				os.Getenv("OPSAGENT_AGENT_ENROLLMENT_TOKEN"),
+				metrics,
+				current,
+				"自主巡航发现指标异常，请分析原因并给出处置建议",
+			)
+			if err != nil {
+				log.Printf("patrol platform analysis: %v", err)
+			} else {
+				lastPatrolAnalysis = analysis
+				lastPatrolAnalysisAt = time.Now()
+			}
+		}
+		analysis := lastPatrolAnalysis
 		payload := make([]patrolEvent, 0, len(current)+len(activePatrol))
 		for _, event := range current {
 			currentSet[event.Fingerprint] = true
+			if analysis != "" {
+				event.Analysis = analysis
+				event.Detail += "\n\nAI 分析：" + analysis
+			}
 			payload = append(payload, event)
 		}
 		for fingerprint := range activePatrol {

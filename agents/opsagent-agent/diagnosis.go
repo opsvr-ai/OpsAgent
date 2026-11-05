@@ -46,3 +46,40 @@ func aiDiagnose(metrics map[string]any) (string, error) {
 	}
 	return out.Content, nil
 }
+
+// platformAnalyze asks the control plane's configured tenant model to analyze
+// patrol evidence. The agent never needs a model API key.
+func platformAnalyze(
+	controlURL string,
+	agentID string,
+	agentKey string,
+	enrollmentToken string,
+	metrics map[string]any,
+	events []patrolEvent,
+	question string,
+) (string, error) {
+	headers := map[string]string{}
+	if enrollmentToken != "" {
+		headers["x-opsagent-enrollment-token"] = enrollmentToken
+	}
+	var response struct {
+		Analysis string `json:"analysis"`
+	}
+	if err := post(
+		controlURL+"/api/agents/"+agentID+"/analyze",
+		headers,
+		map[string]any{
+			"agentKey": agentKey,
+			"question": question,
+			"metrics":  metrics,
+			"events":   events,
+		},
+		&response,
+	); err != nil {
+		return "", err
+	}
+	if response.Analysis == "" {
+		return "", errors.New("empty_platform_analysis")
+	}
+	return response.Analysis, nil
+}

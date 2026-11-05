@@ -117,6 +117,10 @@
 - 主机自然语言问题会下发只读 `inspect` 命令：磁盘分区、CPU、内存、服务、端口、进程、软件包、网络、日志、容器、Agent 部署路径等
 - 检查证据会交给当前会话选择的平台模型总结，只返回结论和相关证据，不再整段输出原始命令结果；IP 类问题会直接回答地址
 - 模型不可用时会回退为简洁结果（如直接提取主机 IPv4）
+- 内置技能：系统概况、磁盘、内存、网络、服务、进程、日志、容器、Agent 健康
+- 本地记忆：`snapshots/memory.json` 保留最近 50 条检查/技能观察
+- 受控脚本执行：默认关闭，需 Agent 设置 `OPSAGENT_ALLOW_SCRIPTS=true`
+- 自主巡航发现磁盘/内存异常时，自动调用平台模型分析，并把分析写入异常详情上报
 - 支持路径/日志排查，如「看看 /opt/opsagent/logs 目录」「查看 /opt/opsagent/logs/agent.log 最后 50 行」；只读 exec allowlist 包含 ls/tail/cat/grep/find/ps/ss/journalctl/docker logs/systemctl status 等，写操作默认拒绝
 - 主动上报的告警会进入「操作系统智能体」页的告警区和消息中心
 - 支持命令：

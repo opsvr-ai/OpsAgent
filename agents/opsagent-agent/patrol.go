@@ -13,6 +13,7 @@ type patrolEvent struct {
 	Title       string         `json:"title"`
 	Detail      string         `json:"detail"`
 	Metric      map[string]any `json:"metric"`
+	Analysis    string         `json:"analysis,omitempty"`
 	Resolved    bool           `json:"resolved,omitempty"`
 	DetectedAt  string         `json:"detectedAt"`
 }

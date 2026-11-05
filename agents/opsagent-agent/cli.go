@@ -230,7 +230,41 @@ func askPlatform(state agentState, question string) (string, bool, error) {
 	return reply.Answer, reply.Supported, nil
 }
 
+func isSkillsQuestion(question string) bool {
+	normalized := strings.ToLower(question)
+	for _, word := range []string{"技能", "skill", "会什么", "能做什么", "有什么能力"} {
+		if strings.Contains(normalized, word) {
+			return true
+		}
+	}
+	return false
+}
+
+func skillsAnswer() string {
+	paths := resolveAgentPaths()
+	items := listSkills()
+	lines := []string{
+		fmt.Sprintf("我是 **%s** 上的 OpsAgent，当前已加载 %d 个技能：", mustHostname(), len(items)),
+		"",
+	}
+	for _, skill := range items {
+		lines = append(lines, fmt.Sprintf("- `%s`：%s", skill.Name, skill.Description))
+	}
+	lines = append(lines,
+		"",
+		fmt.Sprintf("技能目录：`%s`", paths.Skills),
+		fmt.Sprintf("记忆目录：`%s`", paths.State),
+		fmt.Sprintf("工作区：`%s`", paths.Workspace),
+		"",
+		"直接输入问题即可调用对应技能，例如「查看磁盘分区」「查看网络配置」「最近有什么日志错误」。",
+	)
+	return strings.Join(lines, "\n")
+}
+
 func localAnswer(question string) string {
+	if isSkillsQuestion(question) {
+		return skillsAnswer()
+	}
 	var memory runtime.MemStats
 	runtime.ReadMemStats(&memory)
 	metrics := hostMetrics()
@@ -289,9 +323,15 @@ func runCLI(paths agentPaths) {
 			if stateErr != nil {
 				fmt.Println("未找到 Agent 注册状态")
 			} else {
-				fmt.Printf("Agent ID: %s\n主机: %s\n控制面: %s\n配置文件: %s\n日志: %s\n快照: %s\n",
-					state.AgentID, state.Hostname, state.ControlURL, paths.Config, paths.Logs, paths.Snapshots)
+				fmt.Printf("Agent ID: %s\n主机: %s\n控制面: %s\n配置文件: %s\n日志: %s\n快照: %s\n技能: %s\n状态: %s\n工作区: %s\n",
+					state.AgentID, state.Hostname, state.ControlURL, paths.Config, paths.Logs, paths.Snapshots, paths.Skills, paths.State, paths.Workspace)
 			}
+			continue
+		}
+		if isSkillsQuestion(question) {
+			fmt.Println()
+			fmt.Println(skillsAnswer())
+			fmt.Println()
 			continue
 		}
 		if stateErr == nil {

@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { RuntimeClient } from '@opsagent/contracts';
 import type { Pool } from 'pg';
 import { PlatformAssistant } from '../assistant/platform.js';
+import { ModelCompletionService } from '../models/completion.js';
+import { ModelProviderService } from '../models/service.js';
 
 type AgentRow = { tenant_id: string; hostname: string };
 type CliEvent =
@@ -11,8 +13,14 @@ type CliEvent =
   | { type: 'done' }
   | { type: 'error'; message: string };
 
-export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime: RuntimeClient): void {
+export function registerAgentCliRoutes(
+  app: FastifyInstance,
+  pool: Pool,
+  runtime: RuntimeClient,
+  modelSecret = process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
+): void {
   const platform = new PlatformAssistant(pool);
+  const completion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
   const cliSessions = new Map<string, string>();
 
   async function authorize(agentId: string, key: unknown): Promise<AgentRow | null> {
@@ -45,6 +53,28 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime
   async function* ask(agentId: string, row: AgentRow, question: string): AsyncGenerator<CliEvent> {
     if (/^(你好|您好|hi|hello)[!！。.?\s]*$/i.test(question)) {
       yield { type: 'delta', text: `你好，我是 ${row.hostname} 上的 OpsAgent。可以问我磁盘分区、CPU/内存、进程、端口、服务、日志、应用系统健康或纳管主机等问题。` };
+      yield { type: 'done' };
+      return;
+    }
+    if (/(技能|skill|会哪些)/i.test(question)) {
+      yield {
+        type: 'delta',
+        text: [
+          `**${row.hostname}** 的 OpsAgent 已加载以下技能：`,
+          '',
+          '- `system-overview`：系统概况、CPU、内存、磁盘和负载',
+          '- `disk-usage`：磁盘分区和可用空间',
+          '- `memory-usage`：内存和 swap',
+          '- `network-status`：网卡、IP、路由、DNS',
+          '- `service-status`：服务和进程状态',
+          '- `process-top`：进程和资源占用',
+          '- `logs-recent`：最近系统日志',
+          '- `container-status`：容器运行状态',
+          '- `agent-health`：Agent 安装、配置和日志路径',
+          '',
+          '直接输入问题即可调用对应技能。',
+        ].join('\n'),
+      };
       yield { type: 'done' };
       return;
     }
@@ -133,6 +163,23 @@ export function registerAgentCliRoutes(app: FastifyInstance, pool: Pool, runtime
     if (modelAnswer) {
       yield { type: 'done' };
       return;
+    }
+    if (!modelAnswer && prompt) {
+      try {
+        const answer = await completion.complete({
+          tenantId: row.tenant_id,
+          system: '你是 OpsAgent 操作系统智能体命令行助手。只回答运维问题，简洁、准确，不编造主机数据。',
+          prompt,
+          maxTokens: 1200,
+        });
+        if (answer.trim()) {
+          yield { type: 'delta', text: answer.trim() };
+          yield { type: 'done' };
+          return;
+        }
+      } catch (caught) {
+        if (!runtimeError) runtimeError = caught instanceof Error ? caught.message : String(caught);
+      }
     }
     if (platformAnswer) {
       yield { type: 'delta', text: platformAnswer };

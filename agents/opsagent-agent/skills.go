@@ -61,17 +61,22 @@ func listSkills() []skillDefinition {
 	seen := map[string]bool{}
 	result := make([]skillDefinition, 0, len(skills))
 	for _, skill := range skills {
-		seen[skill.Name] = true
+		seen[canonicalSkillName(skill.Name)] = true
 		result = append(result, skill)
 	}
 	for _, skill := range filesystemSkills(resolveAgentPaths()) {
-		if seen[skill.Name] {
+		key := canonicalSkillName(skill.Name)
+		if seen[key] {
 			continue
 		}
-		seen[skill.Name] = true
+		seen[key] = true
 		result = append(result, skill)
 	}
 	return result
+}
+
+func canonicalSkillName(name string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(name)), ".", "-")
 }
 
 func filesystemSkills(paths agentPaths) []skillDefinition {
@@ -121,9 +126,9 @@ func filesystemSkills(paths agentPaths) []skillDefinition {
 }
 
 func findSkill(name string) (skillDefinition, bool) {
-	normalized := strings.ToLower(strings.TrimSpace(name))
+	normalized := canonicalSkillName(name)
 	for _, skill := range listSkills() {
-		if strings.ToLower(skill.Name) == normalized {
+		if canonicalSkillName(skill.Name) == normalized {
 			return skill, true
 		}
 	}

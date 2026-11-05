@@ -12,11 +12,7 @@ import (
 )
 
 func trimEvidence(output string) string {
-	output = strings.TrimSpace(output)
-	if len(output) > 3500 {
-		return output[:3500] + "\n... (输出已截断)"
-	}
-	return output
+	return strings.TrimSpace(output)
 }
 
 func existsCommand(name string) bool {

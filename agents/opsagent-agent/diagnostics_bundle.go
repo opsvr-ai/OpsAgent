@@ -8,12 +8,8 @@ import (
 	"time"
 )
 
-func truncateLog(output string, limit int) string {
-	output = strings.TrimSpace(output)
-	if len(output) > limit {
-		return output[:limit] + "\n... (已截断)"
-	}
-	return output
+func truncateLog(output string, _ int) string {
+	return strings.TrimSpace(output)
 }
 
 func applicationLogs(applications []map[string]any) map[string]string {

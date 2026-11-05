@@ -195,9 +195,6 @@ func compactJSON(value any) string {
 		return fmt.Sprintf("%v", value)
 	}
 	text := string(body)
-	if len(text) > 1000 {
-		return text[:1000] + "...(truncated)"
-	}
 	return text
 }
 

@@ -80,9 +80,6 @@ func runDeploymentCommand(input map[string]any) map[string]any {
 	)
 	output, runErr := cmd.CombinedOutput()
 	text := string(output)
-	if len(text) > 12000 {
-		text = text[:12000] + "…"
-	}
 	result["output"] = text
 	result["artifactSha256"] = actual
 	result["artifactBytes"] = written

@@ -72,9 +72,6 @@ func runScriptCommand(input map[string]any) map[string]any {
 	command.Dir = resolveAgentPaths().Root
 	output, err := command.CombinedOutput()
 	text := strings.TrimSpace(string(output))
-	if len(text) > 32_000 {
-		text = text[:32_000] + "\n...[truncated]"
-	}
 	result["output"] = text
 	result["exitCode"] = 0
 	if err != nil {

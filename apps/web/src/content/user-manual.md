@@ -199,11 +199,15 @@ Linux 标准目录：
 前置条件：
 
 - 控制面必须配置 `OPSAGENT_AGENT_ENROLLMENT_TOKEN`。
-- 控制面必须能提供 `agents/opsagent-agent/dist` 下的二进制。
+- 控制面必须能提供安装二进制；容器镜像默认内置在 `/opt/opsagent-agent-dist`。
 - 可用 `OPSAGENT_PUBLIC_URL` 指定 Agent 可访问的平台地址。
 - Agent 网络必须能出站访问控制面。
 
 ### 10.3 构建 Agent 分发文件
+
+容器部署不需要手工编译：`docker compose build control` 会在 Go 阶段自动生成三个平台二进制，并放进镜像的 `/opt/opsagent-agent-dist`。宿主机不需要安装 Go。
+
+非容器开发或需要单独分发时：
 
 ```bash
 pnpm agent:dist
@@ -364,7 +368,7 @@ curl -i -sS -o /dev/null -w '%{http_code}\n' \
 - 确认 `OPSAGENT_PUBLIC_URL` 是宿主机 LAN IP，不是 `127.0.0.1`。
 - 重新打开安装弹窗并复制新命令，旧命令可能带 `//api`。
 - `x86_64` 用 `amd64`，`aarch64` 用 `arm64`。
-- 确认 `OPSAGENT_AGENT_DIST_DIR` 下有对应二进制，或执行 `pnpm agent:dist`。
+- 确认 `OPSAGENT_AGENT_DIST_DIR` 下有对应二进制；容器镜像默认在 `/opt/opsagent-agent-dist`，非容器开发可执行 `pnpm agent:dist`。
 - 新安装脚本会打印 `Downloading ... Agent binary from ...`，失败时打印完整 URL。
 - 可在目标机保存脚本后用 `bash -x` 运行，定位具体失败行：
 
@@ -385,7 +389,9 @@ bash -x /tmp/install.sh
 
 ### 安装脚本下载二进制 404
 
-- 没有执行 `pnpm agent:dist`，或 `OPSAGENT_AGENT_DIST_DIR` 路径不对。
+- 容器部署请重新执行 `docker compose build control`，让镜像内的 Go 阶段重新生成二进制。
+- 非容器部署执行 `pnpm agent:dist`。
+- 检查 `OPSAGENT_AGENT_DIST_DIR` 路径和容器内文件是否存在。
 
 ### AI 诊断返回 model_credentials_missing
 

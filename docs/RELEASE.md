@@ -1,4 +1,4 @@
-﻿# OpsAgent 0.3.2 发布说明
+# OpsAgent 0.3.2 发布说明
 
 ## 定位
 
@@ -64,14 +64,26 @@
 ## 部署顺序
 
 ```text
-1. docker compose up -d
-2. seed 数据库
-3. 登录控制面
-4. 控制面自动生成内网 CA 与服务端证书
-5. Agent 配置 OPSAGENT_AUTO_CSR=true 并注册
-6. 构建 Desktop 更新源
-7. 配置 OPSAGENT_DESKTOP_UPDATE_URL
+1. docker compose build control   # 镜像内 Go 阶段自动编译三个 Agent 二进制
+2. docker compose up -d
+3. seed 数据库
+4. 登录控制面
+5. 控制面自动生成内网 CA 与服务端证书
+6. Agent 配置 OPSAGENT_AUTO_CSR=true 并注册
+7. 构建 Desktop 更新源
+8. 配置 OPSAGENT_DESKTOP_UPDATE_URL
 ```
+
+控制面镜像内的 Agent 分发包路径：
+
+```text
+/opt/opsagent-agent-dist/opsagent-agent-linux-amd64
+/opt/opsagent-agent-dist/opsagent-agent-linux-arm64
+/opt/opsagent-agent-dist/opsagent-agent-windows-amd64.exe
+```
+
+无需在宿主机安装 Go，也无需手工执行 `pnpm agent:dist`。
+只有非容器开发才需要手工构建。
 
 ## 验证基线
 

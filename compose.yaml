@@ -96,7 +96,7 @@ services:
       OPSAGENT_WORKSPACE_ROOT: /app
       STUDIO_DSH_ENABLED: "true"
       OPSAGENT_AGENT_ENROLLMENT_TOKEN: opsagent-local-enroll
-      OPSAGENT_AGENT_DIST_DIR: /app/agents/opsagent-agent/dist
+      OPSAGENT_AGENT_DIST_DIR: /opt/opsagent-agent-dist
       OPSAGENT_DESKTOP_UPDATE_DIR: /app/apps/desktop/release/feed
       OPSAGENT_PUBLIC_URL: ${OPSAGENT_PUBLIC_URL:-http://127.0.0.1:8080}
       OPSAGENT_CRL_URL: http://127.0.0.1:8080/api/pki/crl

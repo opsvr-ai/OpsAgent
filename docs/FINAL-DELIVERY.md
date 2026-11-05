@@ -93,11 +93,12 @@ OCSP 实时响应    status=successful, serial=1234, 650 bytes
 ```text
 1. 备份数据库
 2. 应用迁移 0059–0062
-3. 重建并重启 control
-4. 在入口代理应用 traffic-canary 生成的 Nginx 配置
-5. 配置 OPSAGENT_OCSP_URL 为客户端可达地址
-6. 验证 CRL / OCSP / 8443 mTLS
-7. 在 Web 部署页创建流量灰度策略
+3. docker compose build control（Go 阶段自动编译三个 Agent 二进制到 /opt/opsagent-agent-dist）
+4. docker compose up -d control
+5. 在入口代理应用 traffic-canary 生成的 Nginx 配置
+6. 配置 OPSAGENT_OCSP_URL 为客户端可达地址
+7. 验证 CRL / OCSP / 8443 mTLS
+8. 在 Web 部署页创建流量灰度策略
 ```
 
 数据库迁移：

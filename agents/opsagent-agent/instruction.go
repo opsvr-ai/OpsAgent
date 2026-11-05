@@ -158,6 +158,7 @@ func runAgentInstruction(input map[string]any) map[string]any {
 	result["instruction"] = instruction
 	result["intent"] = intent
 	result["answer"] = inspection["answer"]
+	result["analysis"] = inspection["analysis"]
 	result["evidence"] = inspection["evidence"]
 	result["toolsUsed"] = []string{"inspect"}
 	return result

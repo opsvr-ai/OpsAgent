@@ -7,6 +7,8 @@ import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import type { AuditWriter } from '../audit/writer.js';
 import { AgentCommandService } from './commands.js';
 import { planInstruction } from './instruction_planner.js';
+import { ModelCompletionService } from '../models/completion.js';
+import { ModelProviderService } from '../models/service.js';
 import { notifyApprovalWebhook, replayApprovalWebhook } from './approval_webhook.js';
 import { replayOperationsAlert } from './operations_alert.js';
 
@@ -91,15 +93,59 @@ async function linkInstructionToIncident(
   );
 }
 
-function instructionResponse(row: InstructionDetailRow): Record<string, unknown> {
+async function instructionResponse(
+  pool: Pool,
+  completion: ModelCompletionService,
+  tenantId: string,
+  row: InstructionDetailRow,
+): Promise<Record<string, unknown>> {
   const payload = row.result ?? {};
+  const evidence = typeof payload.evidence === 'object' && payload.evidence !== null
+    ? payload.evidence as Record<string, unknown>
+    : {};
+  let modelAnalysis = typeof payload.modelAnalysis === 'string' ? payload.modelAnalysis : '';
+  if (!modelAnalysis && row.status === 'completed' && Object.keys(evidence).length > 0) {
+    try {
+      modelAnalysis = await completion.complete({
+        tenantId,
+        system: [
+          '你是 OpsAgent 操作系统智能体的运维分析助手。',
+          '只根据给出的主机证据回答，不要输出原始命令结果，不要罗列核心信息。',
+          '先给结论，再给关键依据和可执行的下一步建议；没有发现异常要明确说明。',
+          '使用简体中文，控制在 400 字以内。',
+        ].join('\n'),
+        prompt: JSON.stringify({
+          hostname: typeof payload.hostname === 'string' ? payload.hostname : undefined,
+          question: row.instruction ?? '',
+          evidence,
+        }).slice(0, 24_000),
+        maxTokens: 900,
+      });
+      if (modelAnalysis) {
+        await pool.query(
+          `UPDATE agent_commands SET result = jsonb_set(COALESCE(result, '{}'::jsonb), '{modelAnalysis}', to_jsonb($3::text), true)
+           WHERE id = $1 AND tenant_id = $2`,
+          [row.id, tenantId, modelAnalysis],
+        );
+      }
+    } catch {
+      modelAnalysis = '';
+    }
+  }
+  const toolsUsed = Array.isArray(payload.toolsUsed) ? payload.toolsUsed : [];
+  const inspectInstruction = toolsUsed.includes('inspect');
+  const analysisText = modelAnalysis || (typeof payload.analysis === 'string' ? payload.analysis : '');
+  const rawAnswer = typeof payload.answer === 'string' ? payload.answer : '';
   return {
     instructionId: row.id,
     commandId: row.id,
     status: row.status,
     instruction: row.instruction,
     intent: row.instruction_intent,
-    answer: typeof payload.answer === 'string' ? payload.answer : '',
+    answer: inspectInstruction && !analysisText
+      ? '模型不可用，无法生成分析结果。'
+      : analysisText || rawAnswer,
+    analysis: analysisText,
     evidence: payload.evidence ?? null,
     toolsUsed: payload.toolsUsed ?? null,
     createdAt: row.created_at.toISOString(),
@@ -111,8 +157,10 @@ export function registerAgentInstructionRoutes(
   app: FastifyInstance,
   pool: Pool,
   audit: AuditWriter,
+  modelSecret = process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
 ): void {
   const commands = new AgentCommandService(pool);
+  const completion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
 
   app.post('/api/agents/instructions', async (request, reply) => {
     const ctx = await context(pool, request);
@@ -1474,7 +1522,7 @@ export function registerAgentInstructionRoutes(
       const row = await loadInstruction(pool, ctx.tenantId, request.params.id, request.params.instructionId);
       if (!row) return reply.code(404).send({ error: 'instruction_not_found' });
       await linkInstructionToIncident(pool, ctx.tenantId, row, ctx.userId);
-      return reply.send(instructionResponse(row));
+      return reply.send(await instructionResponse(pool, completion, ctx.tenantId, row));
     },
   );
 
@@ -1495,7 +1543,7 @@ export function registerAgentInstructionRoutes(
        ORDER BY created_at DESC LIMIT 20`,
       [ctx.tenantId, request.params.id],
     );
-    return reply.send(result.rows.map(instructionResponse));
+    return reply.send(await Promise.all(result.rows.map((row) => instructionResponse(pool, completion, ctx.tenantId, row))));
   });
 
   app.post<{ Params: { id: string; instructionId: string } }>(
@@ -1576,7 +1624,7 @@ export function registerAgentInstructionRoutes(
         }
         if (['completed', 'failed', 'canceled', 'expired'].includes(row.status)) {
           await linkInstructionToIncident(pool, ctx.tenantId, row, ctx.userId);
-          const detail = instructionResponse(row);
+          const detail = await instructionResponse(pool, completion, ctx.tenantId, row);
           const answer = typeof detail.answer === 'string' ? detail.answer : '';
           for (let index = 0; index < answer.length && !closed; index += 80) {
             send('delta', { text: answer.slice(index, index + 80) });

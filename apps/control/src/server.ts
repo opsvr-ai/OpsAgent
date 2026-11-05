@@ -134,7 +134,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerMessageRoutes(app, options.pool);
     registerAgentRoutes(app, options.pool, options.agentEnrollmentToken, options.modelSecret, audit);
     registerAgentCertificateRoutes(app, options.pool);
-    registerAgentInstructionRoutes(app, options.pool, audit);
+    registerAgentInstructionRoutes(app, options.pool, audit, options.modelSecret);
     registerAgentCliRoutes(app, options.pool, runtime, options.modelSecret);
     registerAgentInstallRoutes(app, options.pool, options.agentEnrollmentToken, {
       distDir: options.agentDistDir ?? 'agents/opsagent-agent/dist',

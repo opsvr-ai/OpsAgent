@@ -976,6 +976,16 @@ svg[data-fill] { fill: currentColor; stroke: none; }
   background: var(--bg-subtle);
 }
 .composer-bar .model-pill .dot { width: 5px; height: 5px; }
+.composer-bar .model-pill select {
+  max-width: 190px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.composer-bar .model-pill select:disabled { cursor: default; opacity: .7; }
 .composer-bar .send {
   margin-left: auto;
   width: 30px;

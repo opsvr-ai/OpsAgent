@@ -30,7 +30,7 @@ export interface DshModelProvider {
   readonly apiKey: string;
 }
 
-export type DshModelResolver = (tenantId: string) => Promise<DshModelProvider | null>;
+export type DshModelResolver = (tenantId: string, modelId?: string) => Promise<DshModelProvider | null>;
 
 function toolRisk(tool: string): 'R0' | 'R1' | 'R2' {
   if (tool === 'read' || tool.endsWith('_read') || tool.endsWith('_query')) return 'R0';
@@ -54,7 +54,7 @@ export class DshJsonRunner implements DshEventRunner {
   private readonly cwd: string;
   private readonly timeoutMs: number;
   private readonly approvalPlugin?: string;
-  private patchPath: string | undefined;
+  private readonly patchPaths = new Map<string, string | undefined>();
 
   constructor(options: DshEventRunnerOptions = {}) {
     this.command = options.command ?? process.env.DSH_HEADLESS_COMMAND ?? 'dsh';
@@ -66,11 +66,15 @@ export class DshJsonRunner implements DshEventRunner {
       fileURLToPath(new URL('../../runtime/ops-approval-bridge.mjs', import.meta.url));
   }
 
-  private patch(): string | undefined {
-    if (this.patchPath) return this.patchPath;
+  private patch(model?: string): string | undefined {
+    const key = model ?? '';
+    if (this.patchPaths.has(key)) return this.patchPaths.get(key);
     const approvalExists = existsSync(this.approvalPlugin ?? '');
     const accountAuth = process.env.DSH_ACCOUNT_AUTH === 'true';
-    if (!approvalExists && !accountAuth) return undefined;
+    if (!approvalExists && !accountAuth) {
+      this.patchPaths.set(key, undefined);
+      return undefined;
+    }
     const dir = mkdtempSync(join(tmpdir(), 'opsagent-approval-'));
     const path = join(dir, 'patch.yml');
     const sections: string[] = [];
@@ -86,7 +90,7 @@ export class DshJsonRunner implements DshEventRunner {
           '- id: agent-default-model',
           '  config:',
           '    provider: deepseek-account',
-          `    model: ${process.env.DSH_ACCOUNT_MODEL ?? 'deepseek-flash'}`,
+          `    model: ${model || process.env.DSH_ACCOUNT_MODEL || 'deepseek-flash'}`,
         ].join('\n'),
       );
     }
@@ -100,7 +104,7 @@ export class DshJsonRunner implements DshEventRunner {
       );
     }
     writeFileSync(path, `${sections.join('\n')}\n`, 'utf8');
-    this.patchPath = path;
+    this.patchPaths.set(key, path);
     return path;
   }
 
@@ -110,7 +114,7 @@ export class DshJsonRunner implements DshEventRunner {
     env: Readonly<Record<string, string>> = {},
   ): AsyncIterable<Record<string, unknown>> {
     const args = ['--profile', 'headless'];
-    const patch = this.patch();
+    const patch = this.patch(env.DSH_ACCOUNT_MODEL);
     if (patch) args.push('--patch', patch);
     args.push('headless', '--json');
     if (sessionId) args.push('--session-id', sessionId);
@@ -196,13 +200,14 @@ export class DshRuntime implements RuntimeClient {
     if (!runtimeSession) throw new Error(`unknown session: ${sessionId}`);
     let done = false;
     const toolNames = new Map<string, string>();
-    const model = this.modelResolver ? await this.modelResolver(runtimeSession.tenantId) : null;
+    const model = this.modelResolver ? await this.modelResolver(runtimeSession.tenantId, options?.modelId) : null;
     const modelEnv =
       model && (model.provider === 'deepseek' || model.provider === 'openai')
         ? {
             DEEPSEEK_API_KEY: model.apiKey,
             DEEPSEEK_BASE_URL: model.baseUrl,
             DEEPSEEK_MODEL: model.model,
+            DSH_ACCOUNT_MODEL: model.model,
           }
         : {};
     const permissionMode: PermissionMode = options?.permissionMode ?? 'danger-full-access';

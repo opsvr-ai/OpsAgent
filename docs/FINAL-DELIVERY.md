@@ -77,9 +77,9 @@ docs/design/plans/           设计、验收、PKI、部署文档
 ## 4. 验收证据
 
 ```text
-pnpm test       217 passed | 3 skipped
+pnpm test       221 passed | 3 skipped
 pnpm build      通过
-pnpm e2e        13 passed
+pnpm e2e        14 passed
 go test ./...   通过
 Control         healthy
 8443            mTLS

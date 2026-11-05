@@ -2,7 +2,7 @@
 
 > **执行状态 2026-11-05（0.3.2 交付）**：本文是 48 周目标计划，当前代码已完成 P1/P1.5/P1.6/P2-A/P2-B 的主要能力并进入验收阶段。
 > 已落地：租户/RBAC/审计/Web、9 个连接器、场景/调度/报告/分享、Studio、知识/消息/数据/长任务、Commander 事件域、Host Agent 安装/发现/巡航/只读 exec、服务生命周期审批、签名命令与结果、签名 Release/预检/部署/主机 canary/流量级 canary/回滚、Desktop 薄客户端、内网 CA/CSR/mTLS/CRL/OCSP、systemd/容器/Windows Job Object 限额。
-> 验收：217 单测/API 通过、13 E2E 通过、Go 测试通过、构建通过，详见 `docs/design/plans/2026-11-04-acceptance-status.md`。
+> 验收：221 单测/API 通过、14 E2E 通过、Go 测试通过、构建通过，详见 `docs/design/plans/2026-11-04-acceptance-status.md`。
 > 外部待签：G0 正式兼容矩阵、十台混合环境、Windows 实机压测、正式代码签名证书、生产入口代理/OCSP 域名、安全/运维/产品签字，详见 `docs/FINAL-DELIVERY.md`。
 > Sprint 1 的逐项校准见 `docs/design/plans/2026-11-03-p1-sprint-1.md`；最终交付见 `docs/FINAL-DELIVERY.md`。
 > 设计基线：`docs/design/00-platform-design.md`（19 屏原型在 `design/`）。

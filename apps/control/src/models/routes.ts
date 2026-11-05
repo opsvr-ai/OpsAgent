@@ -26,6 +26,12 @@ export function registerModelRoutes(
 ): void {
   const models = new ModelProviderService(pool, secret);
 
+  app.get('/api/models/available', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    return reply.send(await models.listAvailable(ctx.tenantId));
+  });
+
   app.get('/api/models', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

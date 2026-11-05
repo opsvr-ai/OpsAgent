@@ -19,6 +19,7 @@ interface PromptBody {
   text?: unknown;
   idempotencyKey?: unknown;
   permissionMode?: unknown;
+  modelId?: unknown;
 }
 
 function isPermissionMode(value: unknown): value is PermissionMode {
@@ -120,6 +121,9 @@ export function registerRuntimeRoutes(
     if (body.permissionMode !== undefined && !isPermissionMode(body.permissionMode)) {
       return reply.code(400).send({ error: 'invalid_permission_mode' });
     }
+    if (body.modelId !== undefined && (typeof body.modelId !== 'string' || body.modelId.length === 0)) {
+      return reply.code(400).send({ error: 'invalid_model' });
+    }
 
     const existing = await sessions.get(request.params.id, auth.tenantId, auth.userId);
     if (!existing) return reply.code(404).send({ error: 'session_not_found' });
@@ -139,6 +143,7 @@ export function registerRuntimeRoutes(
         body.text,
         body.idempotencyKey,
         body.permissionMode,
+        typeof body.modelId === 'string' ? body.modelId : undefined,
       )) {
         sseWrite(reply.raw, event);
       }

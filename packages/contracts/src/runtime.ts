@@ -28,6 +28,7 @@ export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 export interface PromptOptions {
   readonly permissionMode?: PermissionMode;
+  readonly modelId?: string;
 }
 
 export interface AttachSessionInput {

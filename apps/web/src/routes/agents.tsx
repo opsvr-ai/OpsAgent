@@ -30,6 +30,7 @@ import {
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 import { relativeTime } from '../format.js';
+import { newId } from '../ids.js';
 
 export interface AgentsProps {
   readonly onBack: () => void;
@@ -285,7 +286,7 @@ export function Agents({ onBack }: AgentsProps) {
       const created = await createAgentInstruction(
         detail.id,
         instructionText.trim(),
-        crypto.randomUUID(),
+        newId(),
       );
       setActiveInstructionId(created.instructionId ?? null);
       setInstructionNote(

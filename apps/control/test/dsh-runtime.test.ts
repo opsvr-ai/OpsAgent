@@ -125,6 +125,36 @@ describe('DshRuntime', () => {
     );
   });
 
+  it('selects the requested tenant model', async () => {
+    const run = vi.fn().mockImplementation(async function* () {
+      yield { type: 'status', phase: 'turn_end', reason: { kind: 'completed' } };
+    });
+    const resolver = vi.fn().mockResolvedValue({
+      provider: 'openai',
+      baseUrl: 'https://llm.example/v1',
+      model: 'qwen-prod',
+      apiKey: 'selected-key',
+    });
+    const runtime = new DshRuntime({ run }, resolver);
+    const session = await runtime.startSession({
+      tenantId: 't-2',
+      userId: 'u-2',
+      roleView: 'tenant_admin',
+    });
+    await collect(runtime.prompt(session.runtimeSessionId, 'hi', 'idem-2', {
+      modelId: 'model-2',
+    }));
+    expect(resolver).toHaveBeenCalledWith('t-2', 'model-2');
+    expect(run).toHaveBeenCalledWith(
+      'hi',
+      undefined,
+      expect.objectContaining({
+        DEEPSEEK_MODEL: 'qwen-prod',
+        DSH_ACCOUNT_MODEL: 'qwen-prod',
+      }),
+    );
+  });
+
   it('rejects approval decisions because headless dsh has no bridge', async () => {
     const runtime = new DshRuntime(runner([]));
     await expect(runtime.respondApproval('s', 'a', 'approve')).rejects.toThrow(

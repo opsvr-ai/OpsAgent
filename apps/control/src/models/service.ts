@@ -32,6 +32,15 @@ export class ModelProviderService {
     return result.rows.map((row) => this.map(row));
   }
 
+  async listAvailable(tenantId: string): Promise<ModelProviderRecord[]> {
+    const result = await this.pool.query(
+      `SELECT id, name, provider, base_url, model, status FROM model_providers
+       WHERE tenant_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((row) => this.map(row));
+  }
+
   async create(input: {
     tenantId: string;
     name: string;
@@ -59,7 +68,8 @@ export class ModelProviderService {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async resolve(tenantId: string): Promise<ResolvedModelProvider | null> {    const result = await this.pool.query<{
+  async resolve(tenantId: string, modelId?: string): Promise<ResolvedModelProvider | null> {
+    const result = await this.pool.query<{
       provider: string;
       base_url: string;
       model: string;
@@ -67,8 +77,9 @@ export class ModelProviderService {
     }>(
       `SELECT provider, base_url, model, api_key_encrypted FROM model_providers
        WHERE tenant_id = $1 AND status = 'active'
+         AND ($2::text IS NULL OR id::text = $2)
        ORDER BY created_at DESC LIMIT 1`,
-      [tenantId],
+      [tenantId, modelId ?? null],
     );
     const row = result.rows[0];
     if (!row) return null;

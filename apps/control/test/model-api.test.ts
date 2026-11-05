@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { buildServer } from '../src/server.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
+import { ModelProviderService } from '../src/models/service.js';
 import { decryptSecret, encryptSecret } from '../src/secrets/crypto.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres://opsagent:opsagent@localhost:5432/opsagent_test';
@@ -66,6 +67,18 @@ describe('model provider configuration', () => {
 
     const list = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie } });
     expect(list.json()).toMatchObject([{ name: 'deepseek-prod', provider: 'deepseek' }]);
+
+    const available = await app.inject({ method: 'GET', url: '/api/models/available', headers: { cookie } });
+    expect(available.statusCode).toBe(200);
+    expect(available.json()).toMatchObject([{ name: 'deepseek-prod', provider: 'deepseek' }]);
+
+    const tenant = await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM model_providers WHERE id = $1',
+      [(created.json() as { id: string }).id],
+    );
+    const service = new ModelProviderService(pool, 'test-secret');
+    const resolved = await service.resolve(tenant.rows[0]?.tenant_id ?? '', (created.json() as { id: string }).id);
+    expect(resolved?.model).toBe('deepseek-chat');
 
     const createdId = (created.json() as { id: string }).id;
     const removed = await app.inject({

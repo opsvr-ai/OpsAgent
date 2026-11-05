@@ -88,8 +88,8 @@
 ## 验证基线
 
 ```text
-pnpm test    217 passed | 3 skipped
-pnpm e2e     13 passed
+pnpm test    221 passed | 3 skipped
+pnpm e2e     14 passed
 go test ./... 通过
 pnpm build   通过
 控制面       healthy

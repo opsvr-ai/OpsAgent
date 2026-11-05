@@ -1,18 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Chat } from '../src/routes/chat.js';
-import { decideApproval, promptSession } from '../src/api/client.js';
+import { decideApproval, listAvailableModels, promptSession } from '../src/api/client.js';
 
 vi.mock('../src/api/client.js', () => ({
   promptSession: vi.fn(),
   decideApproval: vi.fn(),
   listApprovals: vi.fn().mockResolvedValue([]),
+  listAvailableModels: vi.fn().mockResolvedValue([]),
   listSessions: vi.fn().mockResolvedValue([]),
   getSessionTranscript: vi.fn().mockResolvedValue([]),
 }));
 
 const promptMock = vi.mocked(promptSession);
 const decideMock = vi.mocked(decideApproval);
+const modelsMock = vi.mocked(listAvailableModels);
 
 describe('Chat', () => {
   beforeEach(() => {
@@ -58,5 +60,30 @@ describe('Chat', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '批准' }));
     await waitFor(() => expect(decideMock).toHaveBeenCalledWith('a-1', 'approve'));
+  });
+
+  it('sends the selected model id with the prompt', async () => {
+    modelsMock.mockResolvedValue([
+      { id: 'm1', name: '默认模型', provider: 'deepseek', baseUrl: 'https://api.example', model: 'deepseek-chat', status: 'active' },
+      { id: 'm2', name: '内网模型', provider: 'openai', baseUrl: 'https://llm.example', model: 'qwen-prod', status: 'active' },
+    ]);
+    promptMock.mockImplementation(async function* () {
+      yield { type: 'session.done', sessionId: 's', at: 't' };
+    });
+
+    render(<Chat sessionId="s" roleView="sre_duty" onBack={vi.fn()} onOpenSession={vi.fn()} onNewSession={vi.fn()} />);
+    const modelSelect = await screen.findByLabelText('模型');
+    fireEvent.change(modelSelect, { target: { value: 'm2' } });
+    await waitFor(() => expect(screen.getByLabelText('输入')).toBeEnabled());
+    fireEvent.change(screen.getByLabelText('输入'), { target: { value: 'hello' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+
+    await waitFor(() => expect(promptMock).toHaveBeenCalledWith(
+      's',
+      'hello',
+      expect.any(String),
+      'danger-full-access',
+      'm2',
+    ));
   });
 });

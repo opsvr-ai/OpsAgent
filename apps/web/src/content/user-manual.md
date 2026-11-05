@@ -318,6 +318,9 @@ split_clients "${remote_addr}${request_id}" $order_example_com_backend {
 ## 12. 模型配置
 
 - 支持 DeepSeek 和 OpenAI-compatible provider。
+- 可以为同一租户配置多个模型；会话底部下拉框选择本次使用的模型。
+- 默认选中最新创建的 active 模型；切换后下一条消息使用新模型。
+- 没有配置模型时使用运行时默认模型。
 - API Key 使用 AES-256-GCM 加密，接口不返回明文。
 - 租户配置会注入真实 dsh 会话和 Studio 生成器。
 - 设置 `OPSAGENT_SECRET_KEY`；生产不要使用开发默认密钥。

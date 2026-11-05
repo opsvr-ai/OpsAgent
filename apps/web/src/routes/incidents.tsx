@@ -25,6 +25,7 @@ import {
 } from '../api/client.js';
 import { DesignShell } from './design-shell.js';
 import { formatTime } from '../format.js';
+import { newId } from '../ids.js';
 
 export interface IncidentsProps {
   readonly onBack: () => void;
@@ -285,7 +286,7 @@ export function Incidents({ onBack }: IncidentsProps) {
       const created = await createAgentInstruction(
         instructionAgentId,
         instructionText.trim(),
-        crypto.randomUUID(),
+        newId(),
         incidentId,
       );
       if (!created.instructionId) {

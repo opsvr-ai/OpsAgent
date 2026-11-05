@@ -22,6 +22,22 @@ test('G1: login -> home -> session -> mock echo', async ({ page }) => {
   await expect(page.getByText('完成').first()).toBeVisible();
 });
 
+test('G1: Enter sends without blanking the page', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { configurable: true, value: undefined });
+  });
+  await login(page);
+  await page.getByRole('button', { name: '新建会话' }).click();
+  await page.getByLabel('输入').fill('echo by enter');
+  await page.getByLabel('输入').press('Enter');
+
+  await expect(page.getByText('checking: echo by enter')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '运维会话' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('G1: mock.restart requires approval', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: '新建会话' }).click();

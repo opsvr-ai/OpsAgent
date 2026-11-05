@@ -11,8 +11,8 @@
 
 ```text
 平台代码：完成
-自动化验收：217 passed | 3 skipped
-E2E：13 passed
+自动化验收：221 passed | 3 skipped
+E2E：14 passed
 Go Agent：通过
 OCSP：标准响应 + 实时验证
 流量级 canary：控制面 + Nginx 配置生成

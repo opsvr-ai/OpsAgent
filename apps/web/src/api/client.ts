@@ -71,12 +71,18 @@ export async function* promptSession(
   text: string,
   idempotencyKey: string,
   permissionMode?: PermissionMode,
+  modelId?: string,
 ): AsyncIterable<RuntimeEvent> {
   const response = await fetch(`/api/sessions/${sessionId}/prompt`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, idempotencyKey, ...(permissionMode ? { permissionMode } : {}) }),
+    body: JSON.stringify({
+      text,
+      idempotencyKey,
+      ...(permissionMode ? { permissionMode } : {}),
+      ...(modelId ? { modelId } : {}),
+    }),
   });
   if (!response.ok || !response.body) throw new ApiError(response.status, 'prompt_failed');
   yield* readSse(response.body);
@@ -1208,6 +1214,10 @@ export interface ModelProvider {
 
 export async function listModels(): Promise<ModelProvider[]> {
   return request<ModelProvider[]>('/api/models');
+}
+
+export async function listAvailableModels(): Promise<ModelProvider[]> {
+  return request<ModelProvider[]>('/api/models/available');
 }
 
 export async function createModel(input: {

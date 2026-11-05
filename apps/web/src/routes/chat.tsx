@@ -8,12 +8,15 @@ import {
   decideApproval,
   getSessionTranscript,
   listApprovals,
+  listAvailableModels,
   listSessions,
   promptSession,
   type ApprovalSummary,
+  type ModelProvider,
   type SessionSummary,
 } from '../api/client.js';
 import { relativeTime } from '../format.js';
+import { newId } from '../ids.js';
 import { AppSidebar } from './app-sidebar.js';
 import { GlobalSearch } from './global-search.js';
 import { ThemeToggle } from '../theme/use-theme.js';
@@ -63,8 +66,22 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
   const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('danger-full-access');
   const [permissionOpen, setPermissionOpen] = useState(false);
+  const [models, setModels] = useState<ModelProvider[]>([]);
+  const [modelId, setModelId] = useState('');
   const [expandedApproval, setExpandedApproval] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void listAvailableModels()
+      .then((items) => {
+        setModels(items);
+        setModelId((current) => current || items[0]?.id || '');
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const selectedModel = models.find((item) => item.id === modelId) ?? null;
+  const modelLabel = selectedModel?.name ?? selectedModel?.model ?? '默认模型';
 
   useEffect(() => {
     if (!permissionOpen) return;
@@ -133,9 +150,9 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
     setInput('');
     setBusy(true);
     setError(null);
-    setTimeline((current) => [...current, { kind: 'user', id: crypto.randomUUID(), text, at: new Date().toISOString() }]);
+    setTimeline((current) => [...current, { kind: 'user', id: newId(), text, at: new Date().toISOString() }]);
     try {
-      for await (const item of promptSession(sessionId, text, crypto.randomUUID(), permissionMode)) {
+      for await (const item of promptSession(sessionId, text, newId(), permissionMode, modelId || undefined)) {
         setTimeline((current) => [...current, { kind: 'event', event: item }]);
         if (item.type === 'approval.request') setPendingApproval(item);
         if (item.type === 'session.done') setBusy(false);
@@ -195,7 +212,7 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
         <div key={index} className="msg">
           <span className="msg-avatar is-agent">A</span>
           <div className="msg-body">
-            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">{item.source === 'platform' ? '平台数据' : 'deepseek-flash'}</span><span>{relativeTime(item.at)}</span></div>
+            <div className="msg-meta"><strong>OpsAgent</strong><span className="badge badge-neutral">{item.source === 'platform' ? '平台数据' : modelLabel}</span><span>{relativeTime(item.at)}</span></div>
             <div className="msg-text markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown></div>
           </div>
         </div>
@@ -446,7 +463,22 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
                       </div>
                     ) : null}
                   </div>
-                  <span className="model-pill"><span className="dot dot-ok" />deepseek-flash</span>
+                  <label className="model-pill" title="选择模型">
+                    <span className="dot dot-ok" />
+                    <select
+                      aria-label="模型"
+                      value={modelId}
+                      onChange={(event) => setModelId(event.target.value)}
+                      disabled={busy || models.length === 0}
+                    >
+                      {models.length === 0 ? <option value="">未配置模型</option> : null}
+                      {models.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} · {model.model}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <span className="composer-inline-hint">工具调用受租户与角色约束</span>
                   <button className="send" type="submit" disabled={busy || loadingTranscript} aria-label="发送">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5" /><path d="M5 12l7-7 7 7" /></svg>

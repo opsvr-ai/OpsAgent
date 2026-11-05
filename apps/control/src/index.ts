@@ -68,7 +68,7 @@ const app = buildServer({
   scenarioTools: tools,
   ...(process.env.DSH_RUNTIME_ENABLED === 'false'
     ? {}
-    : { runtime: new DshRuntime(undefined, (tenantId) => modelService.resolve(tenantId)) }),
+    : { runtime: new DshRuntime(undefined, (tenantId, modelId) => modelService.resolve(tenantId, modelId)) }),
   ...(process.env.OPSAGENT_INTERNAL_TOKEN
     ? { internalToken: process.env.OPSAGENT_INTERNAL_TOKEN }
     : {}),

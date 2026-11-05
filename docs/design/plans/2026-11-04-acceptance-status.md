@@ -19,9 +19,9 @@ Desktop 薄客户端
 ## 2. 自动化证据
 
 ```text
-pnpm test       217 passed | 3 skipped
+pnpm test       221 passed | 3 skipped
 pnpm build      通过
-pnpm e2e        13 passed
+pnpm e2e        14 passed
 go test ./...   通过
 Control         healthy
 Agent           在线

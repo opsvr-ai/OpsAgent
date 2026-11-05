@@ -192,6 +192,7 @@ export class SessionService {
     text: string,
     idempotencyKey: string,
     permissionMode?: PermissionMode,
+    modelId?: string,
   ): AsyncIterable<RuntimeEvent> {
     const session = await this.get(sessionId, tenantId, userId);
     if (!session) throw new SessionNotFoundError();
@@ -236,7 +237,12 @@ export class SessionService {
         session.runtimeSessionId,
         text,
         idempotencyKey,
-        permissionMode ? { permissionMode } : undefined,
+        permissionMode || modelId
+          ? {
+              ...(permissionMode ? { permissionMode } : {}),
+              ...(modelId ? { modelId } : {}),
+            }
+          : undefined,
       )) {
         await this.appendTranscript(session.id, tenantId, 'event', event as unknown as Record<string, unknown>);
         if (event.type === 'approval.request') {

@@ -141,7 +141,7 @@ export function registerAgentCliRoutes(
           yield { type: 'status', text: `正在执行 ${event.tool}…` };
         }
       }
-      if (platformAnswer && plan.kind !== 'agent' && plan.kind !== 'exec') {
+      if (platformAnswer) {
         yield { type: 'delta', text: platformAnswer };
         yield { type: 'done' };
         return;

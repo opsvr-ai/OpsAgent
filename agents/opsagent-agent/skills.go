@@ -62,6 +62,7 @@ var skills = []skillDefinition{
 	{Name: "performance.analysis", Description: "分析 CPU、内存、磁盘、负载和 PSI 性能瓶颈", Question: "分析系统性能和瓶颈"},
 	{Name: "troubleshooting", Description: "采集失败服务、内核错误、OOM 和磁盘异常并排障", Question: "诊断系统故障和排障"},
 	{Name: "system.configuration", Description: "采集操作系统内核、CPU、内存、磁盘、网络、sysctl 等配置", Question: "采集操作系统配置详情"},
+	{Name: "process.discovery", Description: "诊断 Java、Python、Node 等应用进程为什么未被发现", Question: "诊断进程发现结果"},
 }
 
 func syncSkillsCommand(input map[string]any) map[string]any {

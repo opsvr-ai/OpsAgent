@@ -13,6 +13,56 @@ import (
 	"time"
 )
 
+func collectProcessDiscoveryDiagnostics() map[string]any {
+	ps := commandOutput(4*time.Second, "ps", "-eo", "pid=,ppid=,user=,comm=,args=")
+	source := "ps -eo"
+	if strings.TrimSpace(ps) == "" {
+		ps = commandOutput(4*time.Second, "ps", "aux")
+		source = "ps aux"
+	}
+	lines := []string{}
+	javaLines := []string{}
+	systemFiltered := []string{}
+	applicationCount := 0
+	for _, line := range strings.Split(ps, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		lines = append(lines, line)
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+		name := filepath.Base(fields[3])
+		if strings.Contains(strings.ToLower(line), "java") && len(javaLines) < 20 {
+			javaLines = append(javaLines, line)
+		}
+		if isSystemProcess(fields[0], name, strings.Join(fields[3:], " ")) {
+			if len(systemFiltered) < 40 {
+				systemFiltered = append(systemFiltered, name)
+			}
+			continue
+		}
+		applicationCount += 1
+	}
+	return map[string]any{
+		"source":           source,
+		"totalLines":       len(lines),
+		"applicationCount": applicationCount,
+		"javaLines":        javaLines,
+		"systemFiltered":   systemFiltered,
+		"sample":           firstLines(strings.Join(lines, "\n"), 40, "java", "python", "node", "nginx", "tomcat", "jar"),
+	}
+}
+
+func collectProcessInventoryForDebug() map[string]any {
+	return map[string]any{
+		"diagnostics": collectProcessDiscoveryDiagnostics(),
+		"inventory":   collectApplicationInventory(),
+	}
+}
+
 // collectApplicationInventory discovers system services, application processes,
 // their executable paths, configuration and log locations.
 func collectApplicationInventory() map[string]any {
@@ -243,9 +293,7 @@ func executableFromCommand(command string) string {
 }
 
 func isSystemProcess(pid, name, args string) bool {
-	if pid == "1" || pid == "2" {
-		return true
-	}
+	_ = pid
 	lower := strings.ToLower(name + " " + args)
 	for _, marker := range []string{"systemd", "kthreadd", "kworker", "sshd", "dbus-daemon", "chronyd", "rsyslogd", "crond", "udevd", "auditd", "polkitd"} {
 		if strings.Contains(lower, marker) {
@@ -444,6 +492,8 @@ func operationalSkillResult(name string) map[string]any {
 		report = collectTroubleshooting()
 	case "system.configuration":
 		report = collectSystemConfiguration()
+	case "process.discovery":
+		report = collectProcessInventoryForDebug()
 	default:
 		return nil
 	}
@@ -495,6 +545,8 @@ func operationalIntent(question string) string {
 		return "troubleshooting"
 	case contains("配置详情", "系统配置", "配置采集", "内核参数", "sysctl"):
 		return "system.configuration"
+	case contains("进程发现", "进程没有发现", "进程没发现", "为什么没有发现进程", "java 进程"):
+		return "process.discovery"
 	default:
 		return ""
 	}

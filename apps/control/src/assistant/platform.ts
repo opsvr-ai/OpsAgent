@@ -5,6 +5,7 @@ import type { AgentEventRecord } from '../agents/events.js';
 import { AgentEventService } from '../agents/events.js';
 import { AppHealthService } from '../agents/health.js';
 import { AgentService, type AgentRecord } from '../agents/service.js';
+import { AgentControlService } from '../agents/agent_control.js';
 import type { CompletionRequest } from '../models/completion.js';
 
 export interface PlatformAnswerer {
@@ -45,6 +46,9 @@ export type PlatformPlan =
       readonly instruction: string;
       readonly readOnly: boolean;
       readonly query: string;
+      readonly targetMode: 'agent' | 'app_system' | 'all_online';
+      readonly targetId?: string;
+      readonly targetName?: string;
     }
   | {
       readonly kind: 'app-health';
@@ -82,12 +86,13 @@ function relativeTime(input: string | null): string {
 
 export class PlatformAssistant {
   constructor(
-    pool: Pool,
+    private readonly pool: Pool,
     private readonly agents = new AgentService(pool),
     private readonly commands = new AgentCommandService(pool),
     private readonly events = new AgentEventService(pool),
     private readonly health = new AppHealthService(pool),
     private readonly answerer?: PlatformAnswerer,
+    private readonly control = new AgentControlService(pool),
   ) {}
 
   async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
@@ -149,7 +154,7 @@ export class PlatformAssistant {
     const trimmed = text.trim();
     const startsAsCommand = /^(给|对|让|向|通知|批量给|批量对)\s*/i.test(trimmed);
     const batchAll = /(所有主机|全部主机|所有节点|全部节点|每台主机|批量执行|批量检查|批量巡检)/i.test(trimmed);
-    const action = /(执行|运行|下发|发送指令|发送|检查|查看|排查|分析|巡检|采集|收集|查一下|看看)/i.test(trimmed);
+    const action = /(执行|运行|下发|发送指令|发送|检查|查看|排查|分析|巡检|采集|收集|查一下|看看|重启|停止|启动|重新加载|启用|禁用|安装|卸载|删除|修改)/i.test(trimmed);
     if (!action || (!startsAsCommand && !batchAll)) return null;
 
     let targets: AgentRecord[] = [];
@@ -159,18 +164,28 @@ export class PlatformAssistant {
     const system = systems
       .filter((item) => item.name && trimmed.includes(item.name))
       .sort((left, right) => right.name.length - left.name.length)[0];
+    let targetMode: 'agent' | 'app_system' | 'all_online' = 'agent';
+    let targetId: string | undefined;
+    let targetName: string | undefined;
     if (system) {
+      targetMode = 'app_system';
+      targetId = system.id;
+      targetName = system.name;
       label = system.name;
       const all = await this.agents.list(tenantId);
       targets = all.filter((agent) => agent.appSystem?.id === system.id);
       instruction = instruction.replaceAll(system.name, ' ');
     } else if (batchAll) {
+      targetMode = 'all_online';
       label = '全部在线主机';
       const all = await this.agents.list(tenantId);
       targets = all.filter((agent) => agent.status === 'online');
     } else {
       const mentioned = await this.agents.findByMention(tenantId, trimmed);
       if (!mentioned) return null;
+      targetMode = 'agent';
+      targetId = mentioned.id;
+      targetName = mentioned.hostname;
       label = mentioned.hostname;
       targets = [mentioned];
       instruction = instruction.replaceAll(mentioned.hostname, ' ');
@@ -181,7 +196,8 @@ export class PlatformAssistant {
 
     instruction = instruction
       .replace(/^(给|对|让|向|通知|批量给|批量对)\s*/i, '')
-      .replace(/^(\s*(执行|运行|下发|发送指令|发送)\s*[:：]?\s*)/i, '')
+      .replace(/^(批量检查|批量执行|批量|检查一下|检查|查看一下|查看|执行|运行|下发|发送指令|发送)\s*[:：]?\s*/i, '')
+      .replace(/(所有在线主机|全部在线主机|所有主机|全部主机|所有节点|全部节点|每台主机)/g, ' ')
       .replace(new RegExp(`\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'g'), ' ')
       .replace(/^[，,。；;：:\s]+/, '')
       .trim();
@@ -192,12 +208,15 @@ export class PlatformAssistant {
       instruction,
       readOnly: !/(重启|停止|启动|删除|修改|写入|安装|卸载|kill|restart|stop|start|rm\s|chmod|chown)/i.test(instruction),
       query: text,
+      targetMode,
+      ...(targetId ? { targetId } : {}),
+      ...(targetName ? { targetName } : {}),
     };
   }
 
-  async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string): AsyncIterable<RuntimeEvent> {
+  async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string, userId?: string): AsyncIterable<RuntimeEvent> {
     if (plan.kind === 'agent-batch') {
-      yield* this.executeAgentBatch(plan, tenantId, sessionId, modelId);
+      yield* this.executeAgentBatch(plan, tenantId, sessionId, modelId, userId);
       return;
     }
     if (plan.kind === 'host-alerts') {
@@ -443,45 +462,72 @@ export class PlatformAssistant {
     tenantId: string,
     sessionId: string,
     modelId?: string,
+    userId?: string,
   ): AsyncIterable<RuntimeEvent> {
     if (!plan.readOnly) {
-      yield this.assistant(sessionId, '该指令包含写操作，已拒绝在普通对话中直接执行。请在「操作系统智能体 → 自然语言」中发起并走平台审批。');
+      if (!userId) {
+        yield this.assistant(sessionId, '该指令包含写操作，但当前会话无法确定操作人，未提交审批。');
+        yield this.done(sessionId);
+        return;
+      }
+      const match = plan.instruction.match(/(重启|停止|启动|重新加载|启用|禁用|restart|stop|start|reload|enable|disable)\s*(?:服务\s*)?([a-z0-9_.@-]+)/i);
+      const actionMap: Record<string, string> = {
+        '重启': 'service_restart', 'restart': 'service_restart',
+        '停止': 'service_stop', 'stop': 'service_stop',
+        '启动': 'service_start', 'start': 'service_start',
+        '重新加载': 'service_reload', 'reload': 'service_reload',
+        '启用': 'service_enable', 'enable': 'service_enable',
+        '禁用': 'service_disable', 'disable': 'service_disable',
+      };
+      const action = match?.[1] ? actionMap[match[1].toLowerCase()] : '';
+      const service = match?.[2] ?? '';
+      if (!action || !service) {
+        yield this.assistant(sessionId, '写操作需要明确服务和动作，例如“重启订单中心 nginx 服务”。已拒绝执行。');
+        yield this.done(sessionId);
+        return;
+      }
+      let approvals = 0;
+      for (const agent of plan.targets) {
+        const inserted = await this.pool.query(
+          `INSERT INTO agent_instruction_approvals
+             (tenant_id, agent_id, instruction, action, service, risk, requested_by)
+           VALUES ($1, $2, $3, $4, $5, 'R2', $6) RETURNING id`,
+          [tenantId, agent.id, plan.instruction, action, service, userId],
+        );
+        if (inserted.rows[0]) approvals += 1;
+      }
+      yield this.toolResult(sessionId, 'opsagent.agent_batch', {
+        instruction: plan.instruction,
+        targetMode: plan.targetMode,
+        approvals,
+        status: 'awaiting_approval',
+      });
+      yield this.assistant(sessionId, `已将写操作提交平台审批：**${service} ${action.replace('service_', '')}**，共 **${approvals}** 台主机。批准后才会下发执行。`);
       yield this.done(sessionId);
       return;
     }
     yield this.toolCall(sessionId, 'opsagent.agent_batch', {
       instruction: plan.instruction,
+      targetMode: plan.targetMode,
       targets: plan.targets.map((agent) => agent.hostname),
     }, 'R1');
-    const results = await Promise.all(plan.targets.map(async (agent) => {
-      const command = await this.commands.create({
-        tenantId,
-        agentId: agent.id,
-        type: 'inspect',
-        input: { question: plan.instruction },
-      });
-      if (!command) return { hostname: agent.hostname, status: 'failed', analysis: '', answer: '' };
-      let current = command;
-      for (let attempt = 0; attempt < 30 && !['completed', 'failed'].includes(current.status); attempt += 1) {
-        await delay(1000);
-        current = (await this.commands.get(tenantId, agent.id, command.id)) ?? current;
-      }
-      const payload = typeof current.result === 'object' && current.result !== null
-        ? current.result as Record<string, unknown>
-        : {};
-      return {
-        hostname: agent.hostname,
-        status: current.status,
-        analysis: typeof payload.analysis === 'string' ? payload.analysis : '',
-        answer: typeof payload.answer === 'string' ? payload.answer : '',
-      };
-    }));
-    yield this.toolResult(sessionId, 'opsagent.agent_batch', {
+    const result = await this.control.createAndRun({
+      tenantId,
+      userId: '00000000-0000-0000-0000-000000000000',
       instruction: plan.instruction,
-      succeeded: results.filter((item) => item.status === 'completed').length,
-      failed: results.filter((item) => item.status !== 'completed').length,
+      targetMode: plan.targetMode,
+      ...(plan.targetId ? { targetId: plan.targetId } : {}),
+      ...(plan.targetName ? { targetName: plan.targetName } : {}),
     });
-    const answer = await this.summarizeBatch(plan.instruction, results, tenantId, modelId);
+    yield this.toolResult(sessionId, 'opsagent.agent_batch', {
+      taskId: result.taskId,
+      instruction: plan.instruction,
+      status: result.status,
+      total: result.total,
+      succeeded: result.success,
+      failed: result.failed,
+    });
+    const answer = await this.summarizeBatch(plan.instruction, result.runs, tenantId, modelId);
     yield this.assistant(sessionId, answer, 'model');
     yield this.done(sessionId);
   }

@@ -221,7 +221,7 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		add("journal", "journalctl", "-n", "80", "--no-pager", "-p", "warning")
 		add("messages", "tail", "-n", "80", "/var/log/messages")
 	}
-	if wants("用户", "user", "在线", "who", "登录") {
+	if wants("用户", "user", "who", "登录") {
 		include["users"] = true
 		addFirst("users", []string{"who"}, []string{"w"})
 	}

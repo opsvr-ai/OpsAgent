@@ -228,7 +228,7 @@ export class SessionService {
     const platformPlan = await this.platform.detect(tenantId, text);
     if (platformPlan) {
       try {
-        for await (const event of this.platform.execute(platformPlan, tenantId, session.runtimeSessionId, modelId)) {
+        for await (const event of this.platform.execute(platformPlan, tenantId, session.runtimeSessionId, modelId, userId)) {
           await this.appendTranscript(session.id, tenantId, 'event', event as unknown as Record<string, unknown>);
           if (event.type === 'session.done') {
             await this.cancelPendingApprovals(session.id);

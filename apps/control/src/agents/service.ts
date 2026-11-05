@@ -279,8 +279,19 @@ export class AgentService {
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
 
-  async fleet(tenantId: string, query: AgentFleetQuery = {}): Promise<AgentFleetResult> {
-    const page = Math.max(1, Math.floor(query.page ?? 1));
+  async findByIp(tenantId: string, ip: string): Promise<AgentRecord | null> {
+    const result = await this.pool.query<AgentRow>(
+      `${AGENT_SELECT}
+       WHERE a.tenant_id = $1
+         AND (a.system_info->>'ip' = $2 OR a.system_info->'ipAddresses' ? $2)
+       ORDER BY a.last_seen DESC NULLS LAST
+       LIMIT 1`,
+      [tenantId, ip],
+    );
+    return result.rows[0] ? this.map(result.rows[0]) : null;
+  }
+
+  async fleet(tenantId: string, query: AgentFleetQuery = {}): Promise<AgentFleetResult> {    const page = Math.max(1, Math.floor(query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize ?? 20)));
     const search = (query.query ?? '').trim();
     const status = query.status ?? '';

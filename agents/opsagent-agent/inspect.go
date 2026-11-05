@@ -196,7 +196,11 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 	}
 	if wants("进程", "process", "pstree", "top") {
 		include["processes"] = true
-		addFirst("processes", []string{"ps", "aux"}, []string{"ps", "-ef"})
+		addFirst("processes",
+			[]string{"ps", "-eo", "pid,user,%cpu,%mem,comm,args", "--sort=-%mem"},
+			[]string{"ps", "aux"},
+			[]string{"ps", "-ef"},
+		)
 	}
 	if wants("包", "package", "安装", "installed", "version", "版本") {
 		include["packages"] = true

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -32,6 +34,16 @@ func analyzeEvidence(question string, evidence map[string]string) string {
 			}
 		}
 	}
+	if strings.Contains(lower, "进程") || strings.Contains(lower, "process") {
+		if summary := analyzeProcesses(evidence["processes"]); summary != "" {
+			return summary
+		}
+	}
+	if strings.Contains(lower, "内存") || strings.Contains(lower, "memory") {
+		if summary := analyzeMemory(evidence["memory"]); summary != "" {
+			return summary
+		}
+	}
 	if strings.Contains(lower, "网络") || strings.Contains(lower, "ip") || strings.Contains(lower, "网卡") {
 		interfaces := evidence["interfaces"]
 		addresses := ipv4Addresses(interfaces)
@@ -54,6 +66,62 @@ func analyzeEvidence(question string, evidence map[string]string) string {
 		return fmt.Sprintf("当前运行 %d 个容器。", len(containers))
 	}
 	return ""
+}
+
+func analyzeProcesses(output string) string {
+	type process struct {
+		user string
+		pid  string
+		cpu  float64
+		mem  float64
+		cmd  string
+	}
+	processes := make([]process, 0)
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 4 || strings.EqualFold(fields[0], "PID") || strings.EqualFold(fields[0], "USER") {
+			continue
+		}
+		pidIndex, userIndex, cmdIndex := 0, 1, 3
+		if len(fields) >= 11 {
+			pidIndex, userIndex, cmdIndex = 1, 0, 10
+		}
+		cpu, _ := strconv.ParseFloat(fields[2], 64)
+		mem, _ := strconv.ParseFloat(fields[3], 64)
+		processes = append(processes, process{
+			user: fields[userIndex], pid: fields[pidIndex], cpu: cpu, mem: mem,
+			cmd: strings.Join(fields[cmdIndex:], " "),
+		})
+	}
+	if len(processes) == 0 {
+		return ""
+	}
+	sort.Slice(processes, func(i, j int) bool { return processes[i].mem > processes[j].mem })
+	lines := []string{fmt.Sprintf("当前进程 %d 个，内存占用最高的进程：", len(processes))}
+	for index, item := range processes {
+		if index >= 5 {
+			break
+		}
+		command := item.cmd
+		if len(command) > 120 {
+			command = command[:120]
+		}
+		lines = append(lines, fmt.Sprintf("- PID %s %s：内存 %.1f%%，CPU %.1f%%，%s", item.pid, item.user, item.mem, item.cpu, command))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func analyzeMemory(output string) string {
+	lines := nonEmptyLines(output)
+	if len(lines) == 0 {
+		return ""
+	}
+	for _, line := range lines {
+		if strings.Contains(line, "Mem:") || strings.Contains(line, "MemTotal") {
+			return "内存概况：" + line
+		}
+	}
+	return "内存概况：" + strings.Join(lines[:minInt(len(lines), 3)], "；")
 }
 
 func analyzeLogs(evidence map[string]string) string {

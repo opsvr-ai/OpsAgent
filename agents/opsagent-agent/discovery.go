@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const agentVersion = "0.5.1"
+const agentVersion = "0.5.2"
 
 type discoveryReport struct {
 	System       map[string]any   `json:"system"`

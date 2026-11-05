@@ -30,6 +30,7 @@ function fakes(answerer?: { complete: (input: { tenantId: string; modelId?: stri
     list: vi.fn().mockResolvedValue([]),
     fleet: vi.fn(),
     get: vi.fn().mockResolvedValue(agent),
+    findByIp: vi.fn().mockResolvedValue(null),
   };
   const commands = {
     create: vi.fn(),
@@ -116,6 +117,33 @@ describe('PlatformAssistant', () => {
       instruction: expect.stringContaining('磁盘'),
       targets: [expect.objectContaining({ hostname: 'prod-web-01' })],
       readOnly: true,
+    });
+  });
+
+  it('resolves a follow-up IP question to the host agent', async () => {
+    const { assistant, agents } = fakes();
+    agents.findByIp.mockResolvedValue({
+      ...agent,
+      systemInfo: { ...agent.systemInfo, ip: '7.24.4.33' },
+    });
+    const plan = await assistant.detect('tenant', '7.24.4.33 哪些进程占用的内存多', 'session-ip');
+    expect(plan).toMatchObject({
+      kind: 'agent',
+      agent: expect.objectContaining({ hostname: 'prod-web-01' }),
+      mode: 'inspect',
+    });
+    expect(agents.findByIp).toHaveBeenCalledWith('tenant', '7.24.4.33');
+  });
+
+  it('uses previous host context for pronoun follow-ups', async () => {
+    const { assistant, agents } = fakes();
+    agents.findByMention.mockResolvedValue(agent);
+    await assistant.detect('tenant', '查一下 prod-web-01 的 IP', 'session-follow');
+    agents.findByMention.mockResolvedValue(null);
+    const plan = await assistant.detect('tenant', '它的内存和进程呢', 'session-follow');
+    expect(plan).toMatchObject({
+      kind: 'agent',
+      agent: expect.objectContaining({ hostname: 'prod-web-01' }),
     });
   });
 

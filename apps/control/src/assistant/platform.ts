@@ -104,6 +104,8 @@ export class PlatformAssistant {
     private readonly control = new AgentControlService(pool),
   ) {}
 
+  private readonly contexts = new Map<string, { agentId: string; hostname: string }>();
+
   async detect(tenantId: string, text: string, sessionId?: string): Promise<PlatformPlan | null> {
     if (sessionId && /(重试|再试|重跑|失败的|失败节点|继续执行|retry)/i.test(text)) {
       const previous = await this.pool.query<{ id: string }>(
@@ -121,7 +123,25 @@ export class PlatformAssistant {
     if (/应用系统/.test(text) && /(哪些|多少|列表|清单|纳管|查看|列出|几个)/.test(text)) {
       return { kind: 'app-systems', query: text };
     }
+    const ipMatch = text.match(/\b(\d{1,3}(?:\.\d{1,3}){3})\b/);
+    if (ipMatch?.[1]) {
+      const byIp = await this.agents.findByIp(tenantId, ipMatch[1]);
+      if (byIp) {
+        this.contexts.set(sessionId ?? '', { agentId: byIp.id, hostname: byIp.hostname });
+        return { kind: 'agent', agent: byIp, query: text, mode: 'inspect' };
+      }
+    }
+    const context = sessionId ? this.contexts.get(sessionId) : undefined;
+    if (context && /(它|这台|该主机|刚才|上面|再查|继续|内存|进程|磁盘|日志|端口|服务|负载|cpu)/i.test(text)) {
+      const remembered = await this.agents.get(context.agentId, tenantId);
+      if (remembered) {
+        return { kind: 'agent', agent: remembered, query: text, mode: 'inspect' };
+      }
+    }
     const mentioned = await this.agents.findByMention(tenantId, text);
+    if (mentioned && sessionId) {
+      this.contexts.set(sessionId, { agentId: mentioned.id, hostname: mentioned.hostname });
+    }
     if (mentioned) {
       const alertQuestion = /(告警|故障|异常|健康|正常吗)/i.test(text);
       const analysisQuestion = /(检查|排查|原因|为什么|分析|诊断|处理|影响)/i.test(text);
@@ -238,6 +258,9 @@ export class PlatformAssistant {
   }
 
   async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string, userId?: string): AsyncIterable<RuntimeEvent> {
+    if (plan.kind === 'agent') {
+      this.contexts.set(sessionId, { agentId: plan.agent.id, hostname: plan.agent.hostname });
+    }
     if (plan.kind === 'app-systems') {
       yield this.toolCall(sessionId, 'opsagent.app_systems', {}, 'R0');
       const systems = await this.agents.listAppSystems(tenantId);

@@ -261,7 +261,32 @@ func skillsAnswer() string {
 	return strings.Join(lines, "\n")
 }
 
-func localAnswer(question string) string {
+func askPlatformExplain(state agentState, question string, evidence map[string]string) (string, error) {
+	if state.AgentID == "" || state.AgentKey == "" {
+		return "", fmt.Errorf("agent state is missing")
+	}
+	controlURL := state.ControlURL
+	if controlURL == "" {
+		controlURL = env("OPSAGENT_CONTROL_URL", "http://127.0.0.1:8080")
+	}
+	var reply struct {
+		Analysis string `json:"analysis"`
+		Error    string `json:"error"`
+	}
+	if err := cliPost(
+		strings.TrimRight(controlURL, "/")+"/api/agents/"+state.AgentID+"/explain",
+		map[string]any{"agentKey": state.AgentKey, "question": question, "evidence": evidence},
+		&reply,
+	); err != nil {
+		return "", err
+	}
+	if reply.Analysis == "" {
+		return "", fmt.Errorf("empty platform analysis")
+	}
+	return reply.Analysis, nil
+}
+
+func localAnswer(question string, state agentState, stateErr error) string {
 	if isSkillsQuestion(question) {
 		return skillsAnswer()
 	}
@@ -271,6 +296,14 @@ func localAnswer(question string) string {
 	metrics["cpuCores"] = runtime.NumCPU()
 	metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
 	result := inspectHost(question, metrics)
+	if evidence, ok := result["evidence"].(map[string]string); ok && stateErr == nil && len(evidence) > 0 {
+		if analysis, err := askPlatformExplain(state, question, evidence); err == nil && strings.TrimSpace(analysis) != "" {
+			return analysis
+		}
+	}
+	if analysis, ok := result["analysis"].(string); ok && strings.TrimSpace(analysis) != "" {
+		return analysis
+	}
 	if answer, ok := result["answer"].(string); ok && answer != "" {
 		return answer
 	}
@@ -371,7 +404,7 @@ func runCLI(paths agentPaths) {
 			}
 		}
 		fmt.Println()
-		fmt.Println(strings.TrimSpace(localAnswer(question)))
+		fmt.Println(strings.TrimSpace(localAnswer(question, state, stateErr)))
 		fmt.Println()
 	}
 }

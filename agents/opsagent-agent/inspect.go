@@ -55,6 +55,7 @@ var evidenceLabels = map[string]string{
 	"dns":             "DNS 配置",
 	"journal":         "系统日志",
 	"messages":        "系统消息",
+	"users":           "在线用户",
 	"docker":          "容器",
 	"agent":           "Agent 部署情况",
 	"kernel":          "内核",
@@ -141,7 +142,7 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 	if wants("运行", "多久", "uptime", "启动", "开机", "boot") {
 		include["uptime"] = true
 	}
-	if wants("配置", "系统", "概况", "overview", "资源", "状态") {
+	if !wants("日志", "log", "journal", "error") && wants("配置", "系统", "概况", "overview", "资源", "状态") {
 		include["memory"] = true
 		include["disk-usage"] = true
 		include["cpu"] = true
@@ -201,8 +202,12 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 	if wants("日志", "log", "journal", "error") {
 		include["journal"] = true
 		include["messages"] = true
-		add("journal", "journalctl", "-n", "40", "--no-pager")
-		add("messages", "tail", "-n", "40", "/var/log/messages")
+		add("journal", "journalctl", "-n", "80", "--no-pager", "-p", "warning")
+		add("messages", "tail", "-n", "80", "/var/log/messages")
+	}
+	if wants("用户", "user", "在线", "who", "登录") {
+		include["users"] = true
+		addFirst("users", []string{"who"}, []string{"w"})
 	}
 	if wants("容器", "docker", "container") {
 		include["docker"] = true
@@ -223,36 +228,6 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 	if systemName == "" {
 		systemName = fmt.Sprintf("%s %s", runtime.GOOS, runtime.GOARCH)
 	}
-	lines := []string{
-		"## 主机检查结果",
-		"",
-		fmt.Sprintf("问题：**%s**", question),
-		"",
-		"已执行只读检查，未修改主机。",
-		"",
-		"### 核心信息",
-		fmt.Sprintf("- 主机名：**%s**", mustHostname()),
-		fmt.Sprintf("- 操作系统：**%s**", systemName),
-		fmt.Sprintf("- 内核：**%s**", strings.TrimSpace(commandOutput(3*time.Second, "uname", "-r"))),
-		fmt.Sprintf("- CPU：**%d 核**", runtime.NumCPU()),
-		fmt.Sprintf("- 内存总量 / 可用：**%.1f / %.1f GB**", numberValue(metrics["memTotalGB"]), numberValue(metrics["memAvailableGB"])),
-		fmt.Sprintf("- 磁盘总量 / 可用：**%.1f / %.1f GB**", numberValue(metrics["diskTotalGB"]), numberValue(metrics["diskFreeGB"])),
-	}
-	uptimeSeconds := int64(numberValue(metrics["hostUptimeSec"]))
-	if uptimeSeconds > 0 {
-		bootAt := ""
-		if value, ok := metrics["bootTime"].(string); ok {
-			bootAt = fmt.Sprintf("（启动于 %s）", value)
-		}
-		lines = append(lines, fmt.Sprintf("- 系统运行时长：**%s**%s", formatUptime(uptimeSeconds), bootAt))
-	}
-	if processCount := int(numberValue(metrics["processCount"])); processCount > 0 {
-		lines = append(lines, fmt.Sprintf("- 进程数：**%d**", processCount))
-	}
-	if load1, ok := metrics["load1"]; ok {
-		lines = append(lines, fmt.Sprintf("- 1 分钟负载：**%.2f**", numberValue(load1)))
-	}
-
 	if value, ok := evidence["disk-usage"]; ok {
 		evidence["disk-usage"] = compactDf(value)
 	}
@@ -263,17 +238,56 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		}
 	}
 	sort.Strings(keys)
+	specific := wants("日志", "log", "journal", "error", "磁盘", "disk", "分区", "内存", "memory", "cpu", "处理器", "网络", "network", "ip", "路由", "dns", "网卡", "服务", "service", "端口", "port", "进程", "process", "容器", "docker", "用户", "user", "在线", "who", "时间", "time", "uptime", "agent", "智能体")
+	overview := !specific && wants("配置", "系统", "概况", "overview", "资源", "状态")
+	lines := []string{
+		"## 主机检查结果",
+		"",
+		fmt.Sprintf("问题：**%s**", question),
+		"",
+		"已执行只读检查，未修改主机。",
+	}
+	if overview || (len(keys) == 0 && !specific) {
+		lines = append(lines,
+			"",
+			"### 核心信息",
+			fmt.Sprintf("- 主机名：**%s**", mustHostname()),
+			fmt.Sprintf("- 操作系统：**%s**", systemName),
+			fmt.Sprintf("- 内核：**%s**", strings.TrimSpace(commandOutput(3*time.Second, "uname", "-r"))),
+			fmt.Sprintf("- CPU：**%d 核**", runtime.NumCPU()),
+			fmt.Sprintf("- 内存总量 / 可用：**%.1f / %.1f GB**", numberValue(metrics["memTotalGB"]), numberValue(metrics["memAvailableGB"])),
+			fmt.Sprintf("- 磁盘总量 / 可用：**%.1f / %.1f GB**", numberValue(metrics["diskTotalGB"]), numberValue(metrics["diskFreeGB"])),
+		)
+		if uptimeSeconds := int64(numberValue(metrics["hostUptimeSec"])); uptimeSeconds > 0 {
+			bootAt := ""
+			if value, ok := metrics["bootTime"].(string); ok {
+				bootAt = fmt.Sprintf("（启动于 %s）", value)
+			}
+			lines = append(lines, fmt.Sprintf("- 系统运行时长：**%s**%s", formatUptime(uptimeSeconds), bootAt))
+		}
+		if processCount := int(numberValue(metrics["processCount"])); processCount > 0 {
+			lines = append(lines, fmt.Sprintf("- 进程数：**%d**", processCount))
+		}
+		if load1, ok := metrics["load1"]; ok {
+			lines = append(lines, fmt.Sprintf("- 1 分钟负载：**%.2f**", numberValue(load1)))
+		}
+	}
 	for _, key := range keys {
 		lines = append(lines, "", fmt.Sprintf("### %s", evidenceLabels[key]), "```text", evidence[key], "```")
 	}
 	if len(keys) == 0 {
 		lines = append(lines, "", "该问题未匹配到特定检查项，已返回主机基础信息；可以继续问磁盘分区、服务、端口、进程、内存、日志或 Agent 部署路径。")
 	}
+	analysis := analyzeEvidence(question, evidence)
+	if analysis != "" {
+		lines = append(lines, "", "### 分析", analysis)
+	}
 	return map[string]any{
 		"type":        "inspect",
 		"ok":          true,
 		"question":    question,
 		"answer":      strings.Join(lines, "\n"),
+		"analysis":    analysis,
 		"evidence":    evidence,
 		"memory":      memoryContext(10),
 		"collectedAt": time.Now().UTC().Format(time.RFC3339),

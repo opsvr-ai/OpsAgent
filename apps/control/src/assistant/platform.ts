@@ -370,7 +370,8 @@ export class PlatformAssistant {
       }
     }
     const raw = typeof result.answer === 'string' ? result.answer.trim() : '';
-    return raw || `已完成 **${hostname}** 的只读检查，但没有取得可用结果。`;
+    const analysis = typeof result.analysis === 'string' ? result.analysis.trim() : '';
+    return analysis || raw || `已完成 **${hostname}** 的只读检查，但没有取得可用结果。`;
   }
 
   private async waitCommand(

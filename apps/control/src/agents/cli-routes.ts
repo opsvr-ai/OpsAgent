@@ -192,6 +192,40 @@ export function registerAgentCliRoutes(
     };
   }
 
+  app.post<{ Params: { id: string } }>('/api/agents/:id/explain', async (request, reply) => {
+    const body = request.body as {
+      agentKey?: unknown;
+      question?: unknown;
+      evidence?: unknown;
+    } | undefined;
+    if (typeof body?.question !== 'string' || typeof body.evidence !== 'object' || body.evidence === null) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const row = await authorize(request.params.id, body.agentKey);
+    if (!row) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      const analysis = await completion.complete({
+        tenantId: row.tenant_id,
+        system: [
+          '你是 OpsAgent 操作系统智能体的运维分析助手。',
+          '只根据给出的主机证据回答，不要输出原始命令结果，不要罗列核心信息。',
+          '先给结论，再给关键依据和可执行的下一步建议；没有发现异常要明确说明。',
+          '使用简体中文，控制在 300 字以内。',
+        ].join('\n'),
+        prompt: JSON.stringify({
+          hostname: row.hostname,
+          question: body.question,
+          evidence: body.evidence,
+        }).slice(0, 24_000),
+        maxTokens: 800,
+      });
+      return reply.send({ analysis });
+    } catch (caught) {
+      request.log.warn({ err: caught, agentId: row.hostname }, 'agent explain failed');
+      return reply.code(503).send({ error: 'model_unavailable' });
+    }
+  });
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/chat', async (request, reply) => {
     const body = request.body as { agentKey?: unknown; question?: unknown } | undefined;
     if (typeof body?.question !== 'string') return reply.code(400).send({ error: 'invalid_request' });

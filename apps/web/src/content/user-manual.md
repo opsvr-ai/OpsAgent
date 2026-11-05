@@ -129,6 +129,18 @@
 
 在“操作系统智能体”页点击“一键安装 Agent”，平台会生成 Linux/Windows 命令。
 
+生成命令前请确认 `OPSAGENT_PUBLIC_URL` 是目标 Agent 能访问的宿主机地址，例如：
+
+```text
+OPSAGENT_PUBLIC_URL=http://10.79.4.206:8080
+```
+
+- 不能填 `127.0.0.1`：那会指向 Agent 自己。
+- 不能填 `control:8080`：那只在 Docker 网络内部有效。
+- 修改 `.env` 后执行 `docker compose up -d control`，只 `restart` 不会重新读取。
+- 目标 Agent 必须能访问该 IP 和端口，必要时放行防火墙。
+- 使用域名/HTTPS 反向代理时填 `https://opsagent.example.com`。
+
 Linux：
 
 ```bash

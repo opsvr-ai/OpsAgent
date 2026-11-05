@@ -204,7 +204,8 @@ export function registerAgentInstallRoutes(
   options: InstallOptions,
 ): void {
   function baseUrl(request: FastifyRequest): string {
-    return options.publicUrl ?? `${request.protocol}://${request.headers.host ?? '127.0.0.1:8080'}`;
+    const configured = options.publicUrl?.trim().replace(/\/+$/, '');
+    return configured || `${request.protocol}://${request.headers.host ?? '127.0.0.1:8080'}`;
   }
 
   app.get<{ Querystring: { os?: string } }>(

@@ -31,6 +31,51 @@ docker compose up -d --build control web
 
 `.dsh-runtime/` 已被 `.gitignore` 忽略，不会提交凭据。
 
+### 安装命令中的控制面地址
+
+「操作系统智能体」页的一键安装命令默认使用 `OPSAGENT_PUBLIC_URL`。这个地址必须是**目标 Agent 能访问到的宿主机地址**，不能是 `127.0.0.1`（那会指向 Agent 自己），也不能是 Docker 内部服务名。
+
+先查宿主机局域网 IP：
+
+```powershell
+# Windows
+ipconfig
+# 取“无线局域网适配器 WLAN”或“以太网”的 IPv4 地址
+```
+
+```bash
+# Linux
+hostname -I
+```
+
+在项目根目录创建或修改 `.env`：
+
+```text
+OPSAGENT_PUBLIC_URL=http://10.79.4.206:8080
+```
+
+然后重建 control 容器（只 `restart` 不会重新读取 `.env`）：
+
+```bash
+docker compose up -d control
+```
+
+验证：
+
+```bash
+curl -s http://127.0.0.1:8080/api/agents/install-command?os=linux \
+  -H 'cookie: ...'
+```
+
+返回的命令应包含 `http://10.79.4.206:8080/api/agents/install.sh`。
+
+注意：
+
+- 目标 Agent 必须能访问该 IP 的 8080 端口，必要时放行防火墙。
+- 使用域名/HTTPS 反向代理时，填 `https://opsagent.example.com`。
+- 修改 `.env` 后必须 `docker compose up -d control`，不能只 `docker compose restart control`。
+- 不要把它配置成 `http://control:8080`，那只在 Docker 网络内部有效。
+
 容器内：
 
 - `control`：Fastify，端口 8080，镜像内安装 `@deepseek-ai/dsh`

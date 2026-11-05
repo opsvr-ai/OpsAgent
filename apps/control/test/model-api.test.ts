@@ -72,6 +72,25 @@ describe('model provider configuration', () => {
     expect(available.statusCode).toBe(200);
     expect(available.json()).toMatchObject([{ name: 'deepseek-prod', provider: 'deepseek' }]);
 
+    const batch = await app.inject({
+      method: 'POST',
+      url: '/api/models/batch',
+      headers: { cookie },
+      payload: {
+        name: '内网模型',
+        provider: 'openai',
+        baseUrl: 'https://llm.example/v1',
+        models: ['qwen-72b', 'qwen-32b'],
+        apiKey: 'sk-batch',
+      },
+    });
+    expect(batch.statusCode).toBe(201);
+    expect((batch.json() as unknown[]).length).toBe(2);
+    const batchIds = (batch.json() as Array<{ id: string }>).map((item) => item.id);
+    for (const id of batchIds) {
+      await app.inject({ method: 'DELETE', url: `/api/models/${id}`, headers: { cookie } });
+    }
+
     const tenant = await pool.query<{ tenant_id: string }>(
       'SELECT tenant_id FROM model_providers WHERE id = $1',
       [(created.json() as { id: string }).id],

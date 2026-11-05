@@ -60,6 +60,42 @@ export class ModelProviderService {
     return this.map(result.rows[0]);
   }
 
+  async createMany(input: {
+    tenantId: string;
+    name: string;
+    provider: string;
+    baseUrl: string;
+    models: string[];
+    apiKey: string;
+  }): Promise<ModelProviderRecord[]> {
+    const models = [...new Set(input.models.map((model) => model.trim()).filter(Boolean))];
+    if (models.length === 0) return [];
+    const encrypted = encryptSecret(input.apiKey, this.secret);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created: ModelProviderRecord[] = [];
+      for (const model of models) {
+        const name = models.length > 1 ? `${input.name || model} · ${model}` : input.name || model;
+        const result = await client.query(
+          `INSERT INTO model_providers
+             (tenant_id, name, provider, base_url, model, api_key_encrypted)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id, name, provider, base_url, model, status`,
+          [input.tenantId, name, input.provider, input.baseUrl, model, encrypted],
+        );
+        created.push(this.map(result.rows[0]));
+      }
+      await client.query('COMMIT');
+      return created;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async delete(tenantId: string, id: string): Promise<boolean> {
     const result = await this.pool.query(
       'DELETE FROM model_providers WHERE tenant_id = $1 AND id = $2',

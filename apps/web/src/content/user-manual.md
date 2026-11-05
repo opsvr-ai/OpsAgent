@@ -317,7 +317,13 @@ split_clients "${remote_addr}${request_id}" $order_example_com_backend {
 
 ## 12. 模型配置
 
-- 支持 DeepSeek 和 OpenAI-compatible provider。
+- 支持 DeepSeek、OpenAI 兼容和 Anthropic API provider。
+- 同一个 Base URL 可以保存多个模型。
+- 添加模型时点击「发现模型」：
+  - OpenAI 兼容：调用 `GET <BaseURL>/v1/models`（BaseURL 已含 `/v1` 时直接 `/models`）。
+  - Anthropic：调用 `GET <BaseURL>/v1/models`，使用 `x-api-key` 和 `anthropic-version`。
+- 发现结果用复选框选择，可一次保存多个。
+- 发现失败不影响保存：可以手工填写模型 ID 后点击「添加模型」。
 - 可以为同一租户配置多个模型；会话底部下拉框选择本次使用的模型。
 - 默认选中最新创建的 active 模型；切换后下一条消息使用新模型。
 - 没有配置模型时使用运行时默认模型。

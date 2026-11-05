@@ -11,7 +11,7 @@
 
 ```text
 平台代码：完成
-自动化验收：221 passed | 3 skipped
+自动化验收：225 passed | 3 skipped
 E2E：14 passed
 Go Agent：通过
 OCSP：标准响应 + 实时验证

@@ -986,6 +986,18 @@ svg[data-fill] { fill: currentColor; stroke: none; }
   cursor: pointer;
 }
 .composer-bar .model-pill select:disabled { cursor: default; opacity: .7; }
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  cursor: pointer;
+}
+.check-row input { width: auto; margin: 0; }
+.check-row .mono { margin-left: auto; font-size: 11px; }
 .composer-bar .send {
   margin-left: auto;
   width: 30px;

@@ -1220,6 +1220,36 @@ export async function listAvailableModels(): Promise<ModelProvider[]> {
   return request<ModelProvider[]>('/api/models/available');
 }
 
+export interface DiscoveredModel {
+  readonly id: string;
+  readonly displayName?: string;
+}
+
+export async function discoverModels(input: {
+  provider: string;
+  baseUrl: string;
+  apiKey: string;
+}): Promise<DiscoveredModel[]> {
+  const response = await request<{ models: DiscoveredModel[] }>('/api/models/discover', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return response.models;
+}
+
+export async function createModelsBatch(input: {
+  name: string;
+  provider: string;
+  baseUrl: string;
+  models: string[];
+  apiKey: string;
+}): Promise<ModelProvider[]> {
+  return request<ModelProvider[]>('/api/models/batch', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function createModel(input: {
   name: string;
   provider: string;

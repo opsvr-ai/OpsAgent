@@ -6,6 +6,7 @@ import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext, type TenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { ModelProviderService } from './service.js';
+import { discoverModels } from './discovery.js';
 
 async function context(pool: Pool, request: FastifyRequest): Promise<TenantContext | null> {
   const token = request.cookies[SESSION_COOKIE];
@@ -25,6 +26,87 @@ export function registerModelRoutes(
   secret: string,
 ): void {
   const models = new ModelProviderService(pool, secret);
+
+  app.post('/api/models/discover', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      provider?: unknown;
+      baseUrl?: unknown;
+      apiKey?: unknown;
+    } | undefined;
+    if (
+      typeof body?.provider !== 'string' ||
+      typeof body.baseUrl !== 'string' ||
+      typeof body.apiKey !== 'string'
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    try {
+      return reply.send({ models: await discoverModels({
+        provider: body.provider,
+        baseUrl: body.baseUrl,
+        apiKey: body.apiKey,
+      }) });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'model_discovery_failed';
+      return reply.code(code === 'invalid_base_url' || code === 'unsupported_provider' ? 400 : 502)
+        .send({ error: code === 'invalid_base_url' || code === 'unsupported_provider' ? code : 'model_discovery_failed' });
+    }
+  });
+
+  app.post('/api/models/batch', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      name?: unknown;
+      provider?: unknown;
+      baseUrl?: unknown;
+      models?: unknown;
+      apiKey?: unknown;
+    } | undefined;
+    if (
+      typeof body?.name !== 'string' ||
+      typeof body.provider !== 'string' ||
+      typeof body.baseUrl !== 'string' ||
+      typeof body.apiKey !== 'string' ||
+      !Array.isArray(body.models) ||
+      body.models.length === 0 ||
+      body.models.length > 100 ||
+      !body.models.every((model) => typeof model === 'string' && model.trim().length > 0)
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const created = await models.createMany({
+      tenantId: ctx.tenantId,
+      name: body.name,
+      provider: body.provider,
+      baseUrl: body.baseUrl,
+      models: body.models as string[],
+      apiKey: body.apiKey,
+    });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'model.create',
+      resource: created[0]?.id ?? 'batch',
+      result: 'success',
+      metadata: { provider: body.provider, count: created.length, models: body.models },
+    });
+    return reply.code(201).send(created);
+  });
 
   app.get('/api/models/available', async (request, reply) => {
     const ctx = await context(pool, request);

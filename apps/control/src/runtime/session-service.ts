@@ -2,6 +2,8 @@ import type { PermissionMode, RuntimeClient, RuntimeEvent } from '@opsagent/cont
 import type { Pool } from 'pg';
 import type { AuditWriter } from '../audit/writer.js';
 import { PlatformAssistant } from '../assistant/platform.js';
+import { ModelCompletionService } from '../models/completion.js';
+import { ModelProviderService } from '../models/service.js';
 
 export interface SessionRecord {
   readonly id: string;
@@ -55,8 +57,17 @@ export class SessionService {
     private readonly pool: Pool,
     private readonly runtime: RuntimeClient,
     private readonly audit: AuditWriter,
+    modelSecret = process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
   ) {
-    this.platform = new PlatformAssistant(pool);
+    const modelService = new ModelProviderService(pool, modelSecret);
+    this.platform = new PlatformAssistant(
+      pool,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new ModelCompletionService(modelService),
+    );
   }
 
   async create(input: CreateSessionInput): Promise<SessionRecord> {
@@ -217,7 +228,7 @@ export class SessionService {
     const platformPlan = await this.platform.detect(tenantId, text);
     if (platformPlan) {
       try {
-        for await (const event of this.platform.execute(platformPlan, tenantId, session.runtimeSessionId)) {
+        for await (const event of this.platform.execute(platformPlan, tenantId, session.runtimeSessionId, modelId)) {
           await this.appendTranscript(session.id, tenantId, 'event', event as unknown as Record<string, unknown>);
           if (event.type === 'session.done') {
             await this.cancelPendingApprovals(session.id);

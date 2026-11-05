@@ -58,7 +58,7 @@ export interface RuntimeEventBase {
 export interface AssistantDeltaEvent extends RuntimeEventBase {
   readonly type: 'assistant.delta';
   readonly text: string;
-  readonly source?: 'platform' | 'dsh';
+  readonly source?: 'platform' | 'dsh' | 'model';
 }
 
 export interface ToolCallEvent extends RuntimeEventBase {

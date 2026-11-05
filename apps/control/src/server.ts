@@ -112,7 +112,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     );
     registerTenantRoutes(app, options.pool, audit);
     const runtime = options.runtime ?? new FakeRuntime();
-    registerRuntimeRoutes(app, options.pool, audit, runtime);
+    registerRuntimeRoutes(app, options.pool, audit, runtime, options.modelSecret);
     registerConnectorRoutes(
       app,
       options.pool,

@@ -5,6 +5,11 @@ import type { AgentEventRecord } from '../agents/events.js';
 import { AgentEventService } from '../agents/events.js';
 import { AppHealthService } from '../agents/health.js';
 import { AgentService, type AgentRecord } from '../agents/service.js';
+import type { CompletionRequest } from '../models/completion.js';
+
+export interface PlatformAnswerer {
+  complete(input: CompletionRequest): Promise<string>;
+}
 
 export type PlatformPlan =
   | {
@@ -75,6 +80,7 @@ export class PlatformAssistant {
     private readonly commands = new AgentCommandService(pool),
     private readonly events = new AgentEventService(pool),
     private readonly health = new AppHealthService(pool),
+    private readonly answerer?: PlatformAnswerer,
   ) {}
 
   async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
@@ -130,7 +136,7 @@ export class PlatformAssistant {
     };
   }
 
-  async *execute(plan: PlatformPlan, tenantId: string, sessionId: string): AsyncIterable<RuntimeEvent> {
+  async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string): AsyncIterable<RuntimeEvent> {
     if (plan.kind === 'host-alerts') {
       yield this.toolCall(sessionId, 'opsagent.agent_alerts', { hostname: plan.agent.hostname }, 'R0');
       const alerts = (await this.events.list(tenantId, plan.agent.id)).filter((event) => event.status === 'open');
@@ -300,15 +306,70 @@ export class PlatformAssistant {
       const result = typeof command.result === 'object' && command.result !== null
         ? command.result as Record<string, unknown>
         : {};
-      const answer = typeof result.answer === 'string' ? result.answer : '';
-      const lines = [answer || `## ${plan.agent.hostname} 检查结果`, ''];
-      if (alerts.length > 0) {
-        lines.push('### 当前告警', '');
-        for (const event of alerts) lines.push(`- **${event.title}**：${event.detail}`);
-      }
-      yield this.assistant(sessionId, lines.join('\n'));
+      const answer = await this.answerHostQuestion(plan.agent, plan.query, result, alerts, tenantId, modelId);
+      yield this.assistant(sessionId, answer, 'model');
     }
     yield this.done(sessionId);
+  }
+
+  private async answerHostQuestion(
+    agent: AgentRecord,
+    question: string,
+    result: Record<string, unknown>,
+    alerts: AgentEventRecord[],
+    tenantId: string,
+    modelId?: string,
+  ): Promise<string> {
+    const evidence = typeof result.evidence === 'object' && result.evidence !== null
+      ? result.evidence as Record<string, unknown>
+      : {};
+    if (this.answerer) {
+      try {
+        const context = JSON.stringify({
+          hostname: agent.hostname,
+          question,
+          evidence,
+          alerts: alerts.map((event) => ({ title: event.title, detail: event.detail, severity: event.severity })),
+        }).slice(0, 16_000);
+        const answer = await this.answerer.complete({
+          tenantId,
+          ...(modelId ? { modelId } : {}),
+          system: [
+            '你是 OpsAgent 主机智能体助手。',
+            '只根据给定的主机检查证据回答用户问题。',
+            '直接给结论，不要重复整段原始命令输出，不要编造证据中不存在的信息。',
+            '如果证据不足，明确说明需要补充哪项检查。',
+            '回答使用简体中文，控制在 300 字以内，除非用户要求详细展开。',
+          ].join('\n'),
+          prompt: context,
+          maxTokens: 800,
+        });
+        if (answer.trim()) return answer.trim();
+      } catch (error) {
+        console.error('[platform] host answer failed', {
+          hostname: agent.hostname,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return this.fallbackHostAnswer(agent.hostname, question, result);
+  }
+
+  private fallbackHostAnswer(hostname: string, question: string, result: Record<string, unknown>): string {
+    const evidence = typeof result.evidence === 'object' && result.evidence !== null
+      ? result.evidence as Record<string, unknown>
+      : {};
+    const interfaces = typeof evidence.interfaces === 'string' ? evidence.interfaces : '';
+    if (/(ip|地址|网卡|网络)/i.test(question) && interfaces) {
+      const addresses = [...interfaces.matchAll(/\binet\s+(\d{1,3}(?:\.\d{1,3}){3})/g)]
+        .map((match) => match[1])
+        .filter((address) => address && address !== '127.0.0.1');
+      if (addresses.length > 0) {
+        return `**${hostname}** 的 IPv4 地址是 **${addresses[0]}**。`;
+      }
+    }
+    const raw = typeof result.answer === 'string' ? result.answer.trim() : '';
+    return raw || `已完成 **${hostname}** 的只读检查，但没有取得可用结果。`;
   }
 
   private async waitCommand(
@@ -396,8 +457,8 @@ export class PlatformAssistant {
     return { type: 'tool.result', sessionId, at: new Date().toISOString(), tool, result };
   }
 
-  private assistant(sessionId: string, text: string): RuntimeEvent {
-    return { type: 'assistant.delta', sessionId, at: new Date().toISOString(), text, source: 'platform' };
+  private assistant(sessionId: string, text: string, source: 'platform' | 'model' = 'platform'): RuntimeEvent {
+    return { type: 'assistant.delta', sessionId, at: new Date().toISOString(), text, source };
   }
 
   private done(sessionId: string): RuntimeEvent {

@@ -60,8 +60,9 @@ export function registerRuntimeRoutes(
   pool: Pool,
   audit: AuditWriter,
   runtime: RuntimeClient,
+  modelSecret?: string,
 ): void {
-  const sessions = new SessionService(pool, runtime, audit);
+  const sessions = new SessionService(pool, runtime, audit, modelSecret);
 
   app.get<{ Querystring: { sessionId?: string } }>('/api/approvals', async (request, reply) => {
     const auth = await authContext(pool, request);

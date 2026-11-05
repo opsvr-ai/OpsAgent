@@ -23,7 +23,7 @@ const agent = {
   appSystem: null,
 };
 
-function fakes() {
+function fakes(answerer?: { complete: (input: { tenantId: string; modelId?: string; system: string; prompt: string; maxTokens?: number }) => Promise<string> }) {
   const agents = {
     findByMention: vi.fn().mockResolvedValue(null),
     listAppSystems: vi.fn().mockResolvedValue([]),
@@ -47,6 +47,7 @@ function fakes() {
     commands as unknown as AgentCommandService,
     events as unknown as import('../src/agents/events.js').AgentEventService,
     health as unknown as import('../src/agents/health.js').AppHealthService,
+    answerer,
   );
   return { assistant, agents, commands, events, health };
 }
@@ -58,6 +59,52 @@ async function collect(iterable: AsyncIterable<RuntimeEvent>): Promise<RuntimeEv
 }
 
 describe('PlatformAssistant', () => {
+  it('uses the selected platform model to answer host evidence concisely', async () => {
+    const answerer = { complete: vi.fn().mockResolvedValue('prod-web-01 的 IPv4 地址是 7.24.4.68。') };
+    const { assistant, agents, commands } = fakes(answerer);
+    agents.findByMention.mockResolvedValue(agent);
+    commands.create.mockResolvedValue({
+      id: 'c-ip',
+      agentId: 'a-1',
+      type: 'inspect',
+      status: 'completed',
+      input: {},
+      result: {
+        answer: '## 主机检查结果\n大量原始内容',
+        evidence: { interfaces: 'inet 7.24.4.68/24 brd 7.24.4.255 scope global ens192' },
+      },
+      createdAt: new Date().toISOString(),
+    });
+    const plan = await assistant.detect('tenant', '给我查 prod-web-01 的 IP 是多少');
+    const events = await collect(assistant.execute(plan!, 'tenant', 'session-1', 'model-1'));
+    const answer = events.find((event) => event.type === 'assistant.delta' && event.source === 'model');
+    expect(answer).toMatchObject({ text: 'prod-web-01 的 IPv4 地址是 7.24.4.68。' });
+    expect(answerer.complete).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId: 'tenant',
+      modelId: 'model-1',
+    }));
+  });
+
+  it('falls back to a concise IP answer without a model', async () => {
+    const { assistant, agents, commands } = fakes();
+    agents.findByMention.mockResolvedValue(agent);
+    commands.create.mockResolvedValue({
+      id: 'c-ip-2',
+      agentId: 'a-1',
+      type: 'inspect',
+      status: 'completed',
+      input: {},
+      result: {
+        answer: '## 主机检查结果\n大量原始内容',
+        evidence: { interfaces: 'inet 7.24.4.68/24 brd 7.24.4.255 scope global ens192' },
+      },
+      createdAt: new Date().toISOString(),
+    });
+    const plan = await assistant.detect('tenant', '给我查 prod-web-01 的 IP 是多少');
+    const events = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
+    expect(events.some((event) => event.type === 'assistant.delta' && event.text.includes('7.24.4.68'))).toBe(true);
+  });
+
   it('answers managed-agent inventory from platform data', async () => {
     const { assistant, agents, commands } = fakes();
     agents.fleet.mockResolvedValue({

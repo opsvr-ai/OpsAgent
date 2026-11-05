@@ -16,6 +16,7 @@ import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
 import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js';
 import { AgentInventoryService } from './inventory_service.js';
 import { AgentConnectionService } from './connection_service.js';
+import { FaultAnalysisService } from './fault_analysis.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -48,6 +49,7 @@ export function registerAgentRoutes(
   const skillService = new AgentSkillService(pool);
   const inventoryService = new AgentInventoryService(pool);
   const connectionService = new AgentConnectionService(pool);
+  const faultAnalysis = new FaultAnalysisService(pool, modelSecret);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -260,6 +262,9 @@ export function registerAgentRoutes(
       } catch (error) {
         request.log.warn({ err: error }, 'app health check failed');
       }
+      void faultAnalysis.triggerForEvent(request.params.id, triggerEvent.id).catch((error) => {
+        request.log.warn({ err: error }, 'fault analysis trigger failed');
+      });
     }
     return reply.send({ events: reported });
   });

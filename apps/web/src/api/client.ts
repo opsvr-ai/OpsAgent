@@ -1178,6 +1178,41 @@ export async function createAppSystem(input: {
   });
 }
 
+export interface FaultAnalysisSummary {
+  readonly id: string;
+  readonly appSystemId: string | null;
+  readonly appSystemName: string;
+  readonly title: string;
+  readonly status: string;
+  readonly summary: string;
+  readonly rootCause: string;
+  readonly confidence: number;
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+}
+
+export interface FaultAnalysisDetail extends FaultAnalysisSummary {
+  readonly findings: Array<{ title?: string; detail?: string; severity?: string }>;
+  readonly steps: Array<{
+    id: string; seq: number; type: string; title: string; detail: string; status: string; createdAt: string;
+  }>;
+}
+
+export async function listFaultAnalyses(): Promise<FaultAnalysisSummary[]> {
+  return request<FaultAnalysisSummary[]>('/api/fault-analyses');
+}
+
+export async function getFaultAnalysis(id: string): Promise<FaultAnalysisDetail> {
+  return request<FaultAnalysisDetail>(`/api/fault-analyses/${id}`);
+}
+
+export async function createFaultAnalysis(appSystemId: string): Promise<{ id: string }> {
+  return request<{ id: string }>('/api/fault-analyses', {
+    method: 'POST',
+    body: JSON.stringify({ appSystemId }),
+  });
+}
+
 export interface AgentInventoryItem {
   readonly id: string;
   readonly kind: string;

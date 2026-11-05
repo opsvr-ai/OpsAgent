@@ -33,6 +33,7 @@ import { registerAgentCertificateRoutes } from './agents/certificate_routes.js';
 import { registerAgentInstructionRoutes } from './agents/instruction_routes.js';
 import { registerAgentSkillRoutes } from './agents/skills_routes.js';
 import { registerAgentControlRoutes } from './agents/control_routes.js';
+import { registerFaultAnalysisRoutes } from './agents/fault_routes.js';
 import { registerAgentCliRoutes } from './agents/cli-routes.js';
 import { registerAgentInstallRoutes } from './agents/install.js';
 import { registerMemberRoutes } from './members/routes.js';
@@ -139,6 +140,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerAgentInstructionRoutes(app, options.pool, audit, options.modelSecret);
     registerAgentSkillRoutes(app, options.pool, audit);
     registerAgentControlRoutes(app, options.pool);
+    registerFaultAnalysisRoutes(app, options.pool, options.modelSecret);
     registerAgentCliRoutes(app, options.pool, runtime, options.modelSecret);
     registerAgentInstallRoutes(app, options.pool, options.agentEnrollmentToken, {
       distDir: options.agentDistDir ?? 'agents/opsagent-agent/dist',

@@ -82,7 +82,7 @@ describe('Chat', () => {
       's',
       'hello',
       expect.any(String),
-      'danger-full-access',
+      'auto-review',
       'm2',
     ));
   });

@@ -297,7 +297,7 @@ export class DshRuntime implements RuntimeClient {
             OPSAGENT_MODEL_API_KEY: model.apiKey,
           }
         : {};
-    const permissionMode: PermissionMode = options?.permissionMode ?? 'danger-full-access';
+    const permissionMode: PermissionMode = options?.permissionMode ?? 'auto-review';
     const sandboxMode = permissionMode === 'auto-review' ? 'danger-full-access' : permissionMode;
     logInfo('[runtime] prompt', {
       sessionId,

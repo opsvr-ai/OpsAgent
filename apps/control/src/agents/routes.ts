@@ -452,7 +452,7 @@ export function registerAgentRoutes(
     const body = request.body as { type?: unknown; input?: unknown } | undefined;
     if (
       typeof body?.type !== 'string' ||
-      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect', 'exec', 'skills', 'memory', 'skill', 'script'].includes(body.type)
+      !['diagnostics', 'disk_check', 'memory_check', 'ai_diagnose', 'discovery', 'inspect', 'exec', 'skills', 'memory', 'skill'].includes(body.type)
     ) {
       return reply.code(400).send({ error: 'invalid_request' });
     }

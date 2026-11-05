@@ -64,7 +64,7 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequestEvent | null>(null);
   const [runtimeApprovals, setRuntimeApprovals] = useState<ApprovalSummary[]>([]);
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('danger-full-access');
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>('auto-review');
   const [permissionOpen, setPermissionOpen] = useState(false);
   const [models, setModels] = useState<ModelProvider[]>([]);
   const [modelId, setModelId] = useState('');

@@ -441,6 +441,48 @@ export function registerAgentRoutes(
     return reply.send(updated);
   });
 
+  app.delete<{ Params: { id: string; itemId: string } }>('/api/agents/:id/inventory/:itemId', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const hidden = await inventoryService.hide(ctx.tenantId, request.params.id, request.params.itemId, ctx.userId);
+    if (!hidden) return reply.code(404).send({ error: 'inventory_not_found' });
+    return reply.send({ ok: true });
+  });
+
+  app.post<{ Params: { id: string; itemId: string } }>('/api/agents/:id/inventory/:itemId/promote', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { kind?: unknown } | undefined;
+    if (body?.kind !== 'ops_tool') return reply.code(400).send({ error: 'invalid_target_kind' });
+    const updated = await inventoryService.promote(ctx.tenantId, request.params.id, request.params.itemId, 'ops_tool');
+    if (updated === 0) return reply.code(404).send({ error: 'inventory_not_found' });
+    return reply.send({ ok: true, updated });
+  });
+
   app.get('/api/app-systems/health', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
     if (!token) return reply.code(401).send({ error: 'unauthorized' });

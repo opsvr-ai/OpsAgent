@@ -11,6 +11,8 @@ import {
   getAgentDetail,
   getAgentInventory,
   updateAgentInventory,
+  deleteAgentInventory,
+  promoteAgentInventory,
   getAgentEvents,
   getAgentFleet,
   getAgentInstallCommand,
@@ -319,8 +321,28 @@ export function Agents({ onBack }: AgentsProps) {
     }
   }
 
-  function inventoryDetail(item: AgentInventoryItem): string {
-    const detail = item.detail;
+  async function removeInventory(item: AgentInventoryItem) {
+    if (!detail || !window.confirm(`从当前应用系统隐藏 ${item.name}？其他主机的同名对象也会消失。`)) return;
+    try {
+      await deleteAgentInventory(detail.id, item.id);
+      setInventory(await getAgentInventory(detail.id));
+    } catch {
+      setError('删除巡检对象失败');
+    }
+  }
+
+  async function promoteInventory(item: AgentInventoryItem) {
+    if (!detail) return;
+    try {
+      await promoteAgentInventory(detail.id, item.id);
+      setInventory(await getAgentInventory(detail.id));
+      setInventoryFilter('ops_tool');
+    } catch {
+      setError('转为运维工具失败');
+    }
+  }
+
+  function inventoryDetail(item: AgentInventoryItem): string {    const detail = item.detail;
     if (item.kind === 'process') {
       return String(detail.executable ?? detail.installPath ?? detail.command ?? detail.path ?? '—');
     }
@@ -912,6 +934,10 @@ export function Agents({ onBack }: AgentsProps) {
                                   </div>
                                   <label className="inventory-check"><input type="checkbox" checked={item.important} onChange={() => void toggleInventory(item, 'important')} /> 重要</label>
                                   <label className="inventory-check"><input type="checkbox" checked={item.monitored} onChange={() => void toggleInventory(item, 'monitored')} /> 监控</label>
+                                  <div className="inventory-actions">
+                                    {item.kind === 'process' ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => void promoteInventory(item)}>转为运维工具</button> : null}
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => void removeInventory(item)}>删除</button>
+                                  </div>
                                 </div>
                               ))}
                             </div>

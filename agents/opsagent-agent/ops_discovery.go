@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -134,9 +136,10 @@ func collectApplicationInventory() map[string]any {
 func applicationPorts() []map[string]any {
 	output := commandOutput(3*time.Second, "ss", "-lntup")
 	ports := []map[string]any{}
+	seen := map[string]bool{}
 	for _, line := range strings.Split(output, "\n") {
 		fields := strings.Fields(line)
-		if len(fields) < 5 || (fields[0] != "LISTEN" && !strings.HasPrefix(fields[0], "udp")) {
+		if len(fields) < 5 || (fields[1] != "LISTEN" && !strings.HasPrefix(fields[0], "udp")) {
 			continue
 		}
 		address := fields[4]
@@ -145,11 +148,72 @@ func applicationPorts() []map[string]any {
 			process = strings.Join(fields[6:], " ")
 		}
 		ports = append(ports, map[string]any{"address": address, "process": process})
-		if len(ports) >= 80 {
+		seen[address] = true
+		if len(ports) >= 500 {
 			break
 		}
 	}
+	for _, entry := range procNetPorts() {
+		address := entry["address"].(string)
+		if seen[address] {
+			continue
+		}
+		seen[address] = true
+		ports = append(ports, entry)
+	}
 	return ports
+}
+
+func procNetPorts() []map[string]any {
+	entries := []map[string]any{}
+	for _, spec := range []struct{ path, protocol string }{
+		{"/proc/net/tcp", "tcp"},
+		{"/proc/net/tcp6", "tcp6"},
+		{"/proc/net/udp", "udp"},
+		{"/proc/net/udp6", "udp6"},
+	} {
+		data, err := os.ReadFile(spec.path)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines[1:] {
+			fields := strings.Fields(line)
+			if len(fields) < 4 {
+				continue
+			}
+			if strings.HasPrefix(spec.protocol, "tcp") && fields[3] != "0A" {
+				continue
+			}
+			local := fields[1]
+			colon := strings.LastIndex(local, ":")
+			if colon < 0 {
+				continue
+			}
+			portValue, err := strconv.ParseInt(local[colon+1:], 16, 32)
+			if err != nil || portValue <= 0 {
+				continue
+			}
+			ipHex := local[:colon]
+			address := ""
+			if len(ipHex) == 8 {
+				bytes, err := hex.DecodeString(ipHex)
+				if err == nil && len(bytes) == 4 {
+					address = fmt.Sprintf("%d.%d.%d.%d:%d", bytes[3], bytes[2], bytes[1], bytes[0], portValue)
+				}
+			}
+			if address == "" {
+				address = fmt.Sprintf("[::]:%d", portValue)
+			}
+			entries = append(entries, map[string]any{
+				"address":  address,
+				"process":  "",
+				"protocol": spec.protocol,
+				"source":   "/proc/net",
+			})
+		}
+	}
+	return entries
 }
 
 func parseKeyValue(output string) map[string]string {

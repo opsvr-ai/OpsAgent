@@ -22,6 +22,21 @@ export class AgentInventoryService {
   constructor(private readonly pool: Pool) {}
 
   async sync(tenantId: string, agentId: string, operations: unknown): Promise<number> {
+    const scope = await this.scope(tenantId, agentId);
+    const hides = await this.pool.query<{ kind: string; name: string }>(
+      `SELECT kind, name FROM agent_inventory_hides
+       WHERE tenant_id = $1 AND (($2::uuid IS NOT NULL AND app_system_id = $2) OR agent_id = $3)`,
+      [tenantId, scope.appSystemId, agentId],
+    );
+    const hidden = new Set(hides.rows.map((row) => `${row.kind}:${row.name}`));
+    const overrides = await this.pool.query<{
+      kind: string; name: string; target_kind: string | null; important: boolean | null; monitored: boolean | null;
+    }>(
+      `SELECT kind, name, target_kind, important, monitored FROM agent_inventory_overrides
+       WHERE tenant_id = $1 AND (($2::uuid IS NOT NULL AND app_system_id = $2) OR agent_id = $3)`,
+      [tenantId, scope.appSystemId, agentId],
+    );
+    const overrideMap = new Map(overrides.rows.map((row) => [`${row.kind}:${row.name}`, row]));
     const payload = asObject(operations);
     const items: Array<{ kind: InventoryKind; name: string; detail: Record<string, unknown> }> = [];
     for (const service of Array.isArray(payload.services) ? payload.services : []) {
@@ -44,15 +59,30 @@ export class AgentInventoryService {
       if (typeof entry.name === 'string' && entry.name) items.push({ kind: 'ops_tool', name: entry.name, detail: entry });
     }
     const unique = new Map<string, { kind: InventoryKind; name: string; detail: Record<string, unknown> }>();
-    for (const item of items.slice(0, 2000)) unique.set(`${item.kind}:${item.name}`, item);
+    for (const item of items.slice(0, 2000)) {
+      if (hidden.has(`${item.kind}:${item.name}`)) continue;
+      const override = overrideMap.get(`${item.kind}:${item.name}`);
+      const targetKind = (override?.target_kind as InventoryKind | undefined) ?? item.kind;
+      unique.set(`${targetKind}:${item.name}`, { ...item, kind: targetKind });
+    }
     for (const item of unique.values()) {
+      const override = overrideMap.get(`${item.kind}:${item.name}`) ?? overrideMap.get(`process:${item.name}`) ?? overrideMap.get(`port:${item.name}`) ?? overrideMap.get(`service:${item.name}`);
       await this.pool.query(
-        `INSERT INTO agent_inventory (tenant_id, agent_id, kind, name, detail)
-         VALUES ($1, $2, $3, $4, $5::jsonb)
+        `INSERT INTO agent_inventory (tenant_id, agent_id, kind, name, detail, important, monitored)
+         VALUES ($1, $2, $3, $4, $5::jsonb, COALESCE($6, false), COALESCE($7, false))
          ON CONFLICT (tenant_id, agent_id, kind, name)
-         DO UPDATE SET detail = EXCLUDED.detail, updated_at = now()`,
-        [tenantId, agentId, item.kind, item.name, JSON.stringify(item.detail)],
+         DO UPDATE SET detail = EXCLUDED.detail,
+           important = CASE WHEN $6::boolean IS NULL THEN agent_inventory.important ELSE $6 END,
+           monitored = CASE WHEN $7::boolean IS NULL THEN agent_inventory.monitored ELSE $7 END,
+           updated_at = now()`,
+        [tenantId, agentId, item.kind, item.name, JSON.stringify(item.detail), override?.important ?? null, override?.monitored ?? null],
       );
+      if (overrideMap.has(`process:${item.name}`) && overrideMap.get(`process:${item.name}`)?.target_kind === 'ops_tool') {
+        await this.pool.query(
+          `DELETE FROM agent_inventory WHERE tenant_id = $1 AND agent_id = $2 AND kind = 'process' AND name = $3`,
+          [tenantId, agentId, item.name],
+        );
+      }
     }
     const processNames = [...unique.values()].filter((item) => item.kind === 'process').map((item) => item.name);
     if (processNames.length > 0) {
@@ -64,6 +94,96 @@ export class AgentInventoryService {
       );
     }
     return unique.size;
+  }
+
+  private async scope(tenantId: string, agentId: string): Promise<{ appSystemId: string | null }> {
+    const result = await this.pool.query<{ app_system_id: string | null }>(
+      'SELECT app_system_id FROM agents WHERE tenant_id = $1 AND id = $2',
+      [tenantId, agentId],
+    );
+    return { appSystemId: result.rows[0]?.app_system_id ?? null };
+  }
+
+  private async scopedAgentIds(tenantId: string, agentId: string): Promise<{ appSystemId: string | null; ids: string[] }> {
+    const scope = await this.scope(tenantId, agentId);
+    if (!scope.appSystemId) return { appSystemId: null, ids: [agentId] };
+    const agents = await this.pool.query<{ id: string }>(
+      'SELECT id FROM agents WHERE tenant_id = $1 AND app_system_id = $2',
+      [tenantId, scope.appSystemId],
+    );
+    return { appSystemId: scope.appSystemId, ids: agents.rows.map((row) => row.id) };
+  }
+
+  async hide(tenantId: string, agentId: string, itemId: string, userId: string): Promise<boolean> {
+    const item = await this.pool.query<{ kind: string; name: string }>(
+      'SELECT kind, name FROM agent_inventory WHERE tenant_id = $1 AND agent_id = $2 AND id = $3',
+      [tenantId, agentId, itemId],
+    );
+    const row = item.rows[0];
+    if (!row) return false;
+    const scope = await this.scopedAgentIds(tenantId, agentId);
+    await this.pool.query(
+      `INSERT INTO agent_inventory_hides (tenant_id, app_system_id, agent_id, kind, name, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT DO NOTHING`,
+      [
+        tenantId,
+        scope.appSystemId,
+        scope.appSystemId ? null : agentId,
+        row.kind,
+        row.name,
+        userId,
+      ],
+    );
+    await this.pool.query(
+      `DELETE FROM agent_inventory
+       WHERE tenant_id = $1 AND agent_id = ANY($2::uuid[]) AND kind = $3 AND name = $4`,
+      [tenantId, scope.ids, row.kind, row.name],
+    );
+    return true;
+  }
+
+  async promote(tenantId: string, agentId: string, itemId: string, targetKind: 'ops_tool'): Promise<number> {
+    const item = await this.pool.query<{
+      kind: string; name: string; detail: Record<string, unknown>; important: boolean; monitored: boolean;
+    }>(
+      'SELECT kind, name, detail, important, monitored FROM agent_inventory WHERE tenant_id = $1 AND agent_id = $2 AND id = $3',
+      [tenantId, agentId, itemId],
+    );
+    const row = item.rows[0];
+    if (!row) return 0;
+    const scope = await this.scopedAgentIds(tenantId, agentId);
+    await this.pool.query(
+      `INSERT INTO agent_inventory_overrides
+         (tenant_id, app_system_id, agent_id, kind, name, target_kind, important, monitored)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT DO NOTHING`,
+      [
+        tenantId,
+        scope.appSystemId,
+        scope.appSystemId ? null : agentId,
+        row.kind,
+        row.name,
+        targetKind,
+        row.important,
+        row.monitored,
+      ],
+    );
+    await this.pool.query(
+      `INSERT INTO agent_inventory (tenant_id, agent_id, kind, name, detail, important, monitored)
+       SELECT tenant_id, agent_id, $1, name, detail, important, monitored
+       FROM agent_inventory
+       WHERE tenant_id = $2 AND agent_id = ANY($3::uuid[]) AND kind = $4 AND name = $5
+       ON CONFLICT (tenant_id, agent_id, kind, name)
+       DO UPDATE SET detail = EXCLUDED.detail, important = EXCLUDED.important, monitored = EXCLUDED.monitored`,
+      [targetKind, tenantId, scope.ids, row.kind, row.name],
+    );
+    await this.pool.query(
+      `DELETE FROM agent_inventory
+       WHERE tenant_id = $1 AND agent_id = ANY($2::uuid[]) AND kind = $3 AND name = $4`,
+      [tenantId, scope.ids, row.kind, row.name],
+    );
+    return scope.ids.length;
   }
 
   async list(tenantId: string, agentId: string): Promise<InventoryItem[]> {

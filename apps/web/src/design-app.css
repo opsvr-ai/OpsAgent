@@ -1774,3 +1774,7 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .inventory-path { font-size: 10.5px; color: var(--text-soft); overflow-wrap: anywhere; line-height: 1.4; }
 .inventory-check { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--text-soft); white-space: nowrap; }
 @media (max-width: 720px) { .inventory-row { grid-template-columns: auto minmax(0, 1fr); } .inventory-check { grid-row: 2; } }
+.inventory-row { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+.inventory-actions { display: flex; gap: 4px; justify-content: flex-end; }
+.inventory-actions .btn { padding: 4px 7px; font-size: 10px; }
+@media (max-width: 900px) { .inventory-row { grid-template-columns: auto minmax(0, 1fr); } .inventory-check, .inventory-actions { grid-row: 2; } }

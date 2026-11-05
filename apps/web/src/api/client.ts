@@ -1203,6 +1203,17 @@ export async function updateAgentInventory(
   });
 }
 
+export async function deleteAgentInventory(agentId: string, itemId: string): Promise<void> {
+  await request<{ ok: true }>(`/api/agents/${agentId}/inventory/${itemId}`, { method: 'DELETE' });
+}
+
+export async function promoteAgentInventory(agentId: string, itemId: string): Promise<void> {
+  await request<{ ok: true }>(`/api/agents/${agentId}/inventory/${itemId}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ kind: 'ops_tool' }),
+  });
+}
+
 export async function createAgentCommand(
   agentId: string,
   type: string,

@@ -51,6 +51,11 @@ export type PlatformPlan =
       readonly targetName?: string;
     }
   | {
+      readonly kind: 'agent-retry';
+      readonly taskId: string;
+      readonly query: string;
+    }
+  | {
       readonly kind: 'app-health';
       readonly appSystemId: string;
       readonly appSystemName: string;
@@ -95,7 +100,18 @@ export class PlatformAssistant {
     private readonly control = new AgentControlService(pool),
   ) {}
 
-  async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
+  async detect(tenantId: string, text: string, sessionId?: string): Promise<PlatformPlan | null> {
+    if (sessionId && /(重试|再试|重跑|失败的|失败节点|继续执行|retry)/i.test(text)) {
+      const previous = await this.pool.query<{ id: string }>(
+        `SELECT t.id FROM agent_control_tasks t
+         WHERE t.tenant_id = $1 AND t.session_id = $2 AND t.status IN ('partial', 'failed')
+         ORDER BY t.created_at DESC LIMIT 1`,
+        [tenantId, sessionId],
+      );
+      if (previous.rows[0]) {
+        return { kind: 'agent-retry', taskId: previous.rows[0].id, query: text };
+      }
+    }
     const batchPlan = await this.detectAgentBatch(tenantId, text);
     if (batchPlan) return batchPlan;
     const mentioned = await this.agents.findByMention(tenantId, text);
@@ -215,6 +231,22 @@ export class PlatformAssistant {
   }
 
   async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string, userId?: string): AsyncIterable<RuntimeEvent> {
+    if (plan.kind === 'agent-retry') {
+      yield this.toolCall(sessionId, 'opsagent.agent_retry', { taskId: plan.taskId }, 'R1');
+      const result = await this.control.retryFailed(tenantId, plan.taskId);
+      if (!result) {
+        yield this.assistant(sessionId, '没有找到可重试的控制任务。');
+        yield this.done(sessionId);
+        return;
+      }
+      yield this.toolResult(sessionId, 'opsagent.agent_retry', {
+        taskId: result.taskId, total: result.total, succeeded: result.success, failed: result.failed,
+      });
+      const answer = await this.summarizeBatch(result.instruction, result.runs, tenantId, modelId);
+      yield this.assistant(sessionId, answer, 'model');
+      yield this.done(sessionId);
+      return;
+    }
     if (plan.kind === 'agent-batch') {
       yield* this.executeAgentBatch(plan, tenantId, sessionId, modelId, userId);
       return;
@@ -518,6 +550,7 @@ export class PlatformAssistant {
       targetMode: plan.targetMode,
       ...(plan.targetId ? { targetId: plan.targetId } : {}),
       ...(plan.targetName ? { targetName: plan.targetName } : {}),
+      sessionId,
     });
     yield this.toolResult(sessionId, 'opsagent.agent_batch', {
       taskId: result.taskId,

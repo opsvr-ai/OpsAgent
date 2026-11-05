@@ -225,7 +225,7 @@ export class SessionService {
     }
     await this.appendTranscript(session.id, tenantId, 'user', { text });
 
-    const platformPlan = await this.platform.detect(tenantId, text);
+    const platformPlan = await this.platform.detect(tenantId, text, session.runtimeSessionId);
     if (platformPlan) {
       try {
         for await (const event of this.platform.execute(platformPlan, tenantId, session.runtimeSessionId, modelId, userId)) {

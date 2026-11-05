@@ -261,6 +261,8 @@ PUT /api/agents/:id/patrol-policy
 - 全部主机：所有在线 Agent
 - 只读检查自动执行并汇总
 - 写操作不会在普通对话中直接执行，需走「自然语言指令」的平台审批
+- 支持多轮引用上一批任务：`重试失败节点` 只重试上一任务失败的主机
+- 每个批次落库 `agent_control_tasks` / `agent_control_runs`，可通过 `/api/agent-control/tasks/:id` 查看明细
 
 文档：`docs/design/plans/2026-11-05-agent-eino-layout.md`
 

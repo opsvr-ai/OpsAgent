@@ -10,6 +10,7 @@ export interface AgentControlPlan {
   readonly targetMode: AgentControlTargetMode;
   readonly targetId?: string;
   readonly targetName?: string;
+  readonly sessionId?: string;
 }
 
 export interface AgentControlRun {
@@ -81,8 +82,8 @@ export class AgentControlService {
     const createdBy = plan.userId && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(plan.userId) ? plan.userId : null;
     const task = await this.pool.query<{ id: string }>(
       `INSERT INTO agent_control_tasks
-         (tenant_id, instruction, target_mode, target_id, target_name, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (tenant_id, instruction, target_mode, target_id, target_name, status, created_by, session_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
       [
         plan.tenantId,
@@ -92,6 +93,7 @@ export class AgentControlService {
         plan.targetName ?? null,
         targets.length > 0 ? 'running' : 'failed',
         createdBy,
+        plan.sessionId ?? null,
       ],
     );
     const taskId = task.rows[0]?.id;
@@ -160,6 +162,68 @@ export class AgentControlService {
       success,
       failed,
       runs,
+    };
+  }
+
+  async retryFailed(tenantId: string, taskId: string): Promise<AgentControlResult | null> {
+    const task = await this.pool.query<{ instruction: string; status: string }>(
+      'SELECT instruction, status FROM agent_control_tasks WHERE tenant_id = $1 AND id = $2',
+      [tenantId, taskId],
+    );
+    const taskRow = task.rows[0];
+    if (!taskRow) return null;
+    const failed = await this.pool.query<{
+      id: string; agent_id: string; hostname: string;
+    }>(
+      `SELECT id, agent_id, hostname FROM agent_control_runs
+       WHERE task_id = $1 AND tenant_id = $2 AND status <> 'completed'`,
+      [taskId, tenantId],
+    );
+    const runs: AgentControlRun[] = [];
+    await Promise.all(failed.rows.map(async (run) => {
+      const command = await this.commands.create({
+        tenantId,
+        agentId: run.agent_id,
+        type: 'inspect',
+        input: { question: taskRow.instruction },
+      });
+      if (!command) {
+        runs.push({ hostname: run.hostname, status: 'failed', answer: '', analysis: '' });
+        return;
+      }
+      await this.pool.query(
+        'UPDATE agent_control_runs SET command_id = $1, status = $2, error = $3 WHERE id = $4',
+        [command.id, 'running', '', run.id],
+      );
+      const final = await this.pollCommand(tenantId, run.agent_id, command.id);
+      const payload = typeof final?.result === 'object' && final.result !== null
+        ? final.result as Record<string, unknown>
+        : {};
+      const answer = typeof payload.answer === 'string' ? payload.answer : '';
+      const analysis = typeof payload.analysis === 'string' ? payload.analysis : '';
+      const status = final?.status === 'completed' ? 'completed' : 'failed';
+      await this.pool.query(
+        `UPDATE agent_control_runs SET status = $1, answer = $2, error = $3, completed_at = now() WHERE id = $4`,
+        [status, answer, typeof payload.error === 'string' ? payload.error : '', run.id],
+      );
+      runs.push({ hostname: run.hostname, status, answer, analysis });
+    }));
+    const all = await this.pool.query<{ status: string; hostname: string; answer: string }>(
+      'SELECT status, hostname, answer FROM agent_control_runs WHERE task_id = $1 ORDER BY hostname',
+      [taskId],
+    );
+    const success = all.rows.filter((row) => row.status === 'completed').length;
+    const failedCount = all.rows.length - success;
+    const status = failedCount === 0 ? 'completed' : success === 0 ? 'failed' : 'partial';
+    await this.pool.query('UPDATE agent_control_tasks SET status = $1, completed_at = now() WHERE id = $2', [status, taskId]);
+    return {
+      taskId,
+      status,
+      instruction: taskRow.instruction,
+      total: all.rows.length,
+      success,
+      failed: failedCount,
+      runs: all.rows.map((row) => ({ hostname: row.hostname, status: row.status, answer: row.answer, analysis: row.answer })),
     };
   }
 

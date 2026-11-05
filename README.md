@@ -76,6 +76,29 @@ curl -s http://127.0.0.1:8080/api/agents/install-command?os=linux \
 - 修改 `.env` 后必须 `docker compose up -d control`，不能只 `docker compose restart control`。
 - 不要把它配置成 `http://control:8080`，那只在 Docker 网络内部有效。
 
+### 内网 npm / Go 代理
+
+镜像构建时通过 build args 使用 `.env` 中的代理地址：
+
+```text
+NPM_REGISTRY=http://7.24.4.68:28081/repository/npm/
+GOPROXY=https://proxy.golang.org,direct
+GOSUMDB=sum.golang.org
+```
+
+- `NPM_REGISTRY` 同时用于 `npm install -g pnpm/dsh` 和 `pnpm install --frozen-lockfile`。
+- Nexus/Artifactory 的 npm 代理地址末尾保留 `/repository/npm/`。
+- `GOPROXY` 指向内网 Go 模块代理；私有代理可设置 `GOSUMDB=off`。
+- 修改后重新构建，不能只 `docker compose up`：
+
+```bash
+docker compose build control
+docker compose up -d control
+```
+
+- 如果内网没有 Go 模块代理，在有网环境构建 control 镜像后 `docker save`/`docker load` 导入。
+- Nexus 私服需要认证时，把凭据放进构建环境的 `.npmrc` 或使用 BuildKit secret，不要把 token 写进镜像。
+
 容器内：
 
 - `control`：Fastify，端口 8080，镜像内安装 `@deepseek-ai/dsh`

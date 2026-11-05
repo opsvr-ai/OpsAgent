@@ -1,5 +1,13 @@
 name: opsagent-local
 
+x-agent-build: &agent-build
+  context: .
+  dockerfile: Dockerfile.dev
+  args:
+    NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+    GOSUMDB: ${GOSUMDB:-sum.golang.org}
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -57,14 +65,12 @@ services:
   #   docker compose run --rm seed
   seed:
     profiles: ["tools"]
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    build: *agent-build
     command: pnpm --filter @opsagent/control seed:dev
     environment:
       DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
-      LOCAL_ADMIN_USERNAME: tenant-admin
-      LOCAL_ADMIN_PASSWORD: opsagent-dev
+      LOCAL_ADMIN_USERNAME: ${LOCAL_ADMIN_USERNAME:-tenant-admin}
+      LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:-opsagent-dev}
     volumes:
       - .:/app
       - /app/node_modules
@@ -76,18 +82,17 @@ services:
         condition: service_healthy
 
   control:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    build: *agent-build
     working_dir: /app
     command: sh -lc "chmod 600 /root/.dsh/.credentials.yaml 2>/dev/null || true; exec pnpm --filter @opsagent/control exec tsx watch src/index.ts"
     environment:
       CI: "true"
       DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
       REDIS_URL: redis://redis:6379
-      LOCAL_ADMIN_ENABLED: "true"
-      LOCAL_ADMIN_USERNAME: tenant-admin
-      LOCAL_ADMIN_USERNAMES: tenant-admin,platform-admin
+      LOCAL_ADMIN_ENABLED: ${LOCAL_ADMIN_ENABLED:-true}
+      LOCAL_ADMIN_USERNAME: ${LOCAL_ADMIN_USERNAME:-tenant-admin}
+      LOCAL_ADMIN_USERNAMES: ${LOCAL_ADMIN_USERNAMES:-tenant-admin,platform-admin}
+      OPSAGENT_SECRET_KEY: ${OPSAGENT_SECRET_KEY:-dev-only-secret}
       DSH_HOME: /root/.dsh
       DSH_RUNTIME_ENABLED: "true"
       DSH_ACCOUNT_AUTH: "true"
@@ -95,16 +100,16 @@ services:
       DSH_PERMISSION_MODE: danger-full-access
       OPSAGENT_WORKSPACE_ROOT: /app
       STUDIO_DSH_ENABLED: "true"
-      OPSAGENT_AGENT_ENROLLMENT_TOKEN: opsagent-local-enroll
-      OPSAGENT_AGENT_DIST_DIR: /opt/opsagent-agent-dist
+      OPSAGENT_AGENT_ENROLLMENT_TOKEN: ${OPSAGENT_AGENT_ENROLLMENT_TOKEN:-opsagent-local-enroll}
+      OPSAGENT_AGENT_DIST_DIR: ${OPSAGENT_AGENT_DIST_DIR:-/opt/opsagent-agent-dist}
       OPSAGENT_DESKTOP_UPDATE_DIR: /app/apps/desktop/release/feed
       OPSAGENT_PUBLIC_URL: ${OPSAGENT_PUBLIC_URL:-http://127.0.0.1:8080}
-      OPSAGENT_CRL_URL: http://127.0.0.1:8080/api/pki/crl
-      OPSAGENT_OCSP_URL: http://127.0.0.1:8080/api/pki/ocsp
+      OPSAGENT_CRL_URL: ${OPSAGENT_CRL_URL:-http://127.0.0.1:8080/api/pki/crl}
+      OPSAGENT_OCSP_URL: ${OPSAGENT_OCSP_URL:-http://127.0.0.1:8080/api/pki/ocsp}
       OPSAGENT_TLS_PORT: "8443"
       OPSAGENT_TLS_AUTO: "true"
-      OPSAGENT_TLS_HOSTNAMES: localhost,opsagent-control
-      OPSAGENT_TLS_IPS: 127.0.0.1
+      OPSAGENT_TLS_HOSTNAMES: ${OPSAGENT_TLS_HOSTNAMES:-localhost,opsagent-control}
+      OPSAGENT_TLS_IPS: ${OPSAGENT_TLS_IPS:-127.0.0.1}
       OPSAGENT_TLS_REQUIRE_CLIENT_CERT: "true"
       PORT: "8080"
     ports:
@@ -135,9 +140,7 @@ services:
       retries: 12
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    build: *agent-build
     working_dir: /app
     command: pnpm --filter @opsagent/web exec vite --host 0.0.0.0 --port 5173
     environment:

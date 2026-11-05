@@ -2,7 +2,16 @@
 # Uses the locally available Node 22 Alpine image; production should pin Node 24.
 # The source tree is bind-mounted by compose; node_modules stay in anonymous
 # volumes so Windows/macOS hosts never install Linux-native modules.
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
+
 FROM golang:1.26-alpine AS agent-dist
+
+ARG GOPROXY
+ARG GOSUMDB
+ENV GOPROXY=$GOPROXY
+ENV GOSUMDB=$GOSUMDB
 
 WORKDIR /src
 COPY agents/opsagent-agent/go.mod agents/opsagent-agent/go.sum ./
@@ -15,7 +24,11 @@ RUN mkdir -p /out \
 
 FROM node:22-alpine
 
-RUN apk add --no-cache python3 make g++ bash \
+ARG NPM_REGISTRY
+ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
+
+RUN npm config set registry "$NPM_REGISTRY" \
+  && apk add --no-cache python3 make g++ bash \
   && npm install -g pnpm@11.4.0 @deepseek-ai/dsh@0.2.1-rc.5
 
 WORKDIR /app

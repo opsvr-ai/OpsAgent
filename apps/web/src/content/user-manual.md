@@ -207,6 +207,16 @@ Linux 标准目录：
 
 容器部署不需要手工编译：`docker compose build control` 会在 Go 阶段自动生成三个平台二进制，并放进镜像的 `/opt/opsagent-agent-dist`。宿主机不需要安装 Go。
 
+内网构建前在 `.env` 中配置：
+
+```text
+NPM_REGISTRY=http://<nexus>/repository/npm/
+GOPROXY=https://proxy.golang.org,direct
+GOSUMDB=sum.golang.org
+```
+
+`NPM_REGISTRY` 同时用于全局 npm 安装和 `pnpm install`。没有 Go 代理时，在有网环境构建镜像后导入内网。
+
 非容器开发或需要单独分发时：
 
 ```bash

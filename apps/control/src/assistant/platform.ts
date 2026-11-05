@@ -51,6 +51,10 @@ export type PlatformPlan =
       readonly targetName?: string;
     }
   | {
+      readonly kind: 'app-systems';
+      readonly query: string;
+    }
+  | {
       readonly kind: 'agent-retry';
       readonly taskId: string;
       readonly query: string;
@@ -114,6 +118,9 @@ export class PlatformAssistant {
     }
     const batchPlan = await this.detectAgentBatch(tenantId, text);
     if (batchPlan) return batchPlan;
+    if (/应用系统/.test(text) && /(哪些|多少|列表|清单|纳管|查看|列出|几个)/.test(text)) {
+      return { kind: 'app-systems', query: text };
+    }
     const mentioned = await this.agents.findByMention(tenantId, text);
     if (mentioned) {
       const alertQuestion = /(告警|故障|异常|健康|正常吗)/i.test(text);
@@ -231,6 +238,29 @@ export class PlatformAssistant {
   }
 
   async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string, userId?: string): AsyncIterable<RuntimeEvent> {
+    if (plan.kind === 'app-systems') {
+      yield this.toolCall(sessionId, 'opsagent.app_systems', {}, 'R0');
+      const systems = await this.agents.listAppSystems(tenantId);
+      yield this.toolResult(sessionId, 'opsagent.app_systems', { count: systems.length });
+      if (systems.length === 0) {
+        yield this.assistant(sessionId, '当前还没有纳管应用系统。可以在「操作系统智能体 → 应用系统视图」新增应用系统，再把主机归属到该系统。');
+      } else {
+        const online = systems.reduce((total, system) => total + system.onlineCount, 0);
+        const hosts = systems.reduce((total, system) => total + system.agentCount, 0);
+        const lines = [
+          `当前平台纳管 **${systems.length}** 个应用系统，覆盖 **${hosts}** 台主机，其中 **${online}** 台在线。`,
+          '',
+          '| 应用系统 | 编码 | 负责人 | 等级 | 在线/总数 |',
+          '| --- | --- | --- | --- | --- |',
+        ];
+        for (const system of systems) {
+          lines.push(`| ${system.name} | ${system.code} | ${system.owner ?? '—'} | ${system.criticality} | ${system.onlineCount}/${system.agentCount} |`);
+        }
+        yield this.assistant(sessionId, lines.join('\n'));
+      }
+      yield this.done(sessionId);
+      return;
+    }
     if (plan.kind === 'agent-retry') {
       yield this.toolCall(sessionId, 'opsagent.agent_retry', { taskId: plan.taskId }, 'R1');
       const result = await this.control.retryFailed(tenantId, plan.taskId);

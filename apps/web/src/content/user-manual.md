@@ -349,6 +349,30 @@ split_clients "${remote_addr}${request_id}" $order_example_com_backend {
 - 检查 control 是否已重启并加载最新代码。
 - 检查迁移是否执行、角色权限是否已 seed。
 
+### 安装脚本返回 curl: (22) 404
+
+这通常不是安装脚本本身 404，而是脚本内部下载 Agent 二进制时 404。先在目标机确认：
+
+```bash
+uname -m
+curl -i -sS -o /dev/null -w '%{http_code}\n' \
+  'http://<control-ip>:8080/api/agents/binary?os=linux&arch=amd64&token=<token>'
+```
+
+排查：
+
+- 确认 `OPSAGENT_PUBLIC_URL` 是宿主机 LAN IP，不是 `127.0.0.1`。
+- 重新打开安装弹窗并复制新命令，旧命令可能带 `//api`。
+- `x86_64` 用 `amd64`，`aarch64` 用 `arm64`。
+- 确认 `OPSAGENT_AGENT_DIST_DIR` 下有对应二进制，或执行 `pnpm agent:dist`。
+- 新安装脚本会打印 `Downloading ... Agent binary from ...`，失败时打印完整 URL。
+- 可在目标机保存脚本后用 `bash -x` 运行，定位具体失败行：
+
+```bash
+curl -fsSL '<install.sh-url>' -o /tmp/install.sh
+bash -x /tmp/install.sh
+```
+
 ### Agent 不在线
 
 - 检查 `OPSAGENT_CONTROL_URL` 和 `OPSAGENT_TENANT_ID`。

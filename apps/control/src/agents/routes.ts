@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
+import type { AuditWriter } from '../audit/writer.js';
 import { SESSION_COOKIE, readSession } from '../auth/session.js';
 import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext } from '../tenancy/context.js';
@@ -11,6 +12,7 @@ import { AgentEventService, type AgentEventInput } from './events.js';
 import { AppHealthService } from './health.js';
 import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
+import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -32,12 +34,14 @@ export function registerAgentRoutes(
   pool: Pool,
   enrollmentToken?: string,
   modelSecret = process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret',
+  audit?: AuditWriter,
 ): void {
   const agents = new AgentService(pool);
   const commands = new AgentCommandService(pool);
   const events = new AgentEventService(pool);
   const health = new AppHealthService(pool);
   const modelCompletion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
+  const patrolPolicies = new PatrolPolicyService(pool);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -236,8 +240,8 @@ export function registerAgentRoutes(
       const analysis = await modelCompletion.complete({
         tenantId: row.tenant_id,
         system: [
-          '你是 OpsAgent 主机自主巡航分析器。',
-          '根据给定的主机指标和异常事件给出：异常判断、最可能原因、建议的下一步检查或处置。',
+          '你是 OpsAgent 主机自主巡航根因分析器。',
+          '根据给定的主机指标、阈值和异常事件给出：是否异常、根因判断、最可能原因、建议的下一步检查或处置。',
           '只使用提供的数据，不编造；回答简洁，使用简体中文，控制在 300 字以内。',
         ].join('\n'),
         prompt: JSON.stringify({
@@ -255,6 +259,101 @@ export function registerAgentRoutes(
       return reply.code(503).send({ error: 'model_unavailable' });
     }
   });
+
+  app.get<{ Params: { id: string } }>('/api/agents/:id/patrol-policy', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const policy = await patrolPolicies.get(ctx.tenantId, request.params.id);
+    if (!policy) return reply.code(404).send({ error: 'agent_not_found' });
+    return reply.send(policy);
+  });
+
+  app.put<{ Params: { id: string } }>('/api/agents/:id/patrol-policy', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      enabled?: unknown;
+      intervalSeconds?: unknown;
+      diskFreePct?: unknown;
+      memLoadPct?: unknown;
+      load1?: unknown;
+    } | undefined;
+    if (
+      typeof body?.enabled !== 'boolean' ||
+      typeof body.intervalSeconds !== 'number' ||
+      typeof body.diskFreePct !== 'number' ||
+      typeof body.memLoadPct !== 'number' ||
+      typeof body.load1 !== 'number'
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const policy = await patrolPolicies.upsert(ctx.tenantId, request.params.id, {
+      enabled: body.enabled,
+      intervalSeconds: body.intervalSeconds,
+      diskFreePct: body.diskFreePct,
+      memLoadPct: body.memLoadPct,
+      load1: body.load1,
+    });
+    if (!policy) return reply.code(404).send({ error: 'agent_not_found' });
+    await audit?.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'agent.patrol.update',
+      resource: request.params.id,
+      result: 'success',
+      metadata: {
+        enabled: policy.enabled,
+        intervalSeconds: policy.intervalSeconds,
+        diskFreePct: policy.diskFreePct,
+        memLoadPct: policy.memLoadPct,
+        load1: policy.load1,
+      },
+    });
+    return reply.send(policy);
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { agentKey?: string } }>(
+    '/api/agents/:id/patrol-policy/agent',
+    async (request, reply) => {
+      if (!request.query.agentKey) return reply.code(400).send({ error: 'agent_key_required' });
+      const agent = await pool.query<{ tenant_id: string }>(
+        'SELECT tenant_id FROM agents WHERE id = $1 AND agent_key = $2',
+        [request.params.id, request.query.agentKey],
+      );
+      const row = agent.rows[0];
+      if (!row) return reply.code(404).send({ error: 'agent_not_found' });
+      const policy = await patrolPolicies.get(row.tenant_id, request.params.id);
+      return reply.send(policy ?? {
+        agentId: request.params.id,
+        ...DEFAULT_PATROL_POLICY,
+        updatedAt: null,
+      });
+    },
+  );
 
   app.get('/api/app-systems/health', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];

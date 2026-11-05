@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -18,6 +19,15 @@ type patrolEvent struct {
 	DetectedAt  string         `json:"detectedAt"`
 }
 
+type patrolPolicy struct {
+	AgentID         string  `json:"agentId"`
+	Enabled         bool    `json:"enabled"`
+	IntervalSeconds int     `json:"intervalSeconds"`
+	DiskFreePct     float64 `json:"diskFreePct"`
+	MemLoadPct      float64 `json:"memLoadPct"`
+	Load1           float64 `json:"load1"`
+}
+
 func threshold(name string, fallback float64) float64 {
 	raw := os.Getenv(name)
 	if raw == "" {
@@ -31,6 +41,15 @@ func threshold(name string, fallback float64) float64 {
 }
 
 func patrolEvents(metrics map[string]any) []patrolEvent {
+	return patrolEventsWithThresholds(
+		metrics,
+		threshold("OPSAGENT_PATROL_DISK_FREE_PCT", 15),
+		threshold("OPSAGENT_PATROL_MEM_LOAD_PCT", 85),
+		0,
+	)
+}
+
+func patrolEventsWithThresholds(metrics map[string]any, diskThreshold, memThreshold, loadThreshold float64) []patrolEvent {
 	events := []patrolEvent{}
 	now := time.Now().UTC().Format(time.RFC3339)
 	number := func(key string) float64 {
@@ -49,8 +68,7 @@ func patrolEvents(metrics map[string]any) []patrolEvent {
 	diskFree := number("diskFreeGB")
 	if diskTotal > 0 {
 		freePct := diskFree / diskTotal * 100
-		thresholdPct := threshold("OPSAGENT_PATROL_DISK_FREE_PCT", 15)
-		if freePct < thresholdPct {
+		if freePct < diskThreshold {
 			severity := "warning"
 			if freePct < 5 {
 				severity = "critical"
@@ -59,7 +77,7 @@ func patrolEvents(metrics map[string]any) []patrolEvent {
 				Fingerprint: "disk-low",
 				Severity:    severity,
 				Title:       "磁盘可用空间不足",
-				Detail:      fmt.Sprintf("根分区可用 %.1f%%，低于阈值 %.1f%%（可用 %.1f GB / 总量 %.1f GB）", freePct, thresholdPct, diskFree, diskTotal),
+				Detail:      fmt.Sprintf("根分区可用 %.1f%%，低于阈值 %.1f%%（可用 %.1f GB / 总量 %.1f GB）", freePct, diskThreshold, diskFree, diskTotal),
 				Metric:      map[string]any{"diskFreePct": freePct, "diskFreeGB": diskFree, "diskTotalGB": diskTotal},
 				DetectedAt:  now,
 			})
@@ -71,7 +89,6 @@ func patrolEvents(metrics map[string]any) []patrolEvent {
 	if memLoad == 0 && memTotal > 0 {
 		memLoad = (memTotal - memAvailable) / memTotal * 100
 	}
-	memThreshold := threshold("OPSAGENT_PATROL_MEM_LOAD_PCT", 85)
 	if memLoad > memThreshold {
 		severity := "warning"
 		if memLoad > 95 {
@@ -86,5 +103,46 @@ func patrolEvents(metrics map[string]any) []patrolEvent {
 			DetectedAt:  now,
 		})
 	}
+	if loadThreshold > 0 {
+		load1 := number("load1")
+		if load1 > loadThreshold {
+			events = append(events, patrolEvent{
+				Fingerprint: "load-high",
+				Severity:    "warning",
+				Title:       "系统负载过高",
+				Detail:      fmt.Sprintf("1 分钟负载 %.2f，高于阈值 %.2f", load1, loadThreshold),
+				Metric:      map[string]any{"load1": load1, "load1Threshold": loadThreshold},
+				DetectedAt:  now,
+			})
+		}
+	}
 	return events
+}
+
+func defaultPatrolPolicy() patrolPolicy {
+	return patrolPolicy{
+		Enabled:         true,
+		IntervalSeconds: 30,
+		DiskFreePct:     threshold("OPSAGENT_PATROL_DISK_FREE_PCT", 15),
+		MemLoadPct:      threshold("OPSAGENT_PATROL_MEM_LOAD_PCT", 85),
+		Load1:           0,
+	}
+}
+
+func loadPatrolPolicy(controlURL, agentID, agentKey string) (patrolPolicy, error) {
+	var policy patrolPolicy
+	endpoint := controlURL + "/api/agents/" + agentID + "/patrol-policy/agent?agentKey=" + url.QueryEscape(agentKey)
+	if _, err := getJSON(endpoint, &policy); err != nil {
+		return defaultPatrolPolicy(), err
+	}
+	if policy.IntervalSeconds < 30 {
+		policy.IntervalSeconds = 30
+	}
+	if policy.DiskFreePct <= 0 {
+		policy.DiskFreePct = 15
+	}
+	if policy.MemLoadPct <= 0 {
+		policy.MemLoadPct = 85
+	}
+	return policy, nil
 }

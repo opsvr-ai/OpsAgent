@@ -132,7 +132,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerInternalApprovalRoutes(app, options.pool, options.internalToken);
     registerKnowledgeRoutes(app, options.pool, audit);
     registerMessageRoutes(app, options.pool);
-    registerAgentRoutes(app, options.pool, options.agentEnrollmentToken, options.modelSecret);
+    registerAgentRoutes(app, options.pool, options.agentEnrollmentToken, options.modelSecret, audit);
     registerAgentCertificateRoutes(app, options.pool);
     registerAgentInstructionRoutes(app, options.pool, audit);
     registerAgentCliRoutes(app, options.pool, runtime);

@@ -41,6 +41,16 @@ const fleet = {
 vi.mock('../src/api/client.js', () => ({
   getAgentFleet: vi.fn(),
   getAgentDetail: vi.fn(),
+  getAgentPatrolPolicy: vi.fn().mockResolvedValue({
+    agentId: 'a-1',
+    enabled: true,
+    intervalSeconds: 30,
+    diskFreePct: 15,
+    memLoadPct: 85,
+    load1: 0,
+    updatedAt: null,
+  }),
+  updateAgentPatrolPolicy: vi.fn(),
   getAgentEvents: vi.fn().mockResolvedValue([]),
   getAppSystemHealth: vi.fn().mockResolvedValue([]),
   getCommandKeyStatus: vi.fn().mockResolvedValue({ keys: [], agents: [] }),

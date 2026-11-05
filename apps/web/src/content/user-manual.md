@@ -123,6 +123,8 @@
 - 本地记忆：`snapshots/memory.json` 保留最近 50 条检查/技能观察
 - 受控脚本执行：默认关闭，需 Agent 设置 `OPSAGENT_ALLOW_SCRIPTS=true`
 - 自主巡航发现磁盘/内存异常时，自动调用平台模型分析，并把分析写入异常详情上报
+- 巡航间隔、磁盘可用下限、内存使用上限、1 分钟负载上限可在 Agent 详情页「自主巡航」中修改；默认每 30 秒巡检，磁盘 15%，内存 85%，负载 0 表示关闭负载检查
+- 阈值保存后 Agent 最长 60 秒同步；超阈值自动触发平台模型根因分析并上报异常
 - 支持路径/日志排查，如「看看 /opt/opsagent/logs 目录」「查看 /opt/opsagent/logs/agent.log 最后 50 行」；只读 exec allowlist 包含 ls/tail/cat/grep/find/ps/ss/journalctl/docker logs/systemctl status 等，写操作默认拒绝
 - 主动上报的告警会进入「操作系统智能体」页的告警区和消息中心
 - 支持命令：

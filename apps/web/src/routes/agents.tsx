@@ -11,8 +11,11 @@ import {
   getAgentEvents,
   getAgentFleet,
   getAgentInstallCommand,
+  getAgentPatrolPolicy,
+  updateAgentPatrolPolicy,
   getAgentInstruction,
   getAppSystemHealth,
+  type AgentPatrolPolicy,
   getCommandKeyStatus,
   listAgentCommands,
   listAgentInstructionTemplates,
@@ -123,6 +126,9 @@ export function Agents({ onBack }: AgentsProps) {
   const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
   const [keyStatus, setKeyStatus] = useState<CommandKeyStatus | null>(null);
+  const [patrolPolicy, setPatrolPolicy] = useState<AgentPatrolPolicy | null>(null);
+  const [patrolBusy, setPatrolBusy] = useState(false);
+  const [patrolNote, setPatrolNote] = useState<string | null>(null);
   const [instructionText, setInstructionText] = useState('');
   const [instructionBusy, setInstructionBusy] = useState(false);
   const [instructionNote, setInstructionNote] = useState<string | null>(null);
@@ -150,6 +156,12 @@ export function Agents({ onBack }: AgentsProps) {
     setInstructionError(null);
     setInstructionResult(null);
     setInstructionHistory([]);
+  }, [detailId]);
+  useEffect(() => {
+    if (!detailId) return;
+    setPatrolPolicy(null);
+    setPatrolNote(null);
+    void getAgentPatrolPolicy(detailId).then(setPatrolPolicy).catch(() => undefined);
   }, [detailId]);
   useEffect(() => {
     if (!detailId) return;
@@ -274,6 +286,27 @@ export function Agents({ onBack }: AgentsProps) {
       setError('命令下发失败');
     } finally {
       setCommandBusy(false);
+    }
+  }
+
+  async function savePatrolPolicy() {
+    if (!detail || !patrolPolicy) return;
+    setPatrolBusy(true);
+    setPatrolNote(null);
+    try {
+      const updated = await updateAgentPatrolPolicy(detail.id, {
+        enabled: patrolPolicy.enabled,
+        intervalSeconds: patrolPolicy.intervalSeconds,
+        diskFreePct: patrolPolicy.diskFreePct,
+        memLoadPct: patrolPolicy.memLoadPct,
+        load1: patrolPolicy.load1,
+      });
+      setPatrolPolicy(updated);
+      setPatrolNote('巡航阈值已保存，Agent 将在 60 秒内同步');
+    } catch {
+      setPatrolNote('保存失败');
+    } finally {
+      setPatrolBusy(false);
     }
   }
 
@@ -780,6 +813,37 @@ export function Agents({ onBack }: AgentsProps) {
                         <div><div className="eyebrow">命令签名</div><strong className="mono">{detail.commandKeyId ?? '未上报'}</strong><p className="muted">注册/心跳同步</p></div>
                         <div><div className="eyebrow">客户端证书</div><strong>{detail.tlsCertExpiresAt ? relativeTime(detail.tlsCertExpiresAt) : '未上报'}</strong><p className="muted mono">{detail.tlsCertSerial ?? '无序列号'}</p></div>
                       </div>
+                      {patrolPolicy ? (
+                        <div className="card">
+                          <div className="card-head"><h2>自主巡航</h2><span className={`badge ${patrolPolicy.enabled ? 'badge-ok' : 'badge-neutral'}`}>{patrolPolicy.enabled ? '运行中' : '已停用'}</span></div>
+                          <div className="card-body stack">
+                            <p className="muted">每 {patrolPolicy.intervalSeconds} 秒采集指标；超过阈值自动上报并触发平台模型根因分析。</p>
+                            <div className="form-grid">
+                              <div className="field">
+                                <label htmlFor="patrol-interval">巡检间隔（秒）</label>
+                                <input id="patrol-interval" type="number" min={30} max={3600} value={patrolPolicy.intervalSeconds} onChange={(event) => setPatrolPolicy({ ...patrolPolicy, intervalSeconds: Number(event.target.value) })} />
+                              </div>
+                              <div className="field">
+                                <label htmlFor="patrol-disk">磁盘可用下限（%）</label>
+                                <input id="patrol-disk" type="number" min={1} max={99} value={patrolPolicy.diskFreePct} onChange={(event) => setPatrolPolicy({ ...patrolPolicy, diskFreePct: Number(event.target.value) })} />
+                              </div>
+                              <div className="field">
+                                <label htmlFor="patrol-mem">内存使用上限（%）</label>
+                                <input id="patrol-mem" type="number" min={1} max={100} value={patrolPolicy.memLoadPct} onChange={(event) => setPatrolPolicy({ ...patrolPolicy, memLoadPct: Number(event.target.value) })} />
+                              </div>
+                              <div className="field">
+                                <label htmlFor="patrol-load">1 分钟负载上限</label>
+                                <input id="patrol-load" type="number" min={0} step={0.1} value={patrolPolicy.load1} onChange={(event) => setPatrolPolicy({ ...patrolPolicy, load1: Number(event.target.value) })} />
+                              </div>
+                            </div>
+                            <label className="muted"><input type="checkbox" checked={patrolPolicy.enabled} onChange={(event) => setPatrolPolicy({ ...patrolPolicy, enabled: event.target.checked })} /> 启用自主巡航</label>
+                            <div className="form-actions">
+                              <button type="button" className="btn btn-primary btn-sm" disabled={patrolBusy} onClick={() => void savePatrolPolicy()}>{patrolBusy ? '保存中…' : '保存阈值'}</button>
+                              {patrolNote ? <span className="muted">{patrolNote}</span> : null}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   {detailTab === 'system' ? (

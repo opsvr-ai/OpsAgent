@@ -327,6 +327,8 @@ func runDaemon(paths agentPaths) {
 	lastPatrol := time.Time{}
 	lastMetricsSnapshot := time.Time{}
 	lastCertificateCheck := time.Time{}
+	lastPolicyRefresh := time.Time{}
+	currentPatrolPolicy := defaultPatrolPolicy()
 	activePatrol := map[string]bool{}
 	var diagnosticsCache map[string]any
 	var diagnosticsAt time.Time
@@ -334,7 +336,20 @@ func runDaemon(paths agentPaths) {
 	var lastPatrolAnalysis string
 
 	reportPatrol := func(metrics map[string]any) {
-		current := patrolEvents(metrics)
+		if time.Since(lastPolicyRefresh) > 60*time.Second {
+			if loaded, err := loadPatrolPolicy(controlURL, registered.Agent.ID, registered.AgentKey); err != nil {
+				log.Printf("patrol policy refresh: %v", err)
+			} else {
+				currentPatrolPolicy = loaded
+				lastPolicyRefresh = time.Now()
+				log.Printf("patrol policy loaded enabled=%v interval=%ds diskFreePct=%.1f memLoadPct=%.1f load1=%.2f",
+					loaded.Enabled, loaded.IntervalSeconds, loaded.DiskFreePct, loaded.MemLoadPct, loaded.Load1)
+			}
+		}
+		current := patrolEventsWithThresholds(metrics, currentPatrolPolicy.DiskFreePct, currentPatrolPolicy.MemLoadPct, currentPatrolPolicy.Load1)
+		if !currentPatrolPolicy.Enabled {
+			current = nil
+		}
 		currentSet := map[string]bool{}
 		if len(current) > 0 && (lastPatrolAnalysisAt.IsZero() || time.Since(lastPatrolAnalysisAt) > 5*time.Minute) {
 			analysis, err := platformAnalyze(
@@ -472,7 +487,11 @@ func runDaemon(paths agentPaths) {
 				log.Printf("save rotated command keys: %v", err)
 			}
 		}
-		if time.Since(lastPatrol) >= 30*time.Second {
+		patrolInterval := time.Duration(currentPatrolPolicy.IntervalSeconds) * time.Second
+		if patrolInterval < 30*time.Second {
+			patrolInterval = 30 * time.Second
+		}
+		if time.Since(lastPatrol) >= patrolInterval {
 			reportPatrol(metrics)
 			lastPatrol = time.Now()
 		}

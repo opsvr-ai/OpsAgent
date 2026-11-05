@@ -92,6 +92,29 @@ describe('agent registry API', () => {
     expect(keyHistory.statusCode).toBe(200);
     expect(keyHistory.json()).toMatchObject([{ previousKeyId: null, keyId: body.commandKeyId }]);
 
+    const cookie = await login(app);
+    const defaultPolicy = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${body.agent.id}/patrol-policy`,
+      headers: { cookie },
+    });
+    expect(defaultPolicy.statusCode).toBe(200);
+    expect(defaultPolicy.json()).toMatchObject({ intervalSeconds: 30, diskFreePct: 15, memLoadPct: 85 });
+    const updatedPolicy = await app.inject({
+      method: 'PUT',
+      url: `/api/agents/${body.agent.id}/patrol-policy`,
+      headers: { cookie },
+      payload: { enabled: true, intervalSeconds: 30, diskFreePct: 20, memLoadPct: 90, load1: 2.5 },
+    });
+    expect(updatedPolicy.statusCode).toBe(200);
+    expect(updatedPolicy.json()).toMatchObject({ enabled: true, diskFreePct: 20, memLoadPct: 90, load1: 2.5 });
+    const agentPolicy = await app.inject({
+      method: 'GET',
+      url: `/api/agents/${body.agent.id}/patrol-policy/agent?agentKey=${body.agentKey}`,
+    });
+    expect(agentPolicy.statusCode).toBe(200);
+    expect(agentPolicy.json()).toMatchObject({ intervalSeconds: 30, diskFreePct: 20, memLoadPct: 90 });
+
     const appSystem = await pool.query<{ id: string }>(
       `INSERT INTO app_systems (tenant_id, code, name)
        VALUES ($1, 'test-app', '测试应用')
@@ -124,11 +147,11 @@ describe('agent registry API', () => {
     expect(reported.statusCode).toBe(200);
     expect(reported.json()).toMatchObject({ events: [{ fingerprint: 'disk-low', status: 'open' }] });
 
-    const cookie = await login(app);
+    const healthCookie = await login(app);
     const health = await app.inject({
       method: 'GET',
       url: '/api/app-systems/health',
-      headers: { cookie },
+      headers: { cookie: healthCookie },
     });
     expect(health.statusCode).toBe(200);
     expect(health.json()).toMatchObject([{

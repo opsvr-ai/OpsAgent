@@ -1108,6 +1108,30 @@ export async function fetchTrafficCanaryNginx(id: string): Promise<string> {
   return response.text();
 }
 
+export interface AgentPatrolPolicy {
+  agentId: string;
+  enabled: boolean;
+  intervalSeconds: number;
+  diskFreePct: number;
+  memLoadPct: number;
+  load1: number;
+  updatedAt: string | null;
+}
+
+export async function getAgentPatrolPolicy(agentId: string): Promise<AgentPatrolPolicy> {
+  return request<AgentPatrolPolicy>(`/api/agents/${agentId}/patrol-policy`);
+}
+
+export async function updateAgentPatrolPolicy(
+  agentId: string,
+  input: Omit<AgentPatrolPolicy, 'agentId' | 'updatedAt'>,
+): Promise<AgentPatrolPolicy> {
+  return request<AgentPatrolPolicy>(`/api/agents/${agentId}/patrol-policy`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function createAgentCommand(
   agentId: string,
   type: string,

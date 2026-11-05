@@ -169,6 +169,21 @@ POST /api/agents/:id/analyze
 
 控制面使用当前租户模型分析，分析结果写入异常详情后上报平台。
 
+巡航阈值由服务端管理，可在 Agent 详情页「自主巡航」修改，或调用：
+
+```http
+PUT /api/agents/:id/patrol-policy
+{
+  "enabled": true,
+  "intervalSeconds": 30,
+  "diskFreePct": 15,
+  "memLoadPct": 85,
+  "load1": 0
+}
+```
+
+`intervalSeconds` 最小 30 秒；`load1=0` 表示关闭负载阈值检查。
+
 ### 日志排查
 
 控制面默认输出结构化请求日志：

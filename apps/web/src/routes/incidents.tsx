@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { relativeTime } from '../format.js';
 import {
   analyzeIncident,
   createAgentInstruction,
@@ -315,17 +316,38 @@ export function Incidents({ onBack }: IncidentsProps) {
   const selected = detail?.incident ?? incidents?.find((item) => item.id === selectedId) ?? null;
   const selectedSla = slaLabel(selected?.dueAt);
   const topologyEvidence = (detail?.evidence ?? []).find((item) => item.kind === 'topology');
+  const topologySystem = (() => {
+    const value = topologyEvidence?.payload?.appSystem;
+    if (typeof value !== 'object' || value === null) return null;
+    const record = value as Record<string, unknown>;
+    return {
+      name: typeof record.name === 'string' ? record.name : '应用系统',
+      code: typeof record.code === 'string' ? record.code : '',
+    };
+  })();
   const topologyNodes = (() => {
     const raw = topologyEvidence?.payload?.nodes;
-    if (!Array.isArray(raw)) return [] as Array<{ hostname: string; status: string; applications: string[] }>;
+    if (!Array.isArray(raw)) return [] as Array<{
+      hostname: string;
+      status: string;
+      lastSeen?: string;
+      applications: Array<{ name: string; status?: string; ports: number[] }>;
+    }>;
     return raw.flatMap((node) => {
       if (typeof node !== 'object' || node === null) return [];
       const record = node as Record<string, unknown>;
       const applications = Array.isArray(record.applications)
         ? record.applications.flatMap((app) => {
-            if (typeof app === 'string') return [app];
-            if (typeof app === 'object' && app !== null && typeof (app as Record<string, unknown>).name === 'string') {
-              return [(app as Record<string, unknown>).name as string];
+            if (typeof app === 'string') return [{ name: app, ports: [] }];
+            if (typeof app === 'object' && app !== null) {
+              const item = app as Record<string, unknown>;
+              if (typeof item.name === 'string') {
+                return [{
+                  name: item.name,
+                  ...(typeof item.status === 'string' ? { status: item.status } : {}),
+                  ports: Array.isArray(item.ports) ? item.ports.filter((port): port is number => typeof port === 'number') : [],
+                }];
+              }
             }
             return [];
           })
@@ -333,6 +355,7 @@ export function Incidents({ onBack }: IncidentsProps) {
       return [{
         hostname: typeof record.hostname === 'string' ? record.hostname : 'unknown',
         status: typeof record.status === 'string' ? record.status : 'unknown',
+        ...(typeof record.lastSeen === 'string' ? { lastSeen: record.lastSeen } : {}),
         applications,
       }];
     });
@@ -562,18 +585,51 @@ export function Incidents({ onBack }: IncidentsProps) {
                     </div>
                   ) : null}
                   {topologyNodes.length > 0 ? (
-                    <div className="incident-evidence" style={{ marginTop: 14 }}>
-                      <span className="eyebrow">应用拓扑</span>
-                      <div className="stack" style={{ marginTop: 8 }}>
-                        {topologyNodes.map((node) => (
-                          <div key={node.hostname} className="row-between">
-                            <div>
-                              <strong>{node.hostname}</strong>
-                              <div className="muted">{node.applications.length > 0 ? node.applications.join('、') : '无应用信息'}</div>
+                    <div className="incident-evidence topology-evidence" style={{ marginTop: 14 }}>
+                      <div className="row-between">
+                        <span className="eyebrow">应用拓扑</span>
+                        <span className="muted">
+                          {topologyNodes.length} 节点 · {topologyNodes.reduce((sum, node) => sum + node.applications.length, 0)} 应用
+                        </span>
+                      </div>
+                      <div className="topology-map">
+                        <div className="topology-root">
+                          <span className="eyebrow">应用系统</span>
+                          <strong>{topologySystem?.name ?? '当前应用系统'}</strong>
+                          {topologySystem?.code ? <span className="mono muted">{topologySystem.code}</span> : null}
+                        </div>
+                        <div className="topology-trunk" />
+                        <div className="topology-nodes">
+                          {[...topologyNodes].sort((left, right) => {
+                            const rank = (status: string) => status === 'online' ? 1 : 0;
+                            return rank(left.status) - rank(right.status);
+                          }).map((node) => (
+                            <div key={node.hostname} className={`topology-node ${node.status !== 'online' ? 'is-down' : ''}`}>
+                              <div className="topology-node-link" />
+                              <div className="topology-host">
+                                <div className="topology-host-head">
+                                  <strong className="mono">{node.hostname}</strong>
+                                  <span className={`badge ${node.status === 'online' ? 'badge-ok' : 'badge-danger'}`}>{node.status === 'online' ? '在线' : node.status}</span>
+                                </div>
+                                {node.lastSeen ? <span className="muted">最近心跳 {relativeTime(node.lastSeen)}</span> : null}
+                              </div>
+                              <div className="topology-apps">
+                                {node.applications.length > 0 ? node.applications.map((application) => (
+                                  <div key={`${node.hostname}-${application.name}`} className="topology-app">
+                                    <span className={`topology-app-dot ${application.status && !/running|up|active|healthy/i.test(application.status) ? 'is-down' : ''}`} />
+                                    <div>
+                                      <strong>{application.name}</strong>
+                                      <span className="muted">
+                                        {application.status ?? '运行中'}
+                                        {application.ports.length > 0 ? ` · :${application.ports.join(', :')}` : ''}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )) : <span className="muted topology-empty">未发现应用部署</span>}
+                              </div>
                             </div>
-                            <span className={`badge ${node.status === 'online' ? 'badge-ok' : 'badge-danger'}`}>{node.status}</span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
                   ) : null}

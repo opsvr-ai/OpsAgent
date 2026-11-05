@@ -65,52 +65,6 @@ export function registerAgentCliRoutes(
   }
 
   async function* ask(agentId: string, row: AgentRow, question: string): AsyncGenerator<CliEvent> {
-    if (/^(你好|您好|hi|hello)[!！。.?\s]*$/i.test(question)) {
-      yield { type: 'delta', text: `你好，我是 ${row.hostname} 上的 OpsAgent。可以问我磁盘分区、CPU/内存、进程、端口、服务、日志、应用系统健康或纳管主机等问题。` };
-      yield { type: 'done' };
-      return;
-    }
-    const explicitSkillUse = /(使用技能|调用技能|执行技能|用技能|use\s+skill|run\s+skill)/i.test(question);
-    if (!explicitSkillUse && /(技能|skill|会哪些)/i.test(question)) {
-      yield {
-        type: 'delta',
-        text: [
-          `**${row.hostname}** 的 OpsAgent 已加载以下技能：`,
-          '',
-          '- `system-overview`：系统概况、CPU、内存、磁盘和负载',
-          '- `disk-usage`：磁盘分区和可用空间',
-          '- `memory-usage`：内存和 swap',
-          '- `network-status`：网卡、IP、路由、DNS',
-          '- `service-status`：服务和进程状态',
-          '- `process-top`：进程和资源占用',
-          '- `logs-recent`：最近系统日志',
-          '- `container-status`：容器运行状态',
-          '- `agent-health`：Agent 安装、配置和日志路径',
-          '',
-          '直接输入问题即可调用对应技能。',
-        ].join('\n'),
-      };
-      yield { type: 'done' };
-      return;
-    }
-    if (/(能力|能做什么|会什么|能帮我做什么|使用帮助|哪些功能|那些功能)/i.test(question)) {
-      yield {
-        type: 'delta',
-        text: [
-          `我是 **${row.hostname}** 上的 OpsAgent，可以直接对话：`,
-          '',
-          '- 本机检查：磁盘分区、CPU、内存、进程、端口、服务、网络、软件包、日志、Agent 部署路径',
-          '- 文件与日志：查看目录、查看日志尾部、检查权限与大小',
-          '- 平台数据：纳管主机统计、应用系统、主动告警',
-          '- 故障分析：应用系统健康检查、跨节点异常关联、根因定位',
-          '',
-          '例如：「看看 /opt/opsagent/logs 目录」「当前有哪些告警」「订单中心健康情况和故障根因」。',
-        ].join('\n'),
-      };
-      yield { type: 'done' };
-      return;
-    }
-
     const skillMatch = question.match(/(?:使用技能|调用技能|执行技能|用技能|use\s+skill|run\s+skill)\s+([a-z0-9_.-]+)/i);
     const requestedSkill = skillMatch?.[1]?.toLowerCase();
     const detectQuestion = requestedSkill && CLI_SKILL_QUESTIONS[requestedSkill]
@@ -220,15 +174,66 @@ export function registerAgentCliRoutes(
     };
   }
 
+  app.post<{ Params: { id: string } }>('/api/agents/:id/llm', async (request, reply) => {
+    const body = request.body as {
+      agentKey?: unknown;
+      question?: unknown;
+      history?: unknown;
+    } | undefined;
+    if (typeof body?.question !== 'string') return reply.code(400).send({ error: 'invalid_request' });
+    const row = await authorize(request.params.id, body.agentKey);
+    if (!row) return reply.code(401).send({ error: 'unauthorized' });
+    const history = Array.isArray(body.history)
+      ? body.history.slice(-6).map((item) => {
+          const turn = item as { question?: unknown; answer?: unknown };
+          return {
+            question: typeof turn.question === 'string' ? turn.question.slice(0, 2000) : '',
+            answer: typeof turn.answer === 'string' ? turn.answer.slice(0, 4000) : '',
+          };
+        })
+      : [];
+    try {
+      const answer = await completion.complete({
+        tenantId: row.tenant_id,
+        system: [
+          '你是 OpsAgent 操作系统智能体的 CLI 助手。',
+          `当前主机：${row.hostname}。`,
+          '你可以说明自己的能力，也可以分析主机运维问题；不要声称自己已经执行了未执行的命令。',
+          '回答使用简体中文，简洁直接，不要输出无关主机信息。',
+          '可用技能：system.overview、disk.usage、memory.usage、network.status、service.status、process.top、logs.recent、container.status、agent.health。',
+        ].join('\n'),
+        prompt: [
+          ...history.map((turn, index) => `第 ${index + 1} 轮用户：${turn.question}\n第 ${index + 1} 轮助手：${turn.answer}`),
+          `当前用户：${body.question}`,
+        ].join('\n\n').slice(0, 24_000),
+        maxTokens: 1000,
+      });
+      return reply.send({ answer });
+    } catch (caught) {
+      request.log.warn({ err: caught, agentId: row.hostname }, 'agent llm failed');
+      return reply.code(503).send({ error: 'model_unavailable' });
+    }
+  });
+
   app.post<{ Params: { id: string } }>('/api/agents/:id/explain', async (request, reply) => {
     const body = request.body as {
       agentKey?: unknown;
       question?: unknown;
       evidence?: unknown;
+      history?: unknown;
     } | undefined;
     if (typeof body?.question !== 'string' || typeof body.evidence !== 'object' || body.evidence === null) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    const history = Array.isArray(body.history)
+      ? body.history.slice(-6).map((item) => {
+          const turn = item as { question?: unknown; answer?: unknown };
+          return {
+            question: typeof turn.question === 'string' ? turn.question.slice(0, 2000) : '',
+            answer: typeof turn.answer === 'string' ? turn.answer.slice(0, 4000) : '',
+          };
+        })
+      : [];
     const row = await authorize(request.params.id, body.agentKey);
     if (!row) return reply.code(401).send({ error: 'unauthorized' });
     try {
@@ -244,6 +249,7 @@ export function registerAgentCliRoutes(
           hostname: row.hostname,
           question: body.question,
           evidence: body.evidence,
+          history,
         }).slice(0, 24_000),
         maxTokens: 800,
       });

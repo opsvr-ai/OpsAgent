@@ -275,22 +275,28 @@ func skillRequest(question string) (skillDefinition, bool) {
 	return skillDefinition{}, false
 }
 
-func executeSkillForCLI(skill skillDefinition, question string, state agentState, stateErr error) string {
+func executeSkillForCLI(skill skillDefinition, question string, state agentState, stateErr error, history []cliHistoryTurn) string {
 	var memory runtime.MemStats
 	runtime.ReadMemStats(&memory)
 	metrics := hostMetrics()
 	metrics["cpuCores"] = runtime.NumCPU()
 	metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
 	result := runSkill(skill.Name, metrics)
-	if evidence, ok := result["evidence"].(map[string]string); ok && stateErr == nil && len(evidence) > 0 {
-		if analysis, err := askPlatformExplain(state, question, evidence); err == nil && strings.TrimSpace(analysis) != "" {
-			return analysis
+	if stateErr != nil {
+		return "未找到 Agent 注册状态，无法调用平台模型。"
+	}
+	evidence, ok := result["evidence"].(map[string]string)
+	if !ok || len(evidence) == 0 {
+		return fmt.Sprintf("技能 %s 已执行完成，但没有取得可分析的证据。", skill.Name)
+	}
+	analysis, err := askPlatformExplain(state, question, evidence, history)
+	if err != nil || strings.TrimSpace(analysis) == "" {
+		if err != nil {
+			return fmt.Sprintf("模型调用失败：%v", err)
 		}
+		return "模型没有返回分析结果。"
 	}
-	if analysis, ok := result["analysis"].(string); ok && strings.TrimSpace(analysis) != "" {
-		return analysis
-	}
-	return fmt.Sprintf("技能 %s 已执行完成，但没有取得可分析的证据。", skill.Name)
+	return analysis
 }
 
 func capabilitiesAnswer() string {
@@ -329,7 +335,37 @@ func skillsAnswer() string {
 	return strings.Join(lines, "\n")
 }
 
-func askPlatformExplain(state agentState, question string, evidence map[string]string) (string, error) {
+type cliHistoryTurn struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+func askPlatformLLM(state agentState, question string, history []cliHistoryTurn) (string, error) {
+	if state.AgentID == "" || state.AgentKey == "" {
+		return "", fmt.Errorf("agent state is missing")
+	}
+	controlURL := state.ControlURL
+	if controlURL == "" {
+		controlURL = env("OPSAGENT_CONTROL_URL", "http://127.0.0.1:8080")
+	}
+	var reply struct {
+		Answer string `json:"answer"`
+		Error  string `json:"error"`
+	}
+	if err := cliPost(
+		strings.TrimRight(controlURL, "/")+"/api/agents/"+state.AgentID+"/llm",
+		map[string]any{"agentKey": state.AgentKey, "question": question, "history": history},
+		&reply,
+	); err != nil {
+		return "", err
+	}
+	if reply.Answer == "" {
+		return "", fmt.Errorf("模型没有返回内容")
+	}
+	return reply.Answer, nil
+}
+
+func askPlatformExplain(state agentState, question string, evidence map[string]string, history []cliHistoryTurn) (string, error) {
 	if state.AgentID == "" || state.AgentKey == "" {
 		return "", fmt.Errorf("agent state is missing")
 	}
@@ -343,7 +379,7 @@ func askPlatformExplain(state agentState, question string, evidence map[string]s
 	}
 	if err := cliPost(
 		strings.TrimRight(controlURL, "/")+"/api/agents/"+state.AgentID+"/explain",
-		map[string]any{"agentKey": state.AgentKey, "question": question, "evidence": evidence},
+		map[string]any{"agentKey": state.AgentKey, "question": question, "evidence": evidence, "history": history},
 		&reply,
 	); err != nil {
 		return "", err
@@ -352,6 +388,16 @@ func askPlatformExplain(state agentState, question string, evidence map[string]s
 		return "", fmt.Errorf("empty platform analysis")
 	}
 	return reply.Analysis, nil
+}
+
+func isOperationalQuestion(question string) bool {
+	normalized := strings.ToLower(question)
+	for _, word := range []string{"日志", "log", "磁盘", "disk", "内存", "memory", "cpu", "进程", "process", "端口", "port", "服务", "service", "网络", "network", "ip", "网卡", "负载", "load", "容器", "docker", "opsagent", "agent", "系统", "巡检", "磁盘", "故障", "告警", "健康", "根因"} {
+		if strings.Contains(normalized, word) {
+			return true
+		}
+	}
+	return false
 }
 
 func isFollowUpQuestion(question string) bool {
@@ -434,7 +480,7 @@ func localAnswer(question string, state agentState, stateErr error) string {
 	metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
 	result := inspectHost(question, metrics)
 	if evidence, ok := result["evidence"].(map[string]string); ok && stateErr == nil && len(evidence) > 0 {
-		if analysis, err := askPlatformExplain(state, question, evidence); err == nil && strings.TrimSpace(analysis) != "" {
+		if analysis, err := askPlatformExplain(state, question, evidence, nil); err == nil && strings.TrimSpace(analysis) != "" {
 			return analysis
 		}
 	}
@@ -469,8 +515,7 @@ func runCLI(paths agentPaths) {
 	state, stateErr := loadAgentState(paths)
 	printCliBanner(paths, state, stateErr)
 	scanner := bufio.NewScanner(os.Stdin)
-	lastQuestion := ""
-	lastAnswer := ""
+	history := make([]cliHistoryTurn, 0, 8)
 	for {
 		fmt.Print("opsagent> ")
 		if !scanner.Scan() {
@@ -489,6 +534,7 @@ func runCLI(paths agentPaths) {
 			fmt.Println("  磁盘分区什么样")
 			fmt.Println("  当前纳管了多少操作系统智能体")
 			fmt.Println("  订单中心健康情况和故障根因")
+			fmt.Println("  你有哪些技能")
 			fmt.Println("  /status 查看 Agent 状态，exit 退出")
 			continue
 		case "/status", "status":
@@ -500,95 +546,63 @@ func runCLI(paths agentPaths) {
 			}
 			continue
 		}
-		if isFollowUpQuestion(question) && lastAnswer != "" {
+		if stateErr != nil {
 			fmt.Println()
-			analysis := ""
-			if stateErr == nil {
-				if result, err := askPlatformExplain(state, question, map[string]string{
-					"previous_question": lastQuestion,
-					"previous_answer":   lastAnswer,
-				}); err == nil {
-					analysis = result
-				}
-			}
-			if analysis == "" {
-				analysis = explainPreviousAnswer(question, lastAnswer)
-			}
-			fmt.Println(analysis)
+			fmt.Println("未找到 Agent 注册状态，无法调用服务端模型。请先启动 opsagent-agent --service。")
 			fmt.Println()
-			lastQuestion = question
-			lastAnswer = analysis
 			continue
 		}
-		if skill, ok := skillRequest(question); ok {
+
+		historyPayload := history
+		if len(historyPayload) > 6 {
+			historyPayload = historyPayload[len(historyPayload)-6:]
+		}
+		answer := ""
+		var err error
+		if isFollowUpQuestion(question) && len(history) > 0 {
+			answer, err = askPlatformLLM(state, question, historyPayload)
+		} else if skill, ok := skillRequest(question); ok {
 			fmt.Println()
 			fmt.Printf("正在执行技能 `%s`…\n\n", skill.Name)
-			answer := executeSkillForCLI(skill, question, state, stateErr)
-			fmt.Println(answer)
-			fmt.Println()
-			lastQuestion = question
-			lastAnswer = answer
-			continue
-		}
-		if isCapabilityQuestion(question) {
-			fmt.Println()
-			fmt.Println(capabilitiesAnswer())
-			fmt.Println()
-			continue
-		}
-		if isSkillsQuestion(question) {
-			fmt.Println()
-			fmt.Println(skillsAnswer())
-			fmt.Println()
-			continue
-		}
-		if stateErr == nil {
-			printed := false
-			var streamed strings.Builder
-			onDelta := func(text string) {
-				if !printed {
-					fmt.Println()
-					printed = true
-				}
-				streamed.WriteString(text)
-				fmt.Print(text)
-			}
-			onStatus := func(text string) {
-				if !printed {
-					fmt.Printf("\n[OpsAgent] %s\n", text)
-				}
-			}
-			_, err := askPlatformStream(state, question, onDelta, onStatus)
-			if printed {
+			answer = executeSkillForCLI(skill, question, state, stateErr, historyPayload)
+		} else if isOperationalQuestion(question) {
+			var memory runtime.MemStats
+			runtime.ReadMemStats(&memory)
+			metrics := hostMetrics()
+			metrics["cpuCores"] = runtime.NumCPU()
+			metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
+			result := inspectHost(question, metrics)
+			evidence, ok := result["evidence"].(map[string]string)
+			if !ok || len(evidence) == 0 {
 				fmt.Println()
+				fmt.Println("没有采集到可用于模型分析的证据。")
 				fmt.Println()
-				lastQuestion = question
-				lastAnswer = streamed.String()
 				continue
 			}
-			if err == nil {
-				answer, supported, fallbackErr := askPlatform(state, question)
-				if fallbackErr == nil && supported && answer != "" {
-					fmt.Println()
-					fmt.Println(strings.TrimSpace(answer))
-					fmt.Println()
-					lastQuestion = question
-					lastAnswer = answer
-					continue
-				}
-				if fallbackErr != nil {
-					err = fallbackErr
-				}
-			}
-			if err != nil {
-				fmt.Printf("平台对话不可用（%v），切换为本机只读检查。\n", err)
-			}
+			answer, err = askPlatformExplain(state, question, evidence, historyPayload)
+		} else {
+			answer, err = askPlatformLLM(state, question, historyPayload)
+		}
+
+		if err != nil {
+			fmt.Println()
+			fmt.Printf("模型调用失败：%v\n", err)
+			fmt.Println()
+			continue
+		}
+		answer = strings.TrimSpace(answer)
+		if answer == "" {
+			fmt.Println()
+			fmt.Println("模型没有返回内容。")
+			fmt.Println()
+			continue
 		}
 		fmt.Println()
-		answer := strings.TrimSpace(localAnswer(question, state, stateErr))
 		fmt.Println(answer)
 		fmt.Println()
-		lastQuestion = question
-		lastAnswer = answer
+		history = append(history, cliHistoryTurn{Question: question, Answer: answer})
+		if len(history) > 12 {
+			history = history[len(history)-12:]
+		}
 	}
 }

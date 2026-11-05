@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsAgent 平台设计汇报</title>
+  <style>
+    :root {
+      --bg: #f2f5f8;
+      --surface: #ffffff;
+      --surface-2: #f7f9fc;
+      --surface-3: #edf2f7;
+      --ink: #17222e;
+      --ink-2: #405164;
+      --muted: #647588;
+      --faint: #8796a6;
+      --line: #dbe4ed;
+      --line-2: #c7d4e1;
+      --blue: #1769aa;
+      --blue-2: #0f5488;
+      --blue-soft: #eaf3fb;
+      --red: #b43a35;
+      --red-soft: #fbefee;
+      --red-line: #e8c3bf;
+      --amber: #93621b;
+      --amber-soft: #fbf3e5;
+      --green: #2b7256;
+      --green-soft: #eaf5ef;
+      --sans: "Inter", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+      --ease: cubic-bezier(.22,.8,.28,1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+    body { --deck-bg: var(--bg); }
+    button { font: inherit; }
+    svg { display: block; }
+    .deck { position: relative; width: 100vw; height: 100vh; overflow: hidden; background:
+      radial-gradient(900px 460px at 72% -12%, rgba(23,105,170,.10), transparent 70%),
+      linear-gradient(180deg, #f7f9fc 0%, #eff4f8 100%); }
+    .deck::before { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(31,54,74,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(31,54,74,.035) 1px, transparent 1px); background-size: 44px 44px; mask-image: linear-gradient(to bottom, black, transparent 78%); }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: clamp(22px, 4vw, 56px); opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity .38s var(--ease), transform .38s var(--ease), visibility .38s; }
+    .slide.active { opacity: 1; visibility: visible; transform: none; z-index: 2; }
+    .slide-inner { position: relative; width: min(1280px, 94vw); aspect-ratio: 16 / 9; max-height: 92vh; background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 55px rgba(29,51,73,.08); padding: clamp(20px, 2.8vw, 40px) clamp(30px, 4.6vw, 64px) clamp(30px, 3vw, 38px); display: flex; flex-direction: column; overflow: hidden; }
+    .slide-inner::after { content: ""; position: absolute; left: 0; top: 0; width: 5px; height: 38px; background: var(--blue); }
+    .slide-inner::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: linear-gradient(90deg, var(--blue), rgba(23,105,170,.12) 70%, transparent); opacity: .75; }
+    .chrome { position: absolute; left: clamp(30px, 4.6vw, 64px); right: clamp(30px, 4.6vw, 64px); bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--faint); font-size: 11px; letter-spacing: .04em; font-family: var(--mono); }
+    .chrome .brandline { display: flex; align-items: center; gap: 8px; }
+    .chrome .brandline b { color: var(--ink-2); font-family: var(--sans); font-weight: 650; letter-spacing: 0; }
+    .chrome .rule { height: 1px; flex: 1; background: var(--line); }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--blue); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+    .eyebrow::before { content: ""; width: 18px; height: 1px; background: currentColor; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: clamp(40px, 5vw, 66px); line-height: 1.08; letter-spacing: -.045em; font-weight: 690; }
+    h2 { font-size: clamp(28px, 3.2vw, 42px); line-height: 1.2; letter-spacing: -.035em; font-weight: 660; }
+    h3 { font-size: 16px; line-height: 1.35; font-weight: 650; letter-spacing: -.01em; }
+    .lead { color: var(--ink-2); font-size: clamp(13px, 1.25vw, 16px); line-height: 1.7; }
+    .small { color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .mono { font-family: var(--mono); }
+    .accent { color: var(--blue); }
+    .red { color: var(--red); }
+    .amber { color: var(--amber); }
+    .muted { color: var(--muted); }
+    .tight { letter-spacing: -.02em; }
+    .slide-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: clamp(16px, 1.9vw, 22px); }
+    .slide-head .title-block { min-width: 0; }
+    .slide-head h2 { margin-top: 8px; max-width: 820px; }
+    .slide-head .head-note { max-width: 300px; padding-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.65; text-align: right; }
+    .body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+    .grid { display: grid; gap: 12px; }
+    .cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .cols-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    .cols-5 { grid-template-columns: repeat(5, minmax(0,1fr)); }
+    .split { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(320px,.85fr); gap: clamp(24px, 3.4vw, 46px); align-items: stretch; }
+    .split-60 { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(280px,.6fr); gap: 28px; align-items: stretch; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 16px 17px; min-width: 0; }
+    .card.soft { background: var(--surface-2); }
+    .card.blue { background: var(--blue-soft); border-color: #bbd7ee; }
+    .card.alert { background: var(--red-soft); border-color: var(--red-line); }
+    .card.amber { background: var(--amber-soft); border-color: #e6d1ae; }
+    .card .label { color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 9px; }
+    .card strong { display: block; font-size: 14px; line-height: 1.35; }
+    .card p { color: var(--ink-2); font-size: 12px; line-height: 1.65; margin-top: 7px; }
+    .card .num { color: var(--blue); font-family: var(--mono); font-size: 11px; margin-bottom: 8px; }
+    .rule { height: 1px; background: var(--line); }
+    .stat { border-left: 2px solid var(--line-2); padding-left: 12px; }
+    .stat b { display: block; font-size: clamp(24px, 2.5vw, 34px); line-height: 1; letter-spacing: -.04em; font-weight: 660; }
+    .stat span { display: block; color: var(--muted); font-size: 11px; margin-top: 6px; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; font-family: var(--mono); font-size: 9px; color: var(--muted); background: var(--surface-2); }
+    .pill::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+    .pill.ok { color: var(--green); background: var(--green-soft); border-color: #c9e2d6; }
+    .pill.warn { color: var(--amber); background: var(--amber-soft); border-color: #e6d1ae; }
+    .pill.bad { color: var(--red); background: var(--red-soft); border-color: var(--red-line); }
+    .flow { display: flex; align-items: stretch; gap: 0; }
+    .flow-node { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); padding: 12px 11px; position: relative; }
+    .flow-node + .flow-node { border-left: 0; }
+    .flow-node:first-child { border-radius: 6px 0 0 6px; }
+    .flow-node:last-child { border-radius: 0 6px 6px 0; }
+    .flow-node .n { font-family: var(--mono); color: var(--blue); font-size: 10px; }
+    .flow-node strong { display: block; font-size: 12px; margin-top: 7px; }
+    .flow-node span { display: block; color: var(--muted); font-size: 10px; line-height: 1.45; margin-top: 4px; }
+    .exec-cards .card { min-height: 190px; display: flex; flex-direction: column; justify-content: space-between; }\n    .exec-cards .card p { margin-top: 12px; }\n    .flow.slim .flow-node { padding: 4px 9px; }
+    .flow.slim .flow-node strong { font-size: 11px; margin-top: 2px; }
+    .flow.slim .flow-node .n { font-size: 9px; }
+    .flow.slim .flow-node span { display: none; }
+    .flow.slim .flow-node strong { margin-top: 4px; }
+    .flow-node.active { background: var(--blue-soft); border-color: #b7d4ea; }
+    .quote { font-size: clamp(17px, 1.8vw, 23px); line-height: 1.55; letter-spacing: -.02em; color: var(--ink); font-weight: 500; }
+    .quote strong { color: var(--blue); font-weight: 680; }
+    .formula { font-family: var(--mono); color: var(--ink-2); font-size: 12px; line-height: 1.9; }
+    .formula b { color: var(--blue); font-weight: 600; }
+    .kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 3px; background: var(--surface); font-family: var(--mono); font-size: 9px; color: var(--ink-2); }
+    .notes { position: fixed; z-index: 20; left: 50%; bottom: 20px; transform: translate(-50%, 18px); width: min(860px, 92vw); background: rgba(255,255,255,.98); border: 1px solid var(--line-2); border-radius: 7px; box-shadow: 0 14px 40px rgba(20,35,50,.18); padding: 14px 16px; opacity: 0; pointer-events: none; transition: .22s var(--ease); }
+    .notes.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+    .notes .kicker { font-family: var(--mono); font-size: 9px; color: var(--blue); letter-spacing: .08em; }
+    .notes p { margin-top: 6px; font-size: 12px; line-height: 1.6; color: var(--ink-2); }
+    .nav { position: fixed; z-index: 10; right: 24px; bottom: 18px; display: flex; align-items: center; gap: 7px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+    .nav button { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 4px; background: rgba(255,255,255,.88); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; }
+    .nav button:hover { border-color: var(--blue); color: var(--blue); }
+    .progress { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(23,105,170,.10); }
+    .progress i { display: block; height: 100%; width: 4%; background: var(--blue); transition: width .35s var(--ease); }
+    .index-toggle { position: fixed; z-index: 10; left: 24px; bottom: 18px; border: 1px solid var(--line); background: rgba(255,255,255,.88); border-radius: 4px; padding: 5px 8px; font-family: var(--mono); font-size: 9px; color: var(--muted); cursor: pointer; }
+    .index-toggle:hover { color: var(--blue); border-color: var(--blue); }
+    .overview { position: fixed; z-index: 30; inset: 0; background: rgba(242,245,248,.98); display: none; overflow: auto; padding: 28px; }
+    .overview.show { display: block; }
+    .overview-head { display: flex; justify-content: space-between; max-width: 1280px; margin: 0 auto 16px; color: var(--muted); font-size: 12px; }
+    .overview-grid { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; }
+    .thumb { border: 1px solid var(--line); background: var(--surface); border-radius: 4px; min-height: 86px; padding: 9px; cursor: pointer; text-align: left; color: var(--ink-2); }
+    .thumb:hover { border-color: var(--blue); }
+    .thumb b { font-family: var(--mono); font-size: 9px; color: var(--blue); }
+    .thumb span { display: block; font-size: 11px; margin-top: 4px; line-height: 1.4; }
+    .thumb.active { border-color: var(--blue); background: var(--blue-soft); }
+    /* slide 1 */
+    .cover { justify-content: center; align-items: flex-start; padding-top: 8%; }
+    .cover .cover-kicker { color: var(--blue); font-family: var(--mono); font-size: 11px; letter-spacing: .13em; }
+    .cover h1 { margin-top: 22px; max-width: 820px; }
+    .cover h1 span { color: var(--blue); }
+    .cover .cover-sub { max-width: 620px; margin-top: 24px; color: var(--ink-2); font-size: 15px; line-height: 1.8; }
+    .cover .cover-meta { display: flex; gap: 22px; margin-top: 32px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+    .cover-orbit { position: absolute; right: 6%; top: 17%; width: 31%; aspect-ratio: 1; opacity: .9; }
+    .cover-orbit .ring { position: absolute; inset: 0; border: 1px solid rgba(23,105,170,.22); border-radius: 50%; }
+    .cover-orbit .ring:nth-child(2) { inset: 14%; border-style: dashed; }
+    .cover-orbit .ring:nth-child(3) { inset: 30%; border-color: rgba(180,58,53,.22); }
+    .cover-orbit .core { position: absolute; inset: 41%; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 10px rgba(23,105,170,.08); }
+    .cover-orbit .sat { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--red); top: 17%; left: 17%; box-shadow: 0 0 0 5px rgba(180,58,53,.08); }
+    .cover-orbit .sat.b { background: var(--green); top: 64%; left: 85%; box-shadow: 0 0 0 5px rgba(43,114,86,.08); }
+    .cover-orbit .sat.c { background: var(--amber); top: 87%; left: 34%; box-shadow: 0 0 0 5px rgba(147,98,27,.08); }
+    .cover-orbit .orbit-label { position: absolute; font-family: var(--mono); font-size: 9px; color: var(--faint); }
+    .cover-orbit .orbit-label.a { top: 4%; right: 4%; }
+    .cover-orbit .orbit-label.b { bottom: 13%; left: -8%; }
+    /* architecture */
+    .arch-wrap { flex: 1; display: grid; grid-template-columns: minmax(0,1.3fr) minmax(230px,.55fr); gap: 24px; align-items: stretch; }
+    .arch-svg { width: 100%; height: 100%; min-height: 300px; }
+    .arch-svg text { stroke: none; }
+    .arch-side { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+    .arch-note { border-top: 1px solid var(--line); padding-top: 11px; }
+    .arch-note b { display: block; font-size: 12px; }
+    .arch-note span { display: block; color: var(--muted); font-size: 11px; line-height: 1.55; margin-top: 3px; }
+    .svg-text { font-family: var(--sans); }
+    .svg-mono { font-family: var(--mono); }
+    .svg-label { fill: var(--muted); font-size: 9px; font-family: var(--mono); }
+    .svg-title { fill: var(--ink); font-size: 11px; font-weight: 650; }
+    .svg-sub { fill: var(--ink-2); font-size: 9px; }
+    .svg-line { fill: none; stroke: #8ba3b8; stroke-width: 1.1; }
+    .svg-line.blue { stroke: var(--blue); }
+    .svg-node { fill: #fff; stroke: #c7d4e1; stroke-width: 1; }
+    .svg-node.blue { fill: var(--blue-soft); stroke: #a9cbe2; }
+    .svg-node.red { fill: var(--red-soft); stroke: var(--red-line); }
+    .svg-node.amber { fill: var(--amber-soft); stroke: #dfc391; }
+    /* topology */
+    .topo-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0,1.45fr) minmax(240px,.55fr); gap: 20px; }
+    .topo-svg { width: 100%; height: 100%; min-height: 320px; }
+    .topo-svg text { stroke: none; }
+    .topo-node { fill: #fff; stroke: #c7d4e1; stroke-width: 1; }
+    .topo-node.root { fill: var(--red-soft); stroke: var(--red); stroke-width: 1.4; }
+    .topo-node.affected { fill: var(--amber-soft); stroke: #d9b77e; stroke-width: 1.2; }
+    .topo-node.external { fill: #f7f9fc; stroke-dasharray: 4 3; }
+    .topo-title { fill: var(--ink); font-size: 11.5px; font-weight: 650; }
+    .topo-sub { fill: var(--muted); font-size: 9.5px; font-family: var(--mono); }
+    .topo-alert { fill: var(--red); font-size: 9.5px; font-weight: 650; }
+    .topo-alert.amber { fill: var(--amber); }
+    .edge-line { fill: none; stroke: #8da4b8; stroke-width: 1.15; }
+    .edge-line.root { stroke: var(--red); stroke-width: 1.6; }
+    .edge-line.warn { stroke: var(--amber); stroke-width: 1.3; }
+    .edge-line.external { stroke: #a0afbd; stroke-dasharray: 4 3; }
+    .edge-label { font-size: 9px; fill: var(--ink-2); font-family: var(--mono); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+    .edge-label.root { fill: var(--red); }
+    .edge-label.warn { fill: var(--amber); }
+    .topo-side { display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+    .topo-side .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 11px; }
+    .topo-side .row:last-child { border-bottom: 0; }
+    .topo-side .row span { color: var(--muted); }
+    .topo-side .row b { font-weight: 600; text-align: right; }
+    .source-note { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; color: var(--faint); font-family: var(--mono); font-size: 9px; }
+    .source-note b { color: var(--ink-2); font-weight: 500; }
+    /* agent */
+    .server-map { position: relative; border: 1px solid var(--line); background: linear-gradient(180deg, #fbfdff, #f5f9fc); border-radius: 7px; padding: 14px; min-height: 0; }
+    .host-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 9px; margin-bottom: 10px; }
+    .host-name { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+    .host-status { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9px; color: var(--green); }
+    .host-status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .agent-core { border: 1px solid #9fc3dc; background: #fff; border-radius: 5px; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .agent-core strong { display: block; font-size: 12px; }
+    .agent-core span { display: block; font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 3px; }
+    .agent-core .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 0 rgba(23,105,170,.28); animation: pulse 2.2s infinite; }
+    .host-items { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-top: 9px; }
+    .host-item { border: 1px solid var(--line); background: #fff; padding: 7px; font-family: var(--mono); font-size: 9px; color: var(--ink-2); }
+    .host-item span { display: block; color: var(--faint); font-size: 8px; margin-top: 3px; }
+    .dir-tree { font-family: var(--mono); font-size: 11px; line-height: 1.9; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 12px 14px; white-space: pre; overflow: hidden; }
+    .dir-tree b { color: var(--blue); font-weight: 500; }
+    .dir-tree em { color: var(--faint); font-style: normal; }
+    .checkline { display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: 11.5px; line-height: 1.5; }
+    .checkline:last-child { border-bottom: 0; }
+    .checkline i { color: var(--green); font-style: normal; font-family: var(--mono); }
+    .radar { position: relative; width: 100%; aspect-ratio: 1; max-height: 270px; margin: auto; border: 1px solid rgba(23,105,170,.24); border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 23%, rgba(23,105,170,.12) 23.3% 23.6%, transparent 24% 48%, rgba(23,105,170,.09) 48.3% 48.6%, transparent 49%); overflow: hidden; }
+    .radar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 50%; height: 1px; background: linear-gradient(90deg, rgba(23,105,170,.8), transparent); transform-origin: left center; animation: sweep 4s linear infinite; }
+    .radar::after { content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); transform: translate(-50%,-50%); box-shadow: 0 0 0 6px rgba(23,105,170,.1); }
+    .radar .blip { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 0 rgba(180,58,53,.28); animation: blip 2.4s infinite; }
+    .radar .blip.b { top: 67%; left: 28%; background: var(--amber); animation-delay: .7s; }
+    .radar .blip.c { top: 30%; left: 74%; background: var(--green); animation-delay: 1.1s; }
+    .radar .blip.a { top: 28%; left: 35%; }
+    /* case */
+    .case-steps { display: flex; flex-direction: column; gap: 8px; }
+    .case-step { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; gap: 9px; align-items: center; border: 1px solid var(--line); background: var(--surface); padding: 8px 10px; border-radius: 4px; }
+    .case-step .t { color: var(--faint); font-family: var(--mono); font-size: 9px; }
+    .case-step strong { display: block; font-size: 11.5px; }
+    .case-step span { display: block; color: var(--muted); font-size: 10px; line-height: 1.4; margin-top: 2px; }
+    .case-step .state { justify-self: end; }
+    .case-step.active { border-color: #aacbe1; background: var(--blue-soft); }
+    /* title pages */
+    .section-divider { justify-content: center; align-items: flex-start; padding-top: 11%; }
+    .section-divider .num { font-family: var(--mono); color: var(--blue); font-size: 12px; letter-spacing: .12em; }
+    .section-divider h2 { margin-top: 18px; max-width: 760px; font-size: clamp(34px, 4vw, 52px); }
+    .section-divider .lead { margin-top: 18px; max-width: 620px; }
+    /* footer notes */
+    .footnote { color: var(--faint); font-size: 10px; font-family: var(--mono); margin-top: 10px; }
+    .table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .table th { color: var(--faint); font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; font-weight: 500; text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line-2); }
+    .table td { padding: 9px 8px; border-bottom: 1px solid var(--line); color: var(--ink-2); vertical-align: top; }
+    .table td strong { color: var(--ink); font-weight: 600; }
+    .score-row { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .score-row:last-child { border-bottom: 0; }
+    .score-name { width: 190px; font-size: 11px; font-weight: 600; }
+    .score-track { flex: 1; height: 5px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+    .score-track i { display: block; height: 100%; background: var(--blue); border-radius: 3px; transform-origin: left; }
+    .score-track i.red { background: var(--red); }
+    .score-val { width: 42px; text-align: right; font-family: var(--mono); font-size: 10px; }
+    .boundary { display: flex; align-items: center; justify-content: center; gap: 16px; flex: 1; min-height: 0; }
+    .boundary-zone { border: 1px dashed var(--line-2); border-radius: 50%; padding: 22px; position: relative; }
+    .boundary-zone.mid { border-color: #d9b77e; background: rgba(251,243,229,.35); }
+    .boundary-zone.inner { border-color: var(--red-line); background: rgba(251,239,238,.45); }
+    .boundary-center { border: 1px solid var(--red-line); background: #fff; padding: 12px 14px; border-radius: 6px; text-align: center; min-width: 150px; }
+    .boundary-center strong { font-size: 12px; }
+    .boundary-center span { display: block; font-size: 10px; color: var(--muted); margin-top: 3px; }
+    .boundary-chip { position: absolute; border: 1px solid var(--line); background: #fff; padding: 4px 6px; font-family: var(--mono); font-size: 9px; color: var(--ink-2); border-radius: 3px; white-space: nowrap; }
+    .boundary-chip.a { top: 2px; left: -20px; }
+    .boundary-chip.b { bottom: 8px; right: -34px; }
+    .boundary-chip.c { top: 42px; right: -58px; }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend i { display: inline-block; width: 8px; height: 2px; background: var(--line-2); }
+    .legend i.red { background: var(--red); }
+    .legend i.amber { background: var(--amber); }
+    .legend i.blue { background: var(--blue); }
+    .callout { border-left: 2px solid var(--blue); padding: 2px 0 2px 13px; color: var(--ink-2); font-size: 12.5px; line-height: 1.65; }
+    .body > .callout { margin-top: 10px !important; }
+    .callout strong { color: var(--ink); }
+    .hero-statement { font-size: clamp(25px, 3.1vw, 40px); line-height: 1.35; letter-spacing: -.035em; font-weight: 640; max-width: 780px; }
+    .hero-statement span { color: var(--blue); }
+    .two-note { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+    .two-note .card { min-height: 118px; }
+    .mini-arrow { color: var(--faint); font-family: var(--mono); font-size: 10px; display: flex; align-items: center; gap: 6px; }
+    /* motion */
+    .slide.active [data-anim] { animation: rise .66s var(--ease) both; animation-delay: var(--d, 0ms); }
+    .slide.active .draw-line { animation: draw 1.25s var(--ease) both; animation-delay: var(--d, 160ms); stroke-dasharray: 1; stroke-dashoffset: 1; }
+    .slide.active .bar-grow { animation: grow 1s var(--ease) both; animation-delay: var(--d, 300ms); }
+    .slide.active .fade-pulse { animation: pulse 2.6s infinite; }
+    .slide.active .float-dot { animation: travel 2.6s var(--ease) infinite; }
+    .slide.active .blink { animation: blink 2s infinite; }
+    .slide.active .slide-title-anim { animation: titleIn .8s var(--ease) both; }
+    .slide.active .slide-rule-anim { animation: ruleIn 1s var(--ease) both .16s; transform-origin: left; }
+    @keyframes rise { from { opacity: 0; transform: translateY(13px); } to { opacity: 1; transform: none; } }
+    @keyframes titleIn { from { opacity: 0; transform: translateY(8px); letter-spacing: .01em; } to { opacity: 1; transform: none; } }
+    @keyframes ruleIn { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+    @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(23,105,170,.22); } 50% { box-shadow: 0 0 0 8px rgba(23,105,170,0); } }
+    @keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes blip { 0%,100% { box-shadow: 0 0 0 0 rgba(180,58,53,.25); } 50% { box-shadow: 0 0 0 8px rgba(180,58,53,0); } }
+    @keyframes travel { 0% { offset-distance: 0%; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
+    @keyframes blink { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+    @media (max-width: 900px) {
+      .slide-inner { padding: 26px 24px 48px; aspect-ratio: auto; height: 94vh; overflow: auto; }
+      .split, .split-60, .topo-wrap, .arch-wrap { grid-template-columns: 1fr; }
+      .cover-orbit { opacity: .25; }
+      .head-note { display: none; }
+      .cols-4 { grid-template-columns: repeat(2,1fr); }
+      .cols-5 { grid-template-columns: repeat(2,1fr); }
+      .flow { flex-direction: column; }
+      .flow-node + .flow-node { border-left: 1px solid var(--line); border-top: 0; }
+      .flow-node:first-child, .flow-node:last-child { border-radius: 6px; }
+      .topo-svg { min-height: 260px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .slide { opacity: 1; visibility: visible; transform: none; }
+      .slide:not(.active) { display: none; }
+    }
+    body.print .slide { opacity: 1; visibility: visible; transform: none; position: relative; display: flex; page-break-after: always; height: 100vh; }
+    body.print .deck { overflow: auto; height: auto; }
+    body.print .nav, body.print .progress, body.print .index-toggle { display: none; }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <!-- 01 -->
+    <section class="slide cover active" data-slide-id="s01" data-title="封面" data-notes="先用一句话定调：这不是监控面板加 AI，而是能组织现场事实、调度智能体、收敛根因的系统。">
+      <div class="slide-inner">
+        <div class="body">
+          <div class="cover-kicker">OPSAGENT / PLATFORM REVIEW / 2026.11</div>
+          <h1>从告警到根因，<br>让操作系统智能体<br>成为<span>可调度的现场</span></h1>
+          <p class="cover-sub">OpsAgent 把服务器现场、智能体调度、访问关系拓扑和故障定界，做成一套可运行、可审计、可演进的运维系统。</p>
+          <div class="cover-meta"><span>技术分享</span><span>操作系统智能体</span><span>故障定界</span><span>25 slides</span></div>
+        </div>
+        <div class="cover-orbit" aria-hidden="true">
+          <div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="core"></div>
+          <div class="sat"></div><div class="sat b"></div><div class="sat c"></div>
+          <span class="orbit-label a">SIGNAL</span><span class="orbit-label b">EVIDENCE</span>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / AIOps control plane</span><span class="rule"></span><span>01 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section class="slide" data-slide-id="s02" data-title="执行摘要" data-notes="这一页是全场结论：平台已走通闭环原型，下一步是工程化。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Executive summary</div><h2>一页讲清 OpsAgent</h2></div><div class="head-note">平台不是替代人，而是把人从“找证据”里解放出来。</div></div>
+        <div class="body" style="justify-content:space-between">
+          <div class="grid cols-5 exec-cards">
+            <div class="card blue" data-anim style="--d:80ms"><div class="label">01 / 现场</div><strong>单机智能体</strong><p>每台服务器一个受控 Agent，持续发现、巡检、取证。</p></div>
+            <div class="card" data-anim style="--d:160ms"><div class="label">02 / 编排</div><strong>平台总调度</strong><p>跨节点聚合异常、计算边界、按证据缺口派工。</p></div>
+            <div class="card" data-anim style="--d:240ms"><div class="label">03 / 拓扑</div><strong>真实访问关系</strong><p>Agent 的 netstat 数据自动映射进程、服务、端口。</p></div>
+            <div class="card alert" data-anim style="--d:320ms"><div class="label">04 / 定界</div><strong>先定界再定因</strong><p>先受影响范围，再根因候选，避免把结果当原因。</p></div>
+            <div class="card amber" data-anim style="--d:400ms"><div class="label">05 / 闭环</div><strong>证据驱动结论</strong><p>补采、合并、评分、人工确认，全程可追溯。</p></div>
+          </div>
+          <div class="callout" data-anim style="--d:520ms"><strong>当前判断：</strong>Agent 现场能力与故障定界原型已跑通，下一阶段重点是把定界从“能跑”做到“可信、可规模化、可运营”。</div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / executive summary</span><span class="rule"></span><span>02 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section class="slide" data-slide-id="s03" data-title="背景" data-notes="强调三个断裂：数据、协作、经验。结论是缺一条可信的定界链路。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Why now</div><h2>运维不缺告警，缺的是从告警到根因的路径</h2></div><div class="head-note">告警是结果，根因在系统之间的关系里。</div></div>
+        <div class="body split">
+          <div class="stack">
+            <div class="card alert" data-anim style="--d:80ms"><div class="label">Fragmentation / 01</div><strong>数据断裂</strong><p>主机、应用、数据库、网络、日志分散在不同系统，人工拼接。</p></div>
+            <div class="card amber" data-anim style="--d:180ms"><div class="label">Fragmentation / 02</div><strong>协作断裂</strong><p>值班、应用、DBA、网络各自排查，缺少统一证据板。</p></div>
+            <div class="card" data-anim style="--d:280ms"><div class="label">Fragmentation / 03</div><strong>经验断裂</strong><p>老师傅知道怎么查，但经验没有沉淀成可复用的系统能力。</p></div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center">
+            <div class="eyebrow" data-anim style="--d:360ms">The missing link</div>
+            <div class="hero-statement" data-anim style="margin-top:14px;--d:440ms">真正缺的，是一条<br><span>可验证的定界链路</span></div>
+            <p class="lead" data-anim style="margin-top:18px;--d:520ms">不是把模型接到告警上，而是让模型拿到进程、端口、连接、日志、指标和拓扑事实，再给出可追溯的结论。</p>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / context</span><span class="rule"></span><span>03 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section class="slide" data-slide-id="s04" data-title="平台定位" data-notes="四层定位从下往上讲，强调平台边界：模型不是执行器。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Positioning</div><h2>OpsAgent 是运维智能体的控制平面</h2></div><div class="head-note">把“看见、判断、派工、执行、复盘”收进一个平台。</div></div>
+        <div class="body split">
+          <div class="stack" data-anim style="--d:80ms">
+            <div class="card blue"><div class="label">01 / Interface</div><strong>Web / CLI</strong><p>工作台、智能体会话、故障定界、事件指挥。</p></div>
+            <div class="card soft"><div class="label">02 / Control</div><strong>控制面</strong><p>租户、身份、权限、模型、审批、审计、应用系统。</p></div>
+            <div class="card soft"><div class="label">03 / Runtime</div><strong>智能体运行时</strong><p>会话、规划、工具调用、证据汇总、总调度。</p></div>
+            <div class="card blue"><div class="label">04 / Execution</div><strong>操作系统智能体网络</strong><p>在本机发现、采集、巡检、诊断、受控执行。</p></div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:14px">
+            <div class="quote" data-anim style="--d:240ms">模型负责理解、规划和总结；<br><strong>平台负责权限、命令、证据和审计；</strong><br>Agent 负责本机事实采集。</div>
+            <div class="rule" data-anim style="--d:360ms"></div>
+            <div class="checkline" data-anim style="--d:420ms"><i>×</i>模型不能绕过平台直接操作主机</div>
+            <div class="checkline" data-anim style="--d:480ms"><i>×</i>Agent 不开放入站端口，不执行任意 Shell</div>
+            <div class="checkline" data-anim style="--d:540ms"><i>✓</i>所有动作有身份、有权限、有审计</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / positioning</span><span class="rule"></span><span>04 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 05 -->
+    <section class="slide" data-slide-id="s05" data-title="设计理念" data-notes="五条原则，最后收束到“事实驱动、边界先行、平台编排、最小权限、持续沉淀”。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Design principles</div><h2>五条原则决定平台走向</h2></div><div class="head-note">不是功能清单，而是所有取舍背后的判断标准。</div></div>
+        <div class="body">
+          <div class="grid cols-5 exec-cards">
+            <div class="card" data-anim style="--d:60ms"><div class="num">01</div><strong>现场事实优先</strong><p>根因必须落到进程、端口、连接、日志、指标。</p></div>
+            <div class="card" data-anim style="--d:140ms"><div class="num">02</div><strong>先定界再定因</strong><p>先判断影响范围，再判断根因位置。</p></div>
+            <div class="card" data-anim style="--d:220ms"><div class="num">03</div><strong>平台编排优先</strong><p>单机 Agent 看本机，跨节点由平台总调度。</p></div>
+            <div class="card" data-anim style="--d:300ms"><div class="num">04</div><strong>最小权限</strong><p>只读自动，写操作审批，默认不信任。</p></div>
+            <div class="card blue" data-anim style="--d:380ms"><div class="num">05</div><strong>持续沉淀</strong><p>每次故障沉淀技能、规则、证据和案例。</p></div>
+          </div>
+          <div class="callout" data-anim style="margin-top:18px;--d:500ms"><strong>落到一句话：</strong>事实驱动、边界先行、平台编排、最小权限、持续沉淀。</div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / principles</span><span class="rule"></span><span>05 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section class="slide" data-slide-id="s06" data-title="总体架构" data-notes="按层构建动画：先主机，再 Agent，再运行时，最后控制面。强调上下行数据流。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">System architecture</div><h2>控制面、运行时、现场执行三层协同</h2></div><div class="head-note">一条向上是事实，一条向下是命令。</div></div>
+        <div class="body arch-wrap">
+          <svg class="arch-svg" viewBox="0 0 760 430" aria-label="平台总体架构" data-anim style="--d:80ms">
+            <defs>
+              <marker id="arch-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#8ba3b8"/></marker>
+              <marker id="arch-arrow-blue" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1769aa"/></marker>
+              <marker id="arch-arrow-red" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#b43a35"/></marker>
+            </defs>
+            <g data-anim style="--d:100ms">
+              <rect class="svg-node blue" x="230" y="12" width="300" height="42" rx="5"/>
+              <text class="svg-title" x="248" y="32">Web / CLI / 智能体会话</text>
+              <text class="svg-sub" x="248" y="45">工作台 · 故障定界 · 事件指挥</text>
+            </g>
+            <path class="svg-line blue draw-line" d="M380 54 L380 78" marker-end="url(#arch-arrow-blue)" style="--d:350ms;pathLength:1"/>
+            <g data-anim style="--d:420ms">
+              <rect class="svg-node blue" x="110" y="78" width="540" height="74" rx="5"/>
+              <text class="svg-title" x="128" y="99">平台控制面</text>
+              <text class="svg-sub" x="128" y="114">租户 / 权限 / 应用系统 / 模型 / 审批 / 审计</text>
+              <text class="svg-sub" x="128" y="130">资产 · 技能 · 事件 · 故障定界 · 消息</text>
+            </g>
+            <path class="svg-line draw-line" d="M380 152 L380 178" marker-end="url(#arch-arrow)" style="--d:660ms;pathLength:1"/>
+            <g data-anim style="--d:720ms">
+              <rect class="svg-node" x="150" y="178" width="460" height="70" rx="5"/>
+              <text class="svg-title" x="168" y="200">智能体运行时</text>
+              <text class="svg-sub" x="168" y="216">会话 · 规划 · 工具调用 · 证据汇总 · 总调度</text>
+              <text class="svg-sub" x="168" y="232">模型网关：OpenAI 兼容 / Anthropic</text>
+            </g>
+            <path class="svg-line draw-line" d="M380 248 L380 276" marker-end="url(#arch-arrow)" style="--d:900ms;pathLength:1"/>
+            <g data-anim style="--d:960ms">
+              <rect class="svg-node" x="84" y="276" width="592" height="70" rx="5"/>
+              <text class="svg-title" x="102" y="298">操作系统智能体网络</text>
+              <text class="svg-sub" x="102" y="314">发现 · 上报 · 巡航 · 巡检 · 本机诊断 · 受控执行</text>
+              <text class="svg-sub" x="102" y="330">每台服务器一个 Agent · 主动出站 · 签名命令</text>
+            </g>
+            <path class="svg-line draw-line" d="M380 346 L380 372" marker-end="url(#arch-arrow)" style="--d:1120ms;pathLength:1"/>
+            <g data-anim style="--d:1180ms">
+              <rect class="svg-node" x="140" y="372" width="480" height="44" rx="5"/>
+              <text class="svg-title" x="158" y="392">主机 / 进程 / 端口 / 连接 / 日志 / 指标</text>
+              <text class="svg-sub" x="158" y="405">真实运行现场</text>
+            </g>
+            <path class="svg-line blue draw-line" d="M52 398 C20 398, 20 90, 52 90" marker-end="url(#arch-arrow-blue)" style="--d:1350ms;pathLength:1"/>
+            <text class="svg-label" x="8" y="250" transform="rotate(-90 8 250)">事实向上</text>
+            <path class="svg-line draw-line" d="M700 90 C730 90, 730 398, 700 398" marker-end="url(#arch-arrow)" style="--d:1500ms;pathLength:1"/>
+            <text class="svg-label" x="724" y="250" transform="rotate(90 724 250)">命令向下</text>
+          </svg>
+          <div class="arch-side">
+            <div class="arch-note" data-anim style="--d:500ms"><b>控制面</b><span>定义谁能做什么、在哪个应用系统做、是否需要审批。</span></div>
+            <div class="arch-note" data-anim style="--d:650ms"><b>运行时</b><span>把问题拆成计划，把计划变成工具调用，把结果变成证据和结论。</span></div>
+            <div class="arch-note" data-anim style="--d:800ms"><b>操作系统智能体</b><span>把本机发生了什么，变成结构化事实回传平台。</span></div>
+            <div class="callout" data-anim style="--d:1000ms"><strong>边界：</strong>智能体不是平台，平台也不是智能体；前者提供现场，后者提供调度和治理。</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / architecture</span><span class="rule"></span><span>06 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 07 -->
+    <section class="slide" data-slide-id="s07" data-title="端到端流程" data-notes="让观众先看全局，后面再深入 OS Agent 和故障定界。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">End-to-end flow</div><h2>从异常到结论的完整闭环</h2></div><div class="head-note">每一步都有输入、输出和责任人。</div></div>
+        <div class="body" style="justify-content:center">
+          <div class="flow" data-anim style="--d:100ms">
+            <div class="flow-node active"><div class="n">01</div><strong>发现</strong><span>Agent 事件 / 指标 / 巡检</span></div>
+            <div class="flow-node"><div class="n">02</div><strong>聚合</strong><span>按应用系统 + 时间窗口</span></div>
+            <div class="flow-node"><div class="n">03</div><strong>建 Case</strong><span>异常归并，减少重复</span></div>
+            <div class="flow-node"><div class="n">04</div><strong>拓扑</strong><span>进程 / 服务 / 端口</span></div>
+            <div class="flow-node"><div class="n">05</div><strong>边界</strong><span>根因区 / 受影响区</span></div>
+            <div class="flow-node"><div class="n">06</div><strong>补采</strong><span>按证据缺口调度</span></div>
+            <div class="flow-node"><div class="n">07</div><strong>结论</strong><span>根因 + 证据 + 置信度</span></div>
+            <div class="flow-node"><div class="n">08</div><strong>闭环</strong><span>事件 / 审批 / 复盘</span></div>
+          </div>
+          <div class="two-note">
+            <div class="card" data-anim style="--d:600ms"><div class="label">上游 / Observe</div><strong>现场事实</strong><p>Agent 负责采集，平台负责归一化和存储；不让模型直接“想象”现场。</p></div>
+            <div class="card blue" data-anim style="--d:720ms"><div class="label">下游 / Act</div><strong>证据闭环</strong><p>模型负责假设，平台负责补采、验证、落库和人工确认。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / flow</span><span class="rule"></span><span>07 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 08 -->
+    <section class="slide" data-slide-id="s08" data-title="OS Agent 定位" data-notes="强调不是远程 Shell：主动出站、不开放入站、动作受控。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Operating system agent</div><h2>服务器上的受控操作员，不是远程 Shell</h2></div><div class="head-note">每台服务器一个 Go 单二进制 Agent。</div></div>
+        <div class="body split">
+          <div class="server-map" data-anim style="--d:80ms">
+            <div class="host-top"><span class="host-name">zdh-sit1-app-01</span><span class="host-status">AGENT ONLINE</span></div>
+            <div class="agent-core"><div><strong>opsagent-agent</strong><span>Go single binary · outbound only</span></div><span class="pulse"></span></div>
+            <div class="host-items">
+              <div class="host-item">systemd<span>服务发现</span></div>
+              <div class="host-item">processes<span>进程 / 端口</span></div>
+              <div class="host-item">connections<span>netstat / ESTAB</span></div>
+              <div class="host-item">logs<span>只读检索</span></div>
+              <div class="host-item">metrics<span>30s 巡航</span></div>
+              <div class="host-item">skills<span>本机技能</span></div>
+            </div>
+            <div class="source-note"><b>入站：</b>不开放端口　<b>出站：</b>注册 / 心跳 / 命令 / 证据</div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:8px">
+            <div class="checkline" data-anim style="--d:220ms"><i>✓</i>在本机发现服务、进程、端口、连接</div>
+            <div class="checkline" data-anim style="--d:300ms"><i>✓</i>按平台策略做 30 秒级巡航</div>
+            <div class="checkline" data-anim style="--d:380ms"><i>✓</i>按需执行只读诊断并返回证据</div>
+            <div class="checkline" data-anim style="--d:460ms"><i>✓</i>本机保留技能、记忆、会话和审计</div>
+            <div class="checkline" data-anim style="--d:540ms"><i>×</i>不执行任意 Shell，不开放入站端口</div>
+            <div class="checkline" data-anim style="--d:620ms"><i>×</i>不把模型密钥放在主机，不在本地批准高风险操作</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / os agent</span><span class="rule"></span><span>08 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 09 -->
+    <section class="slide" data-slide-id="s09" data-title="OS Agent 架构" data-notes="讲目录和组件的关系：技能可扩展、状态可恢复、审计可追溯。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Agent architecture</div><h2>一个二进制，带技能、记忆和审计</h2></div><div class="head-note">目录结构不是形式，是能力边界。</div></div>
+        <div class="body split-60">
+          <div class="dir-tree" data-anim style="--d:100ms"><b>/opt/opsagent/</b>
+├── bin/<b>opsagent-agent</b>        <em>主程序</em>
+├── config/agent.env            <em>配置</em>
+├── skills/                     <em>SKILL.md</em>
+│   ├── system-overview/
+│   ├── performance-analysis/
+│   └── troubleshooting/
+├── state/
+│   ├── memory.json             <em>长期记忆</em>
+│   ├── sessions/               <em>会话历史</em>
+│   └── checkpoints/            <em>检查点</em>
+├── snapshots/                  <em>巡航快照</em>
+├── workspace/                  <em>受控脚本区</em>
+├── audit/                      <em>本机操作审计</em>
+└── logs/agent.log
+</div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:12px">
+            <div class="card blue" data-anim style="--d:240ms"><div class="label">Skills</div><strong>能力可扩展</strong><p>内置技能和平台自定义技能，写入本机 SKILL.md，不把逻辑写死。</p></div>
+            <div class="card" data-anim style="--d:360ms"><div class="label">State</div><strong>上下文可恢复</strong><p>记忆、会话、检查点让 Agent 不是每次从零开始。</p></div>
+            <div class="card" data-anim style="--d:480ms"><div class="label">Audit</div><strong>动作可追溯</strong><p>本机操作、命令、结果、错误都有记录。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / agent architecture</span><span class="rule"></span><span>09 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section class="slide" data-slide-id="s10" data-title="发现与资产" data-notes="强调平台资产不是人工维护，是 Agent 持续上报的真实运行态。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Discovery</div><h2>平台资产，不靠人工维护，靠 Agent 持续上报</h2></div><div class="head-note">首次注册 + 每 5 分钟发现。</div></div>
+        <div class="body split">
+          <div class="card soft" data-anim style="--d:100ms">
+            <div class="label">Agent discovery</div>
+            <div class="grid cols-2" style="gap:8px">
+              <div class="host-item">services<span>运行服务</span></div><div class="host-item">processes<span>应用进程</span></div>
+              <div class="host-item">ports<span>监听端口</span></div><div class="host-item">opsTools<span>运维客户端</span></div>
+              <div class="host-item">connections<span>ESTAB 连接</span></div><div class="host-item">config<span>部署 / 日志</span></div>
+            </div>
+            <div class="source-note"><b>ps / ss / systemctl / /proc</b></div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+            <div class="mini-arrow" data-anim style="--d:300ms">AGENT → PLATFORM</div>
+            <div class="card blue" data-anim style="--d:420ms"><div class="label">agent_inventory</div><strong>服务 / 进程 / 端口 / 运维工具</strong><p>成为巡检对象，可标记重要和监控。</p></div>
+            <div class="card" data-anim style="--d:540ms"><div class="label">agent_connections</div><strong>真实连接关系</strong><p>源 IP / 端口 / 目标 IP / 端口，成为拓扑边。</p></div>
+            <div class="card" data-anim style="--d:660ms"><div class="label">agent_events</div><strong>异常信号</strong><p>进程缺失、端口未监听、指标越阈。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / discovery</span><span class="rule"></span><span>10 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 11 -->
+    <section class="slide" data-slide-id="s11" data-title="巡航与重要对象" data-notes="30 秒级巡航不是监控替代，而是把重要现场对象纳入主动巡检。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Patrol</div><h2>30 秒级巡航：重要对象，主动发现</h2></div><div class="head-note">只读、自动、异常上报。</div></div>
+        <div class="body split">
+          <div class="card" data-anim style="--d:80ms";display:flex;flex-direction:column>
+            <div class="radar" aria-hidden="true"><span class="blip a"></span><span class="blip b"></span><span class="blip c"></span></div>
+            <div class="source-note" style="justify-content:center"><b>watch</b> 进程 · 端口 · 服务</div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:8px">
+            <div class="checkline" data-anim style="--d:240ms"><i>✓</i>磁盘可用率 / 内存使用率 / 1 分钟负载</div>
+            <div class="checkline" data-anim style="--d:320ms"><i>✓</i>重要进程是否运行</div>
+            <div class="checkline" data-anim style="--d:400ms"><i>✓</i>重要端口是否监听</div>
+            <div class="checkline" data-anim style="--d:480ms"><i>✓</i>重要服务是否 active</div>
+            <div class="callout" data-anim style="--d:580ms"><strong>发现异常：</strong>Agent 本地生成事件 → 平台模型分析 → 上报 → 触发应用系统健康检查与故障定界。</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / patrol</span><span class="rule"></span><span>11 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section class="slide" data-slide-id="s12" data-title="按需诊断" data-notes="任务从平台飞向 Agent，证据再回到平台。强调只读和结构化。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">On-demand inspect</div><h2>需要更多证据时，平台按需调度 Agent</h2></div><div class="head-note">不是把所有命令跑一遍，而是按证据缺口采集。</div></div>
+        <div class="body" style="justify-content:center">
+          <div class="grid cols-2" style="gap:18px;align-items:center">
+            <div class="card blue" data-anim style="--d:80ms"><div class="label">Platform → Agent</div><strong>结构化任务</strong><p><span class="mono">probeType=process_tree</span><br>目标 java，范围最近日志、进程、端口，预算 30 秒。</p></div>
+            <div class="card" data-anim style="--d:240ms"><div class="label">Agent → Platform</div><strong>结构化证据</strong><p>执行了哪些检查、看到什么事实、返回证据编号、对定界的支持或反证。</p></div>
+          </div>
+          <div class="flow" data-anim style="margin-top:18px;--d:380ms">
+            <div class="flow-node active"><div class="n">01</div><strong>总调度</strong><span>判断证据缺口</span></div>
+            <div class="flow-node"><div class="n">02</div><strong>平台</strong><span>生成受控任务</span></div>
+            <div class="flow-node"><div class="n">03</div><strong>Agent</strong><span>本机只读检查</span></div>
+            <div class="flow-node"><div class="n">04</div><strong>证据</strong><span>结构化回传</span></div>
+            <div class="flow-node"><div class="n">05</div><strong>决策</strong><span>更新候选和边界</span></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / inspect</span><span class="rule"></span><span>12 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 13 -->
+    <section class="slide" data-slide-id="s13" data-title="技能记忆会话" data-notes="技能是能力，记忆是上下文，会话是过程；三者让 Agent 不是一次性命令执行器。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Skills · memory · session</div><h2>让 Agent 带着本机上下文工作</h2></div><div class="head-note">一次排障的上下文，不应该每次从零开始。</div></div>
+        <div class="body">
+          <div class="grid cols-3">
+            <div class="card blue" data-anim style="--d:80ms"><div class="label">Skills</div><strong>能力可扩展</strong><p>内置技能 + 平台自定义技能，按应用系统或主机下发，写入本机 SKILL.md。</p><div class="source-note"><b>14 builtin</b> + custom</div></div>
+            <div class="card" data-anim style="--d:180ms"><div class="label">Memory</div><strong>现场可回溯</strong><p>最近检查、技能观察、异常上下文，形成本机长期记忆。</p><div class="source-note"><b>memory.json</b></div></div>
+            <div class="card" data-anim style="--d:280ms"><div class="label">Session</div><strong>过程可恢复</strong><p>会话历史和检查点，支持续跑、复盘和证据追踪。</p><div class="source-note"><b>state/sessions</b></div></div>
+          </div>
+          <div class="callout" data-anim style="margin-top:18px;--d:400ms"><strong>设计意图：</strong>Agent 不是“每次从零开始”的命令执行器，而是带有本机上下文的现场智能体。</div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / agent context</span><span class="rule"></span><span>13 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 14 -->
+    <section class="slide" data-slide-id="s14" data-title="安全模型" data-notes="四个约束：网络方向、动作分级、执行方式、可追溯。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Security model</div><h2>能采集，但不能乱来</h2></div><div class="head-note">默认不信任，每一步可审计。</div></div>
+        <div class="body">
+          <div class="grid cols-4">
+            <div class="card" data-anim style="--d:80ms"><div class="label">01 / Network</div><strong>只出站</strong><p>Agent 主动连接平台，不开放入站端口，不接受外部直连。</p></div>
+            <div class="card" data-anim style="--d:180ms"><div class="label">02 / Action</div><strong>动作分级</strong><p>只读自动；有风险动作走平台审批；高风险拒绝或变更单。</p></div>
+            <div class="card" data-anim style="--d:280ms"><div class="label">03 / Execution</div><strong>结构化动作</strong><p>平台下发动作，不下发裸命令；Agent 侧有注册表和参数约束。</p></div>
+            <div class="card blue" data-anim style="--d:380ms"><div class="label">04 / Audit</div><strong>全程留痕</strong><p>命令、结果、审批、异常落库；本机也有审计。</p></div>
+          </div>
+          <div class="callout" data-anim style="margin-top:18px;--d:500ms"><strong>一句话：</strong>给智能体“看”的能力，谨慎给“动”的能力。</div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / security</span><span class="rule"></span><span>14 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 15 -->
+    <section class="slide" data-slide-id="s15" data-title="会话与批量控制" data-notes="从单台到应用系统到全部在线，体现平台调度能力；写操作走审批。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Control plane</div><h2>从一句话，到多台主机的协同</h2></div><div class="head-note">只读自动，写操作审批。</div></div>
+        <div class="body split">
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:12px">
+            <div class="card blue" data-anim style="--d:80ms"><div class="label">Chat / natural language</div><strong>“给订单中心所有节点检查系统配置”</strong><p>平台识别目标、范围、动作类型；只读检查自动执行并汇总。</p></div>
+            <div class="card" data-anim style="--d:200ms"><div class="label">Targets</div><strong>单台 / 应用系统 / 全部在线</strong><p>按 hostname、应用系统、在线范围解析目标，失败节点可重试。</p></div>
+            <div class="card amber" data-anim style="--d:320ms"><div class="label">Write action</div><strong>进入平台审批</strong><p>普通对话不直接执行写操作，审批通过才下发。</p></div>
+          </div>
+          <div class="card soft" data-anim style="--d:400ms";display:flex;flex-direction:column;justify-content:center>
+            <div class="label">Batch topology</div>
+            <div class="mini-arrow">PLATFORM</div>
+            <div class="rule" style="margin:10px 0"></div>
+            <div class="row" style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span>app-01</span><span class="pill ok">done</span></div>
+            <div class="row" style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-top:7px"><span>app-02</span><span class="pill ok">done</span></div>
+            <div class="row" style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-top:7px"><span>db-01</span><span class="pill warn">running</span></div>
+            <div class="source-note">结果 → 平台汇总 → 任务记录</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / control</span><span class="rule"></span><span>15 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 16 -->
+    <section class="slide" data-slide-id="s16" data-title="故障定界定义" data-notes="这一页把定界和定因分开，是整场汇报的关键转折。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Fault boundary · definition</div><h2>故障定界：先确定边界，再收敛根因</h2></div><div class="head-note">不是让模型看一眼告警直接给答案。</div></div>
+        <div class="body">
+          <div class="two-note" style="margin-top:0">
+            <div class="card alert" data-anim style="--d:100ms"><div class="label">Step 01 / Boundary</div><strong>影响范围到哪里？</strong><p>哪些节点、应用、端口、连接边受影响；哪些是边界外依赖。</p></div>
+            <div class="card blue" data-anim style="--d:240ms"><div class="label">Step 02 / Root cause</div><strong>根因最可能在哪？</strong><p>从异常节点、拓扑上游、时间顺序和补采证据中收敛候选。</p></div>
+          </div>
+          <div class="grid cols-3" style="margin-top:16px">
+            <div class="card" data-anim style="--d:360ms"><div class="label">Difference / 01</div><strong>结果 ≠ 原因</strong><p>CPU 高、连接拒绝可能只是下游症状。</p></div>
+            <div class="card" data-anim style="--d:440ms"><div class="label">Difference / 02</div><strong>边界是可计算的</strong><p>沿真实访问关系向下游扩散，而不是凭经验圈范围。</p></div>
+            <div class="card blue" data-anim style="--d:520ms"><div class="label">Difference / 03</div><strong>结论必须可验证</strong><p>根因候选 + 证据 + 置信度，而不是一句自然语言。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / fault boundary</span><span class="rule"></span><span>16 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 17 -->
+    <section class="slide" data-slide-id="s17" data-title="传统根因问题" data-notes="四个问题：单点、文本、无时序、无约束。结论是输入事实质量决定结论质量。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Why old RCA fails</div><h2>为什么“把告警丢给模型”效果不好</h2></div><div class="head-note">根因分析的质量，取决于输入的事实质量。</div></div>
+        <div class="body">
+          <div class="grid cols-4">
+            <div class="card" data-anim style="--d:80ms"><div class="label">01</div><strong>只有单点数据</strong><p>只看一台主机，看不见上下游。</p></div>
+            <div class="card" data-anim style="--d:180ms"><div class="label">02</div><strong>只有告警文本</strong><p>没有进程、端口、连接和日志事实。</p></div>
+            <div class="card" data-anim style="--d:280ms"><div class="label">03</div><strong>没有时间序列</strong><p>不知道异常是先发生还是后发生。</p></div>
+            <div class="card" data-anim style="--d:380ms"><div class="label">04</div><strong>模型没有约束</strong><p>没有候选评分、证据引用和人工确认。</p></div>
+          </div>
+          <div class="callout" data-anim style="margin-top:18px;--d:500ms"><strong>所以：</strong>不是换更大的模型，而是先换输入：现场事实 + 时间序列 + 访问拓扑 + 证据约束。</div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / old RCA</span><span class="rule"></span><span>17 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 18 -->
+    <section class="slide" data-slide-id="s18" data-title="定界流程" data-notes="10 步是目标设计；讲清当前已落地和工程化中的区别。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Fault boundary · pipeline</div><h2>从信号到结论的 10 步</h2></div><div class="head-note">当前已跑通原型，下一步把它工程化。</div></div>
+        <div class="body" style="justify-content:center">
+          <div class="flow" data-anim style="--d:80ms">
+            <div class="flow-node active"><div class="n">01</div><strong>信号</strong><span>归一化</span></div>
+            <div class="flow-node"><div class="n">02</div><strong>聚合</strong><span>应用系统 / 时间窗</span></div>
+            <div class="flow-node"><div class="n">03</div><strong>拓扑</strong><span>节点 / 端口 / 连接</span></div>
+            <div class="flow-node"><div class="n">04</div><strong>异常</strong><span>节点识别</span></div>
+            <div class="flow-node"><div class="n">05</div><strong>边界</strong><span>影响范围</span></div>
+            <div class="flow-node"><div class="n">06</div><strong>候选</strong><span>Top N 根因</span></div>
+            <div class="flow-node"><div class="n">07</div><strong>缺口</strong><span>判断证据</span></div>
+            <div class="flow-node"><div class="n">08</div><strong>补采</strong><span>调度 Agent</span></div>
+            <div class="flow-node"><div class="n">09</div><strong>收敛</strong><span>合并评分</span></div>
+            <div class="flow-node active"><div class="n">10</div><strong>结论</strong><span>证据 / 置信度</span></div>
+          </div>
+          <div class="grid cols-3" style="margin-top:18px">
+            <div class="card" data-anim style="--d:560ms"><div class="label">已落地</div><strong>自动触发 + 汇总 + 调度 + 结论</strong><p>FaultAnalysis 服务、步骤、证据、前端页面。</p></div>
+            <div class="card amber" data-anim style="--d:650ms"><div class="label">工程化中</div><strong>时间窗聚合 + 指标基线</strong><p>Case 去重、趋势判断和异常评分仍需强化。</p></div>
+            <div class="card blue" data-anim style="--d:740ms"><div class="label">下一步</div><strong>边界算法 + 候选评分 + 证据引用</strong><p>从“原型能跑”到“结论可信”。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / pipeline</span><span class="rule"></span><span>18 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 19 -->
+    <section class="slide" data-slide-id="s19" data-title="信号聚合" data-notes="强调领导看到的是一个 Case，不是 200 条告警。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Signal aggregation</div><h2>不是每条告警都开一个分析</h2></div><div class="head-note">应用系统 + 时间窗口 + 主异常指纹。</div></div>
+        <div class="body split">
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+            <div class="card" data-anim style="--d:80ms"><div class="label">Raw signals</div><strong>200 条重复告警</strong><p>CPU、连接拒绝、接口超时、进程缺失，分散在不同节点。</p></div>
+            <div class="mini-arrow" data-anim style="--d:180ms">NORMALIZE → DEDUPE → GROUP</div>
+            <div class="card blue" data-anim style="--d:280ms"><div class="label">Fault Case</div><strong>1 个可处理的故障案例</strong><p>同一应用系统、同一时间窗、同一主指纹；关联上下游信号。</p></div>
+          </div>
+          <div class="card soft" data-anim style="--d:360ms";display:flex;flex-direction:column;justify-content:center>
+            <div class="label">Aggregation key</div>
+            <div class="formula">tenant_id<br>+ <b>app_system_id</b><br>+ <b>10 min window</b><br>+ <b>fingerprint</b></div>
+            <div class="rule" style="margin:14px 0"></div>
+            <div class="checkline"><i>✓</i>同指纹异常合并</div>
+            <div class="checkline"><i>✓</i>拓扑关联异常合并</div>
+            <div class="checkline"><i>✓</i>已关闭 Case 再次出现 → 新建并关联历史</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / aggregation</span><span class="rule"></span><span>19 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 20 -->
+    <section class="slide" data-slide-id="s20" data-title="拓扑自动生成" data-notes="这是核心创新页：netstat 数据飞入，边生长，异常叠加，最后回答谁访问谁。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Topology · auto generated</div><h2>访问关系不是画出来的，是 Agent 采集后自动生成的</h2></div><div class="head-note">netstat → IP/端口 → 进程/服务 → 拓扑边。</div></div>
+        <div class="body topo-wrap">
+          <svg class="topo-svg" viewBox="0 0 720 430" aria-label="自动生成的访问关系">
+            <defs>
+              <marker id="t-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#b43a35"/></marker>
+              <marker id="t-arrow-warn" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#93621b"/></marker>
+              <marker id="t-arrow-gray" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#a0afbd"/></marker>
+            </defs>
+            <text class="svg-label" x="18" y="20">netstat / ss · ESTAB COLLECTED FROM AGENT</text>
+            <!-- app01 node -->
+            <g data-anim style="--d:120ms">
+              <rect class="topo-node root" x="18" y="42" width="230" height="118" rx="5"/>
+              <text class="topo-title" x="32" y="64">zdh-sit1-app-01</text>
+              <text class="topo-sub" x="32" y="80">java(order-service)</text>
+              <text class="topo-sub" x="32" y="95">监听 :8080 · 出站 :48012</text>
+              <text class="topo-alert" x="32" y="115">异常：连接池 312/300 · CPU 96%</text>
+              <text class="topo-sub" x="32" y="132">netstat 1,842 ESTAB</text>
+              <text class="topo-sub" x="32" y="146">采集 Agent：opsagent-app-01</text>
+            </g>
+            <!-- app02 -->
+            <g data-anim style="--d:260ms">
+              <rect class="topo-node affected" x="18" y="214" width="230" height="102" rx="5"/>
+              <text class="topo-title" x="32" y="236">zdh-sit1-app-02</text>
+              <text class="topo-sub" x="32" y="252">java(order-service)</text>
+              <text class="topo-sub" x="32" y="267">监听 :8080 · 出站 :48012</text>
+              <text class="topo-alert amber" x="32" y="287">异常：错误率 8.7% · 46 超时</text>
+              <text class="topo-sub" x="32" y="302">netstat 1,034 ESTAB</text>
+            </g>
+            <!-- db -->
+            <g data-anim style="--d:400ms">
+              <rect class="topo-node affected" x="470" y="88" width="232" height="110" rx="5"/>
+              <text class="topo-title" x="484" y="110">zdh-sit1-db-01</text>
+              <text class="topo-sub" x="484" y="126">mysqld / mysql</text>
+              <text class="topo-sub" x="484" y="141">监听 :3306 · 1204/1500</text>
+              <text class="topo-alert amber" x="484" y="161">异常：连接拒绝 18% · 慢查询 14</text>
+              <text class="topo-sub" x="484" y="178">采集 Agent：opsagent-db-01</text>
+            </g>
+            <!-- ext -->
+            <g data-anim style="--d:540ms">
+              <rect class="topo-node external" x="470" y="286" width="232" height="66" rx="5"/>
+              <text class="topo-title" x="484" y="308">短信网关</text>
+              <text class="topo-sub" x="484" y="323">sms-gw · :443</text>
+              <text class="topo-sub" x="484" y="337">边界外依赖 · 不参与扩散</text>
+            </g>
+            <!-- edges -->
+            <path class="edge-line root draw-line" d="M248 120 C350 120, 370 148, 470 148" style="--d:700ms;pathLength:1" marker-end="url(#t-arrow)"/>
+            <text class="edge-label root" x="258" y="92">java:48012 → mysqld:3306</text>
+            <text class="edge-label root" x="258" y="106">TCP ESTAB · 312</text>
+            <path class="edge-line warn draw-line" d="M248 284 C350 284, 370 212, 470 212" style="--d:840ms;pathLength:1" marker-end="url(#t-arrow-warn)"/>
+            <text class="edge-label warn" x="258" y="252">java:48012 → mysqld:3306</text>
+            <text class="edge-label warn" x="258" y="266">TCP ESTAB · 46</text>
+            <path class="edge-line external draw-line" d="M248 142 C340 142, 360 316, 470 316" style="--d:980ms;pathLength:1" marker-end="url(#t-arrow-gray)"/>
+            <text class="edge-label" x="258" y="306">java:48012 → sms-gw:443 · 18</text>
+            <!-- data dots -->
+            <circle class="float-dot" r="2.5" fill="#b43a35"><animateMotion dur="2.6s" repeatCount="indefinite" path="M248 106 C350 106, 370 140, 470 140"/></circle>
+            <circle class="float-dot" r="2.5" fill="#93621b"><animateMotion dur="3.2s" repeatCount="indefinite" path="M248 268 C350 268, 370 202, 470 202"/></circle>
+          </svg>
+          <div class="topo-side">
+            <div class="row" data-anim style="--d:500ms"><span>源</span><b>app-01 · java:48012</b></div>
+            <div class="row" data-anim style="--d:560ms"><span>目标</span><b>db-01 · mysqld:3306</b></div>
+            <div class="row" data-anim style="--d:620ms"><span>协议 / 状态</span><b>TCP · ESTAB</b></div>
+            <div class="row" data-anim style="--d:680ms"><span>连接数</span><b>312</b></div>
+            <div class="row" data-anim style="--d:740ms"><span>异常节点</span><b class="red">app-01 / app-02 / db-01</b></div>
+            <div class="callout" data-anim style="margin-top:8px;--d:820ms"><strong>自动映射：</strong>IP → Agent 节点；端口 → 进程/服务；ESTAB → 拓扑边；外部地址 → 边界外。</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / topology</span><span class="rule"></span><span>20 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 21 -->
+    <section class="slide" data-slide-id="s21" data-title="边界与候选" data-notes="边界扩散动画 + 候选评分增长；强调先给候选，不急着给唯一答案。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Boundary & candidates</div><h2>先给边界和候选，再谈唯一根因</h2></div><div class="head-note">Top 3 候选，每个带证据和缺口。</div></div>
+        <div class="body split">
+          <div class="boundary" data-anim style="--d:100ms">
+            <div class="boundary-zone mid" style="width:78%;aspect-ratio:1;display:flex;align-items:center;justify-content:center">
+              <div class="boundary-zone inner" style="width:66%;aspect-ratio:1;display:flex;align-items:center;justify-content:center">
+                <div class="boundary-center"><strong>app-01</strong><span>根因候选区</span></div>
+                <span class="boundary-chip a">app-02 受影响</span>
+                <span class="boundary-chip b">db-01 下游受影响</span>
+              </div>
+              <span class="boundary-chip c">短信网关 边界外</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center">
+            <div class="label mono small" style="margin-bottom:7px">Root cause candidates</div>
+            <div class="score-row" data-anim style="--d:260ms"><span class="score-name">order-service 连接池耗尽</span><span class="score-track"><i class="red bar-grow" style="width:82%"></i></span><span class="score-val">0.82</span></div>
+            <div class="score-row" data-anim style="--d:360ms"><span class="score-name">MySQL 连接数达到上限</span><span class="score-track"><i class="bar-grow" style="width:61%"></i></span><span class="score-val">0.61</span></div>
+            <div class="score-row" data-anim style="--d:460ms"><span class="score-name">app-01 CPU 饱和</span><span class="score-track"><i class="bar-grow" style="width:34%"></i></span><span class="score-val">0.34</span></div>
+            <div class="source-note" style="margin-top:10px">时间优先性 · 拓扑上游性 · 异常严重度 · 重要资产 · 持续性</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / boundary</span><span class="rule"></span><span>21 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 22 -->
+    <section class="slide" data-slide-id="s22" data-title="智能体协同" data-notes="扇形派发、反向汇聚；总调度问对问题，Agent 拿到本机事实。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Agent collaboration</div><h2>总调度负责问对问题，Agent 负责拿到事实</h2></div><div class="head-note">任务下发、证据回收、二次决策。</div></div>
+        <div class="body" style="justify-content:center">
+          <svg viewBox="0 0 1000 360" style="width:100%;height:auto" aria-label="总调度与 Agent 协同">
+            <defs><marker id="c-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1769aa"/></marker><marker id="c-arrow-back" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#8ba3b8"/></marker></defs>
+            <g data-anim style="--d:80ms"><rect class="svg-node blue" x="380" y="30" width="240" height="74" rx="5"/><text class="svg-title" x="398" y="54">总调度智能体</text><text class="svg-sub" x="398" y="70">汇总异常 · 生成候选 · 判断缺口</text><text class="svg-sub" x="398" y="85">受控任务 · 证据收敛</text></g>
+            <path class="svg-line blue draw-line" d="M420 104 C360 104, 330 142, 300 160" style="--d:280ms;pathLength:1" marker-end="url(#c-arrow)"/>
+            <path class="svg-line blue draw-line" d="M500 104 C500 128, 500 138, 500 156" style="--d:380ms;pathLength:1" marker-end="url(#c-arrow)"/>
+            <path class="svg-line blue draw-line" d="M580 104 C640 104, 670 142, 700 160" style="--d:480ms;pathLength:1" marker-end="url(#c-arrow)"/>
+            <path class="svg-line draw-line" d="M300 216 C340 216, 370 170, 420 142" style="--d:700ms;pathLength:1" marker-end="url(#c-arrow-back)"/>
+            <path class="svg-line draw-line" d="M500 216 C500 190, 500 170, 500 142" style="--d:780ms;pathLength:1" marker-end="url(#c-arrow-back)"/>
+            <path class="svg-line draw-line" d="M700 216 C660 216, 630 170, 580 142" style="--d:860ms;pathLength:1" marker-end="url(#c-arrow-back)"/>
+            <g data-anim style="--d:560ms"><rect class="svg-node" x="190" y="160" width="220" height="56" rx="5"/><text class="svg-title" x="206" y="180">app-01</text><text class="svg-sub" x="206" y="195">进程树 / 线程 / 日志 / netstat</text></g>
+            <g data-anim style="--d:640ms"><rect class="svg-node" x="390" y="160" width="220" height="56" rx="5"/><text class="svg-title" x="406" y="180">db-01</text><text class="svg-sub" x="406" y="195">3306 / 连接数 / 慢查询</text></g>
+            <g data-anim style="--d:720ms"><rect class="svg-node" x="590" y="160" width="220" height="56" rx="5"/><text class="svg-title" x="606" y="180">app-02</text><text class="svg-sub" x="606" y="195">错误率 / 连接 / 日志</text></g>
+            <g data-anim style="--d:980ms"><rect class="svg-node red" x="350" y="260" width="300" height="54" rx="5"/><text class="svg-title" x="366" y="281">二次决策</text><text class="svg-sub" x="366" y="297">排除 db · 锁定 app-01 · 更新边界</text></g>
+            <path class="svg-line draw-line" d="M500 216 C500 240, 500 245, 500 260" style="--d:1050ms;pathLength:1" marker-end="url(#c-arrow-back)"/>
+            <text class="svg-label" x="316" y="132">① 调度</text><text class="svg-label" x="300" y="246">② 返回证据</text>
+          </svg>
+          <div class="grid cols-3" style="margin-top:8px">
+            <div class="card" data-anim style="--d:800ms"><div class="label">app-01</div><strong>连接池超时 17 次</strong><p>支持应用连接池根因。</p></div>
+            <div class="card" data-anim style="--d:870ms"><div class="label">db-01</div><strong>3306 正常 · 1204/1500</strong><p>排除数据库根因。</p></div>
+            <div class="card" data-anim style="--d:940ms"><div class="label">app-02</div><strong>错误率 8.7% · 连接池 61%</strong><p>标记为受影响节点。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / collaboration</span><span class="rule"></span><span>22 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 23 -->
+    <section class="slide" data-slide-id="s23" data-title="结论与证据" data-notes="模型输出必须结构化、落库、引用证据；低置信度人工确认。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Evidence-bound conclusion</div><h2>让模型可解释：每个结论都要有证据</h2></div><div class="head-note">模型是分析器，不是最终裁判。</div></div>
+        <div class="body split">
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+            <div class="card" data-anim style="--d:80ms"><div class="label">Input</div><strong>四类结构化输入</strong><p>节点指标 · 归一化事件 · 访问拓扑 · Agent 补采证据。</p></div>
+            <div class="card blue" data-anim style="--d:200ms"><div class="label">Output</div><strong>结构化结论</strong><p><span class="mono">rootCause / confidence / findings / followUp</span></p></div>
+            <div class="card amber" data-anim style="--d:320ms"><div class="label">Guardrails</div><strong>平台约束</strong><p>落库、低置信度人工确认、证据引用、模型不可用时规则兜底。</p></div>
+          </div>
+          <div class="card soft" data-anim style="--d:400ms";display:flex;flex-direction:column;justify-content:center>
+            <div class="label">Evidence chain</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0"><span class="pill">LOG-008</span><span class="pill">PROBE-006</span><span class="pill">PROBE-007</span><span class="pill">LOG-009</span><span class="pill">CONN-003</span></div>
+            <div class="rule" style="margin:10px 0"></div>
+            <div class="quote" style="font-size:16px">结论：<strong>app-01 order-service 连接池耗尽</strong>，不是 db-01 上限，也不是 app-02 独立故障。</div>
+            <div class="source-note">置信度 82% · 待人工确认</div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / evidence</span><span class="rule"></span><span>23 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 24 -->
+    <section class="slide" data-slide-id="s24" data-title="案例" data-notes="完整故事线：发现 → 调度 → 返回 → 二次决策 → 结论。数据为示意，机制已本地验证。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Case study / 订单中心</div><h2>一次连接池故障，如何被定界</h2></div><div class="head-note">机制演示案例，部分数据为示意。</div></div>
+        <div class="body split-60">
+          <div class="case-steps">
+            <div class="case-step active" data-anim style="--d:80ms"><span class="t">01</span><div><strong>发现</strong><span>订单提交超时 · MySQL 连接拒绝 · app-01 CPU 96%</span></div><span class="state pill bad">SIGNAL</span></div>
+            <div class="case-step" data-anim style="--d:180ms"><span class="t">02</span><div><strong>调度</strong><span>app-01 / db-01 / app-02 并行采集</span></div><span class="state pill">PROBE</span></div>
+            <div class="case-step" data-anim style="--d:280ms"><span class="t">03</span><div><strong>返回</strong><span>连接池超时 17 次 · 1204/1500 · 错误率 8.7%</span></div><span class="state pill ok">EVIDENCE</span></div>
+            <div class="case-step" data-anim style="--d:380ms"><span class="t">04</span><div><strong>二次决策</strong><span>MySQL 候选 0.61 → 0.34；app-02 降为受影响</span></div><span class="state pill warn">DECIDE</span></div>
+            <div class="case-step" data-anim style="--d:480ms"><span class="t">05</span><div><strong>结论</strong><span>app-01 order-service 连接池耗尽 · 置信度 82%</span></div><span class="state pill bad">ROOT</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+            <div class="card alert" data-anim style="--d:560ms"><div class="label">Before</div><strong>症状在数据库</strong><p>看到的是 MySQL 连接拒绝，很容易直接判断数据库问题。</p></div>
+            <div class="card blue" data-anim style="--d:660ms"><div class="label">After</div><strong>根因在应用连接池</strong><p>Agent 证据显示：db 未达上限，app-01 连接池打满且线程阻塞。</p></div>
+            <div class="card" data-anim style="--d:760ms"><div class="label">Boundary</div><strong>app-02 / db-01 是受影响，不是根因</strong><p>拓扑把“症状节点”和“根因节点”分开。</p></div>
+          </div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / case</span><span class="rule"></span><span>24 / 25</span></div>
+      </div>
+    </section>
+
+    <!-- 25 -->
+    <section class="slide" data-slide-id="s25" data-title="价值与愿景" data-notes="收束：已落地能力、价值、三阶段愿景。最后一句是平台定位。">
+      <div class="slide-inner">
+        <div class="slide-head"><div class="title-block"><div class="eyebrow">Value & roadmap</div><h2>把现场做扎实，把定界做可信，把闭环做完整</h2></div><div class="head-note">阶段一已落地，阶段二工程化中，阶段三为愿景。</div></div>
+        <div class="body">
+          <div class="grid cols-3">
+            <div class="card blue" data-anim style="--d:80ms"><div class="label">Now / 已落地</div><strong>现场能力 + 定界原型</strong><p>Agent 发现/巡检/诊断；故障定界自动触发、汇总、调度、补采、结论；拓扑数据与页面。</p><div class="source-note"><b>Go Agent</b> · fault_analyses</div></div>
+            <div class="card amber" data-anim style="--d:200ms"><div class="label">Next / 工程化</div><strong>把原型做成产品</strong><p>指标时间序列、Case 聚合去重、边界算法、候选评分、受控补采、证据引用。</p><div class="source-note"><b>trust</b> · scale · audit</div></div>
+            <div class="card" data-anim style="--d:320ms"><div class="label">Vision / 愿景</div><strong>多智能体 + 自愈闭环</strong><p>网络/存储/虚拟化 Agent；事件、审批、知识联动；变更建议与自愈。</p><div class="source-note"><b>closed loop</b></div></div>
+          </div>
+          <div class="callout" data-anim style="margin-top:18px;--d:480ms"><strong>平台最终目标：</strong>标准故障由总调度在分钟级完成跨源取证与根因确认；长尾问题由多类型 Agent 和技能持续扩展；每一次故障沉淀为可复用知识。</div>
+          <div class="quote" data-anim style="margin-top:16px;--d:620ms">我们做的不是“会回答问题的 AI”，<br>而是<strong>能在真实现场组织事实、调度智能体、收敛根因</strong>的系统。</div>
+        </div>
+        <div class="chrome"><span class="brandline"><b>OpsAgent</b> / closing</span><span class="rule"></span><span>25 / 25</span></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="progress"><i id="progress"></i></div>
+  <div class="nav"><button type="button" id="prev" aria-label="上一页">←</button><span id="counter">01 / 25</span><button type="button" id="next" aria-label="下一页">→</button></div>
+  <button type="button" class="index-toggle" id="indexToggle">INDEX</button>
+  <div class="notes" id="notes"><div class="kicker">SPEAKER NOTE · <span id="notePage"></span></div><p id="noteText"></p></div>
+  <div class="overview" id="overview"><div class="overview-head"><span>OPSAGENT / 25 SLIDES</span><button type="button" class="index-toggle" id="closeOverview" style="position:static">CLOSE</button></div><div class="overview-grid" id="overviewGrid"></div></div>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    let index = 0;
+    let ticking = false;
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function render() {
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === index);
+      });
+      document.getElementById('counter').textContent = `${pad(index + 1)} / ${pad(slides.length)}`;
+      document.getElementById('progress').style.width = `${((index + 1) / slides.length) * 100}%`;
+      const active = slides[index];
+      document.getElementById('notePage').textContent = active.dataset.title || '';
+      document.getElementById('noteText').textContent = active.dataset.notes || '';
+      document.querySelectorAll('.thumb').forEach((thumb, i) => thumb.classList.toggle('active', i === index));
+    }
+    function go(next) {
+      const bounded = Math.max(0, Math.min(slides.length - 1, next));
+      if (bounded === index) return;
+      index = bounded;
+      render();
+    }
+    document.getElementById('prev').addEventListener('click', () => go(index - 1));
+    document.getElementById('next').addEventListener('click', () => go(index + 1));
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') { event.preventDefault(); go(index + 1); }
+      else if (event.key === 'ArrowLeft' || event.key === 'PageUp') { event.preventDefault(); go(index - 1); }
+      else if (event.key === 'n' || event.key === 'N') { document.getElementById('notes').classList.toggle('show'); }
+      else if (event.key === 'Escape') { document.getElementById('overview').classList.remove('show'); }
+    });
+    window.addEventListener('wheel', (event) => {
+      if (ticking) return;
+      if (Math.abs(event.deltaY) < 28 && Math.abs(event.deltaX) < 28) return;
+      ticking = true;
+      go(index + (event.deltaY > 0 || event.deltaX > 0 ? 1 : -1));
+      window.setTimeout(() => { ticking = false; }, 650);
+    }, { passive: true });
+    const grid = document.getElementById('overviewGrid');
+    slides.forEach((slide, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'thumb';
+      button.innerHTML = `<b>${pad(i + 1)}</b><span>${slide.dataset.title || ''}</span>`;
+      button.addEventListener('click', () => { index = i; render(); document.getElementById('overview').classList.remove('show'); });
+      grid.appendChild(button);
+    });
+    document.getElementById('indexToggle').addEventListener('click', () => document.getElementById('overview').classList.add('show'));
+    document.getElementById('closeOverview').addEventListener('click', () => document.getElementById('overview').classList.remove('show'));
+    if (new URLSearchParams(location.search).has('print')) document.body.classList.add('print');
+    render();
+  </script>
+</body>
+</html>

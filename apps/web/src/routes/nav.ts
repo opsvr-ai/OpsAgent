@@ -9,6 +9,7 @@ export type DesignNav =
   | 'knowledge'
   | 'messages'
   | 'agents'
+  | 'skills'
   | 'tasks'
   | 'sessions'
   | 'members'
@@ -30,6 +31,7 @@ export const NAV: Array<{ id: DesignNav; label: string; icon: string }> = [
   { id: 'knowledge', label: '知识中心', icon: 'book' },
   { id: 'messages', label: '消息中心', icon: 'bell' },
   { id: 'agents', label: '操作系统智能体', icon: 'server' },
+  { id: 'skills', label: '运维技能', icon: 'book' },
   { id: 'tasks', label: '长任务', icon: 'clock' },
   { id: 'sessions', label: '会话历史', icon: 'message' },
   { id: 'members', label: '成员与角色', icon: 'users' },

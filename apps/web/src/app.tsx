@@ -20,6 +20,7 @@ import { Tasks } from './routes/tasks.js';
 import { Sessions } from './routes/sessions.js';
 import { Members } from './routes/members.js';
 import { Models } from './routes/models.js';
+import { Skills } from './routes/skills.js';
 import { Platform } from './routes/platform.js';
 import { DataStore } from './routes/data-store.js';
 import { Appearance } from './routes/appearance.js';
@@ -31,7 +32,7 @@ export function App() {
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'deployments' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'deployments' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'skills' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
   const navEpoch = useRef(0);
 
   async function refresh() {
@@ -93,7 +94,7 @@ export function App() {
       }
       const allowed = new Set([
         'home', 'scenarios', 'audit', 'shares', 'studio', 'incidents', 'deployments', 'approvals',
-        'connectors', 'knowledge', 'messages', 'agents', 'tasks', 'sessions',
+        'connectors', 'knowledge', 'messages', 'agents', 'skills', 'tasks', 'sessions',
         'members', 'models', 'data', 'appearance', 'help',
       ]);
       if (allowed.has(id)) setView(id as typeof view);
@@ -142,6 +143,7 @@ export function App() {
   if (view === 'knowledge') return withSession(<Knowledge onBack={() => setView('home')} />);
   if (view === 'messages') return withSession(<Messages onBack={() => setView('home')} />);
   if (view === 'agents') return withSession(<Agents onBack={() => setView('home')} />);
+  if (view === 'skills') return withSession(<Skills onBack={() => setView('home')} />);
   if (view === 'tasks') return withSession(<Tasks onBack={() => setView('home')} />);
   if (view === 'sessions') return withSession(<Sessions onBack={() => setView('home')} onOpenSession={openSession} />);
   if (view === 'members') return withSession(<Members onBack={() => setView('home')} />);

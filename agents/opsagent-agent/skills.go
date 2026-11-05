@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -60,6 +62,62 @@ var skills = []skillDefinition{
 	{Name: "performance.analysis", Description: "分析 CPU、内存、磁盘、负载和 PSI 性能瓶颈", Question: "分析系统性能和瓶颈"},
 	{Name: "troubleshooting", Description: "采集失败服务、内核错误、OOM 和磁盘异常并排障", Question: "诊断系统故障和排障"},
 	{Name: "system.configuration", Description: "采集操作系统内核、CPU、内存、磁盘、网络、sysctl 等配置", Question: "采集操作系统配置详情"},
+}
+
+func syncSkillsCommand(input map[string]any) map[string]any {
+	result := map[string]any{"type": "skill_sync", "ok": true, "synced": []string{}}
+	raw, _ := input["skills"].([]any)
+	paths := resolveAgentPaths()
+	synced := []string{}
+	for _, item := range raw {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := entry["name"].(string)
+		content, _ := entry["content"].(string)
+		name = strings.TrimSpace(name)
+		if name == "" || content == "" || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+			continue
+		}
+		directory := filepath.Join(paths.Skills, name)
+		if err := os.MkdirAll(directory, 0o750); err != nil {
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(directory, "SKILL.md"), []byte(content), 0o640); err != nil {
+			continue
+		}
+		synced = append(synced, name)
+	}
+	result["synced"] = synced
+	return result
+}
+
+func skillsManifest() []map[string]any {
+	paths := resolveAgentPaths()
+	items := listSkills()
+	result := make([]map[string]any, 0, len(items))
+	for _, skill := range items {
+		content := ""
+		for _, directory := range []string{skill.Name, canonicalSkillName(skill.Name)} {
+			if data, err := os.ReadFile(filepath.Join(paths.Skills, directory, "SKILL.md")); err == nil {
+				content = string(data)
+				break
+			}
+		}
+		if content == "" {
+			content = fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n# %s\n", skill.Name, skill.Description, skill.Description)
+		}
+		sum := sha256.Sum256([]byte(content))
+		result = append(result, map[string]any{
+			"name":        skill.Name,
+			"description": skill.Description,
+			"content":     content,
+			"checksum":    hex.EncodeToString(sum[:]),
+			"source":      "builtin",
+		})
+	}
+	return result
 }
 
 func listSkills() []skillDefinition {

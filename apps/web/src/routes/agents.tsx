@@ -3,6 +3,7 @@ import {
   assignAgentAppSystem,
   cancelAgentInstruction,
   createAgentCommand,
+  createAppSystem,
   createAgentInstruction,
   createAgentInstructionsBatch,
   createAgentInstructionTemplate,
@@ -286,6 +287,19 @@ export function Agents({ onBack }: AgentsProps) {
       setError('命令下发失败');
     } finally {
       setCommandBusy(false);
+    }
+  }
+
+  async function addAppSystem() {
+    const name = window.prompt('应用系统名称');
+    if (!name?.trim()) return;
+    const code = window.prompt('应用系统编码（字母数字和短横线）', `app-${Date.now().toString().slice(-6)}`);
+    if (!code?.trim()) return;
+    try {
+      await createAppSystem({ name: name.trim(), code: code.trim() });
+      setReloadToken((value) => value + 1);
+    } catch {
+      setError('新增应用系统失败，编码可能已存在');
     }
   }
 
@@ -573,7 +587,7 @@ export function Agents({ onBack }: AgentsProps) {
       <section className="app-system-strip">
         <div className="section-heading">
           <div><div className="eyebrow">Application Systems</div><h2>应用系统视图</h2></div>
-          <span className="muted">按归属过滤主机</span>
+          <div className="row-sm"><span className="muted">按归属过滤主机</span><button type="button" className="btn btn-outline btn-sm" onClick={() => void addAppSystem()}>新增应用系统</button></div>
         </div>
         <div className="app-system-scroll">
           <button type="button" className={`app-system-card${appSystemId === '' ? ' is-active' : ''}`} onClick={() => { setAppSystemId(''); setPage(1); }}>

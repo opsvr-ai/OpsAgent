@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const agentVersion = "0.5.0"
+const agentVersion = "0.5.1"
 
 type discoveryReport struct {
 	System       map[string]any   `json:"system"`
@@ -301,6 +301,7 @@ func collectDiscovery(started time.Time, metrics map[string]any) discoveryReport
 		"controlURL":    env("OPSAGENT_CONTROL_URL", ""),
 		"startedAt":     started.UTC().Format(time.RFC3339),
 		"capabilities":  []string{"system.discover", "applications.discover", "metrics", "uptime", "load", "processes", "diagnostics", "controlled_exec", "self.patrol", "inspect", "skills", "memory", "script", "agent.instruction", "snapshot", "platform.model"},
+		"skills":        skillsManifest(),
 	}
 	return discoveryReport{
 		System:       system,

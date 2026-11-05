@@ -1132,6 +1132,52 @@ export async function updateAgentPatrolPolicy(
   });
 }
 
+export interface AgentSkill {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly content: string;
+  readonly source: 'builtin' | 'custom';
+  readonly checksum: string;
+  readonly version: number;
+  readonly updatedAt: string;
+  readonly assignments: Array<{ scope: string; targetId: string | null; targetName?: string }>;
+}
+
+export async function listAgentSkills(): Promise<AgentSkill[]> {
+  return request<AgentSkill[]>('/api/skills');
+}
+
+export async function createAgentSkill(input: { name: string; description: string; content: string }): Promise<AgentSkill> {
+  return request<AgentSkill>('/api/skills', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function deleteAgentSkill(id: string): Promise<void> {
+  await request<{ ok: true }>(`/api/skills/${id}`, { method: 'DELETE' });
+}
+
+export async function assignAgentSkill(id: string, input: {
+  scope: 'all' | 'app_system' | 'agent';
+  targetId?: string;
+}): Promise<{ synced: number; agents: string[] }> {
+  return request<{ synced: number; agents: string[] }>(`/api/skills/${id}/assign`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function createAppSystem(input: {
+  code: string;
+  name: string;
+  owner?: string;
+  criticality?: string;
+}): Promise<AppSystemSummary> {
+  return request<AppSystemSummary>('/api/app-systems', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function createAgentCommand(
   agentId: string,
   type: string,

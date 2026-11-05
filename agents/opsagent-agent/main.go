@@ -123,6 +123,8 @@ func runCommandWithInput(commandType string, metrics map[string]any, input map[s
 		result = memorySummary(limit)
 	case "script":
 		result = runScriptCommand(input)
+	case "skill_sync":
+		result = syncSkillsCommand(input)
 	case "exec":
 		result = execHost(input)
 	default:

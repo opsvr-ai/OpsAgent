@@ -13,6 +13,7 @@ import { AppHealthService } from './health.js';
 import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
 import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
+import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -42,6 +43,7 @@ export function registerAgentRoutes(
   const health = new AppHealthService(pool);
   const modelCompletion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
   const patrolPolicies = new PatrolPolicyService(pool);
+  const skillService = new AgentSkillService(pool);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -84,6 +86,15 @@ export function registerAgentRoutes(
       ...(discovery ? { discovery } : {}),
     });
     const commandSigners = getCommandSigners();
+    const registrationSkills = discovery?.agent && typeof discovery.agent === 'object'
+      ? (discovery.agent as { skills?: unknown }).skills
+      : undefined;
+    if (Array.isArray(registrationSkills)) {
+      await skillService.syncBuiltin(
+        body.tenantId,
+        registrationSkills.filter((item): item is BuiltinSkillPayload => typeof item === 'object' && item !== null),
+      ).catch(() => undefined);
+    }
     return reply.code(201).send({
       ...registered,
       commandPublicKey: commandSigners[0]?.publicKey,
@@ -121,6 +132,21 @@ export function registerAgentRoutes(
       typeof body.tlsCertSerial === 'string' ? body.tlsCertSerial : undefined,
     );
     if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
+    const discoveryAgent = body.discovery && typeof body.discovery === 'object'
+      ? (body.discovery as { agent?: { skills?: unknown } }).agent
+      : undefined;
+    if (discoveryAgent && Array.isArray(discoveryAgent.skills)) {
+      const tenant = await pool.query<{ tenant_id: string }>(
+        'SELECT tenant_id FROM agents WHERE id = $1',
+        [request.params.id],
+      );
+      if (tenant.rows[0]) {
+        await skillService.syncBuiltin(
+          tenant.rows[0].tenant_id,
+          discoveryAgent.skills.filter((item): item is BuiltinSkillPayload => typeof item === 'object' && item !== null),
+        ).catch(() => undefined);
+      }
+    }
     const commandSigners = getCommandSigners();
     return reply.send({
       ...agent,
@@ -531,6 +557,46 @@ export function registerAgentRoutes(
       throw error;
     }
     return reply.send(await agents.listAppSystems(ctx.tenantId));
+  });
+
+  app.post('/api/app-systems', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      code?: unknown; name?: unknown; owner?: unknown; criticality?: unknown;
+    } | undefined;
+    const code = typeof body?.code === 'string' ? body.code.trim() : '';
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    if (!/^[a-z0-9][a-z0-9-]{1,40}$/i.test(code) || !name) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const criticality = typeof body?.criticality === 'string' && /^P[0-4]$/.test(body.criticality) ? body.criticality : 'P2';
+    try {
+      const created = await pool.query(
+        `INSERT INTO app_systems (tenant_id, code, name, owner, criticality)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, code, name, owner, criticality`,
+        [ctx.tenantId, code, name, typeof body?.owner === 'string' ? body.owner : null, criticality],
+      );
+      return reply.code(201).send(created.rows[0]);
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+        return reply.code(409).send({ error: 'app_system_exists' });
+      }
+      throw error;
+    }
   });
 
   app.post<{ Params: { id: string } }>('/api/agents/:id/commands', async (request, reply) => {

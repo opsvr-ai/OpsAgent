@@ -4,6 +4,7 @@ import {
   deleteModel,
   discoverModels,
   listModels,
+  updateModel,
   type DiscoveredModel,
   type ModelProvider,
 } from '../api/client.js';
@@ -31,6 +32,14 @@ export function Models({ onBack }: ModelsProps) {
   const [discovering, setDiscovering] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<ModelProvider | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editProvider, setEditProvider] = useState('openai');
+  const [editBaseUrl, setEditBaseUrl] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editApiKey, setEditApiKey] = useState('');
+  const [editStatus, setEditStatus] = useState<'active' | 'disabled'>('active');
+  const [editBusy, setEditBusy] = useState(false);
 
   useEffect(() => {
     void listModels()
@@ -107,11 +116,46 @@ export function Models({ onBack }: ModelsProps) {
     }
   }
 
+  function startEdit(item: ModelProvider) {
+    setEditing(item);
+    setEditName(item.name);
+    setEditProvider(item.provider);
+    setEditBaseUrl(item.baseUrl);
+    setEditModel(item.model);
+    setEditApiKey('');
+    setEditStatus(item.status === 'disabled' ? 'disabled' : 'active');
+    setError(null);
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    setEditBusy(true);
+    setError(null);
+    try {
+      const updated = await updateModel(editing.id, {
+        name: editName.trim() || editModel.trim(),
+        provider: editProvider,
+        baseUrl: editBaseUrl.trim(),
+        model: editModel.trim(),
+        ...(editApiKey.trim() ? { apiKey: editApiKey.trim() } : {}),
+        status: editStatus,
+      });
+      setModels((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? current);
+      setEditing(null);
+      setEditApiKey('');
+    } catch {
+      setError('模型更新失败');
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
   async function remove(id: string) {
     setError(null);
     try {
       await deleteModel(id);
       setModels((current) => current?.filter((item) => item.id !== id) ?? current);
+      if (editing?.id === id) setEditing(null);
     } catch {
       setError('删除失败');
     }
@@ -224,6 +268,24 @@ export function Models({ onBack }: ModelsProps) {
           </div>
         </div>
       </section>
+      {editing ? (
+        <section className="card">
+          <div className="card-head"><h2>编辑模型</h2><button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>取消</button></div>
+          <div className="card-body">
+            <div className="form-grid">
+              <div className="field"><label htmlFor="edit-model-name">名称</label><input id="edit-model-name" value={editName} onChange={(event) => setEditName(event.target.value)} /></div>
+              <div className="field"><label htmlFor="edit-model-provider">Provider</label><select id="edit-model-provider" value={editProvider} onChange={(event) => setEditProvider(event.target.value)}><option value="openai">OpenAI 兼容</option><option value="anthropic">Anthropic API</option><option value="deepseek">DeepSeek</option></select></div>
+              <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="edit-model-base">Base URL</label><input id="edit-model-base" value={editBaseUrl} onChange={(event) => setEditBaseUrl(event.target.value)} /></div>
+              <div className="field"><label htmlFor="edit-model-id">模型 ID</label><input id="edit-model-id" value={editModel} onChange={(event) => setEditModel(event.target.value)} /></div>
+              <div className="field"><label htmlFor="edit-model-status">状态</label><select id="edit-model-status" value={editStatus} onChange={(event) => setEditStatus(event.target.value === 'disabled' ? 'disabled' : 'active')}><option value="active">启用</option><option value="disabled">停用</option></select></div>
+              <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="edit-model-key">新 API Key（留空不修改）</label><input id="edit-model-key" type="password" value={editApiKey} onChange={(event) => setEditApiKey(event.target.value)} placeholder="留空保持原 Key" /></div>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn btn-primary" disabled={editBusy || !editModel.trim() || !editBaseUrl.trim()} onClick={() => void saveEdit()}>保存修改</button>
+            </div>
+          </div>
+        </section>
+      ) : null}
       {models === null ? <p className="muted">加载中…</p> : null}
       {models?.length === 0 ? <p className="muted">暂无模型配置</p> : null}
       <section className="grid grid-3">
@@ -234,7 +296,11 @@ export function Models({ onBack }: ModelsProps) {
               <h3>{item.name}</h3>
               <p className="muted mono">{item.model}</p>
               <p className="muted">{item.baseUrl}</p>
-              <button type="button" className="btn btn-outline" onClick={() => void remove(item.id)}>删除</button>
+              <span className={`badge ${item.status === 'active' ? 'badge-ok' : 'badge-neutral'}`}>{item.status === 'active' ? '启用' : '停用'}</span>
+              <div className="row-sm" style={{ marginTop: 8 }}>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => startEdit(item)}>编辑</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => void remove(item.id)}>删除</button>
+              </div>
             </div>
           </article>
         ))}

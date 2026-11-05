@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Models } from '../src/routes/models.js';
-import { createModelsBatch, discoverModels, listModels } from '../src/api/client.js';
+import { createModelsBatch, deleteModel, discoverModels, listModels, updateModel } from '../src/api/client.js';
 
 vi.mock('../src/api/client.js', () => ({
   listModels: vi.fn(),
@@ -9,11 +9,14 @@ vi.mock('../src/api/client.js', () => ({
   createModelsBatch: vi.fn(),
   discoverModels: vi.fn().mockResolvedValue([]),
   deleteModel: vi.fn(),
+  updateModel: vi.fn(),
 }));
 
 const listMock = vi.mocked(listModels);
 const batchMock = vi.mocked(createModelsBatch);
 const discoverMock = vi.mocked(discoverModels);
+const deleteMock = vi.mocked(deleteModel);
+const updateMock = vi.mocked(updateModel);
 
 describe('Models', () => {
   beforeEach(() => {
@@ -56,6 +59,33 @@ describe('Models', () => {
       baseUrl: 'https://llm.example/v1',
       models: ['qwen-72b', 'qwen-32b'],
     })));
+  });
+
+  it('edits and deletes a model', async () => {
+    const model = {
+      id: 'm-1',
+      name: 'deepseek-prod',
+      provider: 'deepseek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      model: 'deepseek-chat',
+      status: 'active',
+    };
+    listMock.mockResolvedValue([model]);
+    updateMock.mockResolvedValue({ ...model, name: 'deepseek-edited', status: 'disabled' });
+    deleteMock.mockResolvedValue(undefined);
+    render(<Models onBack={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+    fireEvent.change(screen.getByLabelText('名称', { selector: '#edit-model-name' }), { target: { value: 'deepseek-edited' } });
+    fireEvent.change(screen.getByLabelText('状态'), { target: { value: 'disabled' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith('m-1', expect.objectContaining({
+      name: 'deepseek-edited',
+      status: 'disabled',
+    })));
+
+    fireEvent.click(await screen.findByRole('button', { name: '删除' }));
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m-1'));
   });
 
   it('shows an empty state', async () => {

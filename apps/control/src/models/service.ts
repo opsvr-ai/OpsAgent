@@ -96,6 +96,31 @@ export class ModelProviderService {
     }
   }
 
+  async update(
+    tenantId: string,
+    id: string,
+    input: {
+      name: string;
+      provider: string;
+      baseUrl: string;
+      model: string;
+      apiKey?: string;
+      status?: 'active' | 'disabled';
+    },
+  ): Promise<ModelProviderRecord | null> {
+    const encrypted = input.apiKey ? encryptSecret(input.apiKey, this.secret) : null;
+    const result = await this.pool.query(
+      `UPDATE model_providers
+       SET name = $3, provider = $4, base_url = $5, model = $6,
+           api_key_encrypted = COALESCE($7, api_key_encrypted),
+           status = COALESCE($8, status), updated_at = now()
+       WHERE tenant_id = $1 AND id = $2
+       RETURNING id, name, provider, base_url, model, status`,
+      [tenantId, id, input.name, input.provider, input.baseUrl, input.model, encrypted, input.status ?? null],
+    );
+    return result.rows[0] ? this.map(result.rows[0]) : null;
+  }
+
   async delete(tenantId: string, id: string): Promise<boolean> {
     const result = await this.pool.query(
       'DELETE FROM model_providers WHERE tenant_id = $1 AND id = $2',

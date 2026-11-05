@@ -99,6 +99,21 @@ describe('model provider configuration', () => {
     const resolved = await service.resolve(tenant.rows[0]?.tenant_id ?? '', (created.json() as { id: string }).id);
     expect(resolved?.model).toBe('deepseek-chat');
 
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: `/api/models/${(created.json() as { id: string }).id}`,
+      headers: { cookie },
+      payload: {
+        name: 'deepseek-edited',
+        provider: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1',
+        model: 'deepseek-chat',
+        status: 'disabled',
+      },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ name: 'deepseek-edited', status: 'disabled' });
+
     const createdId = (created.json() as { id: string }).id;
     const removed = await app.inject({
       method: 'DELETE',

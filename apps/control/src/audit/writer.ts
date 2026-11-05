@@ -30,6 +30,7 @@ export type AuditAction =
   | 'data.cleanup'
   | 'member.roles.update'
   | 'model.create'
+  | 'model.update'
   | 'model.delete'
   | 'incident.create'
   | 'incident.update'

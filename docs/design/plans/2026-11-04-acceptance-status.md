@@ -19,7 +19,7 @@ Desktop 薄客户端
 ## 2. 自动化证据
 
 ```text
-pnpm test       225 passed | 3 skipped
+pnpm test       226 passed | 3 skipped
 pnpm build      通过
 pnpm e2e        14 passed
 go test ./...   通过

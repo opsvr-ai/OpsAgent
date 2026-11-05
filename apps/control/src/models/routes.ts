@@ -176,6 +176,53 @@ export function registerModelRoutes(
     return reply.code(201).send(provider);
   });
 
+  app.patch<{ Params: { id: string } }>('/api/models/:id', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as {
+      name?: unknown;
+      provider?: unknown;
+      baseUrl?: unknown;
+      model?: unknown;
+      apiKey?: unknown;
+      status?: unknown;
+    } | undefined;
+    if (
+      typeof body?.name !== 'string' ||
+      typeof body.provider !== 'string' ||
+      typeof body.baseUrl !== 'string' ||
+      typeof body.model !== 'string' ||
+      (body.apiKey !== undefined && typeof body.apiKey !== 'string') ||
+      (body.status !== undefined && body.status !== 'active' && body.status !== 'disabled')
+    ) {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    const updated = await models.update(ctx.tenantId, request.params.id, {
+      name: body.name,
+      provider: body.provider,
+      baseUrl: body.baseUrl,
+      model: body.model,
+      ...(typeof body.apiKey === 'string' && body.apiKey.length > 0 ? { apiKey: body.apiKey } : {}),
+      ...(body.status === 'active' || body.status === 'disabled' ? { status: body.status } : {}),
+    });
+    if (!updated) return reply.code(404).send({ error: 'model_not_found' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'model.update',
+      resource: updated.id,
+      result: 'success',
+      metadata: { provider: updated.provider, model: updated.model, name: updated.name, status: updated.status },
+    });
+    return reply.send(updated);
+  });
+
   app.delete<{ Params: { id: string } }>('/api/models/:id', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

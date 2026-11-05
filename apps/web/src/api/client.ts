@@ -1263,6 +1263,20 @@ export async function createModel(input: {
   });
 }
 
+export async function updateModel(id: string, input: {
+  name: string;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+  status?: 'active' | 'disabled';
+}): Promise<ModelProvider> {
+  return request<ModelProvider>(`/api/models/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function deleteModel(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/models/${id}`, { method: 'DELETE' });
 }

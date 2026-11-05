@@ -36,7 +36,14 @@ func analyzeEvidence(question string, evidence map[string]string) string {
 		interfaces := evidence["interfaces"]
 		addresses := ipv4Addresses(interfaces)
 		if len(addresses) > 0 {
-			return fmt.Sprintf("主机 IPv4 地址：%s。", strings.Join(addresses, "、"))
+			summary := fmt.Sprintf("主机 IPv4 地址：%s。", strings.Join(addresses, "、"))
+			if route := defaultRoute(evidence["routes"]); route != "" {
+				summary += " 默认路由：" + route + "。"
+			}
+			if dns := dnsServers(evidence["dns"]); len(dns) > 0 {
+				summary += " DNS：" + strings.Join(dns, "、") + "。"
+			}
+			return summary
 		}
 	}
 	if strings.Contains(lower, "容器") || strings.Contains(lower, "docker") {
@@ -80,6 +87,27 @@ func nonEmptyLines(value string) []string {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			result = append(result, line)
+		}
+	}
+	return result
+}
+
+func defaultRoute(routes string) string {
+	for _, line := range strings.Split(routes, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "default ") {
+			return line
+		}
+	}
+	return ""
+}
+
+func dnsServers(config string) []string {
+	result := make([]string, 0)
+	for _, line := range strings.Split(config, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) >= 2 && fields[0] == "nameserver" {
+			result = append(result, fields[1])
 		}
 	}
 	return result

@@ -250,6 +250,49 @@ func isCapabilityQuestion(question string) bool {
 	return false
 }
 
+// skillRequest matches only an explicit "use skill X" request, not "list skills".
+// This is what makes CLI requests actually execute a skill instead of printing
+// the skill catalog.
+func skillRequest(question string) (skillDefinition, bool) {
+	normalized := strings.ToLower(question)
+	action := false
+	for _, word := range []string{"使用技能", "调用技能", "执行技能", "用技能", "use skill", "run skill", "应用技能"} {
+		if strings.Contains(normalized, word) {
+			action = true
+			break
+		}
+	}
+	if !action {
+		return skillDefinition{}, false
+	}
+	for _, skill := range listSkills() {
+		name := strings.ToLower(skill.Name)
+		canonical := canonicalSkillName(skill.Name)
+		if strings.Contains(normalized, name) || strings.Contains(normalized, canonical) {
+			return skill, true
+		}
+	}
+	return skillDefinition{}, false
+}
+
+func executeSkillForCLI(skill skillDefinition, question string, state agentState, stateErr error) string {
+	var memory runtime.MemStats
+	runtime.ReadMemStats(&memory)
+	metrics := hostMetrics()
+	metrics["cpuCores"] = runtime.NumCPU()
+	metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
+	result := runSkill(skill.Name, metrics)
+	if evidence, ok := result["evidence"].(map[string]string); ok && stateErr == nil && len(evidence) > 0 {
+		if analysis, err := askPlatformExplain(state, question, evidence); err == nil && strings.TrimSpace(analysis) != "" {
+			return analysis
+		}
+	}
+	if analysis, ok := result["analysis"].(string); ok && strings.TrimSpace(analysis) != "" {
+		return analysis
+	}
+	return fmt.Sprintf("技能 %s 已执行完成，但没有取得可分析的证据。", skill.Name)
+}
+
 func capabilitiesAnswer() string {
 	return strings.Join([]string{
 		fmt.Sprintf("我是 **%s** 上的 OpsAgent，具备以下运维能力：", mustHostname()),
@@ -387,6 +430,13 @@ func runCLI(paths agentPaths) {
 				fmt.Printf("Agent ID: %s\n主机: %s\n控制面: %s\n配置文件: %s\n日志: %s\n快照: %s\n技能: %s\n状态: %s\n工作区: %s\n",
 					state.AgentID, state.Hostname, state.ControlURL, paths.Config, paths.Logs, paths.Snapshots, paths.Skills, paths.State, paths.Workspace)
 			}
+			continue
+		}
+		if skill, ok := skillRequest(question); ok {
+			fmt.Println()
+			fmt.Printf("正在执行技能 `%s`…\n\n", skill.Name)
+			fmt.Println(executeSkillForCLI(skill, question, state, stateErr))
+			fmt.Println()
 			continue
 		}
 		if isCapabilityQuestion(question) {

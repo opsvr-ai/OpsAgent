@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { RuntimeClient } from '@opsagent/contracts';
 import type { Pool } from 'pg';
-import { PlatformAssistant } from '../assistant/platform.js';
+import { PlatformAssistant, type PlatformPlan } from '../assistant/platform.js';
 import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
+import { AgentService } from './service.js';
 
 type AgentRow = { tenant_id: string; hostname: string };
 type CliEvent =
@@ -12,6 +13,18 @@ type CliEvent =
   | { type: 'delta'; text: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
+
+const CLI_SKILL_QUESTIONS: Record<string, string> = {
+  'system.overview': '查看系统概况、CPU、内存、磁盘和负载',
+  'disk.usage': '查看磁盘分区和可用空间',
+  'memory.usage': '查看内存和 swap 使用情况',
+  'network.status': '查看网卡、IP、路由和 DNS 网络配置',
+  'service.status': '查看运行中的服务和进程',
+  'process.top': '查看进程列表和资源占用',
+  'logs.recent': '查看最近的系统日志',
+  'container.status': '查看容器运行状态',
+  'agent.health': '查看 Agent 部署路径和运行状态',
+};
 
 export function registerAgentCliRoutes(
   app: FastifyInstance,
@@ -21,6 +34,7 @@ export function registerAgentCliRoutes(
 ): void {
   const platform = new PlatformAssistant(pool);
   const completion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
+  const agents = new AgentService(pool);
   const cliSessions = new Map<string, string>();
 
   async function authorize(agentId: string, key: unknown): Promise<AgentRow | null> {
@@ -56,7 +70,8 @@ export function registerAgentCliRoutes(
       yield { type: 'done' };
       return;
     }
-    if (/(技能|skill|会哪些)/i.test(question)) {
+    const explicitSkillUse = /(使用技能|调用技能|执行技能|用技能|use\s+skill|run\s+skill)/i.test(question);
+    if (!explicitSkillUse && /(技能|skill|会哪些)/i.test(question)) {
       yield {
         type: 'delta',
         text: [
@@ -96,9 +111,22 @@ export function registerAgentCliRoutes(
       return;
     }
 
-    let plan = await platform.detect(row.tenant_id, question);
-    if (!plan && (/\/[^\s，。！？；;:：]+/.test(question) || /(磁盘|分区|内存|cpu|进程|端口|服务|日志|系统|配置|部署|路径|主机|agent|告警|性能|负载|网络|内核|时间|状态|检查|查看|看看|文件|目录|读取|巡检)/i.test(question))) {
-      plan = await platform.detect(row.tenant_id, `${row.hostname} ${question}`);
+    const skillMatch = question.match(/(?:使用技能|调用技能|执行技能|用技能|use\s+skill|run\s+skill)\s+([a-z0-9_.-]+)/i);
+    const requestedSkill = skillMatch?.[1]?.toLowerCase();
+    const detectQuestion = requestedSkill && CLI_SKILL_QUESTIONS[requestedSkill]
+      ? `${row.hostname} ${CLI_SKILL_QUESTIONS[requestedSkill]}`
+      : question;
+    let plan: PlatformPlan | null = null;
+    if (requestedSkill && CLI_SKILL_QUESTIONS[requestedSkill]) {
+      const agent = await agents.get(agentId, row.tenant_id);
+      if (agent) {
+        plan = { kind: 'agent', agent, query: CLI_SKILL_QUESTIONS[requestedSkill], mode: 'inspect' };
+      }
+    } else {
+      plan = await platform.detect(row.tenant_id, detectQuestion);
+      if (!plan && (/\/[^\s，。！？；;:：]+/.test(detectQuestion) || /(磁盘|分区|内存|cpu|进程|端口|服务|日志|系统|配置|部署|路径|主机|agent|告警|性能|负载|网络|内核|时间|状态|检查|查看|看看|文件|目录|读取|巡检)/i.test(detectQuestion))) {
+        plan = await platform.detect(row.tenant_id, `${row.hostname} ${detectQuestion}`);
+      }
     }
 
     let platformAnswer = '';

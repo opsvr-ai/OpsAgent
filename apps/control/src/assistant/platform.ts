@@ -360,6 +360,8 @@ export class PlatformAssistant {
     const evidence = typeof result.evidence === 'object' && result.evidence !== null
       ? result.evidence as Record<string, unknown>
       : {};
+    const analysis = typeof result.analysis === 'string' ? result.analysis.trim() : '';
+    if (analysis) return analysis;
     const interfaces = typeof evidence.interfaces === 'string' ? evidence.interfaces : '';
     if (/(ip|地址|网卡|网络)/i.test(question) && interfaces) {
       const addresses = [...interfaces.matchAll(/\binet\s+(\d{1,3}(?:\.\d{1,3}){3})/g)]
@@ -370,8 +372,7 @@ export class PlatformAssistant {
       }
     }
     const raw = typeof result.answer === 'string' ? result.answer.trim() : '';
-    const analysis = typeof result.analysis === 'string' ? result.analysis.trim() : '';
-    return analysis || raw || `已完成 **${hostname}** 的只读检查，但没有取得可用结果。`;
+    return raw || `已完成 **${hostname}** 的只读检查，但没有取得可用结果。`;
   }
 
   private async waitCommand(

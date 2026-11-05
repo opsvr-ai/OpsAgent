@@ -9,6 +9,8 @@ import {
   createAgentInstructionTemplate,
   deleteAgentInstructionTemplate,
   getAgentDetail,
+  getAgentInventory,
+  updateAgentInventory,
   getAgentEvents,
   getAgentFleet,
   getAgentInstallCommand,
@@ -27,6 +29,7 @@ import {
   type AgentEventSummary,
   type AgentFleetResponse,
   type AgentInstructionDetail,
+  type AgentInventoryItem,
   type AgentInstructionTemplate,
   type AgentSummary,
   type AppHealthCheck,
@@ -124,6 +127,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [detailCommands, setDetailCommands] = useState<AgentCommandSummary[]>([]);
   const [detailEvents, setDetailEvents] = useState<AgentEventSummary[]>([]);
+  const [inventory, setInventory] = useState<AgentInventoryItem[]>([]);
   const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
   const [keyStatus, setKeyStatus] = useState<CommandKeyStatus | null>(null);
@@ -163,6 +167,7 @@ export function Agents({ onBack }: AgentsProps) {
     setPatrolPolicy(null);
     setPatrolNote(null);
     void getAgentPatrolPolicy(detailId).then(setPatrolPolicy).catch(() => undefined);
+    void getAgentInventory(detailId).then(setInventory).catch(() => setInventory([]));
   }, [detailId]);
   useEffect(() => {
     if (!detailId) return;
@@ -300,6 +305,16 @@ export function Agents({ onBack }: AgentsProps) {
       setReloadToken((value) => value + 1);
     } catch {
       setError('新增应用系统失败，编码可能已存在');
+    }
+  }
+
+  async function toggleInventory(item: AgentInventoryItem, field: 'important' | 'monitored') {
+    if (!detail) return;
+    try {
+      const updated = await updateAgentInventory(detail.id, item.id, { [field]: !item[field] });
+      setInventory((current) => current.map((row) => row.id === updated.id ? updated : row));
+    } catch {
+      setError('巡检对象更新失败');
     }
   }
 
@@ -854,6 +869,29 @@ export function Agents({ onBack }: AgentsProps) {
                             <div className="form-actions">
                               <button type="button" className="btn btn-primary btn-sm" disabled={patrolBusy} onClick={() => void savePatrolPolicy()}>{patrolBusy ? '保存中…' : '保存阈值'}</button>
                               {patrolNote ? <span className="muted">{patrolNote}</span> : null}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      {inventory.length > 0 ? (
+                        <div className="card">
+                          <div className="card-head"><h2>巡检对象</h2><span className="badge badge-neutral">{inventory.length} 项</span></div>
+                          <div className="card-body stack">
+                            <p className="muted">勾选重要并监控后，Agent 巡航会检查这些进程、端口和服务，异常时自动触发排障。</p>
+                            <div className="table-wrap">
+                              <table className="table">
+                                <thead><tr><th>类型</th><th>名称</th><th>重要</th><th>监控</th></tr></thead>
+                                <tbody>
+                                  {inventory.slice(0, 80).map((item) => (
+                                    <tr key={item.id}>
+                                      <td>{item.kind}</td>
+                                      <td className="mono">{item.name}</td>
+                                      <td><input type="checkbox" checked={item.important} onChange={() => void toggleInventory(item, 'important')} /></td>
+                                      <td><input type="checkbox" checked={item.monitored} onChange={() => void toggleInventory(item, 'monitored')} /></td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           </div>
                         </div>

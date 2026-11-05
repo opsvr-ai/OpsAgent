@@ -15,12 +15,13 @@ import (
 	"time"
 )
 
-const agentVersion = "0.5.2"
+const agentVersion = "0.5.3"
 
 type discoveryReport struct {
 	System       map[string]any   `json:"system"`
 	Applications []map[string]any `json:"applications"`
 	Agent        map[string]any   `json:"agent"`
+	Operations   map[string]any   `json:"operations,omitempty"`
 	DiscoveredAt string           `json:"discoveredAt"`
 }
 
@@ -303,10 +304,18 @@ func collectDiscovery(started time.Time, metrics map[string]any) discoveryReport
 		"capabilities":  []string{"system.discover", "applications.discover", "metrics", "uptime", "load", "processes", "diagnostics", "controlled_exec", "self.patrol", "inspect", "skills", "memory", "script", "agent.instruction", "snapshot", "platform.model"},
 		"skills":        skillsManifest(),
 	}
+	inventory := collectApplicationInventory()
+	agentInfo["inventory"] = inventory
 	return discoveryReport{
 		System:       system,
 		Applications: applications,
 		Agent:        agentInfo,
+		Operations: map[string]any{
+			"services":  inventory["services"],
+			"processes": inventory["processes"],
+			"ports":     inventory["ports"],
+			"opsTools":  collectOperationsTools()["tools"],
+		},
 		DiscoveredAt: time.Now().UTC().Format(time.RFC3339),
 	}
 }

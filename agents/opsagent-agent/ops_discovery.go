@@ -66,23 +66,33 @@ func collectApplicationInventory() map[string]any {
 
 	processes := []map[string]any{}
 	ps := commandOutput(4*time.Second, "ps", "-eo", "pid,ppid,user,comm,args", "--sort=-%cpu")
+	if strings.TrimSpace(ps) == "" {
+		ps = commandOutput(4*time.Second, "ps", "aux")
+	}
 	for index, line := range strings.Split(ps, "\n") {
 		if index == 0 || index > 60 {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 5 {
+		if len(fields) < 4 {
 			continue
 		}
 		pid := fields[0]
+		user := fields[1]
 		comm := fields[3]
 		args := strings.Join(fields[4:], " ")
+		if len(fields) >= 11 {
+			pid = fields[1]
+			user = fields[0]
+			comm = fields[10]
+			args = strings.Join(fields[10:], " ")
+		}
 		classification := "application"
 		if isSystemProcess(pid, comm, args) {
 			classification = "system"
 		}
 		entry := map[string]any{
-			"pid": pid, "ppid": fields[1], "user": fields[2], "name": comm,
+			"pid": pid, "ppid": "", "user": user, "name": comm,
 			"command": args, "classification": classification,
 		}
 		if exe, err := os.Readlink(filepath.Join("/proc", pid, "exe")); err == nil {

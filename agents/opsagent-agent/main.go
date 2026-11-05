@@ -348,7 +348,7 @@ func runDaemon(paths agentPaths) {
 					loaded.Enabled, loaded.IntervalSeconds, loaded.DiskFreePct, loaded.MemLoadPct, loaded.Load1)
 			}
 		}
-		current := patrolEventsWithThresholds(metrics, currentPatrolPolicy.DiskFreePct, currentPatrolPolicy.MemLoadPct, currentPatrolPolicy.Load1)
+		current := patrolEventsWithThresholds(metrics, currentPatrolPolicy.DiskFreePct, currentPatrolPolicy.MemLoadPct, currentPatrolPolicy.Load1, currentPatrolPolicy.Watch)
 		if !currentPatrolPolicy.Enabled {
 			current = nil
 		}

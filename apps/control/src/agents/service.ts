@@ -36,6 +36,7 @@ export interface DiscoveryPayload {
   readonly system?: unknown;
   readonly applications?: unknown;
   readonly agent?: unknown;
+  readonly operations?: unknown;
   readonly discoveredAt?: unknown;
 }
 

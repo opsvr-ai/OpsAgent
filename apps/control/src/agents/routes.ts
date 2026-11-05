@@ -14,6 +14,7 @@ import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
 import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
 import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js';
+import { AgentInventoryService } from './inventory_service.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -44,6 +45,7 @@ export function registerAgentRoutes(
   const modelCompletion = new ModelCompletionService(new ModelProviderService(pool, modelSecret));
   const patrolPolicies = new PatrolPolicyService(pool);
   const skillService = new AgentSkillService(pool);
+  const inventoryService = new AgentInventoryService(pool);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -95,6 +97,9 @@ export function registerAgentRoutes(
         registrationSkills.filter((item): item is BuiltinSkillPayload => typeof item === 'object' && item !== null),
       ).catch(() => undefined);
     }
+    if (discovery?.operations) {
+      await inventoryService.sync(body.tenantId, registered.agent.id, discovery.operations).catch(() => undefined);
+    }
     return reply.code(201).send({
       ...registered,
       commandPublicKey: commandSigners[0]?.publicKey,
@@ -145,6 +150,12 @@ export function registerAgentRoutes(
           tenant.rows[0].tenant_id,
           discoveryAgent.skills.filter((item): item is BuiltinSkillPayload => typeof item === 'object' && item !== null),
         ).catch(() => undefined);
+        const operations = body.discovery && typeof body.discovery === 'object'
+          ? (body.discovery as { operations?: unknown }).operations
+          : undefined;
+        if (operations) {
+          await inventoryService.sync(tenant.rows[0].tenant_id, request.params.id, operations).catch(() => undefined);
+        }
       }
     }
     const commandSigners = getCommandSigners();
@@ -373,13 +384,62 @@ export function registerAgentRoutes(
       const row = agent.rows[0];
       if (!row) return reply.code(404).send({ error: 'agent_not_found' });
       const policy = await patrolPolicies.get(row.tenant_id, request.params.id);
-      return reply.send(policy ?? {
-        agentId: request.params.id,
-        ...DEFAULT_PATROL_POLICY,
-        updatedAt: null,
+      const watch = await inventoryService.watchlist(row.tenant_id, request.params.id);
+      return reply.send({
+        ...(policy ?? {
+          agentId: request.params.id,
+          ...DEFAULT_PATROL_POLICY,
+          updatedAt: null,
+        }),
+        watch,
       });
     },
   );
+
+  app.get<{ Params: { id: string } }>('/api/agents/:id/inventory', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    return reply.send(await inventoryService.list(ctx.tenantId, request.params.id));
+  });
+
+  app.patch<{ Params: { id: string; itemId: string } }>('/api/agents/:id/inventory/:itemId', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const body = request.body as { important?: unknown; monitored?: unknown; appSystemId?: unknown } | undefined;
+    if (body?.important !== undefined && typeof body.important !== 'boolean') return reply.code(400).send({ error: 'invalid_request' });
+    if (body?.monitored !== undefined && typeof body.monitored !== 'boolean') return reply.code(400).send({ error: 'invalid_request' });
+    const updated = await inventoryService.update(ctx.tenantId, request.params.itemId, {
+      ...(typeof body?.important === 'boolean' ? { important: body.important } : {}),
+      ...(typeof body?.monitored === 'boolean' ? { monitored: body.monitored } : {}),
+      ...(typeof body?.appSystemId === 'string' ? { appSystemId: body.appSystemId } : {}),
+    });
+    if (!updated) return reply.code(404).send({ error: 'inventory_not_found' });
+    return reply.send(updated);
+  });
 
   app.get('/api/app-systems/health', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];

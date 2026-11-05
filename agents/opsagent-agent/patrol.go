@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,12 +21,19 @@ type patrolEvent struct {
 }
 
 type patrolPolicy struct {
-	AgentID         string  `json:"agentId"`
-	Enabled         bool    `json:"enabled"`
-	IntervalSeconds int     `json:"intervalSeconds"`
-	DiskFreePct     float64 `json:"diskFreePct"`
-	MemLoadPct      float64 `json:"memLoadPct"`
-	Load1           float64 `json:"load1"`
+	AgentID         string      `json:"agentId"`
+	Enabled         bool        `json:"enabled"`
+	IntervalSeconds int         `json:"intervalSeconds"`
+	DiskFreePct     float64     `json:"diskFreePct"`
+	MemLoadPct      float64     `json:"memLoadPct"`
+	Load1           float64     `json:"load1"`
+	Watch           patrolWatch `json:"watch"`
+}
+
+type patrolWatch struct {
+	Processes []string `json:"processes"`
+	Ports     []string `json:"ports"`
+	Services  []string `json:"services"`
 }
 
 func threshold(name string, fallback float64) float64 {
@@ -46,10 +54,11 @@ func patrolEvents(metrics map[string]any) []patrolEvent {
 		threshold("OPSAGENT_PATROL_DISK_FREE_PCT", 15),
 		threshold("OPSAGENT_PATROL_MEM_LOAD_PCT", 85),
 		0,
+		patrolWatch{},
 	)
 }
 
-func patrolEventsWithThresholds(metrics map[string]any, diskThreshold, memThreshold, loadThreshold float64) []patrolEvent {
+func patrolEventsWithThresholds(metrics map[string]any, diskThreshold, memThreshold, loadThreshold float64, watch patrolWatch) []patrolEvent {
 	events := []patrolEvent{}
 	now := time.Now().UTC().Format(time.RFC3339)
 	number := func(key string) float64 {
@@ -112,6 +121,55 @@ func patrolEventsWithThresholds(metrics map[string]any, diskThreshold, memThresh
 				Title:       "系统负载过高",
 				Detail:      fmt.Sprintf("1 分钟负载 %.2f，高于阈值 %.2f", load1, loadThreshold),
 				Metric:      map[string]any{"load1": load1, "load1Threshold": loadThreshold},
+				DetectedAt:  now,
+			})
+		}
+	}
+	for _, name := range watch.Processes {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		if commandOutput(2*time.Second, "pgrep", "-f", name) == "" {
+			events = append(events, patrolEvent{
+				Fingerprint: "watch-process-" + name,
+				Severity:    "critical",
+				Title:       "重要进程未运行",
+				Detail:      fmt.Sprintf("标记为重要的进程 %s 未发现。", name),
+				Metric:      map[string]any{"process": name},
+				DetectedAt:  now,
+			})
+		}
+	}
+	for _, port := range watch.Ports {
+		port = strings.TrimSpace(port)
+		if port == "" {
+			continue
+		}
+		listeners := commandOutput(2*time.Second, "ss", "-lnt")
+		if !strings.Contains(listeners, ":"+port+" ") && !strings.Contains(listeners, ":"+port+"\n") {
+			events = append(events, patrolEvent{
+				Fingerprint: "watch-port-" + port,
+				Severity:    "critical",
+				Title:       "重要端口未监听",
+				Detail:      fmt.Sprintf("标记为重要的端口 %s 未监听。", port),
+				Metric:      map[string]any{"port": port},
+				DetectedAt:  now,
+			})
+		}
+	}
+	for _, service := range watch.Services {
+		service = strings.TrimSpace(service)
+		if service == "" {
+			continue
+		}
+		status := commandOutput(2*time.Second, "systemctl", "is-active", service)
+		if status != "active" {
+			events = append(events, patrolEvent{
+				Fingerprint: "watch-service-" + service,
+				Severity:    "critical",
+				Title:       "重要服务未运行",
+				Detail:      fmt.Sprintf("标记为重要的服务 %s 状态为 %s。", service, status),
+				Metric:      map[string]any{"service": service, "status": status},
 				DetectedAt:  now,
 			})
 		}

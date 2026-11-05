@@ -1178,6 +1178,31 @@ export async function createAppSystem(input: {
   });
 }
 
+export interface AgentInventoryItem {
+  readonly id: string;
+  readonly kind: string;
+  readonly name: string;
+  readonly detail: Record<string, unknown>;
+  readonly important: boolean;
+  readonly monitored: boolean;
+  readonly appSystemId: string | null;
+}
+
+export async function getAgentInventory(agentId: string): Promise<AgentInventoryItem[]> {
+  return request<AgentInventoryItem[]>(`/api/agents/${agentId}/inventory`);
+}
+
+export async function updateAgentInventory(
+  agentId: string,
+  itemId: string,
+  input: { important?: boolean; monitored?: boolean; appSystemId?: string },
+): Promise<AgentInventoryItem> {
+  return request<AgentInventoryItem>(`/api/agents/${agentId}/inventory/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function createAgentCommand(
   agentId: string,
   type: string,

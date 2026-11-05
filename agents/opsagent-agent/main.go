@@ -338,7 +338,7 @@ func runDaemon(paths agentPaths) {
 	var lastPatrolAnalysis string
 
 	reportPatrol := func(metrics map[string]any) {
-		if time.Since(lastPolicyRefresh) > 60*time.Second {
+		if time.Since(lastPolicyRefresh) > 15*time.Second {
 			if loaded, err := loadPatrolPolicy(controlURL, registered.Agent.ID, registered.AgentKey); err != nil {
 				log.Printf("patrol policy refresh: %v", err)
 			} else {

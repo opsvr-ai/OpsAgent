@@ -786,6 +786,24 @@ export function registerAgentRoutes(
           ...(typeof body.resultSignature === 'string' ? { resultSignature: body.resultSignature } : {}),
         });
         if (!command) return reply.code(404).send({ error: 'command_not_found' });
+        if (command.type === 'discovery') {
+          const result = typeof command.result === 'object' && command.result !== null
+            ? command.result as { discovery?: { operations?: unknown } }
+            : {};
+          if (result.discovery?.operations) {
+            const tenant = await pool.query<{ tenant_id: string }>(
+              'SELECT tenant_id FROM agents WHERE id = $1',
+              [request.params.id],
+            );
+            if (tenant.rows[0]) {
+              await inventoryService.sync(
+                tenant.rows[0].tenant_id,
+                request.params.id,
+                result.discovery.operations,
+              ).catch(() => undefined);
+            }
+          }
+        }
         return reply.send(command);
       } catch (error) {
         if (error instanceof Error && (error.message === 'invalid_result_signature' || error.message === 'result_signature_required' || error.message === 'invalid_result_payload')) {

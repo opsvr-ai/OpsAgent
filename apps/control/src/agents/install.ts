@@ -54,6 +54,7 @@ export function buildInstallScript(input: {
     return `#!/usr/bin/env bash
 set -euo pipefail
 CONTROL_URL='${safe(input.baseUrl)}'
+CONTROL_URL="\${CONTROL_URL%/}"
 TENANT_ID='${safe(input.tenantId)}'
 TOKEN='${safe(input.token)}'
 ROOT='/opt/opsagent'
@@ -74,7 +75,12 @@ systemctl stop opsagent-agent 2>/dev/null || true
 install -d -m 0750 "$ROOT" "$BIN_DIR" "$CONFIG_DIR" "$TOOLS_DIR" "$LOG_DIR" "$SNAPSHOT_DIR" "$RUN_DIR"
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
-curl -fsSL "$CONTROL_URL/api/agents/binary?os=linux&arch=$ARCH&token=$TOKEN" -o "$TMP"
+BINARY_URL="$CONTROL_URL/api/agents/binary?os=linux&arch=$ARCH&token=$TOKEN"
+echo "Downloading $ARCH Agent binary from $CONTROL_URL"
+if ! curl -fsSL --retry 3 "$BINARY_URL" -o "$TMP"; then
+  echo "Agent binary download failed: $BINARY_URL" >&2
+  exit 1
+fi
 install -m 0755 "$TMP" "$BIN_DIR/opsagent-agent"
 cat > "$CONFIG_FILE" <<EOF
 OPSAGENT_HOME=$ROOT
@@ -138,7 +144,7 @@ echo "  snapshots: $SNAPSHOT_DIR"
   }
   const ps = (value: string): string => value.replaceAll("'", "''");
   return `$ErrorActionPreference = 'Stop'
-$ControlUrl = '${ps(input.baseUrl)}'
+$ControlUrl = '${ps(input.baseUrl)}'.TrimEnd('/')
 $TenantId = '${ps(input.tenantId)}'
 $Token = '${ps(input.token)}'
 $Root = Join-Path $env:ProgramData 'OpsAgent'
@@ -151,6 +157,7 @@ $RunDir = Join-Path $Root 'run'
 $ConfigFile = Join-Path $ConfigDir 'agent.env'
 New-Item -ItemType Directory -Force -Path $Root,$BinDir,$ConfigDir,$ToolsDir,$LogDir,$SnapshotDir,$RunDir | Out-Null
 $Binary = Join-Path $BinDir 'opsagent-agent.exe'
+Write-Host "Downloading Agent binary from $ControlUrl"
 Invoke-WebRequest -Uri "$ControlUrl/api/agents/binary?os=windows&arch=amd64&token=$Token" -OutFile $Binary -UseBasicParsing
 @(
   "OPSAGENT_HOME=$Root",

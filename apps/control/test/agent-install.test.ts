@@ -48,7 +48,7 @@ describe('agent install API', () => {
       localAdmin: { enabled: true, username: 'tenant-admin' },
       agentEnrollmentToken: 'enroll-secret',
       agentDistDir: distDir,
-      agentPublicUrl: 'https://opsagent.example',
+      agentPublicUrl: 'https://opsagent.example/',
     });
     const cookie = await login(app);
 

@@ -79,6 +79,8 @@ BINARY_URL="$CONTROL_URL/api/agents/binary?os=linux&arch=$ARCH&token=$TOKEN"
 echo "Downloading $ARCH Agent binary from $CONTROL_URL"
 if ! curl -fsSL --retry 3 "$BINARY_URL" -o "$TMP"; then
   echo "Agent binary download failed: $BINARY_URL" >&2
+  echo "On the control host, verify OPSAGENT_AGENT_DIST_DIR contains opsagent-agent-linux-$ARCH." >&2
+  echo "Build it with: pnpm agent:dist" >&2
   exit 1
 fi
 install -m 0755 "$TMP" "$BIN_DIR/opsagent-agent"

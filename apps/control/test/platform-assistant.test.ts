@@ -27,6 +27,7 @@ function fakes(answerer?: { complete: (input: { tenantId: string; modelId?: stri
   const agents = {
     findByMention: vi.fn().mockResolvedValue(null),
     listAppSystems: vi.fn().mockResolvedValue([]),
+    list: vi.fn().mockResolvedValue([]),
     fleet: vi.fn(),
     get: vi.fn().mockResolvedValue(agent),
   };
@@ -103,6 +104,19 @@ describe('PlatformAssistant', () => {
     const plan = await assistant.detect('tenant', '给我查 prod-web-01 的 IP 是多少');
     const events = await collect(assistant.execute(plan!, 'tenant', 'session-1'));
     expect(events.some((event) => event.type === 'assistant.delta' && event.text.includes('7.24.4.68'))).toBe(true);
+  });
+
+  it('plans batch instructions for an application system', async () => {
+    const { assistant, agents } = fakes();
+    agents.listAppSystems.mockResolvedValue([{ id: 's-1', code: 'order', name: '订单中心', owner: '交易组', criticality: 'P1', agentCount: 1, onlineCount: 1 }]);
+    agents.list.mockResolvedValue([{ ...agent, appSystem: { id: 's-1', code: 'order', name: '订单中心', owner: '交易组', criticality: 'P1', agentCount: 1, onlineCount: 1 } }]);
+    const plan = await assistant.detect('tenant', '@订单中心 所有节点执行检查磁盘');
+    expect(plan).toMatchObject({
+      kind: 'agent-batch',
+      instruction: expect.stringContaining('磁盘'),
+      targets: [expect.objectContaining({ hostname: 'prod-web-01' })],
+      readOnly: true,
+    });
   });
 
   it('answers managed-agent inventory from platform data', async () => {

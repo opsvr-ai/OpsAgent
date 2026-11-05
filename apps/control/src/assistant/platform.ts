@@ -40,6 +40,13 @@ export type PlatformPlan =
       readonly argv: string[];
     }
   | {
+      readonly kind: 'agent-batch';
+      readonly targets: AgentRecord[];
+      readonly instruction: string;
+      readonly readOnly: boolean;
+      readonly query: string;
+    }
+  | {
       readonly kind: 'app-health';
       readonly appSystemId: string;
       readonly appSystemName: string;
@@ -84,6 +91,8 @@ export class PlatformAssistant {
   ) {}
 
   async detect(tenantId: string, text: string): Promise<PlatformPlan | null> {
+    const batchPlan = await this.detectAgentBatch(tenantId, text);
+    if (batchPlan) return batchPlan;
     const mentioned = await this.agents.findByMention(tenantId, text);
     if (mentioned) {
       const alertQuestion = /(告警|故障|异常|健康|正常吗)/i.test(text);
@@ -136,7 +145,61 @@ export class PlatformAssistant {
     };
   }
 
+  private async detectAgentBatch(tenantId: string, text: string): Promise<PlatformPlan | null> {
+    const trimmed = text.trim();
+    const startsAsCommand = /^(给|对|让|向|通知|批量给|批量对)\s*/i.test(trimmed);
+    const batchAll = /(所有主机|全部主机|所有节点|全部节点|每台主机|批量执行|批量检查|批量巡检)/i.test(trimmed);
+    const action = /(执行|运行|下发|发送指令|发送|检查|查看|排查|分析|巡检|采集|收集|查一下|看看)/i.test(trimmed);
+    if (!action || (!startsAsCommand && !batchAll)) return null;
+
+    let targets: AgentRecord[] = [];
+    let label = '';
+    let instruction = trimmed;
+    const systems = await this.agents.listAppSystems(tenantId);
+    const system = systems
+      .filter((item) => item.name && trimmed.includes(item.name))
+      .sort((left, right) => right.name.length - left.name.length)[0];
+    if (system) {
+      label = system.name;
+      const all = await this.agents.list(tenantId);
+      targets = all.filter((agent) => agent.appSystem?.id === system.id);
+      instruction = instruction.replaceAll(system.name, ' ');
+    } else if (batchAll) {
+      label = '全部在线主机';
+      const all = await this.agents.list(tenantId);
+      targets = all.filter((agent) => agent.status === 'online');
+    } else {
+      const mentioned = await this.agents.findByMention(tenantId, trimmed);
+      if (!mentioned) return null;
+      label = mentioned.hostname;
+      targets = [mentioned];
+      instruction = instruction.replaceAll(mentioned.hostname, ' ');
+      if (mentioned.name) instruction = instruction.replaceAll(mentioned.name, ' ');
+    }
+    targets = targets.filter((agent) => agent.status === 'online').slice(0, 20);
+    if (targets.length === 0) return null;
+
+    instruction = instruction
+      .replace(/^(给|对|让|向|通知|批量给|批量对)\s*/i, '')
+      .replace(/^(\s*(执行|运行|下发|发送指令|发送)\s*[:：]?\s*)/i, '')
+      .replace(new RegExp(`\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'g'), ' ')
+      .replace(/^[，,。；;：:\s]+/, '')
+      .trim();
+    if (!instruction) instruction = '检查系统概况';
+    return {
+      kind: 'agent-batch',
+      targets,
+      instruction,
+      readOnly: !/(重启|停止|启动|删除|修改|写入|安装|卸载|kill|restart|stop|start|rm\s|chmod|chown)/i.test(instruction),
+      query: text,
+    };
+  }
+
   async *execute(plan: PlatformPlan, tenantId: string, sessionId: string, modelId?: string): AsyncIterable<RuntimeEvent> {
+    if (plan.kind === 'agent-batch') {
+      yield* this.executeAgentBatch(plan, tenantId, sessionId, modelId);
+      return;
+    }
     if (plan.kind === 'host-alerts') {
       yield this.toolCall(sessionId, 'opsagent.agent_alerts', { hostname: plan.agent.hostname }, 'R0');
       const alerts = (await this.events.list(tenantId, plan.agent.id)).filter((event) => event.status === 'open');
@@ -373,6 +436,89 @@ export class PlatformAssistant {
     }
     const raw = typeof result.answer === 'string' ? result.answer.trim() : '';
     return raw || `已完成 **${hostname}** 的只读检查，但没有取得可用结果。`;
+  }
+
+  private async *executeAgentBatch(
+    plan: Extract<PlatformPlan, { kind: 'agent-batch' }>,
+    tenantId: string,
+    sessionId: string,
+    modelId?: string,
+  ): AsyncIterable<RuntimeEvent> {
+    if (!plan.readOnly) {
+      yield this.assistant(sessionId, '该指令包含写操作，已拒绝在普通对话中直接执行。请在「操作系统智能体 → 自然语言」中发起并走平台审批。');
+      yield this.done(sessionId);
+      return;
+    }
+    yield this.toolCall(sessionId, 'opsagent.agent_batch', {
+      instruction: plan.instruction,
+      targets: plan.targets.map((agent) => agent.hostname),
+    }, 'R1');
+    const results = await Promise.all(plan.targets.map(async (agent) => {
+      const command = await this.commands.create({
+        tenantId,
+        agentId: agent.id,
+        type: 'inspect',
+        input: { question: plan.instruction },
+      });
+      if (!command) return { hostname: agent.hostname, status: 'failed', analysis: '', answer: '' };
+      let current = command;
+      for (let attempt = 0; attempt < 30 && !['completed', 'failed'].includes(current.status); attempt += 1) {
+        await delay(1000);
+        current = (await this.commands.get(tenantId, agent.id, command.id)) ?? current;
+      }
+      const payload = typeof current.result === 'object' && current.result !== null
+        ? current.result as Record<string, unknown>
+        : {};
+      return {
+        hostname: agent.hostname,
+        status: current.status,
+        analysis: typeof payload.analysis === 'string' ? payload.analysis : '',
+        answer: typeof payload.answer === 'string' ? payload.answer : '',
+      };
+    }));
+    yield this.toolResult(sessionId, 'opsagent.agent_batch', {
+      instruction: plan.instruction,
+      succeeded: results.filter((item) => item.status === 'completed').length,
+      failed: results.filter((item) => item.status !== 'completed').length,
+    });
+    const answer = await this.summarizeBatch(plan.instruction, results, tenantId, modelId);
+    yield this.assistant(sessionId, answer, 'model');
+    yield this.done(sessionId);
+  }
+
+  private async summarizeBatch(
+    instruction: string,
+    results: Array<{ hostname: string; status: string; analysis: string; answer: string }>,
+    tenantId: string,
+    modelId?: string,
+  ): Promise<string> {
+    if (this.answerer && results.some((item) => item.analysis || item.answer)) {
+      try {
+        const answer = await this.answerer.complete({
+          tenantId,
+          ...(modelId ? { modelId } : {}),
+          system: [
+            '你是 OpsAgent 总控智能体。',
+            '下面是多台操作系统智能体执行同一指令的结果。',
+            '汇总成简洁结论：哪些节点成功、哪些失败、共性问题是什么、下一步建议是什么。',
+            '不要逐台粘贴原始数据，使用简体中文，控制在 500 字以内。',
+          ].join('\n'),
+          prompt: JSON.stringify({ instruction, results }).slice(0, 20_000),
+          maxTokens: 1000,
+        });
+        if (answer.trim()) return answer.trim();
+      } catch (error) {
+        console.error('[platform] batch summary failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    const lines = [`**总控指令**：${instruction}`, ''];
+    for (const item of results) {
+      const detail = item.analysis || item.answer;
+      lines.push(`- **${item.hostname}**：${item.status}${detail ? ` — ${(detail.split('\n')[0] ?? '').slice(0, 180)}` : ''}`);
+    }
+    return lines.join('\n');
   }
 
   private async waitCommand(

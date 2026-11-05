@@ -189,7 +189,9 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
               ? '只读命令执行'
               : item.tool === 'opsagent.agent_query'
               ? '主机智能体查询'
-              : item.tool === 'opsagent.agent_snapshot'
+              : item.tool === 'opsagent.agent_batch'
+                ? '操作系统智能体批量指令'
+                : item.tool === 'opsagent.agent_snapshot'
             ? '主机配置与性能快照'
             : '主机命令下发';
       return (
@@ -198,7 +200,7 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
           <div className="msg-body">
             <div className="platform-tool-line">
               <span className="platform-tool-copy"><strong>平台数据查询</strong><small>{label}</small></span>
-              <span className="badge badge-ok">{item.tool === 'opsagent.agent_command' || item.tool === 'opsagent.agent_query' || item.tool === 'opsagent.exec' ? '已下发' : '已读取'}</span>
+              <span className="badge badge-ok">{item.tool === 'opsagent.agent_command' || item.tool === 'opsagent.agent_query' || item.tool === 'opsagent.agent_batch' || item.tool === 'opsagent.exec' ? '已下发' : '已读取'}</span>
             </div>
           </div>
         </div>

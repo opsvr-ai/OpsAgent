@@ -64,8 +64,8 @@ describe('Chat', () => {
 
   it('sends the selected model id with the prompt', async () => {
     modelsMock.mockResolvedValue([
-      { id: 'm1', name: '默认模型', provider: 'deepseek', baseUrl: 'https://api.example', model: 'deepseek-chat', status: 'active' },
-      { id: 'm2', name: '内网模型', provider: 'openai', baseUrl: 'https://llm.example', model: 'qwen-prod', status: 'active' },
+      { id: 'm1', name: '默认模型', provider: 'deepseek', baseUrl: 'https://api.example', model: 'deepseek-chat', status: 'active', isAgentDefault: false },
+      { id: 'm2', name: '内网模型', provider: 'openai', baseUrl: 'https://llm.example', model: 'qwen-prod', status: 'active', isAgentDefault: false },
     ]);
     promptMock.mockImplementation(async function* () {
       yield { type: 'session.done', sessionId: 's', at: 't' };

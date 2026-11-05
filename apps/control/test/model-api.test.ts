@@ -99,6 +99,33 @@ describe('model provider configuration', () => {
     const resolved = await service.resolve(tenant.rows[0]?.tenant_id ?? '', (created.json() as { id: string }).id);
     expect(resolved?.model).toBe('deepseek-chat');
 
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/models',
+      headers: { cookie },
+      payload: {
+        name: 'agent-default',
+        provider: 'openai',
+        baseUrl: 'https://llm.example/v1',
+        model: 'qwen-agent',
+        apiKey: 'sk-agent',
+      },
+    });
+    expect(second.statusCode).toBe(201);
+    const secondId = (second.json() as { id: string }).id;
+    const defaulted = await app.inject({
+      method: 'POST',
+      url: `/api/models/${secondId}/default`,
+      headers: { cookie },
+    });
+    expect(defaulted.statusCode).toBe(200);
+    expect(defaulted.json()).toMatchObject({ model: 'qwen-agent', isAgentDefault: true });
+    const resolvedDefault = await service.resolve(tenant.rows[0]?.tenant_id ?? '');
+    expect(resolvedDefault?.model).toBe('qwen-agent');
+    const listWithDefault = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie } });
+    expect(listWithDefault.json()).toContainEqual(expect.objectContaining({ id: secondId, isAgentDefault: true }));
+    await app.inject({ method: 'DELETE', url: `/api/models/${secondId}`, headers: { cookie } });
+
     const updated = await app.inject({
       method: 'PATCH',
       url: `/api/models/${(created.json() as { id: string }).id}`,

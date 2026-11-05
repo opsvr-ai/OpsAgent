@@ -32,6 +32,7 @@ export type AuditAction =
   | 'model.create'
   | 'model.update'
   | 'model.delete'
+  | 'model.default'
   | 'incident.create'
   | 'incident.update'
   | 'incident.investigate'

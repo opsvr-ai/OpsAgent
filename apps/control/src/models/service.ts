@@ -15,6 +15,7 @@ export interface ModelProviderRecord {
   readonly baseUrl: string;
   readonly model: string;
   readonly status: string;
+  readonly isAgentDefault: boolean;
 }
 
 export class ModelProviderService {
@@ -25,8 +26,8 @@ export class ModelProviderService {
 
   async list(tenantId: string): Promise<ModelProviderRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, name, provider, base_url, model, status FROM model_providers
-       WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT id, name, provider, base_url, model, status, is_agent_default FROM model_providers
+       WHERE tenant_id = $1 ORDER BY is_agent_default DESC, created_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => this.map(row));
@@ -34,8 +35,9 @@ export class ModelProviderService {
 
   async listAvailable(tenantId: string): Promise<ModelProviderRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, name, provider, base_url, model, status FROM model_providers
-       WHERE tenant_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+      `SELECT id, name, provider, base_url, model, status, is_agent_default FROM model_providers
+       WHERE tenant_id = $1 AND status = 'active'
+       ORDER BY is_agent_default DESC, created_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => this.map(row));
@@ -54,7 +56,7 @@ export class ModelProviderService {
       `INSERT INTO model_providers
          (tenant_id, name, provider, base_url, model, api_key_encrypted)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, provider, base_url, model, status`,
+       RETURNING id, name, provider, base_url, model, status, is_agent_default`,
       [input.tenantId, input.name, input.provider, input.baseUrl, input.model, encrypted],
     );
     return this.map(result.rows[0]);
@@ -81,7 +83,7 @@ export class ModelProviderService {
           `INSERT INTO model_providers
              (tenant_id, name, provider, base_url, model, api_key_encrypted)
            VALUES ($1, $2, $3, $4, $5, $6)
-           RETURNING id, name, provider, base_url, model, status`,
+           RETURNING id, name, provider, base_url, model, status, is_agent_default`,
           [input.tenantId, name, input.provider, input.baseUrl, model, encrypted],
         );
         created.push(this.map(result.rows[0]));
@@ -115,7 +117,7 @@ export class ModelProviderService {
            api_key_encrypted = COALESCE($7, api_key_encrypted),
            status = COALESCE($8, status), updated_at = now()
        WHERE tenant_id = $1 AND id = $2
-       RETURNING id, name, provider, base_url, model, status`,
+       RETURNING id, name, provider, base_url, model, status, is_agent_default`,
       [tenantId, id, input.name, input.provider, input.baseUrl, input.model, encrypted, input.status ?? null],
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
@@ -129,6 +131,38 @@ export class ModelProviderService {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async setAgentDefault(tenantId: string, id: string): Promise<ModelProviderRecord | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target = await client.query(
+        'SELECT id FROM model_providers WHERE tenant_id = $1 AND id = $2 AND status = $3',
+        [tenantId, id, 'active'],
+      );
+      if (!target.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      await client.query(
+        'UPDATE model_providers SET is_agent_default = false, updated_at = now() WHERE tenant_id = $1 AND is_agent_default',
+        [tenantId],
+      );
+      const result = await client.query(
+        `UPDATE model_providers SET is_agent_default = true, updated_at = now()
+         WHERE tenant_id = $1 AND id = $2
+         RETURNING id, name, provider, base_url, model, status, is_agent_default`,
+        [tenantId, id],
+      );
+      await client.query('COMMIT');
+      return result.rows[0] ? this.map(result.rows[0]) : null;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async resolve(tenantId: string, modelId?: string): Promise<ResolvedModelProvider | null> {
     const result = await this.pool.query<{
       provider: string;
@@ -139,7 +173,7 @@ export class ModelProviderService {
       `SELECT provider, base_url, model, api_key_encrypted FROM model_providers
        WHERE tenant_id = $1 AND status = 'active'
          AND ($2::text IS NULL OR id::text = $2)
-       ORDER BY created_at DESC LIMIT 1`,
+       ORDER BY is_agent_default DESC, created_at DESC LIMIT 1`,
       [tenantId, modelId ?? null],
     );
     const row = result.rows[0];
@@ -159,6 +193,7 @@ export class ModelProviderService {
     base_url: string;
     model: string;
     status: string;
+    is_agent_default: boolean;
   }): ModelProviderRecord {
     return {
       id: row.id,
@@ -167,6 +202,7 @@ export class ModelProviderService {
       baseUrl: row.base_url,
       model: row.model,
       status: row.status,
+      isAgentDefault: row.is_agent_default,
     };
   }
 }

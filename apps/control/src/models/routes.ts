@@ -223,6 +223,28 @@ export function registerModelRoutes(
     return reply.send(updated);
   });
 
+  app.post<{ Params: { id: string } }>('/api/models/:id/default', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const updated = await models.setAgentDefault(ctx.tenantId, request.params.id);
+    if (!updated) return reply.code(404).send({ error: 'model_not_found_or_disabled' });
+    await audit.write({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      action: 'model.default',
+      resource: updated.id,
+      result: 'success',
+      metadata: { name: updated.name, model: updated.model, provider: updated.provider },
+    });
+    return reply.send(updated);
+  });
+
   app.delete<{ Params: { id: string } }>('/api/models/:id', async (request, reply) => {
     const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });

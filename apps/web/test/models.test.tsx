@@ -32,6 +32,7 @@ describe('Models', () => {
         baseUrl: 'https://api.deepseek.com',
         model: 'deepseek-chat',
         status: 'active',
+        isAgentDefault: false,
       },
     ]);
     render(<Models onBack={vi.fn()} />);
@@ -69,6 +70,7 @@ describe('Models', () => {
       baseUrl: 'https://api.deepseek.com/v1',
       model: 'deepseek-chat',
       status: 'active',
+      isAgentDefault: false,
     };
     listMock.mockResolvedValue([model]);
     updateMock.mockResolvedValue({ ...model, name: 'deepseek-edited', status: 'disabled' });

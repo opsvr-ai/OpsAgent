@@ -1234,6 +1234,7 @@ export interface ModelProvider {
   readonly baseUrl: string;
   readonly model: string;
   readonly status: string;
+  readonly isAgentDefault: boolean;
 }
 
 export async function listModels(): Promise<ModelProvider[]> {
@@ -1242,6 +1243,13 @@ export async function listModels(): Promise<ModelProvider[]> {
 
 export async function listAvailableModels(): Promise<ModelProvider[]> {
   return request<ModelProvider[]>('/api/models/available');
+}
+
+export async function setModelAsAgentDefault(id: string): Promise<ModelProvider> {
+  return request<ModelProvider>(`/api/models/${id}/default`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 export interface DiscoveredModel {

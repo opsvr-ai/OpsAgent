@@ -4,6 +4,7 @@ import {
   deleteModel,
   discoverModels,
   listModels,
+  setModelAsAgentDefault,
   updateModel,
   type DiscoveredModel,
   type ModelProvider,
@@ -164,6 +165,18 @@ export function Models({ onBack }: ModelsProps) {
   const candidateIds = new Set(candidates.map((model) => model.id));
   const manualSelected = selectedModels.filter((id) => !candidateIds.has(id));
 
+  async function saveDefault(id: string) {
+    try {
+      const updated = await setModelAsAgentDefault(id);
+      setModels((current) => current?.map((item) => ({
+        ...item,
+        isAgentDefault: item.id === updated.id,
+      })) ?? null);
+    } catch {
+      setError('设置默认模型失败');
+    }
+  }
+
   return (
     <DesignShell
       active="models"
@@ -297,8 +310,12 @@ export function Models({ onBack }: ModelsProps) {
               <p className="muted mono">{item.model}</p>
               <p className="muted">{item.baseUrl}</p>
               <span className={`badge ${item.status === 'active' ? 'badge-ok' : 'badge-neutral'}`}>{item.status === 'active' ? '启用' : '停用'}</span>
+              {item.isAgentDefault ? <span className="badge badge-info">智能体默认</span> : null}
               <div className="row-sm" style={{ marginTop: 8 }}>
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => startEdit(item)}>编辑</button>
+                {item.status === 'active' && !item.isAgentDefault ? (
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => void saveDefault(item.id)}>设为智能体默认</button>
+                ) : null}
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => void remove(item.id)}>删除</button>
               </div>
             </div>

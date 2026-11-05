@@ -329,6 +329,7 @@ export class PlatformAssistant {
           hostname: agent.hostname,
           question,
           evidence,
+          memory: typeof result.memory === 'string' ? result.memory : '',
           alerts: alerts.map((event) => ({ title: event.title, detail: event.detail, severity: event.severity })),
         }).slice(0, 16_000);
         const answer = await this.answerer.complete({

@@ -278,6 +278,7 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		"question":    question,
 		"answer":      strings.Join(lines, "\n"),
 		"evidence":    evidence,
+		"memory":      memoryContext(10),
 		"collectedAt": time.Now().UTC().Format(time.RFC3339),
 	}
 }

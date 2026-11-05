@@ -49,6 +49,16 @@ function quoteArg(value: string): string {
   return /\s/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value;
 }
 
+function quoteYaml(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function normalizeModelBaseUrl(baseUrl: string, provider: string): string {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (provider.toLowerCase() === 'anthropic') return base;
+  return /\/v\d+$/i.test(base) ? base : `${base}/v1`;
+}
+
 export class DshJsonRunner implements DshEventRunner {
   private readonly command: string;
   private readonly cwd: string;
@@ -66,19 +76,45 @@ export class DshJsonRunner implements DshEventRunner {
       fileURLToPath(new URL('../../runtime/ops-approval-bridge.mjs', import.meta.url));
   }
 
-  private patch(model?: string): string | undefined {
-    const key = model ?? '';
+  private patch(env: Readonly<Record<string, string>>): string | undefined {
+    const model = env.OPSAGENT_MODEL_ID;
+    const provider = env.OPSAGENT_MODEL_PROVIDER;
+    const baseUrl = env.OPSAGENT_MODEL_BASE_URL;
+    const key = model && baseUrl ? `${provider ?? ''}|${baseUrl}|${model}` : '';
     if (this.patchPaths.has(key)) return this.patchPaths.get(key);
     const approvalExists = existsSync(this.approvalPlugin ?? '');
     const accountAuth = process.env.DSH_ACCOUNT_AUTH === 'true';
-    if (!approvalExists && !accountAuth) {
+    if (!approvalExists && !accountAuth && !model) {
       this.patchPaths.set(key, undefined);
       return undefined;
     }
     const dir = mkdtempSync(join(tmpdir(), 'opsagent-approval-'));
     const path = join(dir, 'patch.yml');
     const sections: string[] = [];
-    if (accountAuth) {
+    if (model && baseUrl) {
+      const api = provider === 'anthropic' ? 'anthropic-messages' : 'openai-completions';
+      sections.push(
+        [
+          '- id: llm-pi-ai',
+          '  config:',
+          '    providers:',
+          '      opsagent-tenant:',
+          '        displayName: OpsAgent tenant model',
+          `        api: ${api}`,
+          `        baseURL: ${quoteYaml(baseUrl)}`,
+          '        apiKeyEnv: OPSAGENT_MODEL_API_KEY',
+          '        models:',
+          `          - id: ${quoteYaml(model)}`,
+          `            name: ${quoteYaml(model)}`,
+          '            contextWindow: 131072',
+          '            maxTokens: 8192',
+          '- id: agent-default-model',
+          '  config:',
+          '    provider: opsagent-tenant',
+          `    model: ${quoteYaml(model)}`,
+        ].join('\n'),
+      );
+    } else if (accountAuth) {
       sections.push(
         [
           '- id: credentials',
@@ -89,8 +125,8 @@ export class DshJsonRunner implements DshEventRunner {
           '  disabled: false',
           '- id: agent-default-model',
           '  config:',
-          '    provider: deepseek-account',
-          `    model: ${model || process.env.DSH_ACCOUNT_MODEL || 'deepseek-flash'}`,
+          '    provider: deepseek-official',
+          `    model: ${process.env.DSH_ACCOUNT_MODEL ?? 'deepseek-flash'}`,
         ].join('\n'),
       );
     }
@@ -114,7 +150,7 @@ export class DshJsonRunner implements DshEventRunner {
     env: Readonly<Record<string, string>> = {},
   ): AsyncIterable<Record<string, unknown>> {
     const args = ['--profile', 'headless'];
-    const patch = this.patch(env.DSH_ACCOUNT_MODEL);
+    const patch = this.patch(env);
     if (patch) args.push('--patch', patch);
     args.push('headless', '--json');
     if (sessionId) args.push('--session-id', sessionId);
@@ -202,19 +238,28 @@ export class DshRuntime implements RuntimeClient {
     const toolNames = new Map<string, string>();
     const model = this.modelResolver ? await this.modelResolver(runtimeSession.tenantId, options?.modelId) : null;
     const modelProvider = model?.provider.toLowerCase();
+    const modelBaseUrl = model ? normalizeModelBaseUrl(model.baseUrl, model.provider) : undefined;
     const modelEnv = model && modelProvider === 'anthropic'
       ? {
           ANTHROPIC_API_KEY: model.apiKey,
-          ANTHROPIC_BASE_URL: model.baseUrl,
+          ANTHROPIC_BASE_URL: modelBaseUrl ?? model.baseUrl,
           ANTHROPIC_MODEL: model.model,
           DSH_ACCOUNT_MODEL: model.model,
+          OPSAGENT_MODEL_PROVIDER: model.provider,
+          OPSAGENT_MODEL_BASE_URL: modelBaseUrl ?? model.baseUrl,
+          OPSAGENT_MODEL_ID: model.model,
+          OPSAGENT_MODEL_API_KEY: model.apiKey,
         }
       : model && (modelProvider === 'deepseek' || modelProvider === 'openai')
         ? {
             DEEPSEEK_API_KEY: model.apiKey,
-            DEEPSEEK_BASE_URL: model.baseUrl,
+            DEEPSEEK_BASE_URL: modelBaseUrl ?? model.baseUrl,
             DEEPSEEK_MODEL: model.model,
             DSH_ACCOUNT_MODEL: model.model,
+            OPSAGENT_MODEL_PROVIDER: model.provider,
+            OPSAGENT_MODEL_BASE_URL: modelBaseUrl ?? model.baseUrl,
+            OPSAGENT_MODEL_ID: model.model,
+            OPSAGENT_MODEL_API_KEY: model.apiKey,
           }
         : {};
     const permissionMode: PermissionMode = options?.permissionMode ?? 'danger-full-access';

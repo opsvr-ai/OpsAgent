@@ -119,7 +119,7 @@ describe('DshRuntime', () => {
       undefined,
       expect.objectContaining({
         DEEPSEEK_API_KEY: 'tenant-key',
-        DEEPSEEK_BASE_URL: 'https://api.deepseek.com',
+        DEEPSEEK_BASE_URL: 'https://api.deepseek.com/v1',
         DEEPSEEK_MODEL: 'deepseek-chat',
       }),
     );
@@ -151,6 +151,10 @@ describe('DshRuntime', () => {
       expect.objectContaining({
         DEEPSEEK_MODEL: 'qwen-prod',
         DSH_ACCOUNT_MODEL: 'qwen-prod',
+        OPSAGENT_MODEL_PROVIDER: 'openai',
+        OPSAGENT_MODEL_BASE_URL: 'https://llm.example/v1',
+        OPSAGENT_MODEL_ID: 'qwen-prod',
+        OPSAGENT_MODEL_API_KEY: 'selected-key',
       }),
     );
   });

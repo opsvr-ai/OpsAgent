@@ -278,7 +278,10 @@ export function Chat({ sessionId, roleView, onBack, onOpenSession, onNewSession 
     if (item.type === 'session.done') {
       return <div key={index} className="session-done"><span />完成</div>;
     }
-    return <p key={index} role="alert">运行时错误：{item.code}</p>;
+    if (item.type === 'runtime.error') {
+      return <p key={index} role="alert">运行时错误：{item.code}{item.message ? ` · ${item.message}` : ''}</p>;
+    }
+    return null;
   }
 
   return (

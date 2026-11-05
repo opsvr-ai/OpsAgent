@@ -44,7 +44,7 @@ export class AgentInventoryService {
       if (typeof entry.name === 'string' && entry.name) items.push({ kind: 'ops_tool', name: entry.name, detail: entry });
     }
     const unique = new Map<string, { kind: InventoryKind; name: string; detail: Record<string, unknown> }>();
-    for (const item of items.slice(0, 200)) unique.set(`${item.kind}:${item.name}`, item);
+    for (const item of items.slice(0, 2000)) unique.set(`${item.kind}:${item.name}`, item);
     for (const item of unique.values()) {
       await this.pool.query(
         `INSERT INTO agent_inventory (tenant_id, agent_id, kind, name, detail)

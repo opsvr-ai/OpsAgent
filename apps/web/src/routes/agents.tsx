@@ -901,7 +901,7 @@ export function Agents({ onBack }: AgentsProps) {
                               ))}
                             </div>
                             <div className="inventory-list">
-                              {inventory.filter((item) => inventoryFilter === 'all' || item.kind === inventoryFilter).slice(0, 100).map((item) => (
+                              {inventory.filter((item) => inventoryFilter === 'all' || item.kind === inventoryFilter).slice(0, 1000).map((item) => (
                                 <div key={item.id} className="inventory-row">
                                   <span className={`badge ${item.kind === 'process' ? 'badge-info' : item.kind === 'port' ? 'badge-warn' : 'badge-neutral'}`}>
                                     {item.kind === 'process' ? '进程' : item.kind === 'port' ? '端口' : item.kind === 'service' ? '服务' : '运维工具'}

@@ -70,10 +70,7 @@ func collectApplicationInventory() map[string]any {
 	if !primaryFormat {
 		ps = commandOutput(4*time.Second, "ps", "aux")
 	}
-	for index, line := range strings.Split(ps, "\n") {
-		if index == 0 || index > 120 {
-			continue
-		}
+	for _, line := range strings.Split(ps, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 4 {
 			continue
@@ -107,6 +104,9 @@ func collectApplicationInventory() map[string]any {
 		if isSystemProcess(pid, comm, args) {
 			classification = "system"
 		}
+		if classification == "system" {
+			continue
+		}
 		entry := map[string]any{
 			"pid": pid, "ppid": ppid, "user": user, "name": comm,
 			"command": args, "classification": classification,
@@ -116,9 +116,6 @@ func collectApplicationInventory() map[string]any {
 			entry["installPath"] = filepath.Dir(exe)
 		}
 		processes = append(processes, entry)
-		if len(processes) >= 100 {
-			break
-		}
 	}
 
 	return map[string]any{

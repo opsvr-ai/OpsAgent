@@ -253,6 +253,7 @@ export function registerAgentInstallRoutes(
       }
       if (!request.query.tenantId) return reply.code(400).send({ error: 'tenant_required' });
       return reply
+        .header('cache-control', 'no-cache, no-store, must-revalidate')
         .header('content-type', 'text/x-shellscript; charset=utf-8')
         .send(
           buildInstallScript({
@@ -273,6 +274,7 @@ export function registerAgentInstallRoutes(
       }
       if (!request.query.tenantId) return reply.code(400).send({ error: 'tenant_required' });
       return reply
+        .header('cache-control', 'no-cache, no-store, must-revalidate')
         .header('content-type', 'text/plain; charset=utf-8')
         .send(
           buildInstallScript({
@@ -300,6 +302,7 @@ export function registerAgentInstallRoutes(
         return reply.code(404).send({ error: 'binary_not_available' });
       }
       return reply
+        .header('cache-control', 'no-cache, no-store, must-revalidate')
         .header('content-type', 'application/octet-stream')
         .header('content-disposition', `attachment; filename="${name}"`)
         .send(createReadStream(file));

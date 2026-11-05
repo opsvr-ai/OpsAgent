@@ -124,6 +124,61 @@ docker compose up -d control
 - 修改 Agent 代码后重新构建 control 镜像；镜像会在 `golang:1.26-alpine` 阶段自动编译三个平台二进制到 `/opt/opsagent-agent-dist`，宿主机不需要安装 Go
 - 非容器开发时才需要执行 `pnpm agent:dist`，输出到 `agents/opsagent-agent/dist`
 
+### `/opt/opsagent` 目录结构
+
+Agent 安装后自动创建以下目录，按 Eino 的 skill / session / checkpoint 分层：
+
+```text
+/opt/opsagent/
+├── bin/
+│   └── opsagent-agent                 主程序
+├── config/
+│   └── agent.env                      Agent 配置
+├── skills/
+│   ├── system-overview/SKILL.md       Eino skill.LocalBackend 格式
+│   ├── disk-usage/SKILL.md
+│   ├── memory-usage/SKILL.md
+│   ├── network-status/SKILL.md
+│   ├── service-status/SKILL.md
+│   ├── process-top/SKILL.md
+│   ├── logs-recent/SKILL.md
+│   ├── container-status/SKILL.md
+│   └── agent-health/SKILL.md
+├── tools/                             本地诊断工具
+├── state/
+│   ├── memory.json                    Agent 长期记忆
+│   ├── sessions/                      Eino 会话历史
+│   └── checkpoints/                   Eino Runner checkpoint
+├── workspace/
+│   └── scripts/                       受控脚本工作区
+├── logs/agent.log
+├── snapshots/                         配置/指标/巡航快照
+├── audit/                             本地操作审计
+└── run/                               PID 和运行时文件
+```
+
+内置技能首次启动自动写入 `skills/<name>/SKILL.md`，已存在时不覆盖。
+
+对应 Eino 组件：
+
+```text
+skills/<name>/SKILL.md  →  adk/middlewares/skill.LocalBackend
+state/checkpoints/      →  compose.CheckPointStore（fileCheckpointStore）
+state/memory.json       →  Agent 长期记忆
+state/sessions/         →  Eino session 持久化目录
+workspace/              →  脚本和工具执行工作区
+```
+
+目录可用环境变量覆盖：
+
+```text
+OPSAGENT_SKILLS_DIR
+OPSAGENT_STATE_DIR
+OPSAGENT_WORKSPACE_DIR
+```
+
+旧版本的 `snapshots/memory.json` 会自动迁移到 `state/memory.json`。
+
 ### 操作系统智能体运行能力
 
 ```text

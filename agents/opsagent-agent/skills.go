@@ -1,14 +1,43 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 )
+
+//go:embed builtin-skills
+var builtinSkillFS embed.FS
+
+func seedBuiltinSkills(paths agentPaths) {
+	entries, err := fs.ReadDir(builtinSkillFS, "builtin-skills")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		content, err := fs.ReadFile(builtinSkillFS, "builtin-skills/"+entry.Name()+"/SKILL.md")
+		if err != nil {
+			continue
+		}
+		directory := filepath.Join(paths.Skills, entry.Name())
+		if err := os.MkdirAll(directory, 0o750); err != nil {
+			continue
+		}
+		target := filepath.Join(directory, "SKILL.md")
+		if _, err := os.Stat(target); os.IsNotExist(err) {
+			_ = os.WriteFile(target, content, 0o640)
+		}
+	}
+}
 
 type skillDefinition struct {
 	Name        string `json:"name"`
@@ -29,12 +58,71 @@ var skills = []skillDefinition{
 }
 
 func listSkills() []skillDefinition {
-	return skills
+	seen := map[string]bool{}
+	result := make([]skillDefinition, 0, len(skills))
+	for _, skill := range skills {
+		seen[skill.Name] = true
+		result = append(result, skill)
+	}
+	for _, skill := range filesystemSkills(resolveAgentPaths()) {
+		if seen[skill.Name] {
+			continue
+		}
+		seen[skill.Name] = true
+		result = append(result, skill)
+	}
+	return result
+}
+
+func filesystemSkills(paths agentPaths) []skillDefinition {
+	entries, err := os.ReadDir(paths.Skills)
+	if err != nil {
+		return nil
+	}
+	result := make([]skillDefinition, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(paths.Skills, entry.Name(), "SKILL.md"))
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		name := ""
+		description := ""
+		if strings.HasPrefix(strings.TrimSpace(content), "---") {
+			parts := strings.SplitN(strings.TrimSpace(content), "---", 3)
+			if len(parts) >= 3 {
+				for _, line := range strings.Split(parts[1], "\n") {
+					key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
+					if !ok {
+						continue
+					}
+					switch strings.TrimSpace(key) {
+					case "name":
+						name = strings.TrimSpace(value)
+					case "description":
+						description = strings.TrimSpace(value)
+					}
+				}
+			}
+		}
+		if name == "" {
+			name = entry.Name()
+		}
+		result = append(result, skillDefinition{
+			Name:        name,
+			Description: description,
+			Question:    description,
+		})
+	}
+	return result
 }
 
 func findSkill(name string) (skillDefinition, bool) {
 	normalized := strings.ToLower(strings.TrimSpace(name))
-	for _, skill := range skills {
+	for _, skill := range listSkills() {
 		if strings.ToLower(skill.Name) == normalized {
 			return skill, true
 		}
@@ -67,7 +155,7 @@ type agentMemory struct {
 
 func memoryFile() string {
 	paths := resolveAgentPaths()
-	return filepath.Join(paths.Snapshots, "memory.json")
+	return filepath.Join(paths.State, "memory.json")
 }
 
 func loadMemory() agentMemory {
@@ -94,7 +182,7 @@ func rememberObservation(kind, summary string, data map[string]any) {
 		memory.Observations = memory.Observations[len(memory.Observations)-50:]
 	}
 	paths := resolveAgentPaths()
-	if err := os.MkdirAll(paths.Snapshots, 0o750); err != nil {
+	if err := os.MkdirAll(paths.State, 0o750); err != nil {
 		return
 	}
 	payload, err := json.MarshalIndent(memory, "", "  ")

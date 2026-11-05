@@ -18,13 +18,19 @@ const (
 )
 
 type agentPaths struct {
-	Root      string
-	Bin       string
-	Config    string
-	Tools     string
-	Logs      string
-	Snapshots string
-	Run       string
+	Root        string
+	Bin         string
+	Config      string
+	Tools       string
+	Logs        string
+	Snapshots   string
+	Run         string
+	Skills      string
+	State       string
+	Sessions    string
+	Checkpoints string
+	Workspace   string
+	Audit       string
 }
 
 func resolveAgentPaths() agentPaths {
@@ -56,19 +62,40 @@ func resolveAgentPaths() agentPaths {
 	if tools == "" {
 		tools = filepath.Join(root, "tools")
 	}
+	skills := os.Getenv("OPSAGENT_SKILLS_DIR")
+	if skills == "" {
+		skills = filepath.Join(root, "skills")
+	}
+	state := os.Getenv("OPSAGENT_STATE_DIR")
+	if state == "" {
+		state = filepath.Join(root, "state")
+	}
+	workspace := os.Getenv("OPSAGENT_WORKSPACE_DIR")
+	if workspace == "" {
+		workspace = filepath.Join(root, "workspace")
+	}
 	return agentPaths{
-		Root:      root,
-		Bin:       filepath.Join(root, "bin"),
-		Config:    config,
-		Tools:     tools,
-		Logs:      logs,
-		Snapshots: snapshots,
-		Run:       filepath.Join(root, "run"),
+		Root:        root,
+		Bin:         filepath.Join(root, "bin"),
+		Config:      config,
+		Tools:       tools,
+		Logs:        logs,
+		Snapshots:   snapshots,
+		Run:         filepath.Join(root, "run"),
+		Skills:      skills,
+		State:       state,
+		Sessions:    filepath.Join(state, "sessions"),
+		Checkpoints: filepath.Join(state, "checkpoints"),
+		Workspace:   workspace,
+		Audit:       filepath.Join(root, "audit"),
 	}
 }
 
 func (p agentPaths) ensure() error {
-	directories := []string{p.Root, p.Bin, filepath.Dir(p.Config), p.Tools, p.Logs, p.Snapshots, p.Run}
+	directories := []string{
+		p.Root, p.Bin, filepath.Dir(p.Config), p.Tools, p.Logs, p.Snapshots, p.Run,
+		p.Skills, p.State, p.Sessions, p.Checkpoints, p.Workspace, p.Audit,
+	}
 	for _, directory := range directories {
 		if err := os.MkdirAll(directory, 0o750); err != nil {
 			return fmt.Errorf("create %s: %w", directory, err)
@@ -77,16 +104,23 @@ func (p agentPaths) ensure() error {
 			return fmt.Errorf("chmod %s: %w", directory, err)
 		}
 	}
-	readme := filepath.Join(p.Tools, "README.txt")
-	if _, err := os.Stat(readme); os.IsNotExist(err) {
-		_ = os.WriteFile(readme, []byte("OpsAgent 工具目录：放置主机诊断辅助脚本/工具，默认只读检查。\n"), 0o640)
+	readmes := map[string]string{
+		filepath.Join(p.Tools, "README.txt"):       "OpsAgent 工具目录：放置主机诊断辅助脚本/工具，默认只读检查。\n",
+		filepath.Join(p.Snapshots, "README.txt"):   "OpsAgent 快照目录：保存最近一次配置发现、性能指标、自巡航和命令结果快照。\n",
+		filepath.Join(p.Skills, "README.txt"):      "OpsAgent 技能目录：每个技能一个子目录，包含 SKILL.md（Eino skill.LocalBackend 格式）。\n",
+		filepath.Join(p.Workspace, "README.txt"):   "Agent 工作区：脚本、临时产物和模型生成文件；执行后按保留策略清理。\n",
+		filepath.Join(p.Sessions, "README.txt"):    "Eino 会话目录：按 sessionId 保存对话历史和运行状态。\n",
+		filepath.Join(p.Checkpoints, "README.txt"): "Eino checkpoint 目录：Runner 中断恢复使用，key 经过安全编码。\n",
 	}
-	snapshotReadme := filepath.Join(p.Snapshots, "README.txt")
-	if _, err := os.Stat(snapshotReadme); os.IsNotExist(err) {
-		_ = os.WriteFile(snapshotReadme, []byte("OpsAgent 快照目录：保存最近一次配置发现、性能指标、自巡航和命令结果快照。\n"), 0o640)
+	for path, content := range readmes {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			_ = os.WriteFile(path, []byte(content), 0o640)
+		}
 	}
+	migrateLegacyMemory(p)
+	seedBuiltinSkills(p)
 	if _, err := os.Stat(p.Config); os.IsNotExist(err) {
-		content := fmt.Sprintf("OPSAGENT_HOME=%s\nOPSAGENT_CONTROL_URL=%s\nOPSAGENT_TENANT_ID=%s\nOPSAGENT_AGENT_CONFIG=%s\nOPSAGENT_LOG_DIR=%s\nOPSAGENT_SNAPSHOT_DIR=%s\nOPSAGENT_TOOLS_DIR=%s\n",
+		content := fmt.Sprintf("OPSAGENT_HOME=%s\nOPSAGENT_CONTROL_URL=%s\nOPSAGENT_TENANT_ID=%s\nOPSAGENT_AGENT_CONFIG=%s\nOPSAGENT_LOG_DIR=%s\nOPSAGENT_SNAPSHOT_DIR=%s\nOPSAGENT_TOOLS_DIR=%s\nOPSAGENT_SKILLS_DIR=%s\nOPSAGENT_STATE_DIR=%s\nOPSAGENT_WORKSPACE_DIR=%s\n",
 			p.Root,
 			os.Getenv("OPSAGENT_CONTROL_URL"),
 			os.Getenv("OPSAGENT_TENANT_ID"),
@@ -94,10 +128,60 @@ func (p agentPaths) ensure() error {
 			p.Logs,
 			p.Snapshots,
 			p.Tools,
+			p.Skills,
+			p.State,
+			p.Workspace,
 		)
 		_ = os.WriteFile(p.Config, []byte(content), 0o600)
+	} else {
+		appendMissingConfig(p)
 	}
 	return nil
+}
+
+func appendMissingConfig(p agentPaths) {
+	data, err := os.ReadFile(p.Config)
+	if err != nil {
+		return
+	}
+	content := string(data)
+	additions := []struct {
+		key   string
+		value string
+	}{
+		{"OPSAGENT_SKILLS_DIR", p.Skills},
+		{"OPSAGENT_STATE_DIR", p.State},
+		{"OPSAGENT_WORKSPACE_DIR", p.Workspace},
+	}
+	changed := false
+	for _, addition := range additions {
+		if strings.Contains(content, addition.key+"=") {
+			continue
+		}
+		if !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		content += addition.key + "=" + addition.value + "\n"
+		changed = true
+	}
+	if changed {
+		_ = os.WriteFile(p.Config, []byte(content), 0o600)
+	}
+}
+
+func migrateLegacyMemory(p agentPaths) {
+	legacy := filepath.Join(p.Snapshots, "memory.json")
+	current := filepath.Join(p.State, "memory.json")
+	if _, err := os.Stat(current); err == nil {
+		return
+	}
+	data, err := os.ReadFile(legacy)
+	if err != nil {
+		return
+	}
+	if err := os.WriteFile(current, data, 0o640); err == nil {
+		_ = os.Rename(legacy, legacy+".migrated")
+	}
 }
 
 func (p agentPaths) writeSnapshot(name string, payload any) error {

@@ -212,8 +212,9 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		include["agent"] = true
 		executable, _ := os.Executable()
 		paths := resolveAgentPaths()
-		evidence["agent"] = fmt.Sprintf("版本: %s\n根目录: %s\n安装路径: %s\n配置文件: %s\n工具目录: %s\n日志目录: %s\n快照目录: %s\n服务名: %s\n服务状态: running",
-			agentVersion, paths.Root, executable, paths.Config, paths.Tools, paths.Logs, paths.Snapshots,
+		evidence["agent"] = fmt.Sprintf("版本: %s\n根目录: %s\n安装路径: %s\n配置文件: %s\n工具目录: %s\n技能目录: %s\n状态目录: %s\n会话目录: %s\n工作区: %s\n日志目录: %s\n快照目录: %s\n服务名: %s\n服务状态: running",
+			agentVersion, paths.Root, executable, paths.Config, paths.Tools, paths.Skills, paths.State,
+			paths.Sessions, paths.Workspace, paths.Logs, paths.Snapshots,
 			env("OPSAGENT_AGENT_SERVICE", "opsagent-agent"))
 	}
 

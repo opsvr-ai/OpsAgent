@@ -47,7 +47,7 @@ func runScriptCommand(input map[string]any) map[string]any {
 		interpreter = "powershell"
 		args = []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"}
 	}
-	directory := filepath.Join(resolveAgentPaths().Run, "scripts")
+	directory := filepath.Join(resolveAgentPaths().Workspace, "scripts")
 	if err := os.MkdirAll(directory, 0o750); err != nil {
 		result["error"] = err.Error()
 		return result

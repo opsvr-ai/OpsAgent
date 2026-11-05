@@ -443,29 +443,88 @@ export class IncidentService {
     );
     if (!system.rows[0]) return;
     const nodes = await this.pool.query<{
+      id: string;
       hostname: string;
       status: string;
       applications: unknown[];
       metrics: Record<string, unknown>;
+      system_info: Record<string, unknown>;
       last_seen: Date;
     }>(
-      `SELECT hostname, status, applications, metrics, last_seen
+      `SELECT id, hostname, status, applications, metrics, system_info, last_seen
        FROM agents WHERE tenant_id = $1 AND app_system_id = $2 ORDER BY hostname`,
       [tenantId, appSystemId],
     );
     const topology = nodes.rows.map((node) => ({
+      id: node.id,
       hostname: node.hostname,
       status: node.status,
+      ip: typeof node.system_info?.ip === 'string' ? node.system_info.ip : '',
       applications: node.applications,
       metrics: node.metrics,
       lastSeen: node.last_seen.toISOString(),
     }));
+    const connections = await this.pool.query<{
+      agent_id: string;
+      hostname: string;
+      local_address: string;
+      local_port: number;
+      remote_address: string;
+      remote_port: number;
+      process: string;
+    }>(
+      `SELECT c.agent_id, a.hostname, c.local_address, c.local_port, c.remote_address, c.remote_port, c.process
+       FROM agent_connections c
+       JOIN agents a ON a.id = c.agent_id
+       WHERE c.tenant_id = $1 AND a.app_system_id = $2
+       ORDER BY c.updated_at DESC LIMIT 500`,
+      [tenantId, appSystemId],
+    );
+    const inventory = await this.pool.query<{ agent_id: string; kind: string; name: string; detail: Record<string, unknown> }>(
+      `SELECT agent_id, kind, name, detail FROM agent_inventory
+       WHERE tenant_id = $1 AND agent_id = ANY($2::uuid[]) AND kind IN ('port', 'process')`,
+      [tenantId, nodes.rows.map((node) => node.id)],
+    );
+    const appByPort = (agentId: string, port: number): string => {
+      const entry = inventory.rows.find((row) => row.agent_id === agentId && row.kind === 'port' && row.name.endsWith(`:${port}`));
+      if (entry && typeof entry.detail.process === 'string') return entry.detail.process;
+      if (entry) return entry.name;
+      const processEntry = inventory.rows.find((row) => row.agent_id === agentId && row.kind === 'process');
+      return processEntry?.name ?? '';
+    };
+    const cleanProcess = (value: string): string => {
+      const match = value.match(/"([^"]+)"/);
+      return match?.[1] ?? value.replace(/^users:\(\(/, '').replace(/"$/, '');
+    };
+    const targetByIp = new Map<string, typeof topology[number]>();
+    for (const node of topology) {
+      if (node.ip) targetByIp.set(node.ip, node);
+      const addresses = nodes.rows.find((row) => row.id === node.id)?.system_info?.ipAddresses;
+      if (Array.isArray(addresses)) {
+        for (const address of addresses) {
+          if (typeof address === 'string') targetByIp.set(address, node);
+        }
+      }
+    }
+    const edges = connections.rows.flatMap((connection) => {
+      const target = targetByIp.get(connection.remote_address);
+      if (!target) return [];
+      return [{
+        fromHost: connection.hostname,
+        fromPort: connection.local_port,
+        fromApp: cleanProcess(connection.process) || appByPort(connection.agent_id, connection.local_port),
+        toHost: target.hostname,
+        toPort: connection.remote_port,
+        toApp: appByPort(target.id, connection.remote_port),
+        protocol: 'TCP',
+      }];
+    }).slice(0, 200);
     const appCount = topology.reduce((sum, node) => sum + node.applications.length, 0);
-    const summary = `应用系统 ${system.rows[0].name}：${topology.length} 个节点，${appCount} 个应用实例；${topology.filter((node) => node.status !== 'online').length} 个节点离线`;
+    const summary = `应用系统 ${system.rows[0].name}：${topology.length} 个节点，${appCount} 个应用实例；${topology.filter((node) => node.status !== 'online').length} 个节点离线；${edges.length} 条跨节点连接`;
     await this.pool.query(
       `INSERT INTO incident_evidence (tenant_id, incident_id, kind, source, summary, payload)
        VALUES ($1, $2, 'topology', 'opsagent', $3, $4::jsonb)`,
-      [tenantId, incidentId, summary, JSON.stringify({ appSystem: system.rows[0], nodes: topology })],
+      [tenantId, incidentId, summary, JSON.stringify({ appSystem: system.rows[0], nodes: topology, edges })],
     );
     await this.pool.query(
       `INSERT INTO incident_events (tenant_id, incident_id, actor_id, type, payload)

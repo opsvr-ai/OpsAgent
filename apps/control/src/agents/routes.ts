@@ -15,6 +15,7 @@ import { ModelProviderService } from '../models/service.js';
 import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
 import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js';
 import { AgentInventoryService } from './inventory_service.js';
+import { AgentConnectionService } from './connection_service.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,6 +47,7 @@ export function registerAgentRoutes(
   const patrolPolicies = new PatrolPolicyService(pool);
   const skillService = new AgentSkillService(pool);
   const inventoryService = new AgentInventoryService(pool);
+  const connectionService = new AgentConnectionService(pool);
 
   app.post('/api/agents/register', async (request, reply) => {
     if (!enrollmentAuthorized(request, enrollmentToken)) {
@@ -99,6 +101,11 @@ export function registerAgentRoutes(
     }
     if (discovery?.operations) {
       await inventoryService.sync(body.tenantId, registered.agent.id, discovery.operations).catch(() => undefined);
+      await connectionService.sync(
+        body.tenantId,
+        registered.agent.id,
+        (discovery.operations as Record<string, unknown>).connections,
+      ).catch(() => undefined);
     }
     return reply.code(201).send({
       ...registered,
@@ -155,6 +162,11 @@ export function registerAgentRoutes(
           : undefined;
         if (operations) {
           await inventoryService.sync(tenant.rows[0].tenant_id, request.params.id, operations).catch(() => undefined);
+          await connectionService.sync(
+            tenant.rows[0].tenant_id,
+            request.params.id,
+            (operations as Record<string, unknown>).connections,
+          ).catch(() => undefined);
         }
       }
     }
@@ -800,6 +812,11 @@ export function registerAgentRoutes(
                 tenant.rows[0].tenant_id,
                 request.params.id,
                 result.discovery.operations,
+              ).catch(() => undefined);
+              await connectionService.sync(
+                tenant.rows[0].tenant_id,
+                request.params.id,
+                (result.discovery.operations as Record<string, unknown>).connections,
               ).catch(() => undefined);
             }
           }

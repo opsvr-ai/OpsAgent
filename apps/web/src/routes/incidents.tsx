@@ -325,6 +325,39 @@ export function Incidents({ onBack }: IncidentsProps) {
       code: typeof record.code === 'string' ? record.code : '',
     };
   })();
+  const topologyEdges = (() => {
+    const raw = topologyEvidence?.payload?.edges;
+    if (!Array.isArray(raw)) return [] as Array<{
+      fromHost: string; fromApp: string; fromPort: number;
+      toHost: string; toApp: string; toPort: number; protocol: string;
+    }>;
+    return raw.flatMap((edge) => {
+      if (typeof edge !== 'object' || edge === null) return [];
+      const record = edge as Record<string, unknown>;
+      return [{
+        fromHost: typeof record.fromHost === 'string' ? record.fromHost : '',
+        fromApp: typeof record.fromApp === 'string' ? record.fromApp : '',
+        fromPort: typeof record.fromPort === 'number' ? record.fromPort : 0,
+        toHost: typeof record.toHost === 'string' ? record.toHost : '',
+        toApp: typeof record.toApp === 'string' ? record.toApp : '',
+        toPort: typeof record.toPort === 'number' ? record.toPort : 0,
+        protocol: typeof record.protocol === 'string' ? record.protocol : 'TCP',
+      }];
+    });
+  })();
+  const topologyGraphNodes = (() => {
+    const labels = new Map<string, string>();
+    for (const edge of topologyEdges) {
+      labels.set(`${edge.fromHost}|${edge.fromApp}|${edge.fromPort}`, `${edge.fromHost}\n${edge.fromApp || 'unknown'}:${edge.fromPort}`);
+      labels.set(`${edge.toHost}|${edge.toApp}|${edge.toPort}`, `${edge.toHost}\n${edge.toApp || 'unknown'}:${edge.toPort}`);
+    }
+    return [...labels.entries()].map(([key, label], index) => ({
+      key,
+      label,
+      x: index % 2 === 0 ? 150 : 750,
+      y: 80 + Math.floor(index / 2) * 110,
+    }));
+  })();
   const topologyNodes = (() => {
     const raw = topologyEvidence?.payload?.nodes;
     if (!Array.isArray(raw)) return [] as Array<{
@@ -360,6 +393,8 @@ export function Incidents({ onBack }: IncidentsProps) {
       }];
     });
   })();
+  const topologyGraphPosition = new Map(topologyGraphNodes.map((node) => [node.key, node]));
+  const topologyGraphHeight = Math.max(360, ...topologyGraphNodes.map((node) => node.y + 80));
 
   function statusActions(incident: IncidentSummary) {
     if (incident.status === 'open') {
@@ -592,6 +627,53 @@ export function Incidents({ onBack }: IncidentsProps) {
                           {topologyNodes.length} 节点 · {topologyNodes.reduce((sum, node) => sum + node.applications.length, 0)} 应用
                         </span>
                       </div>
+                      {topologyEdges.length > 0 ? (
+                        <div className="topology-access-graph">
+                          <div className="row-between">
+                            <span className="eyebrow">访问关系</span>
+                            <span className="muted">{topologyEdges.length} 条 TCP 连接</span>
+                          </div>
+                          <svg viewBox={`0 0 900 ${topologyGraphHeight}`} className="topology-svg" role="img" aria-label="应用访问关系拓扑">
+                            <defs>
+                              <marker id="topology-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                                <path d="M0,0 L8,4 L0,8 Z" fill="var(--primary, #2f6fed)" />
+                              </marker>
+                            </defs>
+                            {topologyEdges.map((edge, index) => {
+                              const from = topologyGraphPosition.get(`${edge.fromHost}|${edge.fromApp}|${edge.fromPort}`);
+                              const to = topologyGraphPosition.get(`${edge.toHost}|${edge.toApp}|${edge.toPort}`);
+                              if (!from || !to) return null;
+                              const midX = (from.x + to.x) / 2;
+                              const midY = (from.y + to.y) / 2;
+                              return (
+                                <g key={`${edge.fromHost}-${edge.fromPort}-${edge.toHost}-${edge.toPort}-${index}`}>
+                                  <path
+                                    d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
+                                    fill="none"
+                                    stroke="var(--primary, #2f6fed)"
+                                    strokeWidth="1.5"
+                                    strokeOpacity="0.55"
+                                    markerEnd="url(#topology-arrow)"
+                                  />
+                                  <text x={midX} y={midY - 5} textAnchor="middle" className="topology-edge-label">
+                                    {edge.protocol} :{edge.fromPort} → :{edge.toPort}
+                                  </text>
+                                </g>
+                              );
+                            })}
+                            {topologyGraphNodes.map((node) => {
+                              const [hostname, endpoint] = node.label.split('\n');
+                              return (
+                                <g key={node.key}>
+                                  <circle cx={node.x} cy={node.y} r="7" fill="var(--primary, #2f6fed)" />
+                                  <text x={node.x > 450 ? node.x - 14 : node.x + 14} y={node.y - 4} textAnchor={node.x > 450 ? 'end' : 'start'} className="topology-svg-host">{hostname}</text>
+                                  <text x={node.x > 450 ? node.x - 14 : node.x + 14} y={node.y + 13} textAnchor={node.x > 450 ? 'end' : 'start'} className="topology-svg-endpoint">{endpoint}</text>
+                                </g>
+                              );
+                            })}
+                          </svg>
+                        </div>
+                      ) : null}
                       <div className="topology-map">
                         <div className="topology-root">
                           <span className="eyebrow">应用系统</span>

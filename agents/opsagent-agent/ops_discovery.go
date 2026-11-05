@@ -65,6 +65,100 @@ func collectProcessInventoryForDebug() map[string]any {
 
 // collectApplicationInventory discovers system services, application processes,
 // their executable paths, configuration and log locations.
+func collectConnections() []map[string]any {
+	output := commandOutput(4*time.Second, "ss", "-tnp")
+	connections := []map[string]any{}
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 5 || fields[0] != "ESTAB" {
+			continue
+		}
+		localAddress, localPort := splitAddress(fields[3])
+		remoteAddress, remotePort := splitAddress(fields[4])
+		if remoteAddress == "" {
+			continue
+		}
+		process := ""
+		if len(fields) >= 6 {
+			process = strings.Join(fields[5:], " ")
+		}
+		connections = append(connections, map[string]any{
+			"localAddress": localAddress, "localPort": localPort,
+			"remoteAddress": remoteAddress, "remotePort": remotePort,
+			"process": process, "state": "ESTAB",
+		})
+		if len(connections) >= 500 {
+			break
+		}
+	}
+	if len(connections) == 0 {
+		for _, entry := range procNetConnections() {
+			connections = append(connections, entry)
+			if len(connections) >= 500 {
+				break
+			}
+		}
+	}
+	return connections
+}
+
+func splitAddress(value string) (string, int) {
+	value = strings.TrimSpace(value)
+	index := strings.LastIndex(value, ":")
+	if index < 0 {
+		return "", 0
+	}
+	port, _ := strconv.Atoi(value[index+1:])
+	address := strings.Trim(value[:index], "[]")
+	return address, port
+}
+
+func procNetConnections() []map[string]any {
+	result := []map[string]any{}
+	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n")[1:] {
+			fields := strings.Fields(line)
+			if len(fields) < 4 || fields[3] != "01" {
+				continue
+			}
+			localAddress, localPort := hexAddress(fields[1])
+			remoteAddress, remotePort := hexAddress(fields[2])
+			if remoteAddress == "" {
+				continue
+			}
+			result = append(result, map[string]any{
+				"localAddress": localAddress, "localPort": localPort,
+				"remoteAddress": remoteAddress, "remotePort": remotePort,
+				"process": "", "state": "ESTAB",
+			})
+		}
+	}
+	return result
+}
+
+func hexAddress(value string) (string, int) {
+	index := strings.LastIndex(value, ":")
+	if index < 0 {
+		return "", 0
+	}
+	port, err := strconv.ParseInt(value[index+1:], 16, 32)
+	if err != nil {
+		return "", 0
+	}
+	hexIP := value[:index]
+	if len(hexIP) == 8 {
+		bytes, err := hex.DecodeString(hexIP)
+		if err == nil && len(bytes) == 4 {
+			return fmt.Sprintf("%d.%d.%d.%d", bytes[3], bytes[2], bytes[1], bytes[0]), int(port)
+		}
+	}
+	return "[::]", int(port)
+}
+
 func collectApplicationInventory() map[string]any {
 	services := []map[string]any{}
 	units := commandOutput(4*time.Second, "systemctl", "list-units", "--type=service", "--state=running", "--no-pager", "--plain", "--no-legend")

@@ -1802,3 +1802,8 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .topology-app .muted { display: block; margin-top: 2px; font-size: 9.5px; }
 .topology-empty { display: block; padding: 6px 2px; font-size: 10px; }
 @media (max-width: 720px) { .topology-nodes { grid-template-columns: 1fr; gap: 14px; } .topology-nodes::before { display: none; } .topology-node-link { left: 18px; } }
+.topology-access-graph { margin: 12px 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.topology-svg { display: block; width: 100%; height: auto; max-height: 480px; overflow: visible; }
+.topology-svg-host { font-size: 11px; font-weight: 650; fill: var(--text); }
+.topology-svg-endpoint { font-size: 9.5px; fill: var(--text-soft); font-family: var(--font-mono, monospace); }
+.topology-edge-label { font-size: 9px; fill: var(--primary, #2f6fed); font-family: var(--font-mono, monospace); }

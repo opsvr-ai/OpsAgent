@@ -124,6 +124,41 @@ docker compose up -d control
 - 修改 Agent 代码后重新构建 control 镜像；镜像会在 `golang:1.26-alpine` 阶段自动编译三个平台二进制到 `/opt/opsagent-agent-dist`，宿主机不需要安装 Go
 - 非容器开发时才需要执行 `pnpm agent:dist`，输出到 `agents/opsagent-agent/dist`
 
+### 日志排查
+
+控制面默认输出结构化请求日志：
+
+```bash
+docker compose logs -f --tail=200 control
+```
+
+关键前缀：
+
+```text
+[dsh] start       会话、provider、model、cwd
+[dsh] stderr      dsh 子进程错误输出
+[dsh] timeout     dsh 超时
+[dsh] exited      dsh 退出码、耗时、stderr 尾部
+[dsh] completed   dsh 完成、耗时
+[runtime] prompt  每次模型调用的 provider/model/baseURL
+[runtime] dsh turn failed / dsh event error
+```
+
+调整日志级别：
+
+```text
+LOG_LEVEL=debug
+OPSAGENT_LOG_REQUESTS=true
+```
+
+API Key、Cookie、Authorization 会脱敏；提示词正文不写入日志。
+
+排查模型问题时重点关注：
+
+```bash
+docker compose logs --tail=200 control | grep -E '\[dsh\]|\[runtime\]'
+```
+
 在容器中部署一个受管 Agent（开发验证用）：
 
 ```bash

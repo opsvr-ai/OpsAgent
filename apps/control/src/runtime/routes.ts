@@ -148,6 +148,12 @@ export function registerRuntimeRoutes(
         sseWrite(reply.raw, event);
       }
     } catch (error) {
+      request.log.error({
+        err: error,
+        sessionId: request.params.id,
+        tenantId: auth.tenantId,
+        event: 'runtime_prompt_failed',
+      }, 'runtime prompt failed');
       sseWrite(reply.raw, {
         type: 'runtime.error',
         sessionId: request.params.id,

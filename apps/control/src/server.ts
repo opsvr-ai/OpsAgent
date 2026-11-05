@@ -72,7 +72,27 @@ function readTlsHealth(): Record<string, unknown> {
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const loggerEnabled = process.env.NODE_ENV !== 'test' && process.env.OPSAGENT_LOG_REQUESTS !== 'false';
+  const app = Fastify({
+    logger: loggerEnabled
+      ? {
+          level: process.env.LOG_LEVEL ?? 'info',
+          redact: {
+            paths: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              'res.headers["set-cookie"]',
+              '*.apiKey',
+              '*.api_key',
+              '*.password',
+              '*.token',
+              '*.secret',
+            ],
+            censor: '[REDACTED]',
+          },
+        }
+      : false,
+  });
 
   app.get('/healthz', async () => ({
     status: 'ok',

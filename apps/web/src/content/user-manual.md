@@ -360,6 +360,22 @@ split_clients "${remote_addr}${request_id}" $order_example_com_backend {
 
 ## 17. 故障排查
 
+### 查看控制面日志
+
+```bash
+docker compose logs -f --tail=200 control
+docker compose logs --tail=200 control | grep -E '\[dsh\]|\[runtime\]'
+```
+
+常见日志：
+
+```text
+[dsh] start / stderr / exited / timeout
+[runtime] prompt / dsh turn failed / dsh event error
+```
+
+API Key、Cookie 和 Authorization 会自动脱敏，提示词正文不写入日志。
+
 ### 登录后一直回到登录页
 
 - 检查 `/api/me` 是否 401。

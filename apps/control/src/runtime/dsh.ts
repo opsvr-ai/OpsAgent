@@ -23,6 +23,14 @@ export interface DshEventRunner {
   ): AsyncIterable<Record<string, unknown>>;
 }
 
+const runtimeLogEnabled = process.env.NODE_ENV !== 'test' && process.env.OPSAGENT_LOG_RUNTIME !== 'false';
+function logInfo(...args: Parameters<typeof console.info>): void {
+  if (runtimeLogEnabled) console.info(...args);
+}
+function logError(...args: Parameters<typeof console.error>): void {
+  if (runtimeLogEnabled) console.error(...args);
+}
+
 export interface DshModelProvider {
   readonly provider: string;
   readonly baseUrl: string;
@@ -155,6 +163,13 @@ export class DshJsonRunner implements DshEventRunner {
     args.push('headless', '--json');
     if (sessionId) args.push('--session-id', sessionId);
     args.push(prompt);
+    const startedAt = Date.now();
+    logInfo('[dsh] start', {
+      sessionId,
+      cwd: this.cwd,
+      provider: env.OPSAGENT_MODEL_PROVIDER,
+      model: env.OPSAGENT_MODEL_ID,
+    });
     const child =
       process.platform === 'win32'
         ? spawn(
@@ -174,9 +189,23 @@ export class DshJsonRunner implements DshEventRunner {
             stdio: ['pipe', 'pipe', 'pipe'],
           });
 
-    const timer = setTimeout(() => child.kill(), this.timeoutMs);
+    let timedOut = false;
+    let spawnError: Error | undefined;
+    child.once('error', (error) => {
+      spawnError = error;
+      logError('[dsh] spawn failed', { sessionId, error: error.message });
+    });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      logError('[dsh] timeout', { sessionId, timeoutMs: this.timeoutMs });
+      child.kill();
+    }, this.timeoutMs);
     const stderr: string[] = [];
-    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk.toString('utf8')));
+    child.stderr.on('data', (chunk: Buffer) => {
+      const text = chunk.toString('utf8');
+      stderr.push(text);
+      logError('[dsh] stderr', { sessionId, text: text.slice(-2000) });
+    });
     child.stdin.end();
 
     try {
@@ -185,11 +214,17 @@ export class DshJsonRunner implements DshEventRunner {
         try {
           yield JSON.parse(line) as Record<string, unknown>;
         } catch {
-          // Non-JSON diagnostic lines are ignored; stderr carries the error.
+          logError('[dsh] non-json output', { sessionId, line: line.slice(0, 500) });
         }
       }
       const code = await new Promise<number | null>((resolve) => child.once('close', resolve));
-      if (code !== 0) throw new Error(`dsh_runtime_failed:${code}:${stderr.join('').slice(0, 500)}`);
+      if (spawnError) throw spawnError;
+      if (timedOut) throw new Error(`dsh_runtime_timeout:${this.timeoutMs}`);
+      if (code !== 0) {
+        logError('[dsh] exited', { sessionId, code, ms: Date.now() - startedAt, stderr: stderr.join('').slice(-4000) });
+        throw new Error(`dsh_runtime_failed:${code}:${stderr.join('').slice(0, 500)}`);
+      }
+      logInfo('[dsh] completed', { sessionId, ms: Date.now() - startedAt });
     } finally {
       clearTimeout(timer);
       if (!child.killed) child.kill();
@@ -264,6 +299,14 @@ export class DshRuntime implements RuntimeClient {
         : {};
     const permissionMode: PermissionMode = options?.permissionMode ?? 'danger-full-access';
     const sandboxMode = permissionMode === 'auto-review' ? 'danger-full-access' : permissionMode;
+    logInfo('[runtime] prompt', {
+      sessionId,
+      tenantId: runtimeSession.tenantId,
+      provider: model?.provider ?? 'default',
+      model: model?.model ?? process.env.DSH_ACCOUNT_MODEL ?? 'deepseek-flash',
+      baseUrl: modelBaseUrl,
+      permissionMode,
+    });
     for await (const event of this.runner.run(text, this.dshSessionIds.get(sessionId), {
       ...modelEnv,
       DSH_PERMISSION_MODE: sandboxMode,
@@ -318,6 +361,11 @@ export class DshRuntime implements RuntimeClient {
       if (event.type === 'status' && event.phase === 'turn_end') {
         const reason = event.reason as { kind?: string; message?: string } | undefined;
         if (reason && reason.kind && reason.kind !== 'completed') {
+          logError('[runtime] dsh turn failed', {
+            sessionId,
+            code: reason.kind,
+            message: reason.message ?? 'dsh turn failed',
+          });
           yield {
             type: 'runtime.error',
             sessionId,
@@ -333,6 +381,11 @@ export class DshRuntime implements RuntimeClient {
         continue;
       }
       if (event.type === 'error') {
+        logError('[runtime] dsh event error', {
+          sessionId,
+          code: typeof event.code === 'string' ? event.code : 'dsh_error',
+          message: typeof event.message === 'string' ? event.message : 'dsh error',
+        });
         yield {
           type: 'runtime.error',
           sessionId,

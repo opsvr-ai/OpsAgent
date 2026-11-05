@@ -87,6 +87,8 @@ services:
     command: sh -lc "chmod 600 /root/.dsh/.credentials.yaml 2>/dev/null || true; exec pnpm --filter @opsagent/control exec tsx watch src/index.ts"
     environment:
       CI: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OPSAGENT_LOG_REQUESTS: ${OPSAGENT_LOG_REQUESTS:-true}
       DATABASE_URL: postgres://opsagent:opsagent@postgres:5432/opsagent
       REDIS_URL: redis://redis:6379
       LOCAL_ADMIN_ENABLED: ${LOCAL_ADMIN_ENABLED:-true}

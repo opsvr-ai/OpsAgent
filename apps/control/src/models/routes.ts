@@ -56,6 +56,12 @@ export function registerModelRoutes(
       }) });
     } catch (error) {
       const code = error instanceof Error ? error.message : 'model_discovery_failed';
+      request.log.warn({
+        err: error,
+        provider: body.provider,
+        baseUrl: body.baseUrl,
+        event: 'model_discovery_failed',
+      }, 'model discovery failed');
       return reply.code(code === 'invalid_base_url' || code === 'unsupported_provider' ? 400 : 502)
         .send({ error: code === 'invalid_base_url' || code === 'unsupported_provider' ? code : 'model_discovery_failed' });
     }

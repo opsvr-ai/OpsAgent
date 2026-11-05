@@ -354,6 +354,72 @@ func askPlatformExplain(state agentState, question string, evidence map[string]s
 	return reply.Analysis, nil
 }
 
+func isFollowUpQuestion(question string) bool {
+	normalized := strings.ToLower(question)
+	for _, word := range []string{"这个日志", "这段日志", "这些日志", "上一条", "上面的日志", "刚才的日志", "报错什么意思", "什么意思", "什么原因", "怎么解决", "如何处理"} {
+		if strings.Contains(normalized, word) {
+			return true
+		}
+	}
+	return false
+}
+
+func explainPreviousAnswer(question, previous string) string {
+	if strings.TrimSpace(previous) == "" {
+		return "没有可分析的上一轮结果。"
+	}
+	lower := strings.ToLower(previous)
+	type finding struct {
+		keyword string
+		meaning string
+		action  string
+	}
+	findings := []finding{
+		{
+			keyword: "connection refused",
+			meaning: "Agent 无法连接控制面：目标端口没有服务监听，或控制面容器/进程未启动，也可能是网络或端口配置错误。",
+			action:  "在 Agent 主机执行 `curl -v http://<控制面地址>:8080/health`，并检查 control 容器、防火墙和 OPSAGENT_CONTROL_URL。",
+		},
+		{
+			keyword: "maximum number of sessions",
+			meaning: "PAM/systemd 会话数达到上限，新的登录或 crond 会话无法创建。常见于会话未释放、连接数过多或 systemd-logind 限制过低。",
+			action:  "检查 `loginctl list-sessions` 和 `systemctl status systemd-logind`，清理僵尸会话并评估会话/进程上限。",
+		},
+		{
+			keyword: "no such file or directory",
+			meaning: "进程启动命令或脚本路径不存在，supervisord 无法执行配置里的可执行文件。",
+			action:  "核对 supervisor 配置中的 command 路径和解释器路径，确认文件存在且可执行。",
+		},
+		{
+			keyword: "out of memory",
+			meaning: "系统内存不足，内核 OOM 可能已经杀掉了进程。",
+			action:  "检查 `free -h`、`dmesg -T | grep -i oom`，定位异常进程并评估内存上限。",
+		},
+		{
+			keyword: "no space left",
+			meaning: "磁盘空间不足，写入日志、临时文件或数据库都会失败。",
+			action:  "检查 `df -h` 和占用最大的目录，清理日志或扩容。",
+		},
+	}
+	matched := make([]finding, 0, 2)
+	for _, item := range findings {
+		if strings.Contains(lower, item.keyword) {
+			matched = append(matched, item)
+		}
+	}
+	if len(matched) == 0 {
+		if strings.Contains(previous, "未发现明显") || strings.Contains(previous, "没有识别到") {
+			return "上一轮日志没有发现明确错误，暂时无法判断具体报错含义。可以给出错误行或时间范围，我再按关键字定位。"
+		}
+		return "上一轮内容里没有识别到明确错误类型。可以贴出报错行，或指定日志文件和时间范围，我再分析。"
+	}
+	lines := []string{"上一条日志的主要报错含义："}
+	for _, item := range matched {
+		lines = append(lines, "- "+item.meaning, "  建议："+item.action)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func localAnswer(question string, state agentState, stateErr error) string {
 	if isCapabilityQuestion(question) {
 		return capabilitiesAnswer()
@@ -403,6 +469,8 @@ func runCLI(paths agentPaths) {
 	state, stateErr := loadAgentState(paths)
 	printCliBanner(paths, state, stateErr)
 	scanner := bufio.NewScanner(os.Stdin)
+	lastQuestion := ""
+	lastAnswer := ""
 	for {
 		fmt.Print("opsagent> ")
 		if !scanner.Scan() {
@@ -432,11 +500,34 @@ func runCLI(paths agentPaths) {
 			}
 			continue
 		}
+		if isFollowUpQuestion(question) && lastAnswer != "" {
+			fmt.Println()
+			analysis := ""
+			if stateErr == nil {
+				if result, err := askPlatformExplain(state, question, map[string]string{
+					"previous_question": lastQuestion,
+					"previous_answer":   lastAnswer,
+				}); err == nil {
+					analysis = result
+				}
+			}
+			if analysis == "" {
+				analysis = explainPreviousAnswer(question, lastAnswer)
+			}
+			fmt.Println(analysis)
+			fmt.Println()
+			lastQuestion = question
+			lastAnswer = analysis
+			continue
+		}
 		if skill, ok := skillRequest(question); ok {
 			fmt.Println()
 			fmt.Printf("正在执行技能 `%s`…\n\n", skill.Name)
-			fmt.Println(executeSkillForCLI(skill, question, state, stateErr))
+			answer := executeSkillForCLI(skill, question, state, stateErr)
+			fmt.Println(answer)
 			fmt.Println()
+			lastQuestion = question
+			lastAnswer = answer
 			continue
 		}
 		if isCapabilityQuestion(question) {
@@ -453,11 +544,13 @@ func runCLI(paths agentPaths) {
 		}
 		if stateErr == nil {
 			printed := false
+			var streamed strings.Builder
 			onDelta := func(text string) {
 				if !printed {
 					fmt.Println()
 					printed = true
 				}
+				streamed.WriteString(text)
 				fmt.Print(text)
 			}
 			onStatus := func(text string) {
@@ -469,6 +562,8 @@ func runCLI(paths agentPaths) {
 			if printed {
 				fmt.Println()
 				fmt.Println()
+				lastQuestion = question
+				lastAnswer = streamed.String()
 				continue
 			}
 			if err == nil {
@@ -477,6 +572,8 @@ func runCLI(paths agentPaths) {
 					fmt.Println()
 					fmt.Println(strings.TrimSpace(answer))
 					fmt.Println()
+					lastQuestion = question
+					lastAnswer = answer
 					continue
 				}
 				if fallbackErr != nil {
@@ -488,7 +585,10 @@ func runCLI(paths agentPaths) {
 			}
 		}
 		fmt.Println()
-		fmt.Println(strings.TrimSpace(localAnswer(question, state, stateErr)))
+		answer := strings.TrimSpace(localAnswer(question, state, stateErr))
+		fmt.Println(answer)
 		fmt.Println()
+		lastQuestion = question
+		lastAnswer = answer
 	}
 }

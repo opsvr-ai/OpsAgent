@@ -57,9 +57,14 @@ func analyzeEvidence(question string, evidence map[string]string) string {
 }
 
 func analyzeLogs(evidence map[string]string) string {
-	combined := strings.TrimSpace(evidence["journal"] + "\n" + evidence["messages"])
+	agentLog := strings.TrimSpace(evidence["agent-log"])
+	combined := strings.TrimSpace(evidence["journal"] + "\n" + evidence["messages"] + "\n" + agentLog)
+	label := "系统日志"
+	if agentLog != "" {
+		label = "OpsAgent 日志"
+	}
 	if combined == "" {
-		return "没有读取到系统日志内容。"
+		return "没有读取到" + label + "内容。"
 	}
 	lines := nonEmptyLines(combined)
 	interesting := make([]string, 0, 5)
@@ -76,9 +81,9 @@ func analyzeLogs(evidence map[string]string) string {
 		}
 	}
 	if len(interesting) == 0 {
-		return fmt.Sprintf("最近系统日志共 %d 行，未发现明显的 error/failed/panic/OOM/磁盘空间错误。", len(lines))
+		return fmt.Sprintf("最近 %s 共 %d 行，未发现明显的 error/failed/panic/OOM/磁盘空间错误。", label, len(lines))
 	}
-	return fmt.Sprintf("最近系统日志共 %d 行，发现 %d 条需要关注的错误，摘录：\n- %s", len(lines), len(interesting), strings.Join(interesting, "\n- "))
+	return fmt.Sprintf("最近 %s 共 %d 行，发现 %d 条需要关注的错误，摘录：\n- %s", label, len(lines), len(interesting), strings.Join(interesting, "\n- "))
 }
 
 func nonEmptyLines(value string) []string {

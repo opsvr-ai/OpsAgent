@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -55,6 +56,7 @@ var evidenceLabels = map[string]string{
 	"dns":             "DNS 配置",
 	"journal":         "系统日志",
 	"messages":        "系统消息",
+	"agent-log":       "OpsAgent 日志",
 	"users":           "在线用户",
 	"docker":          "容器",
 	"agent":           "Agent 部署情况",
@@ -199,7 +201,11 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		add("routes", "ip", "route")
 		add("dns", "cat", "/etc/resolv.conf")
 	}
-	if wants("日志", "log", "journal", "error") {
+	agentLogIntent := strings.Contains(lower, "opsagent") && wants("日志", "log")
+	if agentLogIntent {
+		include["agent-log"] = true
+		add("agent-log", "tail", "-n", "200", filepath.Join(resolveAgentPaths().Logs, "agent.log"))
+	} else if wants("日志", "log", "journal", "error") {
 		include["journal"] = true
 		include["messages"] = true
 		add("journal", "journalctl", "-n", "80", "--no-pager", "-p", "warning")

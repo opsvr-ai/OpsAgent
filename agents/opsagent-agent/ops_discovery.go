@@ -79,12 +79,12 @@ func collectApplicationInventory() map[string]any {
 		}
 		pid := fields[0]
 		user := fields[1]
-		comm := fields[3]
+		comm := filepath.Base(fields[3])
 		args := strings.Join(fields[4:], " ")
 		if len(fields) >= 11 {
 			pid = fields[1]
 			user = fields[0]
-			comm = fields[10]
+			comm = filepath.Base(fields[10])
 			args = strings.Join(fields[10:], " ")
 		}
 		classification := "application"

@@ -128,6 +128,7 @@ export function Agents({ onBack }: AgentsProps) {
   const [detailCommands, setDetailCommands] = useState<AgentCommandSummary[]>([]);
   const [detailEvents, setDetailEvents] = useState<AgentEventSummary[]>([]);
   const [inventory, setInventory] = useState<AgentInventoryItem[]>([]);
+  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'process' | 'port' | 'service' | 'ops_tool'>('all');
   const [healthChecks, setHealthChecks] = useState<AppHealthCheck[]>([]);
   const [commandBusy, setCommandBusy] = useState(false);
   const [keyStatus, setKeyStatus] = useState<CommandKeyStatus | null>(null);
@@ -316,6 +317,20 @@ export function Agents({ onBack }: AgentsProps) {
     } catch {
       setError('巡检对象更新失败');
     }
+  }
+
+  function inventoryDetail(item: AgentInventoryItem): string {
+    const detail = item.detail;
+    if (item.kind === 'process') {
+      return String(detail.executable ?? detail.installPath ?? detail.command ?? detail.path ?? '—');
+    }
+    if (item.kind === 'port') {
+      return [detail.process, detail.address].filter(Boolean).map(String).join(' · ') || '—';
+    }
+    if (item.kind === 'service') {
+      return [detail.unitPath, ...(Array.isArray(detail.logPaths) ? detail.logPaths : [])].filter(Boolean).slice(0, 2).map(String).join(' · ') || '—';
+    }
+    return [detail.path, detail.version].filter(Boolean).map(String).join(' · ') || '—';
   }
 
   async function savePatrolPolicy() {
@@ -877,15 +892,23 @@ export function Agents({ onBack }: AgentsProps) {
                         <div className="card">
                           <div className="card-head"><h2>巡检对象</h2><span className="badge badge-neutral">{inventory.length} 项</span></div>
                           <div className="card-body stack">
-                            <p className="muted">勾选重要并监控后，Agent 巡航会检查这些进程、端口和服务，异常时自动触发排障。</p>
+                            <p className="muted">按类型筛选；勾选「重要 + 监控」后，Agent 巡航会检查这些对象，异常时自动触发排障。</p>
+                            <div className="row-sm">
+                              {(['all', 'process', 'port', 'service', 'ops_tool'] as const).map((kind) => (
+                                <button key={kind} type="button" className={`btn btn-sm ${inventoryFilter === kind ? 'btn-primary' : 'btn-outline'}`} onClick={() => setInventoryFilter(kind)}>
+                                  {kind === 'all' ? '全部' : kind === 'process' ? '进程' : kind === 'port' ? '端口' : kind === 'service' ? '服务' : '运维工具'} {kind === 'all' ? inventory.length : inventory.filter((item) => item.kind === kind).length}
+                                </button>
+                              ))}
+                            </div>
                             <div className="table-wrap">
                               <table className="table">
-                                <thead><tr><th>类型</th><th>名称</th><th>重要</th><th>监控</th></tr></thead>
+                                <thead><tr><th>类型</th><th>名称</th><th>路径 / 详情</th><th>重要</th><th>监控</th></tr></thead>
                                 <tbody>
-                                  {inventory.slice(0, 80).map((item) => (
+                                  {inventory.filter((item) => inventoryFilter === 'all' || item.kind === inventoryFilter).slice(0, 100).map((item) => (
                                     <tr key={item.id}>
-                                      <td>{item.kind}</td>
+                                      <td>{item.kind === 'process' ? '进程' : item.kind === 'port' ? '端口' : item.kind === 'service' ? '服务' : '运维工具'}</td>
                                       <td className="mono">{item.name}</td>
+                                      <td className="mono muted">{inventoryDetail(item)}</td>
                                       <td><input type="checkbox" checked={item.important} onChange={() => void toggleInventory(item, 'important')} /></td>
                                       <td><input type="checkbox" checked={item.monitored} onChange={() => void toggleInventory(item, 'monitored')} /></td>
                                     </tr>

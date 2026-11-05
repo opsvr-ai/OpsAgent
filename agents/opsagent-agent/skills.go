@@ -55,6 +55,11 @@ var skills = []skillDefinition{
 	{Name: "logs.recent", Description: "最近系统日志", Question: "查看最近系统日志"},
 	{Name: "container.status", Description: "容器运行状态", Question: "查看容器运行状态"},
 	{Name: "agent.health", Description: "Agent 安装、配置和日志路径", Question: "查看 Agent 部署路径和运行状态"},
+	{Name: "application.discovery", Description: "发现系统服务、应用进程、安装路径、配置与日志位置", Question: "发现系统部署了哪些服务和应用进程"},
+	{Name: "ops.tools", Description: "发现 easyops、zabbix、node_exporter 等运维客户端", Question: "发现系统安装了哪些运维客户端和监控工具"},
+	{Name: "performance.analysis", Description: "分析 CPU、内存、磁盘、负载和 PSI 性能瓶颈", Question: "分析系统性能和瓶颈"},
+	{Name: "troubleshooting", Description: "采集失败服务、内核错误、OOM 和磁盘异常并排障", Question: "诊断系统故障和排障"},
+	{Name: "system.configuration", Description: "采集操作系统内核、CPU、内存、磁盘、网络、sysctl 等配置", Question: "采集操作系统配置详情"},
 }
 
 func listSkills() []skillDefinition {
@@ -138,7 +143,11 @@ func findSkill(name string) (skillDefinition, bool) {
 func runSkill(name string, metrics map[string]any) map[string]any {
 	skill, ok := findSkill(name)
 	if !ok {
-		return map[string]any{"type": "skill", "ok": false, "error": "unknown_skill", "skills": skills}
+		return map[string]any{"type": "skill", "ok": false, "error": "unknown_skill", "skills": listSkills()}
+	}
+	if result := operationalSkillResult(skill.Name); result != nil {
+		rememberObservation("skill", skill.Name, map[string]any{"description": skill.Description})
+		return result
 	}
 	result := inspectHost(skill.Question, metrics)
 	result["type"] = "skill"

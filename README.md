@@ -143,7 +143,12 @@ Agent 安装后自动创建以下目录，按 Eino 的 skill / session / checkpo
 │   ├── process-top/SKILL.md
 │   ├── logs-recent/SKILL.md
 │   ├── container-status/SKILL.md
-│   └── agent-health/SKILL.md
+│   ├── agent-health/SKILL.md
+│   ├── application-discovery/SKILL.md
+│   ├── ops-tools/SKILL.md
+│   ├── performance-analysis/SKILL.md
+│   ├── troubleshooting/SKILL.md
+│   └── system-configuration/SKILL.md
 ├── tools/                             本地诊断工具
 ├── state/
 │   ├── memory.json                    Agent 长期记忆
@@ -183,8 +188,10 @@ OPSAGENT_WORKSPACE_DIR
 
 ```text
 skills    system.overview / disk.usage / memory.usage / network.status /
-          service.status / process.top / logs.recent / container.status / agent.health
-memory    snapshots/memory.json，保留最近 50 条检查与技能观察
+          service.status / process.top / logs.recent / container.status / agent.health /
+          application.discovery / ops.tools / performance.analysis /
+          troubleshooting / system.configuration
+memory    state/memory.json，保留最近 50 条检查与技能观察
 script    受控脚本执行（默认关闭，需 OPSAGENT_ALLOW_SCRIPTS=true）
 patrol    指标异常自动调用平台模型分析，并把分析写入异常 detail 上报
 ```

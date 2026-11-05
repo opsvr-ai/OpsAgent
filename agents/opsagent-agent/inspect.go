@@ -135,6 +135,16 @@ func inspectHost(question string, metrics map[string]any) map[string]any {
 		return false
 	}
 
+	if intent := operationalIntent(scope); intent != "" {
+		result := operationalSkillResult(intent)
+		if result != nil {
+			result["question"] = question
+			result["answer"] = result["analysis"]
+			result["collectedAt"] = time.Now().UTC().Format(time.RFC3339)
+			return result
+		}
+	}
+
 	if wants("时间", "time", "时区", "timezone", "运行", "多久", "uptime", "启动", "开机", "boot") {
 		include["time"] = true
 		include["timezone"] = true

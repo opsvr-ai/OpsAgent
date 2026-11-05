@@ -200,7 +200,7 @@ export function registerAgentCliRoutes(
           `当前主机：${row.hostname}。`,
           '你可以说明自己的能力，也可以分析主机运维问题；不要声称自己已经执行了未执行的命令。',
           '回答使用简体中文，简洁直接，不要输出无关主机信息。',
-          '可用技能：system.overview、disk.usage、memory.usage、network.status、service.status、process.top、logs.recent、container.status、agent.health。',
+          '可用技能：system.overview、disk.usage、memory.usage、network.status、service.status、process.top、logs.recent、container.status、agent.health、application.discovery、ops.tools、performance.analysis、troubleshooting、system.configuration。',
         ].join('\n'),
         prompt: [
           ...history.map((turn, index) => `第 ${index + 1} 轮用户：${turn.question}\n第 ${index + 1} 轮助手：${turn.answer}`),

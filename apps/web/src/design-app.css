@@ -1766,3 +1766,11 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .incident-evidence { padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .incident-evidence p { margin: 6px 0; font-size: 10.5px; line-height: 1.5; color: var(--text-soft); max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .incident-evidence .muted { font-size: 9.5px; }
+
+.inventory-list { display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow: auto; padding-right: 4px; }
+.inventory-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.inventory-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.inventory-main strong { font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+.inventory-path { font-size: 10.5px; color: var(--text-soft); overflow-wrap: anywhere; line-height: 1.4; }
+.inventory-check { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--text-soft); white-space: nowrap; }
+@media (max-width: 720px) { .inventory-row { grid-template-columns: auto minmax(0, 1fr); } .inventory-check { grid-row: 2; } }

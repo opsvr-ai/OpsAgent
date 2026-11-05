@@ -54,6 +54,15 @@ export class AgentInventoryService {
         [tenantId, agentId, item.kind, item.name, JSON.stringify(item.detail)],
       );
     }
+    const processNames = [...unique.values()].filter((item) => item.kind === 'process').map((item) => item.name);
+    if (processNames.length > 0) {
+      await this.pool.query(
+        `DELETE FROM agent_inventory
+         WHERE tenant_id = $1 AND agent_id = $2 AND kind = 'process'
+           AND NOT important AND name <> ALL($3::text[])`,
+        [tenantId, agentId, processNames],
+      );
+    }
     return unique.size;
   }
 

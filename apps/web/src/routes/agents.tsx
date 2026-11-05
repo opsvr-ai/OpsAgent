@@ -900,21 +900,20 @@ export function Agents({ onBack }: AgentsProps) {
                                 </button>
                               ))}
                             </div>
-                            <div className="table-wrap">
-                              <table className="table">
-                                <thead><tr><th>类型</th><th>名称</th><th>路径 / 详情</th><th>重要</th><th>监控</th></tr></thead>
-                                <tbody>
-                                  {inventory.filter((item) => inventoryFilter === 'all' || item.kind === inventoryFilter).slice(0, 100).map((item) => (
-                                    <tr key={item.id}>
-                                      <td>{item.kind === 'process' ? '进程' : item.kind === 'port' ? '端口' : item.kind === 'service' ? '服务' : '运维工具'}</td>
-                                      <td className="mono">{item.name}</td>
-                                      <td className="mono muted">{inventoryDetail(item)}</td>
-                                      <td><input type="checkbox" checked={item.important} onChange={() => void toggleInventory(item, 'important')} /></td>
-                                      <td><input type="checkbox" checked={item.monitored} onChange={() => void toggleInventory(item, 'monitored')} /></td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                            <div className="inventory-list">
+                              {inventory.filter((item) => inventoryFilter === 'all' || item.kind === inventoryFilter).slice(0, 100).map((item) => (
+                                <div key={item.id} className="inventory-row">
+                                  <span className={`badge ${item.kind === 'process' ? 'badge-info' : item.kind === 'port' ? 'badge-warn' : 'badge-neutral'}`}>
+                                    {item.kind === 'process' ? '进程' : item.kind === 'port' ? '端口' : item.kind === 'service' ? '服务' : '运维工具'}
+                                  </span>
+                                  <div className="inventory-main">
+                                    <strong className="mono">{item.name}</strong>
+                                    <span className="inventory-path mono">{inventoryDetail(item)}</span>
+                                  </div>
+                                  <label className="inventory-check"><input type="checkbox" checked={item.important} onChange={() => void toggleInventory(item, 'important')} /> 重要</label>
+                                  <label className="inventory-check"><input type="checkbox" checked={item.monitored} onChange={() => void toggleInventory(item, 'monitored')} /> 监控</label>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>

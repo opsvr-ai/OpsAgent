@@ -65,34 +65,50 @@ func collectApplicationInventory() map[string]any {
 	}
 
 	processes := []map[string]any{}
-	ps := commandOutput(4*time.Second, "ps", "-eo", "pid,ppid,user,comm,args", "--sort=-%cpu")
-	if strings.TrimSpace(ps) == "" {
+	ps := commandOutput(4*time.Second, "ps", "-eo", "pid=,ppid=,user=,comm=,args=")
+	primaryFormat := strings.TrimSpace(ps) != ""
+	if !primaryFormat {
 		ps = commandOutput(4*time.Second, "ps", "aux")
 	}
 	for index, line := range strings.Split(ps, "\n") {
-		if index == 0 || index > 60 {
+		if index == 0 || index > 120 {
 			continue
 		}
 		fields := strings.Fields(line)
 		if len(fields) < 4 {
 			continue
 		}
-		pid := fields[0]
-		user := fields[1]
-		comm := filepath.Base(fields[3])
-		args := strings.Join(fields[4:], " ")
-		if len(fields) >= 11 {
-			pid = fields[1]
-			user = fields[0]
-			comm = filepath.Base(fields[10])
-			args = strings.Join(fields[10:], " ")
+		if strings.EqualFold(fields[0], "PID") || strings.EqualFold(fields[0], "USER") {
+			continue
+		}
+		pid := ""
+		ppid := ""
+		user := ""
+		comm := ""
+		args := ""
+		if primaryFormat {
+			pid = fields[0]
+			ppid = fields[1]
+			user = fields[2]
+			comm = fields[3]
+			args = strings.Join(fields[4:], " ")
+		} else {
+			// BusyBox ps aux: PID USER TIME COMMAND
+			pid = fields[0]
+			user = fields[1]
+			comm = fields[3]
+			args = strings.Join(fields[3:], " ")
+		}
+		comm = filepath.Base(strings.TrimSpace(comm))
+		if comm == "" || strings.HasPrefix(comm, "[") || strings.HasPrefix(args, "[") {
+			continue
 		}
 		classification := "application"
 		if isSystemProcess(pid, comm, args) {
 			classification = "system"
 		}
 		entry := map[string]any{
-			"pid": pid, "ppid": "", "user": user, "name": comm,
+			"pid": pid, "ppid": ppid, "user": user, "name": comm,
 			"command": args, "classification": classification,
 		}
 		if exe, err := os.Readlink(filepath.Join("/proc", pid, "exe")); err == nil {
@@ -100,6 +116,9 @@ func collectApplicationInventory() map[string]any {
 			entry["installPath"] = filepath.Dir(exe)
 		}
 		processes = append(processes, entry)
+		if len(processes) >= 100 {
+			break
+		}
 	}
 
 	return map[string]any{

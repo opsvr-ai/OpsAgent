@@ -6,6 +6,10 @@ interface ConnectionInput {
   remoteAddress?: unknown;
   remotePort?: unknown;
   process?: unknown;
+  pid?: unknown;
+  direction?: unknown;
+  service?: unknown;
+  command?: unknown;
 }
 
 export class AgentConnectionService {
@@ -25,13 +29,18 @@ export class AgentConnectionService {
       if (!remoteAddress || !remotePort) continue;
       await this.pool.query(
         `INSERT INTO agent_connections
-           (tenant_id, agent_id, local_address, local_port, remote_address, remote_port, process, state)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'ESTAB')
+           (tenant_id, agent_id, local_address, local_port, remote_address, remote_port, process, pid, direction, service, command, state)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ESTAB')
          ON CONFLICT (tenant_id, agent_id, local_address, local_port, remote_address, remote_port, process)
-         DO UPDATE SET updated_at = now()`,
+         DO UPDATE SET pid = EXCLUDED.pid, direction = EXCLUDED.direction,
+           service = EXCLUDED.service, command = EXCLUDED.command, updated_at = now()`,
         [
           tenantId, agentId, localAddress, localPort, remoteAddress, remotePort,
           typeof connection.process === 'string' ? connection.process.slice(0, 500) : '',
+          typeof connection.pid === 'number' ? connection.pid : Number(connection.pid) || 0,
+          typeof connection.direction === 'string' ? connection.direction : 'outbound',
+          typeof connection.service === 'string' ? connection.service.slice(0, 200) : '',
+          typeof connection.command === 'string' ? connection.command.slice(0, 1000) : '',
         ],
       );
     }

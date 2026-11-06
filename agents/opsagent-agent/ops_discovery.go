@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -65,27 +66,75 @@ func collectProcessInventoryForDebug() map[string]any {
 
 // collectApplicationInventory discovers system services, application processes,
 // their executable paths, configuration and log locations.
+var socketProcessPattern = regexp.MustCompile(`"([^"]+)"[^)]*pid=(\d+)`)
+
 func collectConnections() []map[string]any {
-	output := commandOutput(4*time.Second, "ss", "-tnp")
+	output := commandOutput(5*time.Second, "ss", "-tunap")
+	usingNetstat := false
+	if strings.TrimSpace(output) == "" {
+		output = commandOutput(5*time.Second, "netstat", "-tunap")
+		usingNetstat = true
+	}
 	connections := []map[string]any{}
-	for _, line := range strings.Split(output, "\n") {
+	listenPorts := map[int]bool{}
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
 		fields := strings.Fields(line)
-		if len(fields) < 5 || fields[0] != "ESTAB" {
+		if len(fields) < 5 || fields[0] == "Netid" || fields[0] == "Proto" {
 			continue
 		}
+		stateIndex := 1
+		if usingNetstat {
+			stateIndex = 5
+		}
+		if len(fields) <= stateIndex || fields[stateIndex] != "LISTEN" {
+			continue
+		}
+		_, localPort := splitAddress(fields[3])
+		if localPort > 0 {
+			listenPorts[localPort] = true
+		}
+	}
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 5 || fields[0] == "Netid" || fields[0] == "Proto" {
+			continue
+		}
+		stateIndex := 1
+		processIndex := 5
+		if usingNetstat {
+			stateIndex = 5
+			processIndex = 6
+		}
+		if len(fields) <= stateIndex {
+			continue
+		}
+		state := fields[stateIndex]
+		if state == "ESTABLISHED" {
+			state = "ESTAB"
+		}
 		localAddress, localPort := splitAddress(fields[3])
+		if state != "ESTAB" {
+			continue
+		}
 		remoteAddress, remotePort := splitAddress(fields[4])
-		if remoteAddress == "" {
+		if remoteAddress == "" || remotePort == 0 {
 			continue
 		}
 		process := ""
-		if len(fields) >= 6 {
-			process = strings.Join(fields[5:], " ")
+		if len(fields) > processIndex {
+			process = strings.Join(fields[processIndex:], " ")
+		}
+		process, pid, command, service := parseSocketProcess(process)
+		direction := "outbound"
+		if listenPorts[localPort] {
+			direction = "inbound"
 		}
 		connections = append(connections, map[string]any{
 			"localAddress": localAddress, "localPort": localPort,
 			"remoteAddress": remoteAddress, "remotePort": remotePort,
-			"process": process, "state": "ESTAB",
+			"process": process, "pid": pid, "command": command, "service": service,
+			"direction": direction, "state": state,
 		})
 		if len(connections) >= 500 {
 			break
@@ -100,6 +149,49 @@ func collectConnections() []map[string]any {
 		}
 	}
 	return connections
+}
+
+func parseSocketProcess(raw string) (string, int, string, string) {
+	name := ""
+	pid := 0
+	if match := socketProcessPattern.FindStringSubmatch(raw); len(match) > 1 {
+		name = match[1]
+		pid, _ = strconv.Atoi(match[2])
+	}
+	if pid == 0 {
+		parts := strings.SplitN(raw, "/", 2)
+		if len(parts) == 2 {
+			if parsed, err := strconv.Atoi(parts[0]); err == nil && parsed > 0 {
+				pid = parsed
+				name = parts[1]
+			}
+		}
+	}
+	command := ""
+	if pid > 0 {
+		if data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid)); err == nil {
+			command = strings.TrimSpace(strings.ReplaceAll(string(data), "\x00", " "))
+		}
+		if name == "" {
+			if data, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid)); err == nil {
+				name = strings.TrimSpace(string(data))
+			}
+		}
+	}
+	if name == "" && command != "" {
+		name = filepath.Base(strings.Fields(command)[0])
+	}
+	service := serviceFromCommand(command, name)
+	return name, pid, command, service
+}
+
+func serviceFromCommand(command, name string) string {
+	match := regexp.MustCompile(`-jar\s+([^\s]+)`).FindStringSubmatch(command)
+	if len(match) > 1 {
+		file := filepath.Base(match[1])
+		return strings.TrimSuffix(file, filepath.Ext(file))
+	}
+	return name
 }
 
 func splitAddress(value string) (string, int) {
@@ -133,7 +225,8 @@ func procNetConnections() []map[string]any {
 			result = append(result, map[string]any{
 				"localAddress": localAddress, "localPort": localPort,
 				"remoteAddress": remoteAddress, "remotePort": remotePort,
-				"process": "", "state": "ESTAB",
+				"process": "", "pid": 0, "command": "", "service": "",
+				"direction": "outbound", "state": "ESTAB",
 			})
 		}
 	}
@@ -287,11 +380,19 @@ func applicationPorts() []map[string]any {
 			continue
 		}
 		address := fields[4]
-		process := ""
+		rawProcess := ""
 		if len(fields) >= 7 {
-			process = strings.Join(fields[6:], " ")
+			rawProcess = strings.Join(fields[6:], " ")
 		}
-		ports = append(ports, map[string]any{"address": address, "process": process})
+		process, pid, command, service := parseSocketProcess(rawProcess)
+		entry := map[string]any{
+			"address": address,
+			"process": process,
+			"pid":     pid,
+			"command": command,
+			"service": service,
+		}
+		ports = append(ports, entry)
 		seen[address] = true
 		if len(ports) >= 500 {
 			break

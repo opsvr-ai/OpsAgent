@@ -1196,9 +1196,11 @@ export interface AppSystemAccessNode {
 export interface AppSystemAccessEdge {
   readonly fromHost: string;
   readonly fromService: string;
+  readonly fromPid: number;
   readonly toHost: string;
   readonly toService: string;
   readonly toPort: number;
+  readonly toPid: number;
   readonly count: number;
   readonly protocol: string;
   readonly targetAppSystemId: string | null;

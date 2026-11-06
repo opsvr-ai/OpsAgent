@@ -1,0 +1,5 @@
+ALTER TABLE agent_connections
+  ADD COLUMN IF NOT EXISTS pid integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'outbound',
+  ADD COLUMN IF NOT EXISTS service text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS command text NOT NULL DEFAULT '';

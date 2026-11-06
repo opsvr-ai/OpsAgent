@@ -18,9 +18,11 @@ export interface AccessTopologyNode {
 export interface AccessTopologyEdge {
   fromHost: string;
   fromService: string;
+  fromPid: number;
   toHost: string;
   toService: string;
   toPort: number;
+  toPid: number;
   count: number;
   protocol: string;
   targetAppSystemId: string | null;
@@ -61,6 +63,10 @@ type ConnectionRow = {
   remote_address: string;
   remote_port: number;
   process: string;
+  pid: number;
+  direction: string;
+  service: string;
+  command: string;
   count: string;
 };
 
@@ -108,10 +114,12 @@ export class AppSystemTopologyService {
       [tenantId, sourceIds],
     )).rows;
     const connections: ConnectionRow[] = sourceIds.length === 0 ? [] : (await this.pool.query<ConnectionRow>(
-      `SELECT c.agent_id, c.local_port, c.remote_address, c.remote_port, c.process, count(*)::text AS count
+      `SELECT c.agent_id, c.local_port, c.remote_address, c.remote_port, c.process,
+              c.pid, c.direction, c.service, c.command, count(*)::text AS count
        FROM agent_connections c
        WHERE c.tenant_id = $1 AND c.agent_id = ANY($2::uuid[])
-       GROUP BY c.agent_id, c.local_port, c.remote_address, c.remote_port, c.process
+       GROUP BY c.agent_id, c.local_port, c.remote_address, c.remote_port, c.process,
+                c.pid, c.direction, c.service, c.command
        ORDER BY count(*) DESC LIMIT 2000`,
       [tenantId, sourceIds],
     )).rows;
@@ -143,15 +151,17 @@ export class AppSystemTopologyService {
       }
       return name;
     };
-    const targetPort = (agentId: string, port: number): { service: string; name: string } | null => {
+    const targetPort = (agentId: string, port: number): { service: string; name: string; pid: number } | null => {
       const rows = (inventoryByAgent.get(agentId) ?? []).filter((row) => row.kind === 'port' && row.name.endsWith(`:${port}`));
       if (rows.length === 0) return null;
       const row = rows[0];
       if (!row) return null;
       const process = typeof row.detail.process === 'string' ? row.detail.process : '';
+      const inventoryService = typeof row.detail.service === 'string' ? row.detail.service : '';
       return {
-        service: processLabel(agentId, process) || row.name,
+        service: inventoryService || processLabel(agentId, process) || row.name,
         name: row.name,
+        pid: typeof row.detail.pid === 'number' ? row.detail.pid : Number(row.detail.pid) || 0,
       };
     };
     const nodes = sourceIds.flatMap((id) => {
@@ -185,16 +195,20 @@ export class AppSystemTopologyService {
       const source = byAgent.get(connection.agent_id);
       const target = byIp.get(connection.remote_address);
       if (!source || !target || source.id === target.id) continue;
+      if (connection.direction === 'inbound') continue;
       if (connection.remote_address === '127.0.0.1' || connection.remote_address === '::1') continue;
       const targetInfo = targetPort(target.id, connection.remote_port);
       if (!targetInfo) continue;
-      const fromService = processLabel(source.id, connection.process) || normalizeProcess(connection.process) || 'unknown';
+      const commandService = jarService(connection.command);
+      const fromService = connection.service || commandService || processLabel(source.id, connection.process) || normalizeProcess(connection.process) || 'unknown';
       const edge: AccessTopologyEdge = {
         fromHost: source.hostname,
         fromService,
+        fromPid: connection.pid,
         toHost: target.hostname,
         toService: targetInfo.service,
         toPort: connection.remote_port,
+        toPid: targetInfo.pid,
         count: Number(connection.count),
         protocol: 'TCP',
         targetAppSystemId: target.app_system_id,

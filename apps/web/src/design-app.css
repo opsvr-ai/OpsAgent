@@ -1869,3 +1869,27 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-access-service-port { font-size: 11px; font-weight: 400; fill: var(--muted); font-family: var(--font-mono); }
 .app-access-service-more { font-size: 10px; font-weight: 500; fill: var(--faint); }
 .app-access-service + .app-access-service-port { font-family: var(--font-mono); }
+
+.app-topology-zoom-canvas { position: relative; }
+.app-topology-board { position: relative; margin: 0 auto; background-image: radial-gradient(rgba(23,105,170,.12) 1px, transparent 1px); background-size: 18px 18px; }
+.app-topology-board-head { position: absolute; top: 12px; left: 4px; right: 4px; display: flex; justify-content: space-between; color: var(--faint); font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; }
+.app-access-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.app-access-lines g { pointer-events: auto; }
+.app-access-lines text { stroke: none; }
+.app-access-card { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 5px; padding: 12px 14px; border: 1px solid #d5e1ec; border-radius: 8px; background: #fff; box-shadow: 0 3px 10px rgba(27,48,70,.05); cursor: help; transition: border-color .15s ease, box-shadow .15s ease; }
+.app-access-card:hover { border-color: #9fc4df; box-shadow: 0 7px 20px rgba(27,48,70,.10); }
+.app-access-card.is-alert { border-color: #c14a42; background: #fff8f7; }
+.app-access-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.app-access-card-head strong { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
+.app-access-card-alert { border-radius: 3px; padding: 2px 6px; background: #fbe9e7; color: #a6322d; font-size: 10px; font-weight: 600; }
+.app-access-card-role { border-radius: 3px; padding: 2px 6px; font-size: 10px; font-weight: 600; }
+.app-access-card-role.source { color: var(--primary); background: var(--primary-soft); }
+.app-access-card-role.target { color: var(--success); background: var(--success-soft); }
+.app-access-card-role-line { color: var(--muted); font-size: 10.5px; }
+.app-access-service-list { display: flex; flex-direction: column; gap: 4px; margin-top: 1px; }
+.app-access-service-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; padding: 2px 7px; border-radius: 3px; background: #f3f7fb; color: var(--text-soft); font-size: 11.5px; }
+.app-access-service-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-access-service-row em { color: var(--muted); font-style: normal; font-family: var(--font-mono); font-size: 10.5px; white-space: nowrap; }
+.app-access-empty-line { color: var(--faint); font-size: 10.5px; padding: 3px 7px; }
+.app-topology-board .app-access-edge-label { font-size: 12px; fill: var(--text-soft); font-family: var(--font-mono); paint-order: stroke; stroke: #fbfdff; stroke-width: 4px; }
+.app-topology-canvas .app-topology-viewport { padding: 4px; }

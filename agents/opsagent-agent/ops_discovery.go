@@ -84,13 +84,15 @@ func collectConnections() []map[string]any {
 			continue
 		}
 		stateIndex := 1
+		localIndex := 4
 		if usingNetstat {
 			stateIndex = 5
+			localIndex = 3
 		}
 		if len(fields) <= stateIndex || fields[stateIndex] != "LISTEN" {
 			continue
 		}
-		_, localPort := splitAddress(fields[3])
+		_, localPort := splitAddress(fields[localIndex])
 		if localPort > 0 {
 			listenPorts[localPort] = true
 		}
@@ -101,9 +103,13 @@ func collectConnections() []map[string]any {
 			continue
 		}
 		stateIndex := 1
-		processIndex := 5
+		localIndex := 4
+		remoteIndex := 5
+		processIndex := 6
 		if usingNetstat {
 			stateIndex = 5
+			localIndex = 3
+			remoteIndex = 4
 			processIndex = 6
 		}
 		if len(fields) <= stateIndex {
@@ -113,11 +119,11 @@ func collectConnections() []map[string]any {
 		if state == "ESTABLISHED" {
 			state = "ESTAB"
 		}
-		localAddress, localPort := splitAddress(fields[3])
+		localAddress, localPort := splitAddress(fields[localIndex])
 		if state != "ESTAB" {
 			continue
 		}
-		remoteAddress, remotePort := splitAddress(fields[4])
+		remoteAddress, remotePort := splitAddress(fields[remoteIndex])
 		if remoteAddress == "" || remotePort == 0 {
 			continue
 		}

@@ -1831,3 +1831,30 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-access-external-row strong { color: var(--text-soft); font-family: var(--font-mono); font-size: 10px; font-weight: 500; overflow-wrap: anywhere; }
 .app-access-external-row small { color: var(--faint); white-space: nowrap; }
 @media (max-width: 1050px) { .app-access-grid { grid-template-columns: 1fr; } }
+
+/* app access topology: readable, zoomable, hoverable */
+.app-topology-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 0 9px; color: var(--muted); font-size: 11px; }
+.app-topology-zoom { display: inline-flex; align-items: center; gap: 3px; }
+.app-topology-zoom button { min-width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text-soft); font-size: 13px; cursor: pointer; }
+.app-topology-zoom button:last-child { padding: 0 7px; font-size: 10px; }
+.app-topology-zoom button:hover { border-color: var(--primary-line); color: var(--primary); }
+.app-topology-zoom span { min-width: 38px; text-align: center; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.app-topology-viewport { overflow: auto; max-height: 430px; border: 1px solid var(--line); border-radius: 6px; background: linear-gradient(180deg, #fbfdff, #f6f9fc); padding: 6px; }
+.app-topology-zoom-canvas { min-width: 880px; transition: width .18s ease; }
+.app-topology-canvas .app-topology-zoom-canvas svg { display: block; width: 100%; height: auto; max-height: none; min-height: 0; }
+.app-topology-canvas .app-topology-viewport { scrollbar-width: thin; }
+.app-topology-canvas svg text { stroke: none !important; }
+.app-access-node-title { font-size: 11px; font-weight: 550; fill: var(--text); letter-spacing: 0; }
+.app-access-node-sub { font-size: 10px; font-weight: 400; fill: var(--text-soft); font-family: var(--font-mono); }
+.app-access-node-alert { font-size: 9px; font-weight: 600; fill: var(--danger); }
+.app-access-column-label { font-size: 9px; font-weight: 600; fill: var(--faint); font-family: var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+.app-access-edge-label { font-size: 9px; font-weight: 450; fill: var(--text-soft); font-family: var(--font-mono); paint-order: stroke; stroke: #f7fafc; stroke-width: 4px; }
+.app-access-legend { border-top: 0; justify-content: flex-start; gap: 12px; padding-top: 7px; }
+.app-access-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.app-access-legend i { width: 8px; height: 2px; background: var(--line-strong); display: inline-block; }
+.app-access-legend i.blue { background: var(--primary); }
+.app-access-legend i.red { background: var(--danger); }
+.app-access-legend-hint { margin-left: auto; color: var(--faint); }
+.app-access-tooltip { position: fixed; z-index: 80; min-width: 190px; max-width: 300px; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: rgba(255,255,255,.98); box-shadow: 0 10px 26px rgba(25,43,65,.16); pointer-events: none; }
+.app-access-tooltip strong { display: block; font-size: 11px; color: var(--text); margin-bottom: 4px; }
+.app-access-tooltip span { display: block; font-size: 10px; line-height: 1.55; color: var(--text-soft); font-family: var(--font-mono); overflow-wrap: anywhere; }

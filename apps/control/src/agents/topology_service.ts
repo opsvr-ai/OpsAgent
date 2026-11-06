@@ -38,6 +38,13 @@ export interface AccessTopology {
     appSystemName: string;
     edges: AccessTopologyEdge[];
   }>;
+  stats: {
+    collectedConnections: number;
+    matchedEdges: number;
+    skippedUnmanaged: number;
+    skippedUnmappedPort: number;
+    skippedInbound: number;
+  };
 }
 
 type AgentRow = {
@@ -69,6 +76,11 @@ type ConnectionRow = {
   command: string;
   count: string;
 };
+
+function normalizeAddress(value: string): string {
+  const trimmed = (value.split('%')[0] ?? value).trim().toLowerCase();
+  return trimmed.startsWith('::ffff:') ? trimmed.slice(7) : trimmed;
+}
 
 function normalizeProcess(value: string): string {
   const quoted = value.match(/"([^"]+)"/)?.[1];
@@ -127,10 +139,10 @@ export class AppSystemTopologyService {
     const byIp = new Map<string, AgentRow>();
     for (const agent of agents.rows) {
       const ip = agent.system_info?.ip;
-      if (typeof ip === 'string') byIp.set(ip, agent);
+      if (typeof ip === 'string') byIp.set(normalizeAddress(ip), agent);
       const addresses = agent.system_info?.ipAddresses;
       if (Array.isArray(addresses)) {
-        for (const address of addresses) if (typeof address === 'string') byIp.set(address, agent);
+        for (const address of addresses) if (typeof address === 'string') byIp.set(normalizeAddress(address), agent);
       }
     }
     const inventoryByAgent = new Map<string, InventoryRow[]>();
@@ -191,14 +203,25 @@ export class AppSystemTopologyService {
     });
     const internal = new Map<string, AccessTopologyEdge>();
     const external = new Map<string, AccessTopologyEdge>();
+    let skippedUnmanaged = 0;
+    let skippedUnmappedPort = 0;
+    let skippedInbound = 0;
     for (const connection of connections) {
       const source = byAgent.get(connection.agent_id);
-      const target = byIp.get(connection.remote_address);
-      if (!source || !target || source.id === target.id) continue;
-      if (connection.direction === 'inbound') continue;
-      if (connection.remote_address === '127.0.0.1' || connection.remote_address === '::1') continue;
+      const target = byIp.get(normalizeAddress(connection.remote_address));
+      if (!source || !target || source.id === target.id || connection.remote_address === '127.0.0.1' || connection.remote_address === '::1') {
+        skippedUnmanaged += 1;
+        continue;
+      }
+      if (connection.direction === 'inbound') {
+        skippedInbound += 1;
+        continue;
+      }
       const targetInfo = targetPort(target.id, connection.remote_port);
-      if (!targetInfo) continue;
+      if (!targetInfo) {
+        skippedUnmappedPort += 1;
+        continue;
+      }
       const commandService = jarService(connection.command);
       const fromService = connection.service || commandService || processLabel(source.id, connection.process) || normalizeProcess(connection.process) || 'unknown';
       const edge: AccessTopologyEdge = {
@@ -241,6 +264,13 @@ export class AppSystemTopologyService {
       system: system.rows[0],
       nodes,
       edges: [...internal.values()].sort((a, b) => b.count - a.count),
+      stats: {
+        collectedConnections: connections.length,
+        matchedEdges: internal.size + external.size,
+        skippedUnmanaged,
+        skippedUnmappedPort,
+        skippedInbound,
+      },
       externalSystems: [...externalSystems.values()].map((item) => ({
         ...item,
         edges: item.edges.sort((a, b) => b.count - a.count),

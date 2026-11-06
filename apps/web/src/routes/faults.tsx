@@ -95,7 +95,7 @@ function AccessTopology({ topology, title }: { topology: FaultTopology | undefin
         </div>
       </div>
       {nodes.length === 0 && edges.length === 0 ? (
-        <div className="fault-empty">下一次分析采集 netstat 后会在这里生成访问关系。</div>
+        <div className="fault-empty">下一次分析采集系统访问连接后，会在这里生成访问关系。</div>
       ) : (
         <svg className="fault-topo-svg" viewBox={`0 0 760 ${height}`} role="img" aria-label="应用访问关系">
           <defs>
@@ -369,7 +369,7 @@ function OrchestrationMap({ detail }: { detail: FaultAnalysisDetail }) {
             <path className="fo-flow" d={`M550 88 C650 88, 690 ${rowY(index) + 26}, 738 ${rowY(index) + 26}`} />
             <rect className="fo-node agent" x="738" y={rowY(index)} width="240" height="62" rx="5" />
             <text className="fo-title" x="752" y={rowY(index) + 18}>{host}</text>
-            <text className="fo-sub" x="752" y={rowY(index) + 34}>受控采集 · 本机 netstat / 进程 / 端口</text>
+            <text className="fo-sub" x="752" y={rowY(index) + 34}>受控采集 · 本机连接信息 / 进程 / 端口</text>
             <text className="fo-label" x="752" y={rowY(index) + 49}>返回证据</text>
             <path className="fo-flow return" d={`M738 ${rowY(index) + 40} C650 ${rowY(index) + 40}, 620 150, 550 150`} />
           </g>
@@ -415,7 +415,7 @@ function ProcessView({ detail, onBack, onCollaboration }: { detail: FaultAnalysi
         </div>
       </div>
       <div className="fault-panel">
-        <div className="fault-panel-head"><h2>自动生成访问关系</h2><span className="muted">来自 Agent netstat</span></div>
+        <div className="fault-panel-head"><h2>自动生成访问关系</h2><span className="muted">来自 Agent 访问连接</span></div>
         <AccessTopology topology={topology} title="节点、进程、服务与端口访问关系" />
       </div>
       <div className="fault-process-grid">

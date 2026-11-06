@@ -1216,6 +1216,13 @@ export interface AppSystemAccessTopology {
     appSystemName: string;
     edges: readonly AppSystemAccessEdge[];
   }>;
+  readonly stats: {
+    collectedConnections: number;
+    matchedEdges: number;
+    skippedUnmanaged: number;
+    skippedUnmappedPort: number;
+    skippedInbound: number;
+  };
 }
 
 export async function getAppSystemAccessTopology(id: string): Promise<AppSystemAccessTopology> {

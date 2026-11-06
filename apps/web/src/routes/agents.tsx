@@ -157,6 +157,9 @@ function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topolog
   const showTip = (event: ReactMouseEvent, title: string, lines: string[]) => setTip({ x: event.clientX, y: event.clientY, title, lines });
   const moveTip = (event: ReactMouseEvent) => setTip((current) => current ? { ...current, x: event.clientX, y: event.clientY } : current);
   const closeTip = () => setTip(null);
+  const emptyHint = topology.stats.collectedConnections > 0
+    ? `已采集 ${topology.stats.collectedConnections} 条访问连接，但暂未匹配到当前应用系统的目标节点或监听端口。请确认目标节点已纳管，并已上报监听端口。`
+    : 'Agent 上报系统访问连接信息后，这里会自动生成应用系统内部的访问关系。';
   const card = (host: string, x: number, tops: Map<string, number>, role: '源' | '目标') => {
     const node = nodeInfo.get(host);
     const services = servicesFor(host, role);
@@ -181,7 +184,7 @@ function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topolog
         <div><div className="eyebrow">Application system access</div><h2>{topology.system.name} · 访问关系</h2></div>
         <div className="row-sm"><span className="badge badge-neutral">{topology.nodes.length} 节点 · {edges.length} 条服务访问</span><button type="button" className="btn btn-outline btn-sm" onClick={onClose}>收起</button></div>
       </div>
-      {edges.length === 0 ? <div className="app-access-empty">尚未采集到该应用系统内部的服务访问关系。Agent 上报 netstat 后会自动生成。</div> : (
+      {edges.length === 0 ? <div className="app-access-empty">{emptyHint}</div> : (
         <div className="app-access-grid">
           <div className="app-topology-canvas">
             <div className="app-topology-toolbar">

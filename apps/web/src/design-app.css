@@ -1812,7 +1812,7 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-access-panel { margin: 0 0 16px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
 .app-access-loading, .app-access-empty { padding: 22px 12px; color: var(--muted); font-size: 12px; text-align: center; }
 .app-access-empty.compact { padding: 10px 4px; text-align: left; }
-.app-access-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .7fr); gap: 16px; align-items: start; }
+.app-access-grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
 .app-topology-canvas { min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); padding: 9px 10px 7px; }
 .app-topology-canvas svg { display: block; width: 100%; height: auto; min-height: 180px; max-height: 380px; }
 .app-access-node-title { font-size: 10px; font-weight: 650; fill: var(--text); }
@@ -1821,11 +1821,11 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-access-edge-label { font-size: 8.5px; fill: var(--text-soft); font-family: var(--font-mono); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; }
 .app-access-legend { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 6px; color: var(--muted); font-size: 10px; border-top: 1px solid var(--line); }
 .app-access-legend-alert { margin-left: auto; color: var(--danger); }
-.app-access-side { display: flex; flex-direction: column; gap: 9px; }
+.app-access-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 9px; }
 .app-access-external { border: 1px solid var(--line); border-radius: 6px; padding: 10px 11px; background: var(--surface); }
 .app-access-external-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .app-access-external-head strong { display: block; margin-top: 2px; font-size: 12px; }
-.app-access-external-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1.2fr) auto; gap: 5px; align-items: center; width: 100%; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; padding: 7px 0; color: var(--muted); font-size: 10px; cursor: pointer; }
+.app-access-external-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 5px; align-items: center; width: 100%; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; padding: 7px 0; color: var(--muted); font-size: 10px; cursor: pointer; }
 .app-access-external-row:hover { color: var(--primary); }
 .app-access-external-row span { overflow-wrap: anywhere; }
 .app-access-external-row strong { color: var(--text-soft); font-family: var(--font-mono); font-size: 10px; font-weight: 500; overflow-wrap: anywhere; }
@@ -1839,16 +1839,16 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-topology-zoom button:last-child { padding: 0 7px; font-size: 10px; }
 .app-topology-zoom button:hover { border-color: var(--primary-line); color: var(--primary); }
 .app-topology-zoom span { min-width: 38px; text-align: center; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
-.app-topology-viewport { overflow: auto; max-height: 430px; border: 1px solid var(--line); border-radius: 6px; background: linear-gradient(180deg, #fbfdff, #f6f9fc); padding: 6px; }
-.app-topology-zoom-canvas { min-width: 880px; transition: width .18s ease; }
+.app-topology-viewport { overflow: auto; max-height: 360px; border: 1px solid var(--line); border-radius: 6px; background-color: #f8fbfd; background-image: radial-gradient(rgba(23,105,170,.12) 1px, transparent 1px), linear-gradient(180deg, #fbfdff, #f6f9fc); background-size: 18px 18px, 100% 100%; padding: 6px; }
+.app-topology-zoom-canvas { min-width: 740px; transition: width .18s ease; }
 .app-topology-canvas .app-topology-zoom-canvas svg { display: block; width: 100%; height: auto; max-height: none; min-height: 0; }
 .app-topology-canvas .app-topology-viewport { scrollbar-width: thin; }
 .app-topology-canvas svg text { stroke: none !important; }
-.app-access-node-title { font-size: 11px; font-weight: 550; fill: var(--text); letter-spacing: 0; }
-.app-access-node-sub { font-size: 10px; font-weight: 400; fill: var(--text-soft); font-family: var(--font-mono); }
-.app-access-node-alert { font-size: 9px; font-weight: 600; fill: var(--danger); }
-.app-access-column-label { font-size: 9px; font-weight: 600; fill: var(--faint); font-family: var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
-.app-access-edge-label { font-size: 9px; font-weight: 450; fill: var(--text-soft); font-family: var(--font-mono); paint-order: stroke; stroke: #f7fafc; stroke-width: 4px; }
+.app-access-node-title { font-size: 14px; font-weight: 500; fill: var(--text); letter-spacing: 0; }
+.app-access-node-sub { font-size: 11px; font-weight: 400; fill: var(--text-soft); font-family: var(--font-mono); }
+.app-access-node-alert { font-size: 10px; font-weight: 600; fill: var(--danger); }
+.app-access-column-label { font-size: 10px; font-weight: 500; fill: var(--faint); font-family: var(--font-mono); letter-spacing: .04em; }
+.app-access-edge-label { font-size: 12px; font-weight: 400; fill: var(--text-soft); font-family: var(--font-mono); paint-order: stroke; stroke: #f7fafc; stroke-width: 4px; }
 .app-access-legend { border-top: 0; justify-content: flex-start; gap: 12px; padding-top: 7px; }
 .app-access-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .app-access-legend i { width: 8px; height: 2px; background: var(--line-strong); display: inline-block; }
@@ -1858,3 +1858,14 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .app-access-tooltip { position: fixed; z-index: 80; min-width: 190px; max-width: 300px; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: rgba(255,255,255,.98); box-shadow: 0 10px 26px rgba(25,43,65,.16); pointer-events: none; }
 .app-access-tooltip strong { display: block; font-size: 11px; color: var(--text); margin-bottom: 4px; }
 .app-access-tooltip span { display: block; font-size: 10px; line-height: 1.55; color: var(--text-soft); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.app-access-external-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.app-access-external-route { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+.app-access-external-route span { color: var(--muted); }
+.app-access-external-route i { font-style: normal; color: var(--faint); }
+.app-access-external-route strong { color: var(--text-soft); font-family: var(--font-mono); font-size: 10px; font-weight: 500; }
+.app-access-external-row small { color: var(--faint); white-space: nowrap; }
+.app-access-node-role { font-size: 11px; font-weight: 500; fill: var(--muted); letter-spacing: .02em; }
+.app-access-service { font-size: 12px; font-weight: 500; fill: var(--text-soft); }
+.app-access-service-port { font-size: 11px; font-weight: 400; fill: var(--muted); font-family: var(--font-mono); }
+.app-access-service-more { font-size: 10px; font-weight: 500; fill: var(--faint); }
+.app-access-service + .app-access-service-port { font-family: var(--font-mono); }

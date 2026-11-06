@@ -148,9 +148,9 @@ export class AppSystemTopologyService {
       if (rows.length === 0) return null;
       const row = rows[0];
       if (!row) return null;
-      const service = row.detail.process;
+      const process = typeof row.detail.process === 'string' ? row.detail.process : '';
       return {
-        service: typeof service === 'string' ? normalizeProcess(service) || row.name : row.name,
+        service: processLabel(agentId, process) || row.name,
         name: row.name,
       };
     };
@@ -188,7 +188,7 @@ export class AppSystemTopologyService {
       if (connection.remote_address === '127.0.0.1' || connection.remote_address === '::1') continue;
       const targetInfo = targetPort(target.id, connection.remote_port);
       if (!targetInfo) continue;
-      const fromService = processLabel(source.id, connection.process) || 'unknown';
+      const fromService = processLabel(source.id, connection.process) || normalizeProcess(connection.process) || 'unknown';
       const edge: AccessTopologyEdge = {
         fromHost: source.hostname,
         fromService,

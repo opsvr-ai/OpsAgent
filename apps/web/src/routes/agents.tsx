@@ -114,32 +114,70 @@ function appPorts(application: AgentApplication): string {
 }
 
 function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topology: AppSystemAccessTopology | null; loading: boolean; onDrill: (id: string) => void; onClose: () => void }) {
-  const [zoom, setZoom] = useState(1.12);
+  const [zoom, setZoom] = useState(1.04);
   const [tip, setTip] = useState<{ x: number; y: number; title: string; lines: string[] } | null>(null);
   if (loading) return <section className="app-access-panel"><div className="app-access-loading">正在加载应用系统访问关系…</div></section>;
   if (!topology) return null;
   const edges = topology.edges.slice(0, 24);
-  const anomalies = new Map(topology.nodes.map((node) => [node.hostname, node.anomalies]));
   const nodeInfo = new Map(topology.nodes.map((node) => [node.hostname, node]));
-  const sources = new Map<string, { host: string; service: string }>();
-  const targets = new Map<string, { host: string; service: string; port: number }>();
+    const sourceHosts = [...new Set(edges.map((edge) => edge.fromHost))];
+  const targetHosts = [...new Set(edges.map((edge) => edge.toHost))];
+  const sourceServices = new Map<string, string[]>();
+  const targetServices = new Map<string, Map<string, number[]>>();
   for (const edge of edges) {
-    sources.set(`${edge.fromHost}|${edge.fromService}`, { host: edge.fromHost, service: edge.fromService });
-    targets.set(`${edge.toHost}|${edge.toService}|${edge.toPort}`, { host: edge.toHost, service: edge.toService, port: edge.toPort });
+    const sources = new Set(sourceServices.get(edge.fromHost) ?? []);
+    sources.add(edge.fromService);
+    sourceServices.set(edge.fromHost, [...sources]);
+    const targets = targetServices.get(edge.toHost) ?? new Map<string, number[]>();
+    const ports = new Set(targets.get(edge.toService) ?? []);
+    ports.add(edge.toPort);
+    targets.set(edge.toService, [...ports]);
+    targetServices.set(edge.toHost, targets);
   }
-  const sourceList = [...sources.values()];
-  const targetList = [...targets.values()];
-  const height = Math.max(220, Math.max(sourceList.length, targetList.length) * 58 + 42);
-  const sourceY = (index: number) => 32 + index * 58;
-  const targetY = (index: number) => 32 + index * 58;
-  const showTip = (event: ReactMouseEvent, title: string, lines: string[]) => {
-    setTip({ x: event.clientX, y: event.clientY, title, lines });
+  const servicesFor = (host: string, role: '源' | '目标') => {
+    if (role === '源') return (sourceServices.get(host) ?? []).map((name) => ({ name, ports: [] as number[] }));
+    return [...(targetServices.get(host)?.entries() ?? [])].map(([name, ports]) => ({ name, ports }));
   };
-  const moveTip = (event: ReactMouseEvent) => {
-    setTip((current) => current ? { ...current, x: event.clientX, y: event.clientY } : current);
+  const cardHeight = (host: string, role: '源' | '目标') => 44 + Math.min(servicesFor(host, role).length, 4) * 20 + (nodeInfo.get(host)?.anomalies.length ? 18 : 0);
+  const topMap = (hosts: string[], role: '源' | '目标') => {
+    const map = new Map<string, number>();
+    let top = 38;
+    for (const host of hosts) { map.set(host, top); top += cardHeight(host, role) + 18; }
+    return map;
   };
+  const sourceTop = topMap(sourceHosts, '源');
+  const targetTop = topMap(targetHosts, '目标');
+  const height = Math.max(200, Math.max(
+    [...sourceTop.values()].reduce((max, top) => Math.max(max, top + 90), 0),
+    [...targetTop.values()].reduce((max, top) => Math.max(max, top + 90), 0),
+  ) + 16);
+  const centerY = (host: string, tops: Map<string, number>, role: '源' | '目标') => (tops.get(host) ?? 38) + cardHeight(host, role) / 2;
+  const showTip = (event: ReactMouseEvent, title: string, lines: string[]) => setTip({ x: event.clientX, y: event.clientY, title, lines });
+  const moveTip = (event: ReactMouseEvent) => setTip((current) => current ? { ...current, x: event.clientX, y: event.clientY } : current);
   const closeTip = () => setTip(null);
-  return (
+  const card = (host: string, x: number, tops: Map<string, number>, role: '源' | '目标') => {
+    const node = nodeInfo.get(host);
+    const services = servicesFor(host, role);
+    const y = tops.get(host) ?? 38;
+    const alert = (node?.anomalies.length ?? 0) > 0;
+    return (
+      <g key={`${role}-${host}`} onMouseEnter={(event) => showTip(event, host, [`角色：${role}节点`, node?.ip ? `IP：${node.ip}` : 'IP：未采集', `相关服务：${services.map((service) => `${service.name}${service.ports.length ? `:${service.ports.join('/')}` : ''}`).join('、') || '未发现'}`, ...(node?.anomalies ?? ['无告警'])])} onMouseMove={moveTip} onMouseLeave={closeTip} style={{ cursor: 'help' }}>
+        <rect x={x} y={y} width="300" height={cardHeight(host, role)} rx="7" fill={alert ? '#fff7f5' : '#fff'} stroke={alert ? '#c14a42' : '#d5e1ec'} strokeWidth={alert ? '1.4' : '1'} />
+        <rect x={x} y={y} width="4" height={cardHeight(host, role)} rx="2" fill={alert ? '#b43a35' : role === '源' ? '#1769aa' : '#2b7256'} />
+        <text x={x + 16} y={y + 22} className="app-access-node-title">{host}</text>
+        <text x={x + 16} y={y + 40} className="app-access-node-role">{role}服务 · {services.length} 个</text>
+        {services.slice(0, 4).map((service, index) => (
+          <g key={`${host}-${service.name}`}>
+            <rect x={x + 16} y={y + 49 + index * 20} width="218" height="16" rx="2" fill="#f3f7fb" />
+            <text x={x + 23} y={y + 60 + index * 20} className="app-access-service">{service.name}</text>
+            {service.ports.length > 0 ? <text x={x + 226} y={y + 60 + index * 20} textAnchor="end" className="app-access-service-port">:{service.ports.slice(0, 3).join(', :')}</text> : null}
+          </g>
+        ))}
+        {services.length > 4 ? <text x={x + 16} y={y + 49 + 4 * 20} className="app-access-service-more">+{services.length - 4} 个服务</text> : null}
+        {alert ? <text x={x + 284} y={y + 22} textAnchor="end" className="app-access-node-alert">告警</text> : null}
+      </g>
+    );
+  };  return (
     <section className="app-access-panel">
       <div className="section-heading">
         <div><div className="eyebrow">Application system access</div><h2>{topology.system.name} · 访问关系</h2></div>
@@ -154,58 +192,33 @@ function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topolog
                 <button type="button" aria-label="缩小" onClick={() => setZoom((current) => Math.max(0.8, Number((current - 0.15).toFixed(2))))}>−</button>
                 <span>{Math.round(zoom * 100)}%</span>
                 <button type="button" aria-label="放大" onClick={() => setZoom((current) => Math.min(2.4, Number((current + 0.15).toFixed(2))))}>+</button>
-                <button type="button" onClick={() => setZoom(1.12)}>重置</button>
+                <button type="button" onClick={() => setZoom(1.04)}>重置</button>
               </div>
             </div>
             <div className="app-topology-viewport">
               <div className="app-topology-zoom-canvas" style={{ width: `${zoom * 100}%` }}>
-                <svg viewBox={`0 0 980 ${height}`} role="img" aria-label={`${topology.system.name} 内部访问关系`}>
+                <svg viewBox={`0 0 900 ${height}`} role="img" aria-label={`${topology.system.name} 内部访问关系`}>
                   <defs><marker id="app-access-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1769aa"/></marker></defs>
-                  <text x="16" y="19" className="app-access-column-label">源服务</text>
-                  <text x="664" y="19" className="app-access-column-label">目标服务 / 端口</text>
+                  <text x="16" y="21" className="app-access-column-label">源节点 / 服务</text>
+                  <text x="536" y="21" className="app-access-column-label">目标节点 / 端口</text>
                   {edges.map((edge, index) => {
-                    const sourceIndex = sourceList.findIndex((item) => item.host === edge.fromHost && item.service === edge.fromService);
-                    const targetIndex = targetList.findIndex((item) => item.host === edge.toHost && item.service === edge.toService && item.port === edge.toPort);
-                    if (sourceIndex < 0 || targetIndex < 0) return null;
-                    const y1 = sourceY(sourceIndex) + 26;
-                    const y2 = targetY(targetIndex) + 26;
-                    const mid = 490;
+                    const y1 = centerY(edge.fromHost, sourceTop, '源');
+                    const y2 = centerY(edge.toHost, targetTop, '目标');
+                    const mid = 420;
                     return <g key={`${edge.fromHost}-${edge.fromService}-${edge.toHost}-${edge.toService}-${edge.toPort}-${index}`} onMouseEnter={(event) => showTip(event, '服务访问', [`${edge.fromHost} / ${edge.fromService}`, `→ ${edge.toHost} / ${edge.toService}:${edge.toPort}`, `TCP ESTAB · ${edge.count} 条聚合连接`])} onMouseMove={moveTip} onMouseLeave={closeTip}>
-                      <path d={`M316 ${y1} C430 ${y1}, 548 ${y2}, 664 ${y2}`} fill="none" stroke="#1769aa" strokeWidth="2" strokeOpacity=".7" markerEnd="url(#app-access-arrow)" />
-                      <path d={`M316 ${y1} C430 ${y1}, 548 ${y2}, 664 ${y2}`} fill="none" stroke="transparent" strokeWidth="14" style={{ cursor: 'help' }} />
-                      <text x={mid} y={(y1 + y2) / 2 - 5} textAnchor="middle" className="app-access-edge-label">{edge.fromService} → {edge.toService}:{edge.toPort} · {edge.count}</text>
+                      <path d={`M316 ${y1} C360 ${y1}, 500 ${y2}, 536 ${y2}`} fill="none" stroke="#1769aa" strokeWidth="1.8" strokeOpacity=".7" markerEnd="url(#app-access-arrow)" />
+                      <path d={`M316 ${y1} C360 ${y1}, 500 ${y2}, 536 ${y2}`} fill="none" stroke="transparent" strokeWidth="16" style={{ cursor: 'help' }} />
+                      <rect x={mid - 88} y={(y1 + y2) / 2 - 18} width="176" height="34" rx="4" fill="#fbfdff" opacity=".94" />
+                      <text x={mid} y={(y1 + y2) / 2 - 5} textAnchor="middle" className="app-access-edge-label">{edge.fromService} →</text>
+                      <text x={mid} y={(y1 + y2) / 2 + 10} textAnchor="middle" className="app-access-edge-label">{edge.toService}:{edge.toPort} · {edge.count}</text>
                     </g>;
                   })}
-                  {sourceList.map((item, index) => {
-                    const info = nodeInfo.get(item.host);
-                    const nodeAlerts = anomalies.get(item.host) ?? [];
-                    const alert = nodeAlerts.length > 0;
-                    const y = sourceY(index);
-                    return <g key={`s-${item.host}-${item.service}`} onMouseEnter={(event) => showTip(event, `${item.host} / ${item.service}`, [`角色：源服务`, info?.ip ? `IP：${info.ip}` : 'IP：未采集', ...(info?.services.filter((service) => service.name === item.service).flatMap((service) => service.ports.map((port) => `监听端口：${port}`)) ?? []), ...(alert ? [`告警：${nodeAlerts[0]}`] : ['状态：无告警'])])} onMouseMove={moveTip} onMouseLeave={closeTip}>
-                      <rect x="16" y={y} width="300" height="52" rx="6" fill={alert ? '#fff5f4' : '#fff'} stroke={alert ? '#b43a35' : '#d4e0eb'} strokeWidth={alert ? '1.5' : '1'} />
-                      <rect x="16" y={y} width="3" height="52" rx="1.5" fill={alert ? '#b43a35' : '#1769aa'} />
-                      <text x="30" y={y + 20} className="app-access-node-title">{item.host}</text>
-                      <text x="30" y={y + 38} className="app-access-node-sub">{item.service}</text>
-                      {alert ? <text x="302" y={y + 20} textAnchor="end" className="app-access-node-alert">告警</text> : null}
-                    </g>;
-                  })}
-                  {targetList.map((item, index) => {
-                    const info = nodeInfo.get(item.host);
-                    const nodeAlerts = anomalies.get(item.host) ?? [];
-                    const alert = nodeAlerts.length > 0;
-                    const y = targetY(index);
-                    return <g key={`t-${item.host}-${item.service}-${item.port}`} onMouseEnter={(event) => showTip(event, `${item.host} / ${item.service}:${item.port}`, [`角色：目标服务`, info?.ip ? `IP：${info.ip}` : 'IP：未采集', `监听端口：${item.port}`, `服务：${item.service}`, ...(alert ? [`告警：${nodeAlerts[0]}`] : ['状态：无告警'])])} onMouseMove={moveTip} onMouseLeave={closeTip}>
-                      <rect x="664" y={y} width="300" height="52" rx="6" fill={alert ? '#fff5f4' : '#fff'} stroke={alert ? '#b43a35' : '#d4e0eb'} strokeWidth={alert ? '1.5' : '1'} />
-                      <rect x="664" y={y} width="3" height="52" rx="1.5" fill={alert ? '#b43a35' : '#2b7256'} />
-                      <text x="678" y={y + 20} className="app-access-node-title">{item.host}</text>
-                      <text x="678" y={y + 38} className="app-access-node-sub">{item.service} :{item.port}</text>
-                      {alert ? <text x="950" y={y + 20} textAnchor="end" className="app-access-node-alert">告警</text> : null}
-                    </g>;
-                  })}
+                  {sourceHosts.map((host) => <g key={`source-${host}`}>{card(host, 16, sourceTop, '源')}</g>)}
+                  {targetHosts.map((host) => <g key={`target-${host}`}>{card(host, 536, targetTop, '目标')}</g>)}
                 </svg>
               </div>
             </div>
-            <div className="app-access-legend"><span><i className="blue" />源服务</span><span><i />目标服务:端口</span><span><i className="red" />节点告警</span><span className="app-access-legend-hint">滚轮/缩放查看全图</span></div>
+            <div className="app-access-legend"><span><i className="blue" />源节点</span><span><i />目标节点</span><span><i className="red" />节点告警</span><span className="app-access-legend-hint">悬浮看详情 · 缩放看全图</span></div>
           </div>
           <div className="app-access-side">
             {topology.externalSystems.length === 0 ? <div className="app-access-empty compact">暂无跨应用系统访问。</div> : topology.externalSystems.map((system) => (
@@ -213,9 +226,7 @@ function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topolog
                 <div className="app-access-external-head"><div><span className="eyebrow">External system</span><strong>{system.appSystemName}</strong></div><button type="button" className="btn btn-ghost btn-sm" onClick={() => onDrill(system.appSystemId)}>下转查询 →</button></div>
                 {system.edges.slice(0, 6).map((edge, index) => (
                   <button key={`${edge.fromHost}-${edge.toHost}-${edge.toPort}-${index}`} type="button" className="app-access-external-row" onClick={() => onDrill(system.appSystemId)}>
-                    <span>{edge.fromHost} / {edge.fromService}</span>
-                    <span>→</span>
-                    <strong>{edge.toService}:{edge.toPort}</strong>
+                    <span className="app-access-external-route"><span>{edge.fromHost} / {edge.fromService}</span><i>→</i><strong>{edge.toService}:{edge.toPort}</strong></span>
                     <small>{edge.count} 连接</small>
                   </button>
                 ))}
@@ -228,7 +239,6 @@ function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topolog
     </section>
   );
 }
-
 export function Agents({ onBack }: AgentsProps) {
   const [fleet, setFleet] = useState<AgentFleetResponse | null>(null);
   const [loading, setLoading] = useState(true);

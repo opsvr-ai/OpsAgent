@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import { AgentCommandService } from './commands.js';
 import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
+import { AppSystemTopologyService } from './topology_service.js';
 
 interface AnalysisRow {
   id: string;
@@ -278,81 +279,37 @@ export class FaultAnalysisService {
   private async collectTopology(
     tenantId: string,
     appSystemId: string,
-    agents: Array<{
+    _agents: Array<{
       id: string; hostname: string; status: string;
       system_info: Record<string, unknown>;
     }>,
-    events: Array<{ agent_id: string; title: string; detail: string; severity: string }>,
+    _events: Array<{ agent_id: string; title: string; detail: string; severity: string }>,
   ): Promise<Record<string, unknown>> {
     try {
-      const connections = await this.pool.query<{
-        agent_id: string; local_address: string; local_port: number;
-        remote_address: string; remote_port: number; process: string; count: string;
-      }>(
-        `SELECT c.agent_id, c.local_address, c.local_port, c.remote_address, c.remote_port,
-                c.process, count(*)::text AS count
-         FROM agent_connections c
-         JOIN agents a ON a.id = c.agent_id
-         WHERE c.tenant_id = $1 AND a.app_system_id = $2
-         GROUP BY c.agent_id, c.local_address, c.local_port, c.remote_address, c.remote_port, c.process
-         ORDER BY count(*) DESC LIMIT 200`,
-        [tenantId, appSystemId],
-      );
-      const inventory = await this.pool.query<{
-        agent_id: string; kind: string; name: string; detail: Record<string, unknown>;
-      }>(
-        `SELECT i.agent_id, i.kind, i.name, i.detail
-         FROM agent_inventory i
-         JOIN agents a ON a.id = i.agent_id
-         WHERE i.tenant_id = $1 AND a.app_system_id = $2 AND i.kind IN ('process', 'port')`,
-        [tenantId, appSystemId],
-      );
-      const appForPort = (agentId: string, port: number): string => {
-        const entry = inventory.rows.find((row) => row.agent_id === agentId && row.kind === 'port' && row.name.endsWith(`:${port}`));
-        if (entry && typeof entry.detail.process === 'string' && entry.detail.process) return entry.detail.process;
-        return entry?.name ?? '';
+      const topology = await new AppSystemTopologyService(this.pool).get(tenantId, appSystemId);
+      if (!topology) return { nodes: [], edges: [] };
+      return {
+        nodes: topology.nodes.map((node) => ({
+          hostname: node.hostname,
+          status: node.status,
+          ip: node.ip,
+          anomalies: node.anomalies,
+          processes: node.services.map((service) => service.name),
+          ports: node.services.flatMap((service) => service.ports.map((port) => `${node.hostname}:${port}`)),
+        })),
+        edges: topology.edges.map((edge) => ({
+          fromHost: edge.fromHost,
+          fromApp: edge.fromService,
+          fromPort: 0,
+          toHost: edge.toHost,
+          toApp: edge.toService,
+          toPort: edge.toPort,
+          protocol: edge.protocol,
+          count: edge.count,
+          targetAppSystemId: edge.targetAppSystemId,
+          targetAppSystemName: edge.targetAppSystemName,
+        })),
       };
-      const cleanProcess = (value: string): string => value.match(/"([^"]+)"/)?.[1] ?? value;
-      const byIp = new Map<string, (typeof agents)[number]>();
-      for (const agent of agents) {
-        const ip = agent.system_info?.ip;
-        if (typeof ip === 'string') byIp.set(ip, agent);
-        const addresses = agent.system_info?.ipAddresses;
-        if (Array.isArray(addresses)) {
-          for (const address of addresses) if (typeof address === 'string') byIp.set(address, agent);
-        }
-      }
-      const anomalies = new Map<string, string[]>();
-      for (const event of events) {
-        const current = anomalies.get(event.agent_id) ?? [];
-        current.push(`${event.severity}: ${event.title}`);
-        anomalies.set(event.agent_id, current);
-      }
-      const nodes = agents.map((agent) => ({
-        id: agent.id,
-        hostname: agent.hostname,
-        status: agent.status,
-        ip: typeof agent.system_info?.ip === 'string' ? agent.system_info.ip : '',
-        anomalies: anomalies.get(agent.id) ?? [],
-        processes: inventory.rows.filter((row) => row.agent_id === agent.id && row.kind === 'process').map((row) => row.name).slice(0, 30),
-        ports: inventory.rows.filter((row) => row.agent_id === agent.id && row.kind === 'port').map((row) => row.name).slice(0, 50),
-      }));
-      const edges = connections.rows.flatMap((connection) => {
-        const source = agents.find((agent) => agent.id === connection.agent_id);
-        const target = byIp.get(connection.remote_address);
-        if (!source || !target) return [];
-        return [{
-          fromHost: source.hostname,
-          fromApp: cleanProcess(connection.process) || appForPort(connection.agent_id, connection.local_port),
-          fromPort: connection.local_port,
-          toHost: target.hostname,
-          toApp: appForPort(target.id, connection.remote_port),
-          toPort: connection.remote_port,
-          protocol: 'TCP',
-          count: Number(connection.count),
-        }];
-      }).slice(0, 200);
-      return { nodes, edges };
     } catch {
       return { nodes: [], edges: [] };
     }

@@ -16,6 +16,7 @@ import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
 import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js';
 import { AgentInventoryService } from './inventory_service.js';
 import { AgentConnectionService } from './connection_service.js';
+import { AppSystemTopologyService } from './topology_service.js';
 import { FaultAnalysisService } from './fault_analysis.js';
 
 function discoveryBody(value: unknown): DiscoveryPayload | undefined {
@@ -49,6 +50,7 @@ export function registerAgentRoutes(
   const skillService = new AgentSkillService(pool);
   const inventoryService = new AgentInventoryService(pool);
   const connectionService = new AgentConnectionService(pool);
+  const topologyService = new AppSystemTopologyService(pool);
   const faultAnalysis = new FaultAnalysisService(pool, modelSecret);
 
   app.post('/api/agents/register', async (request, reply) => {
@@ -660,8 +662,27 @@ export function registerAgentRoutes(
     return reply.send(updated);
   });
 
-  app.get('/api/app-systems', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/app-systems/:id/access-topology', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
+    if (!token) return reply.code(401).send({ error: 'unauthorized' });
+    const session = await readSession(pool, token);
+    if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });
+    const ctx = await resolveTenantContext(
+      { userId: session.user.id, tenantId: session.selectedTenantId },
+      createMembershipRepository(pool),
+    );
+    try {
+      requirePermission(ctx, 'agent.manage');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const topology = await topologyService.get(ctx.tenantId, request.params.id);
+    if (!topology) return reply.code(404).send({ error: 'app_system_not_found' });
+    return reply.send(topology);
+  });
+
+  app.get('/api/app-systems', async (request, reply) => {    const token = request.cookies[SESSION_COOKIE];
     if (!token) return reply.code(401).send({ error: 'unauthorized' });
     const session = await readSession(pool, token);
     if (!session?.selectedTenantId) return reply.code(401).send({ error: 'unauthorized' });

@@ -20,6 +20,8 @@ import {
   updateAgentPatrolPolicy,
   getAgentInstruction,
   getAppSystemHealth,
+  getAppSystemAccessTopology,
+  type AppSystemAccessTopology,
   type AgentPatrolPolicy,
   getCommandKeyStatus,
   listAgentCommands,
@@ -111,6 +113,89 @@ function appPorts(application: AgentApplication): string {
   return text(application.ports);
 }
 
+function AppSystemAccessPanel({ topology, loading, onDrill, onClose }: { topology: AppSystemAccessTopology | null; loading: boolean; onDrill: (id: string) => void; onClose: () => void }) {
+  if (loading) return <section className="app-access-panel"><div className="app-access-loading">正在加载应用系统访问关系…</div></section>;
+  if (!topology) return null;
+  const edges = topology.edges.slice(0, 24);
+  const anomalies = new Map(topology.nodes.map((node) => [node.hostname, node.anomalies]));
+  const sources = new Map<string, { host: string; service: string }>();
+  const targets = new Map<string, { host: string; service: string; port: number }>();
+  for (const edge of edges) {
+    sources.set(`${edge.fromHost}|${edge.fromService}`, { host: edge.fromHost, service: edge.fromService });
+    targets.set(`${edge.toHost}|${edge.toService}|${edge.toPort}`, { host: edge.toHost, service: edge.toService, port: edge.toPort });
+  }
+  const sourceList = [...sources.values()];
+  const targetList = [...targets.values()];
+  const height = Math.max(180, Math.max(sourceList.length, targetList.length) * 52 + 40);
+  const sourceY = (index: number) => 28 + index * Math.max(52, Math.min(70, (height - 56) / Math.max(sourceList.length, 1)));
+  const targetY = (index: number) => 28 + index * Math.max(52, Math.min(70, (height - 56) / Math.max(targetList.length, 1)));
+  return (
+    <section className="app-access-panel">
+      <div className="section-heading">
+        <div><div className="eyebrow">Application system access</div><h2>{topology.system.name} · 访问关系</h2></div>
+        <div className="row-sm"><span className="badge badge-neutral">{topology.nodes.length} 节点 · {edges.length} 条服务访问</span><button type="button" className="btn btn-outline btn-sm" onClick={onClose}>收起</button></div>
+      </div>
+      {edges.length === 0 ? <div className="app-access-empty">尚未采集到该应用系统内部的服务访问关系。Agent 上报 netstat 后会自动生成。</div> : (
+        <div className="app-access-grid">
+          <div className="app-topology-canvas">
+            <svg viewBox={`0 0 900 ${height}`} role="img" aria-label={`${topology.system.name} 内部访问关系`}>
+              <defs><marker id="app-access-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1769aa"/></marker></defs>
+              {edges.map((edge, index) => {
+                const sourceIndex = sourceList.findIndex((item) => item.host === edge.fromHost && item.service === edge.fromService);
+                const targetIndex = targetList.findIndex((item) => item.host === edge.toHost && item.service === edge.toService && item.port === edge.toPort);
+                if (sourceIndex < 0 || targetIndex < 0) return null;
+                const y1 = sourceY(sourceIndex) + 22;
+                const y2 = targetY(targetIndex) + 22;
+                const mid = 450;
+                return <g key={`${edge.fromHost}-${edge.fromService}-${edge.toHost}-${edge.toService}-${edge.toPort}-${index}`}>
+                  <path d={`M300 ${y1} C430 ${y1}, 470 ${y2}, 600 ${y2}`} fill="none" stroke="#1769aa" strokeWidth="1.4" strokeOpacity=".65" markerEnd="url(#app-access-arrow)" />
+                  <text x={mid} y={(y1 + y2) / 2 - 4} textAnchor="middle" className="app-access-edge-label">{edge.fromService} → {edge.toService}:{edge.toPort} · {edge.count}</text>
+                </g>;
+              })}
+              {sourceList.map((item, index) => {
+                const alert = (anomalies.get(item.host) ?? []).length > 0;
+                const y = sourceY(index);
+                return <g key={`s-${item.host}-${item.service}`}>
+                  <rect x="20" y={y} width="280" height="44" rx="4" fill={alert ? '#fbefee' : '#fff'} stroke={alert ? '#b43a35' : '#c7d4e1'} strokeWidth={alert ? '1.5' : '1'} />
+                  <text x="34" y={y + 18} className="app-access-node-title">{item.host}</text>
+                  <text x="34" y={y + 33} className="app-access-node-sub">{item.service}</text>
+                  {alert ? <text x="286" y={y + 18} textAnchor="end" className="app-access-node-alert">告警</text> : null}
+                </g>;
+              })}
+              {targetList.map((item, index) => {
+                const alert = (anomalies.get(item.host) ?? []).length > 0;
+                const y = targetY(index);
+                return <g key={`t-${item.host}-${item.service}-${item.port}`}>
+                  <rect x="600" y={y} width="280" height="44" rx="4" fill={alert ? '#fbefee' : '#fff'} stroke={alert ? '#b43a35' : '#c7d4e1'} strokeWidth={alert ? '1.5' : '1'} />
+                  <text x="614" y={y + 18} className="app-access-node-title">{item.host}</text>
+                  <text x="614" y={y + 33} className="app-access-node-sub">{item.service} :{item.port}</text>
+                  {alert ? <text x="866" y={y + 18} textAnchor="end" className="app-access-node-alert">告警</text> : null}
+                </g>;
+              })}
+            </svg>
+            <div className="app-access-legend"><span>源服务</span><span>→</span><span>目标服务:端口</span><span className="app-access-legend-alert">红框 = 节点有告警</span></div>
+          </div>
+          <div className="app-access-side">
+            {topology.externalSystems.length === 0 ? <div className="app-access-empty compact">暂无跨应用系统访问。</div> : topology.externalSystems.map((system) => (
+              <div key={system.appSystemId} className="app-access-external">
+                <div className="app-access-external-head"><div><span className="eyebrow">External system</span><strong>{system.appSystemName}</strong></div><button type="button" className="btn btn-ghost btn-sm" onClick={() => onDrill(system.appSystemId)}>下转查询 →</button></div>
+                {system.edges.slice(0, 6).map((edge, index) => (
+                  <button key={`${edge.fromHost}-${edge.toHost}-${edge.toPort}-${index}`} type="button" className="app-access-external-row" onClick={() => onDrill(system.appSystemId)}>
+                    <span>{edge.fromHost} / {edge.fromService}</span>
+                    <span>→</span>
+                    <strong>{edge.toService}:{edge.toPort}</strong>
+                    <small>{edge.count} 连接</small>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function Agents({ onBack }: AgentsProps) {
   const [fleet, setFleet] = useState<AgentFleetResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,6 +203,8 @@ export function Agents({ onBack }: AgentsProps) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [appSystemId, setAppSystemId] = useState('');
+  const [accessTopology, setAccessTopology] = useState<AppSystemAccessTopology | null>(null);
+  const [accessLoading, setAccessLoading] = useState(false);
   const [os, setOs] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -295,6 +382,24 @@ export function Agents({ onBack }: AgentsProps) {
       setError('命令下发失败');
     } finally {
       setCommandBusy(false);
+    }
+  }
+
+  async function openAppSystemAccess(id: string) {
+    setAppSystemId(id);
+    setPage(1);
+    if (!id) {
+      setAccessTopology(null);
+      return;
+    }
+    setAccessLoading(true);
+    try {
+      setAccessTopology(await getAppSystemAccessTopology(id));
+    } catch {
+      setError('应用系统访问关系加载失败');
+      setAccessTopology(null);
+    } finally {
+      setAccessLoading(false);
     }
   }
 
@@ -642,13 +747,13 @@ export function Agents({ onBack }: AgentsProps) {
           <div className="row-sm"><span className="muted">按归属过滤主机</span><button type="button" className="btn btn-outline btn-sm" onClick={() => void addAppSystem()}>新增应用系统</button></div>
         </div>
         <div className="app-system-scroll">
-          <button type="button" className={`app-system-card${appSystemId === '' ? ' is-active' : ''}`} onClick={() => { setAppSystemId(''); setPage(1); }}>
+          <button type="button" className={`app-system-card${appSystemId === '' ? ' is-active' : ''}`} onClick={() => void openAppSystemAccess('')}>
             <span className="app-system-name">全部系统</span>
             <span className="app-system-meta">{fleet?.summary.total ?? 0} 台主机</span>
             <span className="bar"><i style={{ width: '100%' }} /></span>
           </button>
           {fleet?.appSystems.map((system) => (
-            <button key={system.id} type="button" className={`app-system-card${appSystemId === system.id ? ' is-active' : ''}`} onClick={() => { setAppSystemId(system.id); setPage(1); }}>
+            <button key={system.id} type="button" className={`app-system-card${appSystemId === system.id ? ' is-active' : ''}`} onClick={() => void openAppSystemAccess(system.id)}>
               <span className="app-system-top"><strong>{system.name}</strong><span className={`badge ${criticalityClass(system.criticality)}`}>{system.criticality}</span></span>
               <span className="app-system-meta">{system.onlineCount}/{system.agentCount} 在线 · {system.owner ?? '未指定负责人'}</span>
               <span className="bar"><i style={{ width: `${system.agentCount ? (system.onlineCount / system.agentCount) * 100 : 0}%` }} /></span>
@@ -657,6 +762,15 @@ export function Agents({ onBack }: AgentsProps) {
           {fleet?.appSystems.length === 0 ? <span className="muted app-system-empty">暂无应用系统，主机可在详情中归属。</span> : null}
         </div>
       </section>
+
+      {appSystemId ? (
+        <AppSystemAccessPanel
+          topology={accessTopology}
+          loading={accessLoading}
+          onDrill={(id) => void openAppSystemAccess(id)}
+          onClose={() => { setAppSystemId(''); setAccessTopology(null); }}
+        />
+      ) : null}
 
       {healthChecks.some((check) => check.findings.some((finding) => finding.status !== 'healthy')) ? (
         <section className="app-health-panel">

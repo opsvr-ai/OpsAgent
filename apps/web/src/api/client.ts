@@ -1178,6 +1178,48 @@ export async function createAppSystem(input: {
   });
 }
 
+export interface AppSystemAccessService {
+  readonly name: string;
+  readonly ports: readonly number[];
+}
+
+export interface AppSystemAccessNode {
+  readonly hostname: string;
+  readonly appSystemId: string | null;
+  readonly appSystemName: string;
+  readonly status: string;
+  readonly ip: string;
+  readonly anomalies: readonly string[];
+  readonly services: readonly AppSystemAccessService[];
+}
+
+export interface AppSystemAccessEdge {
+  readonly fromHost: string;
+  readonly fromService: string;
+  readonly toHost: string;
+  readonly toService: string;
+  readonly toPort: number;
+  readonly count: number;
+  readonly protocol: string;
+  readonly targetAppSystemId: string | null;
+  readonly targetAppSystemName: string;
+}
+
+export interface AppSystemAccessTopology {
+  readonly system: { id: string; name: string; code: string };
+  readonly nodes: readonly AppSystemAccessNode[];
+  readonly edges: readonly AppSystemAccessEdge[];
+  readonly externalSystems: ReadonlyArray<{
+    appSystemId: string;
+    appSystemName: string;
+    edges: readonly AppSystemAccessEdge[];
+  }>;
+}
+
+export async function getAppSystemAccessTopology(id: string): Promise<AppSystemAccessTopology> {
+  return request<AppSystemAccessTopology>(`/api/app-systems/${id}/access-topology`);
+}
+
 export interface FaultAnalysisSummary {
   readonly id: string;
   readonly appSystemId: string | null;

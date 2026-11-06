@@ -1807,3 +1807,27 @@ svg[data-fill] { fill: currentColor; stroke: none; }
 .topology-svg-host { font-size: 11px; font-weight: 650; fill: var(--text); }
 .topology-svg-endpoint { font-size: 9.5px; fill: var(--text-soft); font-family: var(--font-mono, monospace); }
 .topology-edge-label { font-size: 9px; fill: var(--primary, #2f6fed); font-family: var(--font-mono, monospace); }
+
+/* app system access topology */
+.app-access-panel { margin: 0 0 16px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.app-access-loading, .app-access-empty { padding: 22px 12px; color: var(--muted); font-size: 12px; text-align: center; }
+.app-access-empty.compact { padding: 10px 4px; text-align: left; }
+.app-access-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .7fr); gap: 16px; align-items: start; }
+.app-topology-canvas { min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); padding: 9px 10px 7px; }
+.app-topology-canvas svg { display: block; width: 100%; height: auto; min-height: 180px; max-height: 380px; }
+.app-access-node-title { font-size: 10px; font-weight: 650; fill: var(--text); }
+.app-access-node-sub { font-size: 9px; fill: var(--muted); font-family: var(--font-mono); }
+.app-access-node-alert { font-size: 9px; font-weight: 650; fill: var(--danger); }
+.app-access-edge-label { font-size: 8.5px; fill: var(--text-soft); font-family: var(--font-mono); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; }
+.app-access-legend { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 6px; color: var(--muted); font-size: 10px; border-top: 1px solid var(--line); }
+.app-access-legend-alert { margin-left: auto; color: var(--danger); }
+.app-access-side { display: flex; flex-direction: column; gap: 9px; }
+.app-access-external { border: 1px solid var(--line); border-radius: 6px; padding: 10px 11px; background: var(--surface); }
+.app-access-external-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.app-access-external-head strong { display: block; margin-top: 2px; font-size: 12px; }
+.app-access-external-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1.2fr) auto; gap: 5px; align-items: center; width: 100%; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; padding: 7px 0; color: var(--muted); font-size: 10px; cursor: pointer; }
+.app-access-external-row:hover { color: var(--primary); }
+.app-access-external-row span { overflow-wrap: anywhere; }
+.app-access-external-row strong { color: var(--text-soft); font-family: var(--font-mono); font-size: 10px; font-weight: 500; overflow-wrap: anywhere; }
+.app-access-external-row small { color: var(--faint); white-space: nowrap; }
+@media (max-width: 1050px) { .app-access-grid { grid-template-columns: 1fr; } }

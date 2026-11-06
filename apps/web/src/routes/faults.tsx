@@ -112,7 +112,7 @@ function AccessTopology({ topology, title }: { topology: FaultTopology | undefin
               <g key={`${edge.fromHost}-${edge.fromPort}-${edge.toHost}-${edge.toPort}-${index}`}>
                 <path className="ft-edge root" d={`M ${from.x + 204} ${from.y + 28} C ${mid} ${from.y + 28}, ${mid} ${to.y + 28}, ${to.x - 4} ${to.y + 28}`} markerEnd="url(#fault-arrow)" />
                 <text className="ft-label root" x={mid} y={(from.y + to.y) / 2 + 20} textAnchor="middle">
-                  TCP :{edge.fromPort} → :{edge.toPort} · {edge.count} ESTAB
+                  {(edge.fromApp || 'unknown')} → {(edge.toApp || 'unknown')}:{edge.toPort} · {edge.count}
                 </text>
               </g>
             );
@@ -120,17 +120,17 @@ function AccessTopology({ topology, title }: { topology: FaultTopology | undefin
           {list.map((node) => {
             const hostAlerts = alerts.get(node.host) ?? [];
             const info = nodes.find((item) => item.hostname === node.host);
-            const isRoot = hostAlerts.some((item) => /critical/i.test(item));
-            const isAffected = hostAlerts.length > 0;
+            const hasAlert = hostAlerts.length > 0;
             return (
               <g key={node.key}>
-                <rect className={`ft-node ${isRoot ? 'root' : isAffected ? 'affected' : ''}`} x={node.x} y={node.y} width="228" height="76" rx="5" />
+                <rect className={`ft-node ${hasAlert ? 'root' : ''}`} x={node.x} y={node.y} width="228" height="76" rx="5" />
                 <text className="ft-title" x={node.x + 11} y={node.y + 17}>{node.host}</text>
                 <text className="ft-sub" x={node.x + 11} y={node.y + 31}>{node.app || info?.ip || '未映射进程'}</text>
                 <text className="ft-line" x={node.x + 11} y={node.y + 45}>{node.app ? `${node.app} :${node.port}` : `监听 :${node.port || '-'}`}</text>
-                <text className={`ft-alert ${isRoot ? '' : 'warn'}`} x={node.x + 11} y={node.y + 60}>
-                  {hostAlerts[0]?.slice(0, 42) ?? (info?.status === 'online' ? '状态正常' : '节点异常')}
+                <text className={`ft-alert ${hasAlert ? '' : 'warn'}`} x={node.x + 11} y={node.y + 60}>
+                  {hasAlert ? `告警：${hostAlerts[0]?.slice(0, 36)}` : (info?.status === 'online' ? '状态正常' : '节点异常')}
                 </text>
+                {hasAlert ? <circle cx={node.x + 216} cy={node.y + 12} r="3" fill="var(--fault-red)" /> : null}
               </g>
             );
           })}

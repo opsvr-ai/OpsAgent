@@ -367,6 +367,42 @@ docker compose exec -T control pnpm --filter @opsagent/control seed:topology
 
 文档：[2026-11-10-topology-learning.md](docs/design/plans/2026-11-10-topology-learning.md)、[Agent 窗口采集](docs/design/plans/2026-11-10-agent-connection-windows.md)。
 
+#### 内网部署后看不到「访问拓扑」？
+
+该页面是**前端新增页面**，只更新 control（后端）不会出现；必须把 Web 前端重新构建/部署，并强刷浏览器。排查顺序：
+
+1. 确认内网机器上的代码版本：
+   ```bash
+   git log -1 --oneline            # 应包含 feat(topology)（ca846f2 或更新）
+   grep -n "访问拓扑" apps/web/src/routes/nav.ts   # 应有一行输出
+   ```
+2. **源码挂载的 compose 部署**（本仓库 `compose.yaml`，/app 挂载宿主机源码）：
+   ```bash
+   git pull
+   docker compose restart web       # 让 Vite 重新读取源码（避免旧模块缓存）
+   # 仍不出现再重建一次：
+   docker compose up -d --build --no-deps web
+   ```
+   然后浏览器 `Ctrl+F5`。入口在登录后的左侧「工作空间 → 访问拓扑」；`/?demo=topology` 仅开发模式可用。
+3. **静态产物部署**（nginx / 自行托管 `apps/web/dist`）：
+   ```bash
+   pnpm install
+   pnpm --filter @opsagent/web build
+   # 将 apps/web/dist 发布到站点根目录；清 CDN/浏览器缓存后强刷
+   grep -r "访问拓扑" apps/web/dist/assets/*.js   # 构建产物应能搜到
+   ```
+4. **离线镜像部署**（内网服务器没有源码挂载，直接跑镜像）：
+   ```bash
+   # 构建机（需能联网装依赖）：
+   docker compose build control web
+   docker save opsagent-local-control:latest opsagent-local-web:latest | gzip > opsagent-images-$(date +%Y%m%d).tgz
+   # 内网服务器：
+   docker load -i opsagent-images-*.tgz
+   docker compose up -d --no-deps control web
+   ```
+   注意：`compose.yaml` 默认把源码挂载到 `/app`；若内网部署去掉了挂载，必须使用**重新构建过的镜像**，否则运行的还是旧代码。
+5. 如果是新库/新租户，还需要至少跑一次学习（或 `seed:topology`）才会有拓扑图；页面本身在无图时显示空态引导，侧栏入口不受数据影响。
+
 ### 日志排查
 
 控制面默认输出结构化请求日志：

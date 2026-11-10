@@ -7,6 +7,7 @@
  *
  * 布局是纯函数，画布只负责绘制与交互。
  */
+import { isManagementService } from './v3.js';
 import type {
   TopologyEdge,
   TopologyGraph,
@@ -467,6 +468,7 @@ export interface HostCardLayout {
   readonly chipY: number;
   readonly chips: readonly string[];
   readonly hiddenChips: number;
+  readonly moreLabel: string;
   readonly metricsY: number;
   readonly metricsFont: number;
 }
@@ -474,7 +476,7 @@ export interface HostCardLayout {
 export const HOST_CARD_W = 120;
 export const SYSTEM_CARD_W = 208;
 
-export function hostCardLayout(node: TopologyNode): HostCardLayout {
+export function hostCardLayout(node: TopologyNode, compact = true): HostCardLayout {
   const w = HOST_CARD_W;
   const titleMax = w - 16;
   const titleFont = 13.5;
@@ -484,23 +486,28 @@ export function hostCardLayout(node: TopologyNode): HostCardLayout {
   const lines = compressible ? [node.label] : wrapLines(node.label, titleMax, titleFont, 2);
   const titleWidth = compressible ? titleMax : rawTitleWidth;
   const titleY = 31;
-  const roleLines = [
-    truncateText(node.role ?? (node.systemService ? '系统服务' : kindLabel(node.kind)), w - 16, 12),
-  ];
+  const roleText = truncateText(node.role ?? (node.systemService ? '系统服务' : kindLabel(node.kind)), w - 16, 12);
+  const roleLines = compact
+    ? [roleText]
+    : wrapLines(node.role ?? (node.systemService ? '系统服务' : kindLabel(node.kind)), w - 16, 12, 2);
   const roleLineHeight = 13;
   const roleY = titleY + (lines.length - 1) * titleLineHeight + 12;
-  const chipY = roleY + 3;
+  const chipY = roleY + (roleLines.length - 1) * roleLineHeight + 3;
   const metricsY = chipY + 14 + 11;
   const h = metricsY + 5;
-  const serviceTexts = node.services.map((service) => serviceLabel(service));
+  const businessServices = node.services.filter((service) => !isManagementService(service));
+  const serviceTexts = businessServices.map((service) => serviceLabel(service));
   const chips: string[] = [];
   let used = 0;
+  const maxChips = 2;
+  const reserveMore = businessServices.length > 1 ? 24 : 0;
   for (const text of serviceTexts) {
     const width = Math.round(measureText(text, 11.5) + 13);
-    if (chips.length >= 1 || used + width + 4 > w - 16) break;
+    if (chips.length >= maxChips || used + width + 4 + reserveMore > w - 16) break;
     chips.push(text);
     used += width + 4;
   }
+  const hiddenChips = Math.max(0, businessServices.length - chips.length);
   return {
     w,
     h,
@@ -511,14 +518,15 @@ export function hostCardLayout(node: TopologyNode): HostCardLayout {
     titleWidth,
     titleCompress: compressible,
     productText: displayProduct(node),
-    productMaxWidth: w - 30,
+    productMaxWidth: w - 26,
     roleText: roleLines[0] ?? '',
     roleLines,
     roleY,
     roleLineHeight,
     chipY,
     chips,
-    hiddenChips: Math.max(0, serviceTexts.length - chips.length),
+    hiddenChips,
+    moreLabel: hiddenChips > 0 ? `+${hiddenChips} 项` : '',
     metricsY,
     metricsFont: 11,
   };
@@ -706,7 +714,7 @@ function laneKeyFor(node: TopologyNode): string {
   return node.appSystemId ?? '__unassigned__';
 }
 
-function computeHostLayout(view: ViewGraph): TopoLayout {
+function computeHostLayout(view: ViewGraph, compactCards: boolean): TopoLayout {
   const graph = view.graph;
   const systemIndex = new Map(graph.systems.map((system, index) => [system.id, index]));
   const systemName = new Map(graph.systems.map((system) => [system.id, system.name]));
@@ -778,7 +786,10 @@ function computeHostLayout(view: ViewGraph): TopoLayout {
   for (const tier of TIER_ORDER) {
     const meta = TIER_META[tier];
     const w = columnWidths.get(tier) ?? 200;
-    const count = view.nodes.filter((item) => normalizeTier(item.node.tier) === tier).length;
+    const count =
+      tier === 'external'
+        ? view.graph.stats.externalCount ?? view.nodes.filter((item) => normalizeTier(item.node.tier) === tier).length
+        : view.nodes.filter((item) => normalizeTier(item.node.tier) === tier).length;
     rawColumns.push({ key: tier, title: meta.title, en: meta.en, hint: meta.hint, accent: meta.accent, x: cursor, w, count });
     cursor += w + COL_GAP;
   }
@@ -802,18 +813,43 @@ function computeHostLayout(view: ViewGraph): TopoLayout {
   let laneY = HEADER_H + 12;
   for (const lane of lanes) {
     if (lane.kind === 'external') {
-      const externalNodes = [...lane.nodes].sort((a, b) =>
-        (a.node.ip ?? a.node.label).localeCompare(b.node.ip ?? b.node.label, 'zh-CN'),
-      );
+      const externalIds = new Set(lane.nodes.map((item) => item.node.id));
+      const barycenter = new Map<string, { total: number; weight: number }>();
+      for (const edge of view.edges) {
+        const externalId = externalIds.has(edge.source)
+          ? edge.source
+          : externalIds.has(edge.target)
+            ? edge.target
+            : null;
+        if (!externalId) continue;
+        const innerId = externalId === edge.source ? edge.target : edge.source;
+        const inner = view.nodes.find((item) => item.node.id === innerId);
+        if (!inner) continue;
+        const columnIndex = columns.findIndex((column) => column.key === normalizeTier(inner.node.tier));
+        const current = barycenter.get(externalId) ?? { total: 0, weight: 0 };
+        current.total += Math.max(0, columnIndex) * Math.max(1, edge.count);
+        current.weight += Math.max(1, edge.count);
+        barycenter.set(externalId, current);
+      }
+      const externalNodes = [...lane.nodes].sort((a, b) => {
+        const wa = barycenter.get(a.node.id);
+        const wb = barycenter.get(b.node.id);
+        const va = wa && wa.weight > 0 ? wa.total / wa.weight : 99;
+        const vb = wb && wb.weight > 0 ? wb.total / wb.weight : 99;
+        return va === vb ? (a.node.ip ?? a.node.label).localeCompare(b.node.ip ?? b.node.label, 'zh-CN') : va - vb;
+      });
       const startX = LANE_HEADER_W + 14;
-      const rightLimit = worldWidth - 14;
+      const maxPerRow = Math.max(
+        4,
+        Math.min(6, Math.floor((worldWidth - startX - 20) / (HOST_CARD_W + CELL_CARD_GAP))),
+      );
       let x = startX;
       let y = laneY + LANE_PAD_Y;
       let rowHeight = 0;
       let rowCount = 0;
       for (const item of externalNodes) {
-        const card = hostCardLayout(item.node);
-        if (rowCount > 0 && x + card.w > rightLimit) {
+        const card = hostCardLayout(item.node, compactCards);
+        if (rowCount >= maxPerRow) {
           x = startX;
           y += rowHeight + CELL_CARD_GAP;
           rowHeight = 0;
@@ -845,7 +881,7 @@ function computeHostLayout(view: ViewGraph): TopoLayout {
         w: worldWidth,
         h: laneH,
         nodeCount: laneNodes.length,
-        hostCount: laneNodes.reduce((sum, item) => sum + item.node.hostCount, 0),
+        hostCount: view.graph.stats.externalCount ?? laneNodes.length,
         connections,
         failures,
         anomalyCount: laneNodes.filter((item) => (item.node.node.anomalies?.length ?? 0) > 0).length,
@@ -864,7 +900,7 @@ function computeHostLayout(view: ViewGraph): TopoLayout {
       for (let index = 0; index < list.length; index += CARDS_PER_ROW) {
         rows.push(list.slice(index, index + CARDS_PER_ROW));
       }
-      const rowHeights = rows.map((row) => Math.max(...row.map((item) => hostCardLayout(item.node).h)));
+      const rowHeights = rows.map((row) => Math.max(...row.map((item) => hostCardLayout(item.node, compactCards).h)));
       const contentH = rowHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, rows.length - 1) * CELL_CARD_GAP;
       const cellW = Math.max(...rows.map((row) => row.length)) * HOST_CARD_W + (Math.max(...rows.map((row) => row.length)) - 1) * CELL_CARD_GAP;
       cellDrafts.push({
@@ -886,7 +922,7 @@ function computeHostLayout(view: ViewGraph): TopoLayout {
         const rowH = cell.rowHeights[rowIndex] ?? 0;
         const rowWidth = row.length * HOST_CARD_W + (row.length - 1) * CELL_CARD_GAP;
         row.forEach((item, cardIndex) => {
-          const card = hostCardLayout(item.node);
+          const card = hostCardLayout(item.node, compactCards);
           placements.push({
             laneId: lane.id,
             node: item,
@@ -1480,8 +1516,14 @@ function cubicPoint(path: string, t: number): { x: number; y: number } {
 // 入口
 // ---------------------------------------------------------------------------
 
-export function computeLayout(view: ViewGraph): TopoLayout {
-  return view.mode === 'system' ? computeSystemLayout(view) : computeHostLayout(view);
+export interface LayoutOptions {
+  readonly compactCards?: boolean;
+}
+
+export function computeLayout(view: ViewGraph, options: LayoutOptions = {}): TopoLayout {
+  return view.mode === 'system'
+    ? computeSystemLayout(view)
+    : computeHostLayout(view, options.compactCards !== false);
 }
 
 /** 按主机名 / IP / 服务端口 / 业务系统 / 组件名过滤节点。 */

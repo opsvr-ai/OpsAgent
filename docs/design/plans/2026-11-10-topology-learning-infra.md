@@ -490,3 +490,23 @@ pnpm e2e
 - 门禁：`pnpm -r typecheck` ✅、`pnpm build` ✅、`pnpm -r test` ✅（control 233 passed/3 skipped）、
   `pnpm e2e` ✅ 14 passed；Go 测试未受本轮影响（Agent 版本 0.6.3）。
 
+## 13. 拓扑 V3 可读性重构（2026-11-10 21:00，按内网实测截图反馈）
+
+用户内网实测：1 个业务系统 / 4 台主机 / 22 个外部 IP / 72 条原始边，截图表现为边标签满屏重叠、
+外部节点一字长蛇、主机卡服务 chips 过密、无全屏、无法聚焦看关系。V3 针对「清晰直观 + 全屏 + 节点详情/关联」重构：
+
+- 边：按 source→target 聚合（真实 v3 图原始 36 → 默认 28 条；dense 场景 72 → 15 条），标签只在悬停/选中显示；
+  默认过滤管理流量（SSH/Zabbix/Node Exporter/Prometheus/Grafana/Agent 自身）与低流量边，可在「显示设置」恢复。
+- 外部依赖：按 IP 聚合 + topN（默认 8）+「其他外部依赖」节点；聚合节点详情列出全部外部 IP/端口/连接数；
+  dense 场景 22 个外部 IP → 9 组卡片。
+- 节点卡：紧凑显示主机名 + product/role + 主端口（≤2）+「N 项服务」；业务服务与系统管理服务在详情分开，
+  不再堆 `sshd:22 +13` 之类 chips；泳道高度按单元最大行数自适应。
+- 交互：**全屏模式**（覆盖式，Esc 退出；1920×1080 验证）；**点击节点进入聚焦态**，右侧详情展示组件识别、
+  指标、业务/管理服务、**入站/出站关联节点列表**（可点击切换聚焦）；支持返回全图/保持全图/全屏查看；
+  缩放 30%~300%（滚轮/按钮/1:1/适应/全图），minimap 默认不遮挡、≥150% 自动隐藏。
+- 数据清洗：控制面聚合过滤 Agent 自身 `opsagent-agent` 管理流量；`stats.externalCount` 改为唯一外部 IP 数。
+- 验证：真实 v3 图 1582×1089/1680/1920 全屏 + dense 场景（4 主机/22 外部 IP/72 边）截图；
+  Playwright audit issueCount=0、无横向溢出、无 console error；`pnpm -r typecheck` ✅、`pnpm build` ✅、
+  `pnpm -r test` ✅（control **235 passed / 3 skipped**）、`pnpm e2e` ✅ 14 passed。
+
+

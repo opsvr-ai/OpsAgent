@@ -709,3 +709,406 @@ export function advanceDemoSession(session: TopologyLearningSession, stepSeconds
 export function formatDemoTime(value: string): string {
   return new Date(value).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' });
 }
+
+
+// ---------------------------------------------------------------------------
+// Dense 演示场景（?demo=topology&case=dense）
+// 复刻内网真实图：1 个业务系统、4 台主机（sshd:22 + 多端口服务）、22 个外部 IP、
+// 72 条建连边（含 SSH/监控管理流量与大量低流量端口），0 失败、1 台未归属主机。
+// ---------------------------------------------------------------------------
+
+export const DEMO_DENSE_APP_SYSTEMS: readonly DemoAppSystemOption[] = [
+  { id: 'sys-core', name: '核心交易系统' },
+];
+
+const DENSE_SYSTEMS: readonly TopologySystemGroup[] = [
+  {
+    id: 'sys-core',
+    name: '核心交易系统',
+    code: 'CORE',
+    criticality: 'P0',
+    nodeIds: ['core-app-01', 'core-app-02', 'core-db-01', 'core-cache-01'],
+  },
+];
+
+const densePorts = (prefix: string, start: number, count: number): TopologyServicePort[] =>
+  Array.from({ length: count }, (_, index) => ({
+    name: `${prefix}-${start + index}`,
+    port: start + index,
+  }));
+
+interface DenseNodeSpec {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: TopologyNodeKind;
+  readonly tier: TopologyTier;
+  readonly hostname: string;
+  readonly ip: string;
+  readonly appSystemId?: string;
+  readonly product: string;
+  readonly role: string;
+  readonly systemService?: boolean;
+  readonly services: readonly TopologyServicePort[];
+  readonly inferred?: boolean;
+  readonly anomalies?: readonly string[];
+}
+
+function denseNode(spec: DenseNodeSpec, edges: readonly TopologyEdge[]): TopologyNode {
+  const metrics = computeMetrics(spec.id, edges);
+  return {
+    id: spec.id,
+    label: spec.label,
+    kind: spec.kind,
+    tier: spec.tier,
+    hostname: spec.hostname,
+    ip: spec.ip,
+    status: 'online',
+    services: spec.services,
+    metrics,
+    product: spec.product,
+    role: spec.role,
+    ...(spec.systemService ? { systemService: true } : {}),
+    ...(spec.appSystemId
+      ? { appSystemId: spec.appSystemId, appSystemName: '核心交易系统' }
+      : {}),
+    ...(spec.inferred ? { inferred: true } : {}),
+    ...(spec.anomalies ? { anomalies: spec.anomalies } : {}),
+    ...(spec.inferred ? { note: '模型从外部出口 IP 聚合得到的第三方依赖。' } : {}),
+  };
+}
+
+interface DenseEdgeSpec {
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly port: number;
+  readonly protocol: string;
+  readonly count: number;
+  readonly failed?: number;
+  readonly processes?: readonly string[];
+  readonly external?: boolean;
+}
+
+function buildDenseGraph(): TopologyGraph {
+  const externalHosts = Array.from({ length: 22 }, (_, index) => {
+    const ip = `198.51.100.${index + 1}`;
+    const ports = [5180, 5993, 443, 8443, 9001, 7001, 16001, 32000];
+    const port = ports[index % ports.length] ?? 5180;
+    return {
+      id: `ext-${ip.replace(/\./g, '-')}`,
+      label: ip,
+      kind: 'external' as TopologyNodeKind,
+      tier: 'external' as TopologyTier,
+      hostname: ip,
+      ip,
+      product: '外部服务',
+      role: '第三方 API',
+      services: [{ name: 'tcp', port }],
+      inferred: true,
+    };
+  });
+
+  const externalEdges: DenseEdgeSpec[] = externalHosts.map((host, index) => {
+    const sources = ['core-app-01', 'core-app-02', 'core-db-01', 'core-cache-01'];
+    const source = sources[index % sources.length] ?? 'core-app-01';
+    const port = host.services[0]?.port ?? 5180;
+    return {
+      id: `d${String(25 + index).padStart(2, '0')}`,
+      source,
+      target: host.id,
+      port,
+      protocol: 'tcp',
+      count: 380 - index * 14,
+      processes: [source === 'core-db-01' ? 'mysql' : 'core-app'],
+      external: true,
+    };
+  });
+  const extraExternalEdges: DenseEdgeSpec[] = externalHosts.slice(0, 8).map((host, index) => {
+    const sources = ['core-app-01', 'core-app-02', 'core-db-01', 'core-cache-01'];
+    return {
+      id: `d${String(47 + index).padStart(2, '0')}`,
+      source: sources[index % sources.length] ?? 'core-app-01',
+      target: host.id,
+      port: [5993, 9001, 7001, 16001][index % 4] ?? 5993,
+      protocol: 'tcp',
+      count: 120 - index * 7,
+      processes: ['core-app'],
+      external: true,
+    };
+  });
+
+  const denseEdgeSpecs: DenseEdgeSpec[] = [
+    // 管理/监控流量：默认隐藏
+    { id: 'd01', source: 'core-app-01', target: 'core-app-02', port: 22, protocol: 'tcp', count: 42, processes: ['sshd'] },
+    { id: 'd02', source: 'core-app-01', target: 'core-db-01', port: 22, protocol: 'tcp', count: 36, processes: ['sshd'] },
+    { id: 'd03', source: 'core-app-01', target: 'core-cache-01', port: 22, protocol: 'tcp', count: 18, processes: ['sshd'] },
+    { id: 'd04', source: 'core-app-02', target: 'core-db-01', port: 22, protocol: 'tcp', count: 16, processes: ['sshd'] },
+    { id: 'd05', source: 'core-app-02', target: 'core-app-01', port: 9100, protocol: 'http', count: 61, processes: ['node_exporter'] },
+    { id: 'd06', source: 'core-app-02', target: 'core-db-01', port: 9100, protocol: 'http', count: 58, processes: ['node_exporter'] },
+    { id: 'd07', source: 'core-db-01', target: 'core-app-01', port: 9100, protocol: 'http', count: 44, processes: ['node_exporter'] },
+    { id: 'd08', source: 'core-cache-01', target: 'core-db-01', port: 10050, protocol: 'http', count: 39, processes: ['node_exporter'] },
+    { id: 'd09', source: 'core-app-01', target: 'core-db-01', port: 10050, protocol: 'tcp', count: 22, processes: ['zabbix_agentd'] },
+    { id: 'd10', source: 'core-app-02', target: 'core-cache-01', port: 10050, protocol: 'tcp', count: 20, processes: ['zabbix_agentd'] },
+    { id: 'd11', source: 'core-db-01', target: 'core-cache-01', port: 22, protocol: 'tcp', count: 19, processes: ['zabbix_agentd'] },
+    { id: 'd12', source: 'core-cache-01', target: 'core-app-01', port: 22, protocol: 'tcp', count: 17, processes: ['zabbix_agentd'] },
+    { id: 'd13', source: 'core-app-01', target: 'core-app-02', port: 8080, protocol: 'http', count: 24, processes: ['opsagent-agent'] },
+    { id: 'd14', source: 'core-db-01', target: 'core-app-01', port: 3000, protocol: 'http', count: 12, processes: ['grafana'] },
+    // 业务访问
+    { id: 'd15', source: 'core-app-01', target: 'core-db-01', port: 3306, protocol: 'mysql', count: 1420, processes: ['core-app'], failed: 0 },
+    { id: 'd16', source: 'core-app-02', target: 'core-db-01', port: 3306, protocol: 'mysql', count: 960, processes: ['python-worker'] },
+    { id: 'd17', source: 'core-app-01', target: 'core-cache-01', port: 6379, protocol: 'tcp', count: 2100, processes: ['core-app'] },
+    { id: 'd18', source: 'core-app-02', target: 'core-cache-01', port: 6379, protocol: 'tcp', count: 1680, processes: ['python-worker'] },
+    { id: 'd19', source: 'core-app-01', target: 'core-app-02', port: 8443, protocol: 'http', count: 320, processes: ['core-app'] },
+    { id: 'd20', source: 'core-app-02', target: 'core-app-01', port: 8080, protocol: 'http', count: 260, processes: ['python-worker'] },
+    { id: 'd21', source: 'core-db-01', target: 'core-cache-01', port: 6379, protocol: 'tcp', count: 140, processes: ['mysql'] },
+    { id: 'd22', source: 'core-cache-01', target: 'core-db-01', port: 3306, protocol: 'mysql', count: 90, processes: ['redis-server'] },
+    { id: 'd23', source: 'core-app-01', target: 'core-db-01', port: 6432, protocol: 'postgres', count: 520, processes: ['core-app'] },
+    { id: 'd24', source: 'core-app-02', target: 'core-db-01', port: 6432, protocol: 'postgres', count: 430, processes: ['python-worker'] },
+    ...externalEdges,
+    ...extraExternalEdges,
+    // 低流量端口：默认隐藏
+    ...Array.from({ length: 18 }, (_, index) => {
+      const specs: DenseEdgeSpec[] = [
+        { id: `d${String(55 + index).padStart(2, '0')}`, source: 'core-app-01', target: 'core-db-01', port: 9001 + index, protocol: 'tcp', count: 3 + (index % 3), processes: ['core-app'] },
+      ];
+      return specs[0]!;
+    }),
+  ];
+  const edges: TopologyEdge[] = denseEdgeSpecs.map((spec) => denseEdge(spec));
+
+  const nodeSpecs: DenseNodeSpec[] = [
+    {
+      id: 'core-app-01',
+      label: 'core-app-01',
+      kind: 'service',
+      tier: 'app',
+      hostname: 'core-app-01',
+      ip: '10.10.0.11',
+      appSystemId: 'sys-core',
+      product: 'Spring Boot',
+      role: '核心交易应用',
+      services: [
+        { name: 'sshd', port: 22, process: 'sshd' },
+        { name: 'nginx', port: 80, process: 'nginx' },
+        { name: 'core-api', port: 8080, process: 'java' },
+        ...densePorts('svc', 8001, 13),
+      ],
+      anomalies: [],
+    },
+    {
+      id: 'core-app-02',
+      label: 'core-app-02',
+      kind: 'service',
+      tier: 'app',
+      hostname: 'core-app-02',
+      ip: '10.10.0.12',
+      appSystemId: 'sys-core',
+      product: 'Python',
+      role: '批量任务服务',
+      services: [
+        { name: 'sshd', port: 22, process: 'sshd' },
+        { name: 'py-api', port: 8443, process: 'python' },
+        ...densePorts('job', 8101, 14),
+      ],
+    },
+    {
+      id: 'core-db-01',
+      label: 'core-db-01',
+      kind: 'database',
+      tier: 'data',
+      hostname: 'core-db-01',
+      ip: '10.10.0.21',
+      appSystemId: 'sys-core',
+      product: 'MySQL',
+      role: '关系型数据库',
+      services: [
+        { name: 'sshd', port: 22, process: 'sshd' },
+        { name: 'mysql', port: 3306, process: 'mysqld' },
+        { name: 'mysqlx', port: 33060, process: 'mysqld' },
+        ...densePorts('db-svc', 9001, 8),
+      ],
+    },
+    {
+      id: 'core-cache-01',
+      label: 'core-cache-01',
+      kind: 'cache',
+      tier: 'middleware',
+      hostname: 'core-cache-01',
+      ip: '10.10.0.31',
+      appSystemId: 'sys-core',
+      product: 'Redis',
+      role: '缓存集群',
+      services: [
+        { name: 'sshd', port: 22, process: 'sshd' },
+        { name: 'redis', port: 6379, process: 'redis-server' },
+        { name: 'sentinel', port: 26379 },
+        ...densePorts('cache-svc', 8501, 6),
+      ],
+    },
+    {
+      id: 'ops-jump-01',
+      label: 'ops-jump-01',
+      kind: 'service',
+      tier: 'ops',
+      hostname: 'ops-jump-01',
+      ip: '10.10.0.99',
+      product: 'OpsAgent',
+      role: '运维跳板 / 监控采集',
+      systemService: true,
+      services: [
+        { name: 'sshd', port: 22, process: 'sshd' },
+        { name: 'node_exporter', port: 9100 },
+        { name: 'zabbix-agent', port: 10050 },
+        { name: 'prometheus', port: 9090 },
+        { name: 'grafana', port: 3000 },
+        { name: 'opsagent-agent', port: 8080 },
+      ],
+    },
+    ...externalHosts.map<DenseNodeSpec>((host) => ({
+      id: host.id,
+      label: host.label,
+      kind: 'external',
+      tier: 'external',
+      hostname: host.hostname,
+      ip: host.ip,
+      product: host.product,
+      role: host.role,
+      services: host.services,
+      inferred: true,
+    })),
+  ];
+
+  // 未归属主机：去掉 appSystemId / appSystemName。
+  const preparedNodes = nodeSpecs.map((spec) => {
+    const node = denseNode(spec, edges);
+    if (spec.id !== 'ops-jump-01') return node;
+    const { appSystemName: _omit, ...rest } = node;
+    return { ...rest, appSystemId: null, status: 'unknown' as TopologyNodeStatus } satisfies TopologyNode;
+  });
+
+  const totalConnections = edges.reduce((sum, edge) => sum + edge.count, 0);
+  return {
+    id: 'demo-topology-dense',
+    tenantId: 'tenant-demo',
+    sessionId: 'demo-session-dense',
+    scope: { kind: 'tenant' },
+    mode: 'host',
+    window: {
+      start: new Date(Date.now() - 900_000).toISOString(),
+      end: new Date().toISOString(),
+      seconds: 900,
+    },
+    nodes: preparedNodes,
+    edges,
+    systems: DENSE_SYSTEMS,
+    analysis: {
+      summary:
+        '规则引擎兜底结果：识别到 1 个业务系统、4 台核心主机和 22 个外部 IP。' +
+        '业务访问集中在 core-app-01/02 → MySQL/Redis；SSH、监控采集等管理流量已默认隐藏，低流量端口可按需展开。',
+      insights: [
+        {
+          id: 'dense-ins-1',
+          title: '外部依赖高度分散',
+          detail: '22 个外部 IP、30 条外部连接，单个 IP 占比均低于 5%，建议按供应商归并后再做依赖治理。',
+          severity: 'info' as const,
+          nodeIds: ['core-app-01'],
+        },
+        {
+          id: 'dense-ins-2',
+          title: '管理流量占边数 19%',
+          detail: 'SSH、node_exporter、zabbix 与 Grafana 共产生 14 条管理连接，默认已过滤，可在显示设置中恢复。',
+          severity: 'info' as const,
+          nodeIds: ['ops-jump-01'],
+        },
+        {
+          id: 'dense-ins-3',
+          title: '应用主机暴露端口较多',
+          detail: 'core-app-01 / core-app-02 分别有 16 / 16 个监听端口，建议核对非必要端口的暴露范围。',
+          severity: 'warning' as const,
+          nodeIds: ['core-app-01', 'core-app-02'],
+        },
+      ],
+      hotPaths: [
+        {
+          label: '交易主链路：应用 → MySQL',
+          nodeIds: ['core-app-01', 'core-db-01'],
+          edgeIds: ['d15'],
+          connections: 1420,
+        },
+        {
+          label: '缓存链路：应用 → Redis',
+          nodeIds: ['core-app-01', 'core-cache-01'],
+          edgeIds: ['d17'],
+          connections: 2100,
+        },
+      ],
+      risks: [
+        {
+          id: 'dense-risk-1',
+          title: '外部依赖缺少分组',
+          detail: '22 个外部 IP 中大部分为随机高端口，建议按供应商 / 域名聚合。',
+          severity: 'info' as const,
+          nodeIds: ['core-app-01'],
+        },
+      ],
+      model: 'rules-v2',
+      promptVersion: 'topology-v2',
+      generatedAt: new Date().toISOString(),
+      confidence: 0.62,
+      durationMs: 12,
+      fallback: true,
+    },
+    stats: {
+      nodeCount: preparedNodes.length,
+      edgeCount: edges.length,
+      hostCount: 4,
+      systemCount: 1,
+      externalCount: 22,
+      totalConnections,
+      failedConnections: 0,
+      samples: 18640,
+      reportingAgents: 4,
+      excludedUnassigned: 1,
+    },
+    createdAt: new Date().toISOString(),
+    version: 1,
+  };
+}
+
+function denseEdge(spec: DenseEdgeSpec): TopologyEdge {
+  return {
+    id: spec.id,
+    source: spec.source,
+    target: spec.target,
+    protocol: spec.protocol,
+    port: spec.port,
+    count: spec.count,
+    opened: spec.count,
+    failed: spec.failed ?? 0,
+    confidence: 1,
+    countBasis: 'observed',
+    ...(spec.processes ? { processes: spec.processes } : {}),
+    ...(spec.external ? { external: true } : {}),
+  };
+}
+
+export const DEMO_DENSE_GRAPH: TopologyGraph = buildDenseGraph();
+
+export const DEMO_DENSE_SUMMARIES: readonly TopologyGraphSummary[] = [
+  {
+    id: DEMO_DENSE_GRAPH.id,
+    sessionId: DEMO_DENSE_GRAPH.sessionId,
+    scope: DEMO_DENSE_GRAPH.scope,
+    mode: DEMO_DENSE_GRAPH.mode,
+    window: DEMO_DENSE_GRAPH.window,
+    nodeCount: DEMO_DENSE_GRAPH.stats.nodeCount,
+    edgeCount: DEMO_DENSE_GRAPH.stats.edgeCount,
+    totalConnections: DEMO_DENSE_GRAPH.stats.totalConnections,
+    failedConnections: DEMO_DENSE_GRAPH.stats.failedConnections,
+    model: DEMO_DENSE_GRAPH.analysis.model,
+    fallback: true,
+    createdAt: DEMO_DENSE_GRAPH.createdAt,
+    version: 1,
+    summary: DEMO_DENSE_GRAPH.analysis.summary,
+  },
+];

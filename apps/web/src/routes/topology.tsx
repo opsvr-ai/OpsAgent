@@ -19,6 +19,7 @@ import {
   analyzeTopologySession,
   cancelTopologySession,
   listAppSystems,
+  listAvailableModels,
   startTopologyLearning,
   updateTopologyPolicy,
 } from '../api/client.js';
@@ -39,6 +40,9 @@ import { LearningWizard, PolicyPanel, type AppSystemOption } from '../topology/l
 import { MiniIcon } from '../topology/icons.js';
 import {
   DEMO_APP_SYSTEMS,
+  DEMO_DENSE_APP_SYSTEMS,
+  DEMO_DENSE_GRAPH,
+  DEMO_DENSE_SUMMARIES,
   DEMO_GRAPH,
   DEMO_GRAPH_SUMMARIES,
   DEMO_POLICY,
@@ -48,6 +52,16 @@ import {
   demoNextGraph,
   demoPolicy,
 } from '../topology/demo.js';
+import {
+  DEFAULT_DISPLAY_SETTINGS,
+  buildRelatedNodes,
+  loadDisplaySettings,
+  prepareTopology,
+  saveDisplaySettings,
+  splitServices,
+  type ExternalGroupInfo,
+  type TopologyDisplaySettings,
+} from '../topology/v3.js';
 import './topology.css';
 
 export interface TopologyProps {
@@ -100,14 +114,18 @@ function timeOf(value: string): string {
 }
 
 export function Topology({ onBack, demo = false }: TopologyProps): ReactElement {
-  const [graph, setGraph] = useState<TopologyGraph | null>(demo ? DEMO_GRAPH : null);
-  const [graphList, setGraphList] = useState<TopologyGraphSummary[]>(demo ? [...DEMO_GRAPH_SUMMARIES] : []);
-  const [appSystems, setAppSystems] = useState<readonly AppSystemOption[]>(demo ? DEMO_APP_SYSTEMS : []);
+  const denseCase = demo && new URLSearchParams(window.location.search).get('case') === 'dense';
+  const initialGraph = denseCase ? DEMO_DENSE_GRAPH : DEMO_GRAPH;
+  const initialSummaries = denseCase ? DEMO_DENSE_SUMMARIES : DEMO_GRAPH_SUMMARIES;
+  const initialSystems = denseCase ? DEMO_DENSE_APP_SYSTEMS : DEMO_APP_SYSTEMS;
+  const [graph, setGraph] = useState<TopologyGraph | null>(demo ? initialGraph : null);
+  const [graphList, setGraphList] = useState<TopologyGraphSummary[]>(demo ? [...initialSummaries] : []);
+  const [appSystems, setAppSystems] = useState<readonly AppSystemOption[]>(demo ? initialSystems : []);
   const [policy, setPolicy] = useState<TopologyLearningPolicy | null>(demo ? DEMO_POLICY : null);
   const [loading, setLoading] = useState(!demo);
   const [loadError, setLoadError] = useState<LoadError>(null);
   const [scopeId, setScopeId] = useState('');
-  const [historyId, setHistoryId] = useState(demo ? DEMO_GRAPH.id : '');
+  const [historyId, setHistoryId] = useState(demo ? initialGraph.id : '');
   const [viewMode, setViewMode] = useState<TopoViewMode>('host');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -116,6 +134,15 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [filterAnomaly, setFilterAnomaly] = useState(false);
   const [filterCross, setFilterCross] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
+  const [displaySettings, setDisplaySettings] = useState<TopologyDisplaySettings>(() =>
+    demo ? DEFAULT_DISPLAY_SETTINGS : loadDisplaySettings(),
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [railOpen, setRailOpen] = useState(true);
+  const [keepFullView, setKeepFullView] = useState(false);
+  const [fitEpoch, setFitEpoch] = useState(0);
+  const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
   const [analysisNodeIds, setAnalysisNodeIds] = useState<readonly string[] | null>(null);
   const [analysisEdgeIds, setAnalysisEdgeIds] = useState<readonly string[] | null>(null);
   const [activeHotPath, setActiveHotPath] = useState<number | null>(null);
@@ -165,9 +192,9 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
 
   const loadTopology = useCallback(async (): Promise<void> => {
     if (demo) {
-      setGraph(DEMO_GRAPH);
-      setGraphList([...DEMO_GRAPH_SUMMARIES]);
-      setHistoryId(DEMO_GRAPH.id);
+      setGraph(initialGraph);
+      setGraphList([...initialSummaries]);
+      setHistoryId(initialGraph.id);
       setLoading(false);
       setLoadError(null);
       return;
@@ -189,7 +216,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     } finally {
       setLoading(false);
     }
-  }, [demo, scopeId]);
+  }, [demo, initialGraph, initialSummaries, scopeId]);
 
   useEffect(() => {
     void loadTopology();
@@ -197,7 +224,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
 
   useEffect(() => {
     if (demo) {
-      setAppSystems(DEMO_APP_SYSTEMS);
+      setAppSystems(initialSystems);
       setPolicy(DEMO_POLICY);
       return;
     }
@@ -228,7 +255,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     return () => {
       cancelled = true;
     };
-  }, [demo, scopeId]);
+  }, [demo, initialSystems, scopeId]);
 
   // 切换范围 / 版本时清空画布上的临时高亮。
   useEffect(() => {
@@ -314,20 +341,73 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   useEffect(() => {
     const handler = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
-      if (policyOpen) setPolicyOpen(false);
+      if (settingsOpen) setSettingsOpen(false);
+      else if (policyOpen) setPolicyOpen(false);
       else if (wizardOpen && !(session && RUNNING_STATUS.has(session.status))) setWizardOpen(false);
-      else if (selectedId) setSelectedId(null);
-      else if (focusId) setFocusId(null);
+      else if (fullscreen) setFullscreen(false);
+      else if (selectedId) {
+        setSelectedId(null);
+        setFocusId(null);
+      } else if (focusId) setFocusId(null);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [focusId, policyOpen, selectedId, session, wizardOpen]);
+  }, [focusId, fullscreen, policyOpen, selectedId, session, settingsOpen, wizardOpen]);
 
-  const view = useMemo(
-    () => (graph ? buildViewGraph(graph, viewMode, { includeUnassigned: showUnassigned }) : null),
-    [graph, showUnassigned, viewMode],
+  useEffect(() => {
+    if (demo) return;
+    let cancelled = false;
+    void listAvailableModels()
+      .then((models) => {
+        if (!cancelled) setModelAvailable(models.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setModelAvailable(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demo]);
+
+  useEffect(() => {
+    saveDisplaySettings(displaySettings);
+  }, [displaySettings]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handler = (event: MouseEvent): void => {
+      const target = event.target as Element | null;
+      if (target?.closest('.topo-settings-pop') || target?.closest('[aria-haspopup="dialog"]')) return;
+      setSettingsOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [settingsOpen]);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [fullscreen]);
+
+  const prepared = useMemo(
+    () => (graph ? prepareTopology(graph, displaySettings, showUnassigned) : null),
+    [displaySettings, graph, showUnassigned],
   );
-  const layout = useMemo(() => (view ? computeLayout(view) : null), [view]);
+  const view = useMemo(
+    () =>
+      prepared
+        ? buildViewGraph(prepared.graph, viewMode, { includeUnassigned: showUnassigned })
+        : null,
+    [prepared, showUnassigned, viewMode],
+  );
+  const layout = useMemo(
+    () => (view ? computeLayout(view, { compactCards: displaySettings.compactCards }) : null),
+    [displaySettings.compactCards, view],
+  );
   const systemColors = useMemo(
     () => new Map((layout?.systemLegend ?? []).map((system) => [system.id, system.color])),
     [layout],
@@ -336,6 +416,37 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     () => (selectedId && layout ? layout.nodeById.get(selectedId) ?? null : null),
     [layout, selectedId],
   );
+  const externalGroup: ExternalGroupInfo | null =
+    selectedId && prepared ? prepared.externalGroups.get(selectedId) ?? null : null;
+  const relatedNodes = useMemo(
+    () =>
+      prepared && selectedId
+        ? buildRelatedNodes(prepared.graph.edges, prepared.graph.nodes, selectedId)
+        : { outgoing: [], incoming: [] },
+    [prepared, selectedId],
+  );
+  const selectedNodeServices = useMemo(
+    () => (selectedNode ? splitServices(selectedNode.node.services) : { business: [], management: [] }),
+    [selectedNode],
+  );
+  const neighbourhood = useMemo(() => {
+    if (!layout || !selectedId) return new Set<string>();
+    const ids = new Set<string>([selectedId]);
+    for (const edge of layout.edges) {
+      if (edge.sourceId === selectedId) ids.add(edge.targetId);
+      if (edge.targetId === selectedId) ids.add(edge.sourceId);
+    }
+    return ids;
+  }, [layout, selectedId]);
+  // 点击节点后自动 fit 该节点的 ego network（可在详情里切换「保持全图」）。
+  useEffect(() => {
+    if (!selectedId || keepFullView || neighbourhood.size === 0) return;
+    setCenterTarget((previous) => ({
+      ids: [...neighbourhood],
+      epoch: (previous?.epoch ?? 0) + 1,
+    }));
+  }, [keepFullView, neighbourhood, selectedId]);
+
 
   const matchCount = useMemo(() => {
     if (!layout || !search.trim()) return 0;
@@ -562,6 +673,8 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       return;
     }
     setSelectedId(id);
+    setFocusId(id);
+    setRailOpen(true);
     setAnalysisNodeIds(null);
     setAnalysisEdgeIds(null);
     setActiveHotPath(null);
@@ -612,7 +725,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       if (!id) return;
       setHistoryId(id);
       if (demo) {
-        setGraph(demoGraphById(id));
+        setGraph(denseCase && id === DEMO_DENSE_GRAPH.id ? DEMO_DENSE_GRAPH : demoGraphById(id));
         return;
       }
       setLoading(true);
@@ -625,7 +738,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
         setLoading(false);
       }
     },
-    [demo, showToast],
+    [denseCase, demo, showToast],
   );
 
   const back = onBack ?? ((): void => {
@@ -654,7 +767,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const scopeName = scopeId ? scopeOptions.find((system) => system.id === scopeId)?.name ?? '应用系统' : '全部应用系统';
 
   return (
-    <div className="app">
+    <div className={`app topo-shell${fullscreen ? ' topo-fullscreen' : ''}`}>
       <AppSidebar active="topology" onHome={back} />
       <section className="main">
         <header className="topbar">
@@ -931,8 +1044,132 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                           : ''}
                       </em>
                     </button>
+                    <button
+                      type="button"
+                      className={`topo-filter${settingsOpen ? ' is-on' : ''}`}
+                      onClick={() => setSettingsOpen((current) => !current)}
+                      aria-expanded={settingsOpen}
+                      aria-haspopup="dialog"
+                    >
+                      <MiniIcon name="filter" size={13} /> 显示设置
+                    </button>
+                    <button
+                      type="button"
+                      className={`topo-filter${railOpen ? ' is-on' : ''}`}
+                      onClick={() => setRailOpen((current) => !current)}
+                      aria-pressed={railOpen}
+                      title="显示/隐藏右侧分析抽屉"
+                    >
+                      <MiniIcon name="layers" size={13} /> 分析
+                    </button>
+                    <button
+                      type="button"
+                      className={`topo-filter${fullscreen ? ' is-on' : ''}`}
+                      onClick={() => {
+                        setFullscreen((current) => {
+                          if (!current) setRailOpen(false);
+                          return !current;
+                        });
+                        setFitEpoch((current) => current + 1);
+                      }}
+                      aria-pressed={fullscreen}
+                      title={fullscreen ? '退出全屏（Esc）' : '页面内全屏查看拓扑'}
+                    >
+                      <MiniIcon name="fit" size={13} /> {fullscreen ? '退出全屏' : '全屏'}
+                    </button>
                   </div>
                 </div>
+
+                {settingsOpen ? (
+                  <div className="topo-settings-pop" role="dialog" aria-label="显示设置">
+                    <div className="topo-settings-head">
+                      <strong>显示设置</strong>
+                      <button type="button" className="topo-icon-btn" aria-label="关闭显示设置" onClick={() => setSettingsOpen(false)}>
+                        <MiniIcon name="close" size={13} />
+                      </button>
+                    </div>
+                    <div className="topo-settings-row">
+                      <div>
+                        <strong>边标签</strong>
+                        <span>默认只在悬停/选中边时显示完整标签</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`switch topo-switch${displaySettings.edgeLabels ? ' is-on' : ''}`}
+                        aria-pressed={displaySettings.edgeLabels}
+                        aria-label="显示边标签"
+                        onClick={() => setDisplaySettings((current) => ({ ...current, edgeLabels: !current.edgeLabels }))}
+                      />
+                    </div>
+                    <div className="topo-settings-row">
+                      <div>
+                        <strong>管理流量</strong>
+                        <span>SSH / Zabbix / node_exporter / Prometheus / Grafana / Agent</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`switch topo-switch${displaySettings.management ? ' is-on' : ''}`}
+                        aria-pressed={displaySettings.management}
+                        aria-label="显示管理流量"
+                        onClick={() => setDisplaySettings((current) => ({ ...current, management: !current.management }))}
+                      />
+                    </div>
+                    <div className="topo-settings-row">
+                      <div>
+                        <strong>低流量边</strong>
+                        <span>关闭时隐藏占比低于 0.4% 的长尾端口边</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`switch topo-switch${displaySettings.showAllEdges ? ' is-on' : ''}`}
+                        aria-pressed={displaySettings.showAllEdges}
+                        aria-label="显示全部低流量边"
+                        onClick={() => setDisplaySettings((current) => ({ ...current, showAllEdges: !current.showAllEdges }))}
+                      />
+                    </div>
+                    <div className="topo-settings-row">
+                      <div>
+                        <strong>外部依赖 topN</strong>
+                        <span>按连接数保留前 N 个 IP，其余折叠</span>
+                      </div>
+                      <select
+                        className="select topo-settings-select"
+                        value={displaySettings.externalTopN}
+                        onChange={(event) =>
+                          setDisplaySettings((current) => ({ ...current, externalTopN: Number(event.target.value) }))
+                        }
+                        aria-label="外部依赖 topN"
+                      >
+                        {[4, 8, 12, 16].map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="topo-settings-row">
+                      <div>
+                        <strong>紧凑卡片</strong>
+                        <span>关闭后最多显示 2 个端口</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`switch topo-switch${displaySettings.compactCards ? ' is-on' : ''}`}
+                        aria-pressed={displaySettings.compactCards}
+                        aria-label="紧凑卡片"
+                        onClick={() => setDisplaySettings((current) => ({ ...current, compactCards: !current.compactCards }))}
+                      />
+                    </div>
+                    <div className="topo-settings-foot">
+                      <span>
+                        原始 {prepared?.stats.originalEdgeCount ?? 0} 条边 · 当前 {layout?.edges.length ?? 0} 条
+                      </span>
+                      <span>
+                        已过滤 SSH/管理 {prepared?.stats.hiddenManagement ?? 0} · 低流量 {prepared?.stats.hiddenLowTraffic ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="topo-statbar">
                   {systemViewStats ? (
@@ -964,31 +1201,33 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                   ) : (
                     <>
                       <span className="topo-statbar-item">
-                        节点 <b>{hostStats.nodes}</b>
+                        主机 <b>{prepared?.stats.hostCount ?? 0}</b> · 外部 IP <b>{prepared?.stats.externalIpCount ?? 0}</b>
                       </span>
                       <span className="topo-statbar-sep" />
                       <span className="topo-statbar-item">
-                        链路 <b>{hostStats.edges}</b>
+                        链路 <b>{layout.edges.length}</b>
+                        <em className="topo-statbar-note"> / 原始 {prepared?.stats.originalEdgeCount ?? 0}</em>
                       </span>
                       <span className="topo-statbar-sep" />
                       <span className="topo-statbar-item">
-                        连接 <b>{(hostStats.connections / 1000).toFixed(1)}k</b>
+                        连接 <b>{((prepared?.stats.totalConnections ?? 0) / 1000).toFixed(1)}k</b>
                       </span>
                       <span className="topo-statbar-sep" />
                       <span className="topo-statbar-item is-danger">
-                        失败连接 <b>{hostStats.failed}</b>
+                        失败连接 <b>{prepared?.stats.failedConnections ?? 0}</b>
                       </span>
                       <span className="topo-statbar-sep" />
                       <span className="topo-statbar-item">
-                        业务系统 <b>{hostStats.systems}</b> · 外部依赖 <b>{hostStats.external}</b>
+                        业务系统 <b>{hostStats.systems}</b> · 外部依赖 <b>{prepared?.stats.externalIpCount ?? 0} 个 IP</b>
+                        <em className="topo-statbar-note">（{prepared?.stats.externalCardCount ?? 0} 组卡片）</em>
                       </span>
                       <span className="topo-statbar-sep is-optional" />
-                      <span className="topo-statbar-item is-optional">
-                        窗口 <b>{Math.round(graph.window.seconds / 60)} 分钟</b>
+                      <span className="topo-statbar-item is-optional is-muted">
+                        已过滤 管理 {prepared?.stats.hiddenManagement ?? 0} · 低流量 {prepared?.stats.hiddenLowTraffic ?? 0}
                       </span>
                       <span className="topo-statbar-sep is-optional" />
-                      <span className="topo-statbar-item is-optional">
-                        样本 <b>{((stats?.samples ?? 0) / 1000).toFixed(1)}k</b> · Agent <b>{stats?.reportingAgents ?? 0}</b>
+                      <span className="topo-statbar-item is-optional is-muted">
+                        窗口 <b>{Math.round(graph.window.seconds / 60)} 分钟</b> · Agent <b>{stats?.reportingAgents ?? 0}</b>
                       </span>
                     </>
                   )}
@@ -1071,6 +1310,27 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     </span>
                   ) : null}
                   <span className="topo-focusbar-spacer" />
+                  {selectedId ? (
+                    <button
+                      type="button"
+                      className={`topo-focusbar-link${keepFullView ? ' is-on' : ''}`}
+                      onClick={() => setKeepFullView((current) => !current)}
+                      title="开启后点击节点不再自动缩放到 ego network"
+                    >
+                      {keepFullView ? '已保持全图' : '保持全图'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="topo-focusbar-link"
+                    onClick={() => {
+                      setSelectedId(null);
+                      setFocusId(null);
+                      setFitEpoch((current) => current + 1);
+                    }}
+                  >
+                    返回全图
+                  </button>
                   <button
                     type="button"
                     className="topo-focusbar-link"
@@ -1100,6 +1360,8 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                   filterAnomaly={filterAnomaly}
                   filterCross={filterCross}
                   centerTarget={centerTarget}
+                  showEdgeLabels={displaySettings.edgeLabels}
+                  fitEpoch={fitEpoch}
                   onSelect={handleSelect}
                   onFocus={handleFocus}
                   onDrill={handleDrill}
@@ -1163,16 +1425,36 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                 </footer>
               </section>
 
-              <aside className="topo-rail" aria-label="分析面板">
+              <aside className={`topo-rail${railOpen ? '' : ' is-collapsed'}`} aria-label="分析面板">
                 {selectedNode ? (
                   <NodeDetailPanel
                     node={selectedNode}
                     view={view}
-                    graph={graph}
+                    graph={prepared?.graph ?? graph}
                     systemColors={systemColors}
-                    onClose={() => setSelectedId(null)}
+                    services={selectedNodeServices}
+                    relatedNodes={relatedNodes}
+                    externalGroup={externalGroup}
+                    keepFullView={keepFullView}
+                    onClose={() => {
+                      setSelectedId(null);
+                      setFocusId(null);
+                    }}
                     onFocus={() => setFocusId(selectedNode.id)}
-                    onSelectNode={(id) => setSelectedId(id)}
+                    onNavigate={(id) => {
+                      setSelectedId(id);
+                      setFocusId(id);
+                    }}
+                    onToggleKeepFullView={() => setKeepFullView((current) => !current)}
+                    onReturnFull={() => {
+                      setSelectedId(null);
+                      setFocusId(null);
+                      setFitEpoch((current) => current + 1);
+                    }}
+                    onFullscreen={() => {
+                      setFullscreen(true);
+                      setFitEpoch((current) => current + 1);
+                    }}
                     onOpenAgent={openAgents}
                   />
                 ) : (
@@ -1183,6 +1465,13 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     onHotPath={focusHotPath}
                     onInsight={focusInsight}
                     onClear={clearAnalysis}
+                    onOpenModels={() => {
+                      if (demo) {
+                        showToast('ok', '演示模式：已模拟跳转到模型配置');
+                        return;
+                      }
+                      window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'models' }));
+                    }}
                   />
                 )}
               </aside>
@@ -1198,6 +1487,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
         busy={busy}
         session={session}
         graphVersion={graph?.version ?? null}
+        modelAvailable={demo ? true : modelAvailable}
         error={wizardError}
         onStart={(input) => void startLearning(input)}
         onCancel={() => void cancelLearning()}

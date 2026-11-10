@@ -229,6 +229,21 @@ function isTcpProtocol(value: string): boolean {
   return protocol === '' || protocol === 'tcp' || protocol === 'tcp4' || protocol === 'tcp6';
 }
 
+/**
+ * Agent 自身管理流量（心跳/命令通道）不应进入业务拓扑。
+ * 只匹配 opsagent-agent 这个特定前缀/子串，避免误伤 zabbix_agent2、java agent 等业务进程。
+ */
+function isAgentSelfTraffic(edge: LearningEdgeSource): boolean {
+  const process = edge.process.toLowerCase();
+  const service = edge.service.toLowerCase();
+  const command = edge.command.toLowerCase();
+  if (process.includes('opsagent-agent') || service.includes('opsagent-agent') || command.includes('opsagent-agent')) {
+    return true;
+  }
+  const normalizedService = service.trim();
+  return normalizedService === 'opsagent-agent' || normalizedService.startsWith('opsagent-agent-');
+}
+
 // ---------------------------------------------------------------------------
 // 纯函数：窗口样本 → TopologyLearningInput
 // ---------------------------------------------------------------------------
@@ -446,6 +461,8 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     if (!isEligible(localAgent)) continue;
     if (!isTcpProtocol(edge.protocol)) continue;
     if (edge.direction !== 'out' && edge.direction !== 'in') continue;
+    // 排除 Agent 自身到控制面的管理连接（心跳/命令通道）。
+    if (isAgentSelfTraffic(edge)) continue;
     const peerIp = normalizeTopologyAddress(edge.peerAddress);
     if (!peerIp || isLoopbackAddress(peerIp)) continue;
     const peerPort = Math.min(Math.max(Math.floor(num(edge.peerPort)), 0), 65535);
@@ -652,6 +669,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     .sort((a, b) => b.opened - a.opened)
     .slice(0, 200);
 
+  const uniqueExternalIps = new Set(externalPeersList.map((peer) => normalizeTopologyAddress(peer.ip)));
   const systemIds = new Set<string>();
   for (const host of limitedHosts) if (host.appSystemId) systemIds.add(host.appSystemId);
   let totalConnections = 0;
@@ -671,7 +689,8 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     edgeCount: limitedEdges.length,
     hostCount: limitedHosts.length,
     systemCount: systemIds.size,
-    externalCount: externalPeersList.length,
+    // 前端外部节点按 IP 聚合，这里也用唯一外部 IP 数，避免同 IP 多端口把计数放大。
+    externalCount: uniqueExternalIps.size,
     totalConnections,
     failedConnections,
     samples: sources.edges.length,
@@ -1172,9 +1191,15 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
     systemCount: new Set(
       systems.filter((system) => system.name !== '未归属').map((system) => system.id),
     ).size,
+    // 外部依赖按唯一 IP 计数，与前端外部节点口径一致。
     externalCount: Math.max(
       input.stats.externalCount,
-      effectiveNodes.filter((node) => node.kind === 'external').length,
+      new Set(
+        effectiveNodes
+          .filter((node) => node.kind === 'external')
+          .map((node) => normalizeTopologyAddress(node.ip ?? node.label))
+          .filter(Boolean),
+      ).size,
     ),
     totalConnections: edges.reduce((sum, edge) => sum + edge.count, 0),
     failedConnections: edges.reduce((sum, edge) => sum + edge.failed, 0),

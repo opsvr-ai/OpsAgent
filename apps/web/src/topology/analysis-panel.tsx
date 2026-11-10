@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react';
-import type { TopologyGraph, TopologyHotPath, TopologyInsight } from '@opsagent/contracts';
+import { useState, type ReactElement } from 'react';
+import type { TopologyGraph, TopologyHotPath, TopologyInsight, TopologyServicePort } from '@opsagent/contracts';
 import { relativeTime } from '../format.js';
 import {
   displayProduct,
@@ -11,6 +11,7 @@ import {
   type PositionedNode,
   type ViewGraph,
 } from './layout.js';
+import type { ExternalGroupInfo, RelatedNode } from './v3.js';
 import { KindIcon, MiniIcon } from './icons.js';
 
 export interface AnalysisPanelProps {
@@ -20,6 +21,7 @@ export interface AnalysisPanelProps {
   readonly onHotPath: (index: number) => void;
   readonly onInsight: (insight: TopologyInsight) => void;
   readonly onClear: () => void;
+  readonly onOpenModels: () => void;
 }
 
 const SEVERITY_LABEL: Record<TopologyInsight['severity'], string> = {
@@ -37,16 +39,11 @@ function windowLabel(seconds: number): string {
   return `${Math.round(seconds / 60)} 分钟`;
 }
 
-function PathChain({ graph, path }: { graph: TopologyGraph; path: TopologyHotPath }): ReactElement {
+function PathChain({ graph, path, maxWidth = 220 }: { graph: TopologyGraph; path: TopologyHotPath; maxWidth?: number }): ReactElement {
   const full = path.nodeIds.map((id) => nodeLabel(graph, id)).join(' → ');
   return (
     <span className="topo-hotpath-chain" title={full}>
-      {path.nodeIds.map((id, index) => (
-        <span key={id}>
-          {index > 0 ? <em> → </em> : null}
-          {nodeLabel(graph, id)}
-        </span>
-      ))}
+      {truncateText(full, maxWidth, 11)}
     </span>
   );
 }
@@ -58,6 +55,7 @@ export function AnalysisPanel({
   onHotPath,
   onInsight,
   onClear,
+  onOpenModels,
 }: AnalysisPanelProps): ReactElement {
   const analysis = graph.analysis;
   const fallback = analysis.fallback ?? false;
@@ -68,7 +66,8 @@ export function AnalysisPanel({
   const modelLabel = fallback || rawModel === '' || rawModel === 'llm' || rawModel === 'fallback'
     ? '规则引擎兜底'
     : rawModel;
-  const shortModel = modelLabel.length > 16 ? `${modelLabel.slice(0, 16)}…` : modelLabel;
+  const shortModel = modelLabel.length > 18 ? `${modelLabel.slice(0, 18)}…` : modelLabel;
+
   return (
     <div className="topo-rail-scroll">
       <div className="topo-rail-head">
@@ -81,6 +80,25 @@ export function AnalysisPanel({
           {shortModel}
         </span>
       </div>
+
+      {fallback ? (
+        <div className="topo-fallback-notice">
+          <div className="topo-fallback-head">
+            <MiniIcon name="warning" size={14} />
+            <strong>当前为规则引擎兜底生成</strong>
+          </div>
+          <p>
+            在「模型配置」添加 OpenAI / Anthropic 兼容模型后重新学习，将由大模型基于提示词识别组件与分层。
+          </p>
+          <button type="button" className="btn btn-outline btn-sm" onClick={onOpenModels}>
+            <MiniIcon name="settings" size={12} /> 去模型配置
+          </button>
+        </div>
+      ) : (
+        <div className="topo-model-line">
+          <MiniIcon name="spark" size={12} /> 大模型生成 · <b>{modelLabel}</b> · prompt <b>{analysis.promptVersion}</b>
+        </div>
+      )}
 
       <p className="topo-summary">{analysis.summary}</p>
 
@@ -114,11 +132,7 @@ export function AnalysisPanel({
         </div>
       </div>
 
-      {fallback ? (
-        <p className="topo-analysis-warning">
-          本次未获取到可用的模型结果，已自动使用规则引擎兜底生成，结论置信度可能略低。
-        </p>
-      ) : null}
+      {analysis.warning ? <p className="topo-analysis-warning">{analysis.warning}</p> : null}
 
       <section className="topo-rail-section">
         <div className="topo-rail-section-head">
@@ -222,9 +236,16 @@ export interface NodeDetailPanelProps {
   readonly view: ViewGraph;
   readonly graph: TopologyGraph;
   readonly systemColors: ReadonlyMap<string, string>;
+  readonly services: { business: readonly TopologyServicePort[]; management: readonly TopologyServicePort[] };
+  readonly relatedNodes: { outgoing: readonly RelatedNode[]; incoming: readonly RelatedNode[] };
+  readonly externalGroup: ExternalGroupInfo | null;
+  readonly keepFullView: boolean;
   readonly onClose: () => void;
   readonly onFocus: () => void;
-  readonly onSelectNode: (id: string) => void;
+  readonly onNavigate: (id: string) => void;
+  readonly onToggleKeepFullView: () => void;
+  readonly onReturnFull: () => void;
+  readonly onFullscreen: () => void;
   readonly onOpenAgent: () => void;
 }
 
@@ -234,21 +255,81 @@ const STATUS_LABEL: Record<string, string> = {
   unknown: '未上报',
 };
 
+function ServiceRows({ services }: { services: readonly TopologyServicePort[] }): ReactElement {
+  return (
+    <div className="topo-service-list">
+      {services.length === 0 ? <p className="topo-rail-empty">暂无。</p> : null}
+      {services.map((service) => (
+        <div key={`${service.name}-${service.port}`} className="topo-service-row">
+          <span className="topo-service-name">{service.name.replace(/:\d+$/, '') || '服务'}</span>
+          <span className="topo-service-port mono">:{service.port}</span>
+          <span className="topo-service-proc">{service.process ?? '—'}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RelatedList({
+  title,
+  items,
+  onNavigate,
+}: {
+  title: string;
+  items: readonly RelatedNode[];
+  onNavigate: (id: string) => void;
+}): ReactElement {
+  return (
+    <section className="topo-rail-section">
+      <div className="topo-rail-section-head">
+        <h3>{title}</h3>
+        <span className="topo-rail-section-sub">{items.length} 个节点</span>
+      </div>
+      <div className="topo-related-list">
+        {items.length === 0 ? <p className="topo-rail-empty">暂无关联节点。</p> : null}
+        {items.map((item) => (
+          <button key={item.nodeId} type="button" className="topo-related-row" onClick={() => onNavigate(item.nodeId)}>
+            <span className="topo-related-main">
+              <strong>{item.label}</strong>
+              <span className="topo-related-sub">
+                {item.role}
+                {item.ports.length > 0 ? ` · :${item.ports.slice(0, 4).join('/')}` : ''}
+              </span>
+            </span>
+            <span className="topo-related-count">
+              {formatConnections(item.connections)}
+              {item.failed > 0 ? <em>失败 {item.failed}</em> : null}
+            </span>
+            <MiniIcon name="chevron-right" size={12} />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function NodeDetailPanel({
   node,
   view,
   graph,
   systemColors,
+  services,
+  relatedNodes,
+  externalGroup,
+  keepFullView,
   onClose,
   onFocus,
-  onSelectNode,
+  onNavigate,
+  onToggleKeepFullView,
+  onReturnFull,
+  onFullscreen,
   onOpenAgent,
 }: NodeDetailPanelProps): ReactElement {
-  const labelById = new Map(view.nodes.map((item) => [item.node.id, item.node.label]));
   const systemColor = node.systemId ? systemColors.get(node.systemId) ?? node.systemColor : node.systemColor;
-  const incoming = graph.edges.filter((edge) => edge.target === node.id);
-  const outgoing = graph.edges.filter((edge) => edge.source === node.id);
   const anomalies = node.node.anomalies ?? [];
+  const [activeTargetIp, setActiveTargetIp] = useState<string | null>(null);
+  const product = displayProduct(node.node);
+  const tone = productTone(node.node.product);
   return (
     <div className="topo-rail-scroll">
       <div className="topo-detail-head">
@@ -256,7 +337,7 @@ export function NodeDetailPanel({
           <KindIcon kind={node.node.kind} size={20} color={systemColor} />
         </div>
         <div className="topo-detail-titles">
-          <div className="topo-rail-eyebrow">NODE INSPECTOR · 组件与节点详情</div>
+          <div className="topo-rail-eyebrow">NODE INSPECTOR · 节点与关系</div>
           <h2 className="topo-rail-title">{node.node.label}</h2>
           <div className="topo-detail-sub">
             <span className="topo-status-pill" data-status={node.node.status}>
@@ -279,7 +360,6 @@ export function NodeDetailPanel({
         <span>
           IP <b className="mono">{node.node.ip ?? '—'}</b>
         </span>
-        {node.aggregated ? <span>聚合 <b>{node.hostCount} 台主机</b></span> : null}
       </div>
 
       <div className="topo-detail-metrics">
@@ -300,13 +380,13 @@ export function NodeDetailPanel({
 
       <section className="topo-rail-section">
         <div className="topo-rail-section-head">
-          <h3>大模型识别结果</h3>
-          <span className="topo-rail-section-sub">依据端口与进程证据</span>
+          <h3>组件识别</h3>
+          <span className="topo-rail-section-sub">大模型 / 规则引擎</span>
         </div>
         <div className="topo-identify-grid">
           <div>
             <span>组件 / 产品</span>
-            <strong style={{ color: productTone(node.node.product).fg }}>{displayProduct(node.node)}</strong>
+            <strong style={{ color: tone.fg }}>{product}</strong>
           </div>
           <div>
             <span>架构角色</span>
@@ -317,26 +397,59 @@ export function NodeDetailPanel({
             <strong>{node.node.systemService ? '系统/运维服务' : kindLabel(node.node.kind)}</strong>
           </div>
         </div>
-        <p className="topo-identify-note">
-          大模型基于 Agent 采集的监听端口、进程名/命令行与建连证据识别组件和分层；模型不可用时由规则引擎兜底。
-        </p>
+      </section>
+
+      {externalGroup ? (
+        <section className="topo-rail-section">
+          <div className="topo-rail-section-head">
+            <h3>{externalGroup.isAggregate ? '全部外部目标' : '外部目标'}</h3>
+            <span className="topo-rail-section-sub">{externalGroup.targets.length} 个 IP</span>
+          </div>
+          <div className="topo-external-targets">
+            {externalGroup.targets.map((target) => (
+              <button
+                key={target.ip}
+                type="button"
+                className={`topo-external-target${activeTargetIp === target.ip ? ' is-active' : ''}`}
+                onClick={() => {
+                  setActiveTargetIp(target.ip);
+                  onNavigate(node.id);
+                }}
+              >
+                <span className="topo-external-main">
+                  <strong className="mono">{target.ip}</strong>
+                  <span>{target.hostname && target.hostname !== target.ip ? target.hostname : '外部 IP'}</span>
+                </span>
+                <span className="topo-external-ports">
+                  {target.ports.slice(0, 5).map((port) => (
+                    <em key={`${target.ip}-${port.port}`}>:{port.port}</em>
+                  ))}
+                  {target.ports.length > 5 ? <em>+{target.ports.length - 5}</em> : null}
+                </span>
+                <span className="topo-related-count">
+                  {formatConnections(target.connections)}
+                  {target.failed > 0 ? <em>失败 {target.failed}</em> : null}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="topo-rail-section">
+        <div className="topo-rail-section-head">
+          <h3>业务服务</h3>
+          <span className="topo-rail-section-sub">{services.business.length} 个端口</span>
+        </div>
+        <ServiceRows services={services.business} />
       </section>
 
       <section className="topo-rail-section">
         <div className="topo-rail-section-head">
-          <h3>监听服务</h3>
-          <span className="topo-rail-section-sub">{node.node.services.length} 个端口</span>
+          <h3>系统管理服务</h3>
+          <span className="topo-rail-section-sub">{services.management.length} 个端口</span>
         </div>
-        <div className="topo-service-list">
-          {node.node.services.length === 0 ? <p className="topo-rail-empty">该节点没有上报监听端口。</p> : null}
-          {node.node.services.map((service) => (
-            <div key={`${service.name}-${service.port}`} className="topo-service-row">
-              <span className="topo-service-name">{service.name.replace(/:\d+$/, '') || '服务'}</span>
-              <span className="topo-service-port mono">:{service.port}</span>
-              <span className="topo-service-proc">{service.process ?? '—'}</span>
-            </div>
-          ))}
-        </div>
+        <ServiceRows services={services.management} />
       </section>
 
       {anomalies.length > 0 ? (
@@ -356,59 +469,28 @@ export function NodeDetailPanel({
         </section>
       ) : null}
 
-      <section className="topo-rail-section">
-        <div className="topo-rail-section-head">
-          <h3>入站链路</h3>
-          <span className="topo-rail-section-sub">{incoming.length} 条</span>
-        </div>
-        <div className="topo-edge-list">
-          {incoming.length === 0 ? <p className="topo-rail-empty">没有观测到入站连接。</p> : null}
-          {incoming.map((edge) => (
-            <button key={edge.id} type="button" className={`topo-edge-row${edge.failed > 0 ? ' is-warn' : ''}`} onClick={() => onSelectNode(edge.source)}>
-              <span className="topo-edge-row-main">
-                <strong>{labelById.get(edge.source) ?? edge.source}</strong>
-                <span className="mono">
-                  {edge.processes?.[0] ?? 'unknown'} → {node.node.services.find((service) => service.port === edge.port)?.name?.replace(/:\d+$/, '') ?? ''}:{edge.port}
-                </span>
-              </span>
-              <span className="topo-edge-row-count">
-                {formatConnections(edge.count)}
-                {edge.failed > 0 ? <em>失败 {edge.failed}</em> : null}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="topo-rail-section">
-        <div className="topo-rail-section-head">
-          <h3>出站链路</h3>
-          <span className="topo-rail-section-sub">{outgoing.length} 条</span>
-        </div>
-        <div className="topo-edge-list">
-          {outgoing.length === 0 ? <p className="topo-rail-empty">没有观测到出站连接。</p> : null}
-          {outgoing.map((edge) => (
-            <button key={edge.id} type="button" className={`topo-edge-row${edge.failed > 0 ? ' is-warn' : ''}`} onClick={() => onSelectNode(edge.target)}>
-              <span className="topo-edge-row-main">
-                <strong>{labelById.get(edge.target) ?? edge.target}</strong>
-                <span className="mono">
-                  {edge.processes?.[0] ?? 'unknown'} → {labelById.get(edge.target) ?? edge.target}:{edge.port}
-                </span>
-              </span>
-              <span className="topo-edge-row-count">
-                {formatConnections(edge.count)}
-                {edge.failed > 0 ? <em>失败 {edge.failed}</em> : null}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
+      <RelatedList title="出站关联" items={relatedNodes.outgoing} onNavigate={onNavigate} />
+      <RelatedList title="入站关联" items={relatedNodes.incoming} onNavigate={onNavigate} />
 
       {node.node.note ? <p className="topo-detail-note">{node.node.note}</p> : null}
+      {!node.aggregated && view.mode === 'host' ? (
+        <p className="topo-detail-note">
+          点击上方关联节点可切换详情；画布会自动聚焦该节点的上下游关系。使用「保持全图」可取消自动缩放。
+        </p>
+      ) : null}
 
       <div className="topo-detail-actions">
+        <button type="button" className="btn btn-outline btn-sm" onClick={onReturnFull}>
+          <MiniIcon name="fit" size={13} /> 返回全图
+        </button>
+        <button type="button" className={`btn btn-outline btn-sm${keepFullView ? ' is-on' : ''}`} onClick={onToggleKeepFullView}>
+          <MiniIcon name="target" size={13} /> {keepFullView ? '已保持全图' : '保持全图'}
+        </button>
         <button type="button" className="btn btn-outline btn-sm" onClick={onFocus}>
           <MiniIcon name="target" size={13} /> 聚焦上下游
+        </button>
+        <button type="button" className="btn btn-outline btn-sm" onClick={onFullscreen}>
+          <MiniIcon name="fit" size={13} /> 全屏查看
         </button>
         <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAgent}>
           <MiniIcon name="arrow-right" size={13} /> 在操作系统智能体中查看

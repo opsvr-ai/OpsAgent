@@ -218,6 +218,8 @@ export function MiniIcon({
     | 'arrow-left'
     | 'layers'
     | 'pin'
+    | 'settings'
+    | 'chevron-right'
     | 'warning';
 }): ReactNode {
   switch (name) {
@@ -340,6 +342,16 @@ export function MiniIcon({
         </>,
         props,
       );
+    case 'settings':
+      return frame(
+        <>
+          <circle cx="12" cy="12" r="3.1" />
+          <path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06A1.7 1.7 0 0019.4 9c.12.38.46.68.86.82.25.09.52.14.79.14H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" />
+        </>,
+        props,
+      );
+    case 'chevron-right':
+      return frame(<path d="M9 6l6 6-6 6" />, props);
     case 'pin':
       return frame(
         <>

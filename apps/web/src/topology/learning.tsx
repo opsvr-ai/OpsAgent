@@ -44,6 +44,7 @@ export interface LearningWizardProps {
   readonly busy: boolean;
   readonly session: TopologyLearningSession | null;
   readonly graphVersion: number | null;
+  readonly modelAvailable: boolean | null;
   readonly error: string | null;
   readonly onStart: (input: { appSystemId: string | null; windowSeconds: number; includeUnassigned: boolean }) => void;
   readonly onCancel: () => void;
@@ -58,6 +59,7 @@ export function LearningWizard({
   busy,
   session,
   graphVersion,
+  modelAvailable,
   error,
   onStart,
   onCancel,

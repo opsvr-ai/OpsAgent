@@ -1650,7 +1650,7 @@ html[data-theme="dark"] .topo2-node-shadow { filter: drop-shadow(0 2px 6px rgba(
 .topo2-node-sub + .topo2-node-sub { fill: var(--text-soft); }
 .topo2-node-role { fill: var(--text-soft); font-size: 12px; }
 .topo2-product-badge rect { stroke-width: 1; }
-.topo2-product-badge text { font-size: 12px; font-weight: 600; fill: currentColor; }
+.topo2-product-badge text { font-size: 11.5px; font-weight: 600; fill: currentColor; }
 .topo2-sys-service { fill: var(--faint); font-size: 11px; }
 .topo2-chip rect { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
 .topo2-chip text { fill: var(--text-soft); font-size: 11.5px; font-family: var(--font-mono); }
@@ -1826,3 +1826,155 @@ html[data-theme="dark"] .topo2-header-bg { fill: var(--surface); }
 }
 .topo2-minimap { bottom: 12px; }
 .topo2-canvas.is-detail-zoom .topo2-minimap { display: none; }
+
+
+/* ==========================================================================
+   V3 · 全屏 / 显示设置 / 边 tooltip / 关联节点
+   ========================================================================== */
+
+.app.topo-fullscreen { grid-template-columns: minmax(0, 1fr); }
+.topo-fullscreen > .sidebar { display: none; }
+.topo-fullscreen .topbar { display: none; }
+.topo-fullscreen .main { height: 100vh; }
+.topo-fullscreen .topo-page {
+  height: 100vh;
+  padding: 12px 16px 14px;
+  gap: 10px;
+}
+.topo-fullscreen .topo-head { align-items: center; }
+.topo-fullscreen .topo-head h1 { font-size: 20px; }
+.topo-fullscreen .topo-head .sub { margin-top: 2px; font-size: 11.5px; }
+.topo-fullscreen .topo-head-actions { display: none; }
+.topo-fullscreen .topo-body { grid-template-columns: minmax(0, 1fr) 360px; }
+.topo-fullscreen .topo-rail.is-collapsed { display: none; }
+.topo-fullscreen .topo-body:has(.topo-rail.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
+.topo-body:has(.topo-rail.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
+.topo-rail.is-collapsed { display: none; }
+
+.topo-settings-pop {
+  position: absolute;
+  right: 12px;
+  top: 54px;
+  z-index: 24;
+  width: 320px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.topo-settings-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+.topo-settings-head strong { font-size: 12.5px; }
+.topo-settings-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line-soft); }
+.topo-settings-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.topo-settings-row strong { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.topo-settings-row span { font-size: 11px; color: var(--muted); line-height: 1.45; }
+.topo-settings-pop .topo-settings-select { flex: none; width: 72px; min-width: 72px; height: 30px; font-size: 12px; padding: 0 26px 0 8px; }
+.topo-settings-foot { display: flex; flex-direction: column; gap: 2px; padding-top: 7px; color: var(--faint); font-size: 11px; line-height: 1.5; }
+
+.topo2-edge-tip {
+  position: absolute;
+  z-index: 30;
+  max-width: 340px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.topo2-edge-tip strong { color: var(--text); font-size: 11.5px; font-weight: 600; line-height: 1.4; }
+.topo2-edge-tip span { color: var(--muted); font-size: 11px; font-family: var(--font-mono); }
+
+.topo-statbar-note { font-style: normal; color: var(--faint); font-size: 11px; }
+.topo-focusbar-link.is-on { color: var(--blue-text); background: var(--primary-soft); }
+
+.topo-fallback-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  background: var(--warn-soft);
+}
+.topo-fallback-head { display: flex; align-items: center; gap: 6px; color: var(--warn); }
+.topo-fallback-head strong { font-size: 12px; }
+.topo-fallback-notice p { margin: 0; color: var(--text-soft); font-size: 11.5px; line-height: 1.6; }
+.topo-fallback-notice .btn { align-self: flex-start; height: 28px; font-size: 11.5px; }
+.topo-model-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--text-soft);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.topo-model-line b { color: var(--blue-text); font-weight: 600; }
+.topo-model-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11.5px;
+}
+
+.topo-related-list { display: flex; flex-direction: column; gap: 5px; }
+.topo-related-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  text-align: left;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.topo-related-row:hover { border-color: var(--primary-line); background: var(--primary-soft); }
+.topo-related-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.topo-related-main strong { font-size: 11.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-related-sub { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-related-count { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-family: var(--font-mono); font-size: 11px; color: var(--text-soft); white-space: nowrap; }
+.topo-related-count em { font-style: normal; color: var(--danger); font-size: 10.5px; }
+.topo-related-row > svg { color: var(--faint); flex: none; }
+
+.topo-external-targets { display: flex; flex-direction: column; gap: 5px; }
+.topo-external-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  text-align: left;
+}
+.topo-external-target:hover { border-color: var(--primary-line); background: var(--primary-soft); }
+.topo-external-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.topo-external-main strong { font-size: 11.5px; font-weight: 600; color: var(--text); }
+.topo-external-main span { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-external-ports { display: flex; gap: 3px; flex-wrap: wrap; max-width: 96px; }
+.topo-external-ports em { font-style: normal; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); background: var(--surface-2); border-radius: 3px; padding: 1px 4px; }
+
+.topo-detail-actions .btn.is-on { border-color: var(--primary); color: var(--blue-text); background: var(--primary-soft); }
+
+.topo2-lane-meta.is-bad { fill: var(--danger); }
+
+.topo-external-target.is-active { border-color: var(--primary); background: var(--primary-soft); }

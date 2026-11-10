@@ -9,7 +9,7 @@ export interface EdgePathProps {
   readonly animated: boolean;
   readonly gradientId: string | null;
   readonly markerId: string;
-  readonly onHover: (id: string | null) => void;
+  readonly onHover: (id: string | null, point?: { x: number; y: number }) => void;
 }
 
 function EdgePathView({
@@ -71,11 +71,16 @@ function EdgePathView({
       <path
         className="topo2-edge-hit"
         d={edge.d}
-        onPointerEnter={() => onHover(edge.edge.id)}
+        onPointerEnter={(event: ReactPointerEvent<SVGPathElement>) =>
+          onHover(edge.edge.id, { x: event.clientX, y: event.clientY })
+        }
+        onPointerMove={(event: ReactPointerEvent<SVGPathElement>) =>
+          onHover(edge.edge.id, { x: event.clientX, y: event.clientY })
+        }
         onPointerLeave={() => onHover(null)}
         onClick={(event: ReactPointerEvent<SVGPathElement>) => {
           event.stopPropagation();
-          onHover(edge.edge.id);
+          onHover(edge.edge.id, { x: event.clientX, y: event.clientY });
         }}
       />
     </g>

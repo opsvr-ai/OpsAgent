@@ -40,6 +40,8 @@ export interface TopologyCanvasProps {
   readonly filterAnomaly: boolean;
   readonly filterCross: boolean;
   readonly centerTarget: CenterTarget | null;
+  readonly showEdgeLabels: boolean;
+  readonly fitEpoch: number;
   readonly onSelect: (id: string | null) => void;
   readonly onFocus: (id: string | null) => void;
   readonly onDrill: (systemId: string) => void;
@@ -116,6 +118,8 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     filterAnomaly,
     filterCross,
     centerTarget,
+    showEdgeLabels,
+    fitEpoch,
     onSelect,
     onFocus,
     onDrill,
@@ -136,6 +140,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [minimapOpen, setMinimapOpen] = useState(true);
+  const [edgeTip, setEdgeTip] = useState<{ edge: RoutedEdge; x: number; y: number } | null>(null);
   const [detailZoom, setDetailZoom] = useState(false);
   const [zoomK, setZoomK] = useState(0.8);
 
@@ -180,13 +185,13 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       (currentSize.w - pad * 2) / current.width,
       (currentSize.h - pad * 2) / current.height,
     );
-    const k = clamp(Math.max(fitK, minScale), MIN_K, 1.06);
+    const k = clamp(Math.max(fitK, minScale), MIN_K, 1.6);
     const floored = k > fitK + 0.001;
     transformRef.current = {
       k,
-      // 放大后的默认视图从左上开始，先保证泳道名和层列头可见，再靠平移看全图。
-      x: floored ? 16 : (currentSize.w - current.width * k) / 2,
-      y: floored ? 12 : (currentSize.h - current.height * k) / 2,
+      // 默认从左上开始：优先露出标题、层列头和泳道名，底部留白交给平移。
+      x: Math.max(12, (currentSize.w - current.width * k) / 2),
+      y: 12,
     };
     applyView();
   }, [applyView]);
@@ -292,6 +297,12 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   }, [zoomAt]);
 
   useEffect(() => {
+    if (fitEpoch === 0) return;
+    fitView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitEpoch]);
+
+  useEffect(() => {
     if (!centerTarget) return;
     if (centerTarget.ids.length === 0) return;
     centerOn(centerTarget.ids);
@@ -385,6 +396,8 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
         suppressClickRef.current = false;
         return;
       }
+      setHoveredEdgeId(null);
+      setEdgeTip(null);
       const node = layoutRef.current?.nodeById.get(id);
       if (node?.aggregated) {
         const systemId = node.node.appSystemId;
@@ -422,8 +435,20 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     [onHoverNode],
   );
 
-  const handleHoverEdge = useCallback((id: string | null): void => {
+  const handleHoverEdge = useCallback((id: string | null, point?: { x: number; y: number }): void => {
     setHoveredEdgeId(id);
+    if (!id || !point) {
+      setEdgeTip(null);
+      return;
+    }
+    const current = layoutRef.current;
+    const edge = current?.edgeById.get(id);
+    const box = wrapRef.current?.getBoundingClientRect();
+    if (!edge || !box) {
+      setEdgeTip(null);
+      return;
+    }
+    setEdgeTip({ edge, x: point.x - box.left, y: point.y - box.top });
   }, []);
 
   const analysisEmphasis = useMemo<Emphasis | null>(() => {
@@ -550,16 +575,6 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
         if (edge.sourceId === hoveredNodeId || edge.targetId === hoveredNodeId) ids.add(edge.edge.id);
       }
     }
-    if (focusId) {
-      for (const edge of layout.edges) {
-        if (edge.sourceId === focusId || edge.targetId === focusId) ids.add(edge.edge.id);
-      }
-    }
-    if (selectedId && ids.size === 0) {
-      for (const edge of layout.edges) {
-        if (edge.sourceId === selectedId || edge.targetId === selectedId) ids.add(edge.edge.id);
-      }
-    }
     if (ids.size === 0 && analysisEdgeIds) {
       for (const id of analysisEdgeIds) ids.add(id);
     }
@@ -574,7 +589,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       w: Math.round(measureText(edge.fullLabel, 11.5) + 18),
       h: 20,
     }));
-  }, [analysisEdgeIds, focusId, hoveredEdgeId, hoveredNodeId, layout, selectedId]);
+  }, [analysisEdgeIds, hoveredEdgeId, hoveredNodeId, layout]);
 
   const gradientEdges = useMemo(
     () => layout.edges.filter((edge) => edge.crossSystem && !edge.external && !edge.anomalous),
@@ -702,13 +717,18 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
                     </g>
                   ) : null}
                   <text className="topo2-lane-meta" x={lane.criticality ? 58 : 26} y={lane.y + (lane.criticality ? 47 : 46)}>
-                    {lane.hostCount} 台主机
-                    {lane.anomalyCount > 0 ? ` · ${lane.anomalyCount} 台异常` : ''}
+                    {lane.kind === 'external'
+                      ? `${lane.hostCount} 个外部 IP · ${lane.nodeCount} 组`
+                      : `${lane.hostCount} 台主机${lane.anomalyCount > 0 ? ` · ${lane.anomalyCount} 台异常` : ''}`}
                   </text>
                   <text className="topo2-lane-meta is-strong" x={26} y={lane.y + 68}>
                     连接 {Math.round(lane.connections / 1000).toFixed(1)}k
-                    {lane.failures > 0 ? ` · 失败 ${lane.failures}` : ''}
                   </text>
+                  {lane.failures > 0 ? (
+                    <text className="topo2-lane-meta is-bad" x={26} y={lane.y + 82}>
+                      失败 {lane.failures}
+                    </text>
+                  ) : null}
                 </g>
               ))}
               {layout.cells.map((cell) => (
@@ -815,8 +835,37 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               </text>
             </g>
           ))}
+
+          {showEdgeLabels
+            ? layout.edges.slice(0, 48).map((edge, index) => {
+                const text = edge.fullLabel;
+                const width = Math.round(measureText(text, 11.5) + 18);
+                const offset = ((index % 7) - 3) * 18;
+                return (
+                  <g
+                    key={`label-${edge.edge.id}`}
+                    className="topo2-edge-label is-static"
+                    transform={`translate(${edge.mx.toFixed(1)} ${(edge.my + offset / Math.max(0.3, zoomK)).toFixed(1)}) scale(${(1 / Math.max(0.3, zoomK)).toFixed(4)})`}
+                  >
+                    <rect x={-width / 2} y={-10} width={width} height={20} rx={5} />
+                    <text x={-width / 2 + 7} y={4}>
+                      {text}
+                    </text>
+                  </g>
+                );
+              })
+            : null}
         </g>
       </svg>
+
+      {edgeTip ? (
+        <div className="topo2-edge-tip" style={{ left: edgeTip.x + 14, top: edgeTip.y + 12 }}>
+          <strong>{edgeTip.edge.fullLabel}</strong>
+          <span>
+            新建 {edgeTip.edge.edge.opened.toLocaleString('zh-CN')} · 失败 {edgeTip.edge.edge.failed.toLocaleString('zh-CN')}
+          </span>
+        </div>
+      ) : null}
 
       <div className="topo2-zoom">
         <button type="button" className="topo2-zoom-btn" aria-label="缩小" onClick={() => {

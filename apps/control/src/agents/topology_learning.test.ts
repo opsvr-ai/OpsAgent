@@ -249,6 +249,78 @@ describe('buildLearningInput（窗口样本聚合纯函数）', () => {
     expect(privatePeer).toMatchObject({ port: 6379, opened: 1, note: '未纳管' });
   });
 
+  it('drops Agent self-management traffic (opsagent-agent) on both out and in edges', () => {
+    const selfTrafficEdges: LearningEdgeSource[] = [
+      // out：process 命中
+      conn({ process: 'opsagent-agent', service: '', command: '', peerAddress: '8.8.8.8', peerPort: 443, opened: 9, failed: 1 }),
+      // out：service 命中前缀
+      conn({ process: 'java', service: 'opsagent-agent-0.6.2', command: '', peerAddress: '10.0.2.21', peerPort: 3306, opened: 4 }),
+      // out：command 命中（大小写不敏感）
+      conn({ process: 'sh', service: '', command: '/opt/OpsAgent-Agent --server', peerAddress: '10.0.2.21', peerPort: 3306 }),
+      // in：本机服务端进程命中
+      conn({
+        agentId: 'agent-b',
+        direction: 'in',
+        process: 'opsagent-agent',
+        service: '',
+        command: '',
+        localAddress: '0.0.0.0',
+        localPort: 3306,
+        peerAddress: '10.0.1.11',
+        peerPort: 0,
+        opened: 7,
+      }),
+      // 普通业务进程（名字里含 agent）不应被误伤。
+      conn({
+        process: 'zabbix_agent2',
+        service: 'zabbix',
+        command: '/usr/sbin/zabbix_agent2',
+        peerAddress: '10.0.2.21',
+        peerPort: 3306,
+        opened: 3,
+      }),
+      conn({
+        process: 'java',
+        service: 'order-api',
+        command: 'java -javaagent:/opt/agent.jar -jar order.jar',
+        peerAddress: '10.0.2.21',
+        peerPort: 3306,
+        opened: 2,
+      }),
+    ];
+    const input = buildLearningInput({
+      scope: tenantScope,
+      windowStart,
+      windowEnd,
+      agents: agents.slice(0, 2),
+      inventory,
+      edges: selfTrafficEdges,
+    });
+    expect(input.edges.map((edge) => edge.fromService).sort()).toEqual(['order-api', 'zabbix']);
+    // 管理连接原来会指向未纳管 IP，过滤后不应留下外部 peer。
+    expect(input.externalPeers).toEqual([]);
+    expect(input.edges.every((edge) => !edge.fromProcess.includes('opsagent-agent'))).toBe(true);
+  });
+
+  it('counts externalCount by unique external IP instead of peer entries', () => {
+    const input = buildLearningInput({
+      scope: tenantScope,
+      windowStart,
+      windowEnd,
+      agents: agents.slice(0, 1),
+      inventory,
+      edges: [
+        conn({ peerAddress: '203.0.113.9', peerPort: 443, opened: 2 }),
+        conn({ peerAddress: '203.0.113.9', peerPort: 8081, opened: 1 }),
+        conn({ peerAddress: '198.51.100.7', peerPort: 3306, opened: 3 }),
+      ],
+    });
+    expect(input.externalPeers).toHaveLength(3);
+    expect(new Set(input.externalPeers.map((peer) => peer.ip)).size).toBe(2);
+    expect(input.stats.externalCount).toBe(2);
+    expect(input.stats.nodeCount).toBe(4);
+  });
+
   it('drops loopback, same-host and unmanaged inbound observations', () => {
     const input = learningInput();
     expect(input.edges.some((edge) => edge.toIp.startsWith('127.'))).toBe(false);

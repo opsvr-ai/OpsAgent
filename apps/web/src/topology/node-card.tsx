@@ -134,8 +134,8 @@ function NodeCardView({
     );
   }
 
-  const card = hostCardLayout(data);
-  const productWidth = Math.min(card.productMaxWidth, Math.round(measureText(card.productText, 12) + 12));
+  const card = node.card ?? hostCardLayout(data, true);
+  const productWidth = Math.min(card.productMaxWidth, Math.round(measureText(card.productText, 11.5) + 12));
   return (
     <g
       className={className}
@@ -154,7 +154,7 @@ function NodeCardView({
       <g className="topo2-product-badge" style={{ color: tone.fg }}>
         <rect width={productWidth} height={13} x={9} y={5} rx={4} style={{ fill: tone.bg, stroke: tone.border }} />
         <text x={9 + productWidth / 2} y={14.5} textAnchor="middle">
-          {truncateText(card.productText, productWidth - 8, 12)}
+          {truncateText(card.productText, productWidth - 8, 11.5)}
         </text>
       </g>
       <text
@@ -190,9 +190,9 @@ function NodeCardView({
           </g>
         );
       })}
-      {card.hiddenChips > 0 ? (
+      {card.moreLabel ? (
         <text className="topo2-chip-more" x={card.w - 9} y={card.chipY + 10.8} textAnchor="end">
-          +{card.hiddenChips}
+          {card.moreLabel}
         </text>
       ) : null}
       <g className="topo2-node-metrics">

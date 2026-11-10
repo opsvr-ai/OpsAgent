@@ -178,3 +178,21 @@ Control 中的 agent/边样本/学习会话保留作为联调证据。
   样本包含 Agent 自身访问 Control 与测试脚本访问网关：临时端口均按约定为 0。
 - 未发现采集器 panic、心跳失败或 `/proc` 读取错误。
 
+## 8. 版本与升级（0.6.3 起支持）
+
+- **Agent 版本**：`agentVersion = "0.6.3"`（此前 0.6.2 不含建连窗口采集；平台「操作系统智能体」列表/详情会显示上报版本，可据此确认是否已升级）。
+- **兼容性**：新控制面向后兼容旧 Agent——旧 Agent 不发 `connectionWindows`，心跳照常成功，只是学习窗口内没有真实边样本（图里只有节点、没有访问关系）；不会报错。
+- **控制面镜像**：`docker compose build control` 会在 Go 阶段把三个平台的新 Agent 二进制编译到 `/opt/opsagent-agent-dist`，`install.sh` / `GET /api/agents/binary` 分发的就是新版；**只更新前端/不重建 control 镜像，已装 Agent 仍是旧版**。
+- **已装 Agent 升级**（任选其一）：
+  ```bash
+  # 重跑安装命令（会从控制面拉最新二进制并重启服务）
+  curl -fsSL http://<control>/api/agents/install.sh | sudo bash
+  # 或手工替换并重启
+  systemctl stop opsagent-agent
+  install -m 0755 opsagent-agent-linux-amd64 /opt/opsagent/bin/opsagent-agent
+  systemctl start opsagent-agent
+  ```
+  升级后 `opsagent-agent --version` 应显示 `0.6.3`；控制面下一次 10s 心跳开始收到 `connectionWindows`。
+- 本地非容器开发：`pnpm agent:dist` 重新生成 `agents/opsagent-agent/dist/` 下三个二进制，再把 `OPSAGENT_AGENT_DIST_DIR` 指到该目录即可。
+
+

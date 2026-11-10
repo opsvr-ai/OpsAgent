@@ -22,19 +22,19 @@ function EdgePathView({
   onHover,
 }: EdgePathProps): ReactElement {
   const stroke = edge.anomalous
-    ? '#ff6b6b'
+    ? '#dc5a5a'
     : edge.external
-      ? '#9fb3d1'
+      ? '#8a94a6'
       : gradientId
         ? `url(#${gradientId})`
-        : edge.colorA;
+        : '#8598b0';
   const width = edge.systemEdge
-    ? 2.4 + edge.ratio * 4.6 + (active ? 0.9 : 0)
-    : 1.1 + edge.ratio * 3.6 + (active ? 0.7 : 0);
-  const opacity = dimmed ? 0.05 : active ? 1 : edge.systemEdge ? 0.72 : 0.52;
+    ? 2 + edge.ratio * 4.2 + (active ? 0.8 : 0)
+    : 1.1 + edge.ratio * 2.6 + (active ? 0.6 : 0);
+  const opacity = dimmed ? 0.06 : active ? 1 : 0.55;
   const dash = edge.anomalous ? '7 5' : edge.external ? '3 6' : undefined;
   const className = [
-    'topo-edge',
+    'topo2-edge',
     active ? 'is-active' : '',
     dimmed ? 'is-dimmed' : '',
     edge.anomalous ? 'is-anomalous' : '',
@@ -48,10 +48,10 @@ function EdgePathView({
     <g className={className}>
       <title>{`${edge.fullLabel} · 新建 ${edge.edge.opened} · 失败 ${edge.edge.failed}`}</title>
       {active ? (
-        <path className="topo-edge-glow" d={edge.d} stroke={edge.anomalous ? '#ff5d5d' : edge.colorB} strokeWidth={width + 6} />
+        <path className="topo2-edge-glow" d={edge.d} stroke={stroke} strokeWidth={width + 5} />
       ) : null}
       <path
-        className="topo-edge-line"
+        className="topo2-edge-line"
         d={edge.d}
         stroke={stroke}
         strokeWidth={width}
@@ -61,15 +61,15 @@ function EdgePathView({
       />
       {animated && !dimmed ? (
         <path
-          className="topo-edge-flow"
+          className="topo2-edge-flow"
           d={edge.d}
-          stroke={edge.anomalous ? '#ffc2c2' : '#e8f1ff'}
-          strokeOpacity={active ? 0.92 : 0.62}
-          strokeWidth={Math.max(1, width * 0.5)}
+          stroke={edge.anomalous ? '#dc5a5a' : '#4d7db8'}
+          strokeOpacity={active ? 0.9 : 0.5}
+          strokeWidth={Math.max(1, width * 0.45)}
         />
       ) : null}
       <path
-        className="topo-edge-hit"
+        className="topo2-edge-hit"
         d={edge.d}
         onPointerEnter={() => onHover(edge.edge.id)}
         onPointerLeave={() => onHover(null)}

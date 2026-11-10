@@ -126,11 +126,13 @@
 ## 7. LLM 分析
 
 `TopologyAnalyzer.analyze(tenantId, input)`：
-
-- 输入压缩：主机 ≤ 80、边按流量排序取 ≤ 120、外部 peer ≤ 30；节点 id 使用稳定短 id。
-- 模型：`ModelCompletionService`（复用租户模型配置），system prompt 要求输出**严格 JSON**：`nodes/edges/insights/hotPaths/risks/summary/confidence`；分层固定 `ingress|app|middleware|data|external`；边只能引用输入节点。
-- 校验：去 markdown 围栏、截取 JSON、逐字段校验、引用闭合、枚举白名单、数量夹取、数值非负、label 截断；模型缺失 `status/services` 时用输入补齐；模型边与真实边匹配后用真实计数覆盖（模型不得放大流量）。
-- **兜底**：模型未配置/超时/输出非法 → 确定性启发式：按进程与端口分类分层（nginx/haproxy→ingress，redis/kafka→middleware，mysql/postgres→data，未纳管 IP→external），生成摘要、核心链路、失败率风险、单点风险、跨系统耦合、外部依赖 TopN。`analysis.fallback=true` 并在页面标注「规则引擎兜底」。
+- **V2 输入**（prompt v2）：除主机/IP/应用系统/监听服务/边/外部 peer 外，补充每台主机的**重要进程证据**（name/command/user/pid，每台最多 4 条，command ≤120 字符）与 OS；压缩预算 hosts ≤60、edges ≤100、peers ≤20，并由确定性预算守卫保证 prompt ≤45k 字符（约 1.3 万 token，适配 32k/64k 上下文）。
+- **V2 分层**（IT 架构）：`access` 接入层（Nginx/HAProxy/Envoy/Kong/APISIX/负载均衡）、`app` 应用层（Spring Boot/JAR/Tomcat/Node/Python/Go/.NET 业务服务）、`middleware` 中间件层（Redis/Memcached 缓存、Kafka/RabbitMQ/RocketMQ 消息、Nacos/ZooKeeper/etcd 注册中心）、`data` 数据层（MySQL/PostgreSQL/Oracle/MongoDB/ClickHouse/ES/MinIO）、`ops` 运维观测层（Prometheus/Grafana/Zabbix/Filebeat/Node Exporter/系统服务）、`external` 外部依赖。
+- **组件识别**：每个节点输出 `product`（Nginx、Spring Boot、MySQL、Redis、Kafka、Prometheus…）、`role`（接入网关/业务应用/关系型数据库/缓存/消息队列/监控…）、`systemService`；模型必须基于 services + processes(command) 证据判断，禁止编造。多角色主机以业务进程为准（如 nginx+java → app，product「order-service / Nginx」），监控/系统服务不抢业务层级。
+- 模型：`ModelCompletionService`（复用租户模型配置），system prompt 要求**严格 JSON**（summary/nodes/edges/insights/hotPaths/risks/confidence），节点必须带 tier/kind/product/role/systemService；边只能引用输入节点。
+- 校验：去 markdown 围栏、截取 JSON、逐字段校验、引用闭合、枚举白名单（新 tier/kind）、数量夹取、数值非负、label 截断；模型把 nginx+java 误判成 access 时纠正为 app；缺字段用启发式补；模型边与真实边匹配后用真实计数覆盖（模型不得放大流量）。
+- **兜底**：模型未配置/超时/输出非法 → 确定性启发式（同口径识别 product/role/systemService），生成摘要、核心链路、失败率风险、单点风险、跨系统耦合、外部依赖 TopN。`analysis.fallback=true` 并在页面标注「规则引擎兜底」。
+- **范围**：学习默认只纳入归属应用系统的主机（`includeUnassigned=false`），未归属主机的样本与外部 peer 一并排除；打开该开关后以「未归属」泳道/分组展示。无已归属主机时返回 409 `no_managed_hosts`。
 - 输出落库 `topology_graphs`，页面永远有图可渲染。
 
 ## 8. API
@@ -139,7 +141,7 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/learn` | 创建固定时间窗学习会话 `{appSystemId?, windowSeconds?}` |
+| POST | `/learn` | 创建固定时间窗学习会话 `{appSystemId?, windowSeconds?, includeUnassigned?}` |
 | GET | `/learn/active` | 当前活动会话（含进度） |
 | GET | `/learn/:id` | 会话详情（进度：已上报主机、边样本数、剩余秒数） |
 | POST | `/learn/:id/analyze` | 重新分析（生成新版本） |
@@ -148,18 +150,21 @@
 | GET | `/` | 拓扑图版本列表 |
 | GET | `/latest` | 最新拓扑图（可按应用系统过滤） |
 | GET | `/:id` | 完整拓扑图 |
-| GET/PUT | `/policy` | 自动学习策略 |
+| GET/PUT | `/policy` | 自动学习策略（含 `includeUnassigned`） |
 
 自动学习：`TopologyLearningScheduler` 每 10s tick，处理到期会话；按策略 `next_run_at` 自动发起学习（`OPSAGENT_TOPOLOGY_AUTOLEARN=false` 可关）。
 
 ## 9. Web 可视化
 
-- **主机视图**：五层分带（接入/应用/中间件/数据/外部），节点卡片展示系统色、服务端口 chips、连接/失败指标、异常；边按流量分级，top 边流光动画，失败边红色警示；hover 高亮上下游，点击聚焦 1 跳，右侧详情抽屉。
-- **业务系统视图**：主机折叠为业务系统节点，系统间连线表示跨系统访问（含连接数），点击下钻。
-- **分析侧栏**：LLM 摘要、核心链路（可点击高亮）、风险与洞察（可定位节点/边）、模型/置信度/兜底标识。
-- **学习向导**：选择 60~1800s 窗口 → 实时进度（上报主机数/边样本/倒计时）→ 完成后自动加载新版本。
-- **自动学习策略**：开关、周期、窗口、范围、下次运行时间。
-- 视觉基调：深色指挥中心、点阵背景、霓虹流光、业务系统色带、玻璃拟态卡片；同时兼容浅色主题与 1440/1680 宽度。
+- **主机视图（V2 泳道布局）**：按业务系统横向泳道（左=系统名/等级/主机数），列=IT 分层「接入层 / 应用层 / 中间件层 / 数据层 / 运维观测层 / 外部依赖」；同一泳道内主机按分层列**横向排列**（同格超过 2 台才换行，避免整列竖排）；外部依赖单独底部泳道，未归属主机默认隐藏、可在工具栏打开。
+- **节点卡片**：显示主机名/IP、`product` 标签（Nginx/Spring Boot/MySQL/Redis/Kafka/Prometheus…）、`role`（接入网关/业务应用/关系型数据库/缓存/消息队列/监控）、服务端口 chips、连接/失败指标、异常红点与在线状态。
+- **缩放/交互**：0.3~3.0 缩放（滚轮对准指针）、+/−、百分比、1:1、适应画布、拖拽平移、双击聚焦 1 跳上下游、hover 高亮邻居、点击打开节点详情抽屉（服务/指标/出入边/异常）。
+- **平台风格**：浅色画布与平台 tokens（卡片、按钮、字号、系统色），暗色主题自动适配；边为中性蓝灰 + 箭头，失败边红色，保留克制的流量动画。
+- **业务系统视图**：主机折叠为业务系统节点，系统间连线带连接数/失败数，点击下钻主机视图。
+- **分析侧栏**：LLM 摘要、核心链路（可点击高亮）、风险与洞察（可定位节点/边）、模型/置信度/兜底标识；页面文案明确“大模型基于采集证据识别组件与分层”。
+- **学习向导**：选择 60~1800s 窗口、范围、是否包含未归属主机 → 实时进度（上报主机数/边样本/倒计时）→ 完成后自动加载新版本。
+- **自动学习策略**：开关、周期、窗口、范围、包含未归属主机、下次运行时间。
+- 视觉基调：平台一致的浅色数据可视化（白/浅灰背景、系统色泳道、卡片化节点），同时兼容暗色主题与 1440/1680 宽度。
 
 ## 10. 验收
 

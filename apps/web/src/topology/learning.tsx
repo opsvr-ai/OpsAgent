@@ -45,7 +45,7 @@ export interface LearningWizardProps {
   readonly session: TopologyLearningSession | null;
   readonly graphVersion: number | null;
   readonly error: string | null;
-  readonly onStart: (input: { appSystemId: string | null; windowSeconds: number }) => void;
+  readonly onStart: (input: { appSystemId: string | null; windowSeconds: number; includeUnassigned: boolean }) => void;
   readonly onCancel: () => void;
   readonly onRetry: () => void;
   readonly onClose: () => void;
@@ -67,11 +67,13 @@ export function LearningWizard({
   const [appSystemId, setAppSystemId] = useState(defaultAppSystemId);
   const [seconds, setSeconds] = useState(300);
   const [custom, setCustom] = useState('120');
+  const [includeUnassigned, setIncludeUnassigned] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
 
   useEffect(() => {
     if (open) {
       setAppSystemId(defaultAppSystemId);
+      setIncludeUnassigned(false);
       setErrorDismissed(false);
     }
   }, [open, defaultAppSystemId]);
@@ -87,7 +89,7 @@ export function LearningWizard({
 
   const submit = (): void => {
     const windowSeconds = Math.min(1800, Math.max(60, seconds === 0 ? Number(custom) || 60 : seconds));
-    onStart({ appSystemId: appSystemId || null, windowSeconds });
+    onStart({ appSystemId: appSystemId || null, windowSeconds, includeUnassigned });
   };
 
   return (
@@ -103,7 +105,7 @@ export function LearningWizard({
           <div>
             <div className="topo-rail-eyebrow">TOPOLOGY LEARNING · 固定窗口学习</div>
             <h2 className="topo-modal-title">学习访问拓扑</h2>
-            <p className="topo-modal-sub">在时间窗内采集纳管主机的真实建连关系，聚合后由大模型生成拓扑与分析。</p>
+            <p className="topo-modal-sub">在时间窗内采集纳管主机的端口、进程与建连证据，由大模型识别组件与 IT 分层并生成拓扑。</p>
           </div>
           <button type="button" className="topo-icon-btn" aria-label="关闭" onClick={onClose} disabled={busy && running}>
             <MiniIcon name="close" size={16} />
@@ -179,6 +181,20 @@ export function LearningWizard({
               <p className="topo-form-hint">
                 窗口结束后自动聚合边样本并调用分析器；期间可在进度页取消。建议首次学习使用 5 分钟。
               </p>
+            </div>
+
+            <div className="topo-toggle-row topo-toggle-inline">
+              <div>
+                <strong>包含未归属主机</strong>
+                <span>默认关闭：不属于任何应用系统的纳管主机不进入拓扑，避免公共主机混入业务视图。</span>
+              </div>
+              <button
+                type="button"
+                className={`switch topo-switch${includeUnassigned ? ' is-on' : ''}`}
+                aria-pressed={includeUnassigned}
+                aria-label="包含未归属主机"
+                onClick={() => setIncludeUnassigned((current) => !current)}
+              />
             </div>
 
             <div className="topo-learning-steps">
@@ -372,6 +388,7 @@ export function PolicyPanel({
   const [intervalSeconds, setIntervalSeconds] = useState(policy?.intervalSeconds ?? 21_600);
   const [windowSeconds, setWindowSeconds] = useState(policy?.windowSeconds ?? 900);
   const [appSystemId, setAppSystemId] = useState(policy?.scope.appSystemId ?? '');
+  const [includeUnassigned, setIncludeUnassigned] = useState(policy?.includeUnassigned ?? false);
 
   useEffect(() => {
     if (!open || !policy) return;
@@ -379,6 +396,7 @@ export function PolicyPanel({
     setIntervalSeconds(policy.intervalSeconds);
     setWindowSeconds(policy.windowSeconds);
     setAppSystemId(policy.scope.appSystemId ?? '');
+    setIncludeUnassigned(policy.includeUnassigned);
   }, [open, policy]);
 
   if (!open) return null;
@@ -483,6 +501,20 @@ export function PolicyPanel({
             </div>
           </div>
 
+          <div className="topo-toggle-row">
+            <div>
+              <strong>包含未归属主机</strong>
+              <span>关闭时仅学习已归属应用系统的主机；公共主机不会进入业务拓扑。</span>
+            </div>
+            <button
+              type="button"
+              className={`switch topo-switch${includeUnassigned ? ' is-on' : ''}`}
+              aria-pressed={includeUnassigned}
+              aria-label="包含未归属主机"
+              onClick={() => setIncludeUnassigned((current) => !current)}
+            />
+          </div>
+
           <div className="topo-policy-meta">
             <div>
               <span>上次运行</span>
@@ -516,6 +548,7 @@ export function PolicyPanel({
                 intervalSeconds,
                 windowSeconds,
                 scope: appSystemId ? { kind: 'app-system', appSystemId } : { kind: 'tenant' },
+                includeUnassigned,
               })
             }
           >

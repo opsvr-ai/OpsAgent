@@ -12,8 +12,13 @@
 /** 学习/拓扑的作用范围：整个租户，或某个应用系统。 */
 export type TopologyScopeKind = 'tenant' | 'app-system';
 
-/** 拓扑分层：接入 / 应用 / 中间件 / 数据 / 外部依赖 / 基础设施。 */
-export type TopologyTier = 'ingress' | 'app' | 'middleware' | 'data' | 'external' | 'infra';
+/**
+ * 拓扑分层（按 IT 架构）：接入 / 应用 / 中间件 / 数据 / 运维观测 / 外部依赖。
+ *
+ * 历史数据兼容：旧版本图里可能存在 `ingress`（并入 access）与 `infra`
+ * （并入 ops），控制面读取旧图时会归一化，Web 端也应做兜底映射。
+ */
+export type TopologyTier = 'access' | 'app' | 'middleware' | 'data' | 'ops' | 'external';
 
 /** 节点角色分类。 */
 export type TopologyNodeKind =
@@ -22,7 +27,10 @@ export type TopologyNodeKind =
   | 'database'
   | 'cache'
   | 'mq'
+  | 'registry'
   | 'storage'
+  | 'monitoring'
+  | 'logging'
   | 'external'
   | 'unknown';
 
@@ -59,6 +67,12 @@ export interface TopologyNode {
   readonly services: readonly TopologyServicePort[];
   readonly metrics: TopologyNodeMetrics;
   readonly anomalies?: readonly string[];
+  /** 主产品/组件名，如 Nginx、Spring Boot、MySQL、Redis、Kafka、Prometheus。 */
+  readonly product?: string;
+  /** 架构角色中文描述，如“接入网关”“订单服务”“关系型数据库”“消息队列”。 */
+  readonly role?: string;
+  /** true 表示该节点主要承载系统/运维服务（node_exporter、zabbix-agent、prometheus 等）。 */
+  readonly systemService?: boolean;
   /** true 表示节点不是从纳管主机直接得到，而是模型/外部依赖推断出来的。 */
   readonly inferred?: boolean;
   readonly note?: string;
@@ -159,6 +173,8 @@ export interface TopologyGraphStats {
   readonly failedConnections: number;
   readonly samples: number;
   readonly reportingAgents: number;
+  /** 本次学习因未归属任何应用系统而被排除的纳管主机数。 */
+  readonly excludedUnassigned?: number;
 }
 
 /** 一次学习生成的最终拓扑图。 */
@@ -201,6 +217,8 @@ export interface TopologyLearningSession {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly progress: TopologyLearningProgress;
+  /** 是否把未归属应用系统的纳管主机纳入拓扑（默认 false）。 */
+  readonly includeUnassigned: boolean;
   readonly graphId?: string | null;
   readonly model?: string | null;
   readonly fallback?: boolean;
@@ -215,6 +233,7 @@ export interface TopologyLearningPolicy {
   readonly intervalSeconds: number;
   readonly windowSeconds: number;
   readonly scope: TopologyScope;
+  readonly includeUnassigned: boolean;
   readonly lastRunAt?: string | null;
   readonly nextRunAt?: string | null;
   readonly updatedAt: string;
@@ -225,12 +244,15 @@ export interface TopologyLearningPolicyUpdate {
   readonly intervalSeconds?: number;
   readonly windowSeconds?: number;
   readonly scope?: TopologyScope;
+  readonly includeUnassigned?: boolean;
 }
 
 /** 创建学习会话请求。 */
 export interface TopologyLearnRequest {
   readonly appSystemId?: string | null;
   readonly windowSeconds?: number;
+  /** 默认 false：未归属应用系统的主机不进入拓扑。 */
+  readonly includeUnassigned?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +296,13 @@ export interface ConnectionWindowReport {
 // 学习输入（控制面聚合后交给分析器）
 // ---------------------------------------------------------------------------
 
+export interface TopologyProcessInfo {
+  readonly name: string;
+  readonly command?: string;
+  readonly user?: string;
+  readonly pid?: number;
+}
+
 export interface TopologyLearningHost {
   readonly agentId: string;
   readonly hostname: string;
@@ -283,6 +312,8 @@ export interface TopologyLearningHost {
   readonly status: string;
   readonly os?: string;
   readonly services: readonly TopologyServicePort[];
+  /** 采集到的重要进程（名称/命令行/用户），供模型识别中间件、数据库、应用与系统服务。 */
+  readonly processes: readonly TopologyProcessInfo[];
   readonly anomalies: readonly string[];
 }
 
@@ -338,6 +369,9 @@ export interface TopologyDraftNode {
   readonly appSystemName?: string;
   readonly status?: TopologyNodeStatus;
   readonly services?: readonly TopologyServicePort[];
+  readonly product?: string;
+  readonly role?: string;
+  readonly systemService?: boolean;
   readonly inferred?: boolean;
   readonly note?: string;
 }

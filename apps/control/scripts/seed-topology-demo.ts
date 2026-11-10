@@ -433,6 +433,44 @@ const HOSTS: readonly HostDef[] = [
       },
     ],
   },
+  {
+    id: 'b0000000-0000-4000-8000-00000000000e',
+    name: 'prod-monitor-01',
+    appSystem: 'platform-runtime',
+    ip: '10.20.10.31',
+    osName: 'Ubuntu',
+    osVersion: '22.04',
+    cpu: 16,
+    mem: 32,
+    diskTotal: 500,
+    diskFree: 300,
+    role: '监控/可观测',
+    listeners: [
+      { port: 9090, process: 'prometheus', pid: 3001, service: 'prometheus' },
+      { port: 3000, process: 'grafana', pid: 3010, service: 'grafana' },
+      { port: 9100, process: 'node_exporter', pid: 3020, service: 'node_exporter' },
+    ],
+    processes: [
+      {
+        name: 'prometheus',
+        pid: 3001,
+        command: '/opt/prometheus/prometheus --config.file=/etc/prometheus/prometheus.yml',
+        user: 'prometheus',
+      },
+      {
+        name: 'grafana',
+        pid: 3010,
+        command: '/usr/share/grafana/bin/grafana server --config=/etc/grafana/grafana.ini',
+        user: 'grafana',
+      },
+      {
+        name: 'node_exporter',
+        pid: 3020,
+        command: '/usr/local/bin/node_exporter',
+        user: 'prometheus',
+      },
+    ],
+  },
 ];
 
 /** 外部依赖（只出方向 out 的边，图中归入 external 层）。 */

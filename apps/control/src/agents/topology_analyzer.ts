@@ -1,19 +1,30 @@
 /**
  * 拓扑分析器：把固定时间窗口内的真实建连关系整理成「一眼看懂」的业务访问拓扑。
  *
+ * V2（topology-v2）：按 IT 架构分层 access / app / middleware / data / ops / external，
+ * 基于 services + processes（进程名/命令行/user）证据识别组件，并为每个节点输出
+ * product（产品/组件名）、role（中文架构角色）、systemService（是否系统/运维服务）。
+ * 多角色主机以业务应用为准（如 nginx + java 判为 app，而不是 access）。
+ *
  * 数据流：
  *   TopologyLearningInput（控制面聚合后的本周窗口数据）
  *     → 大模型分析（严格 JSON）→ 校验/夹取/真实数字回填 → TopologyDraft
  *     → 模型不可用时：确定性启发式分层规则 → TopologyDraft（fallback）
  *     → TopologyAnalysis（summary / insights / hotPaths / risks / confidence）
  *
- * Prompt 结构（TOPOLOGY_PROMPT_VERSION = 'topology-v1'）：
- *   - system：资深 SRE 架构师角色 + 分层/引用/数值约束 + 严格 JSON schema + 小例子；
- *   - user  ：一句任务说明 + 一段紧凑的 TopologyLearningInput JSON
+ * Prompt 结构（TOPOLOGY_PROMPT_VERSION = 'topology-v2'）：
+ *   - system：资深 SRE / IT 架构师角色 + 6 层定义 + kind 白名单 + 多角色规则 +
+ *             常见产品映射 + 严格 JSON schema + 正确示例 + 反例（nginx+java 不得判 access）；
+ *   - user  ：任务说明 + 一段紧凑的 TopologyLearningInput JSON
  *             （顶层字段：scope / window / stats / hosts / edges / externalPeers；
  *              hosts[].id / externalPeers[].id 是稳定短 id；
+ *              hosts[].services 与 hosts[].processes 是组件识别证据；
  *              edges[].from / edges[].to 引用这些 id）+「只输出 JSON」指令。
- *   这样本地 OpenAI 兼容 mock server 可以直接从 user JSON 里读出节点 id，回一份引用闭合的 draft。
+ *   压缩预算：hosts ≤ 60、每台 processes ≤ 4（command ≤ 120 字符）、edges ≤ 100、
+ *   externalPeers ≤ 20；若 JSON 仍超过 37k 字符，按 低连接量主机的进程 → 边 →
+ *   外部 peer → 主机 的顺序确定性裁剪，保证 system + user 总长度 ≤ 45k 字符
+ *   （适配 32k/64k 上下文模型）。
+ *   这样本地 OpenAI 兼容 mock server 可以直接从 user JSON 里读出节点 id/证据，回一份引用闭合的 draft。
  *
  * 兜底保证：任何模型错误（未配置/超时/HTTP/空响应/非 JSON/校验失败）都返回可渲染的
  * TopologyDraft：节点 id 引用闭合、tier/kind 合法、边端口 > 0、数量受控、insights 非空。
@@ -32,13 +43,14 @@ import type {
   TopologyLearningInput,
   TopologyNodeKind,
   TopologyNodeStatus,
+  TopologyProcessInfo,
   TopologyServicePort,
   TopologySystemGroup,
   TopologyTier,
 } from '@opsagent/contracts';
 import type { ModelCompletionService } from '../models/completion.js';
 
-export const TOPOLOGY_PROMPT_VERSION = 'topology-v1';
+export const TOPOLOGY_PROMPT_VERSION = 'topology-v2';
 
 /** 模型路径且拿不到真实模型名时的兜底标签。 */
 export const DEFAULT_MODEL_LABEL = 'llm';
@@ -53,37 +65,40 @@ const MAX_DRAFT_NODES = 120;
 const MAX_DRAFT_EDGES = 240;
 const MAX_INSIGHTS = 8;
 const MAX_HOT_PATHS = 5;
-const MAX_PROMPT_HOSTS = 80;
-const MAX_PROMPT_EDGES = 120;
-const MAX_PROMPT_PEERS = 30;
+const MAX_PROMPT_HOSTS = 60;
+const MAX_PROMPT_EDGES = 100;
+const MAX_PROMPT_PEERS = 20;
+const MAX_PROMPT_PROCESSES_PER_HOST = 4;
+const MAX_PROMPT_PROCESS_COMMAND_CHARS = 120;
+/** prompt 内嵌 JSON 的硬上限（system prompt 约 7.2k 字符，合计保证 ≤45k 字符）。 */
+const MAX_PROMPT_JSON_CHARS = 37_200;
 const MAX_HOT_PATH_NODES = 5;
 
 const TIER_ORDER: Record<TopologyTier, number> = {
-  ingress: 0,
+  access: 0,
   app: 1,
   middleware: 2,
   data: 3,
-  external: 4,
-  infra: 5,
+  ops: 4,
+  external: 5,
 };
 
-const TIER_VALUES: readonly TopologyTier[] = ['ingress', 'app', 'middleware', 'data', 'external', 'infra'];
+const TIER_VALUES: readonly TopologyTier[] = ['access', 'app', 'middleware', 'data', 'ops', 'external'];
 const KIND_VALUES: readonly TopologyNodeKind[] = [
   'gateway',
   'service',
   'database',
   'cache',
   'mq',
+  'registry',
   'storage',
+  'monitoring',
+  'logging',
   'external',
   'unknown',
 ];
 const SEVERITY_VALUES: readonly TopologyInsightSeverity[] = ['info', 'warning', 'critical'];
 const STATUS_VALUES: readonly TopologyNodeStatus[] = ['online', 'offline', 'unknown'];
-
-const INGRESS_PATTERN = /(nginx|haproxy|envoy|apache|httpd|traefik|gateway|kong|\bf5\b|\b(?:lb|alb|nlb)\b|lvs|openresty)/i;
-const MIDDLEWARE_PATTERN = /(redis|memcached|pika|kafka|rabbitmq|rocketmq|activemq|pulsar|nacos|zookeeper|elasticsearch|opensearch|etcd|consul)/i;
-const DATA_PATTERN = /(mysql|mariadb|postgres|postgresql|oracle|sqlserver|mssql|mongodb|mongo|clickhouse|tidb|dameng|kingbase|dm8)/i;
 
 export interface AnalyzeTopologyOptions {
   readonly maxTokens?: number;
@@ -261,53 +276,395 @@ function combineDirection(
 export interface HostClassification {
   readonly tier: TopologyTier;
   readonly kind: TopologyNodeKind;
+  /** 主产品/组件名，如 Nginx、Spring Boot、MySQL、Redis、Prometheus。 */
+  readonly product: string;
+  /** 架构角色中文描述，如「接入网关」「业务应用」「关系型数据库」。 */
+  readonly role: string;
+  /** true 表示节点主要承载系统/运维服务（node_exporter、zabbix-agent、prometheus 等）。 */
+  readonly systemService: boolean;
+  /** true 表示检测到业务应用进程；多角色主机以业务应用为准。 */
+  readonly businessProcess: boolean;
+  /** 业务应用优先时被覆盖的组件层（access/data/middleware），用于 role/note 说明。 */
+  readonly secondaryTiers: readonly TopologyTier[];
+  readonly note?: string;
 }
 
-function hostServiceText(host: Pick<TopologyLearningHost, 'services'>): string {
+interface ComponentRule {
+  readonly pattern: RegExp;
+  readonly product: string;
+  readonly role: string;
+  readonly kind: TopologyNodeKind;
+  readonly tier: TopologyTier;
+  readonly systemService: boolean;
+}
+
+function rule(
+  pattern: RegExp,
+  tier: TopologyTier,
+  kind: TopologyNodeKind,
+  product: string,
+  role: string,
+  systemService = false,
+): ComponentRule {
+  return { pattern, tier, kind, product, role, systemService };
+}
+
+/** 接入层：网关 / 负载均衡 / WAF / CDN。 */
+const ACCESS_RULES: readonly ComponentRule[] = [
+  rule(/openresty/i, 'access', 'gateway', 'OpenResty', '接入网关/反向代理'),
+  rule(/nginx/i, 'access', 'gateway', 'Nginx', '接入网关/反向代理'),
+  rule(/haproxy/i, 'access', 'gateway', 'HAProxy', '负载均衡'),
+  rule(/envoy/i, 'access', 'gateway', 'Envoy', '服务代理'),
+  rule(/traefik/i, 'access', 'gateway', 'Traefik', '接入网关'),
+  rule(/apisix/i, 'access', 'gateway', 'APISIX', 'API 网关'),
+  rule(/\bkong\b/i, 'access', 'gateway', 'Kong', 'API 网关'),
+  rule(/\bf5\b/i, 'access', 'gateway', 'F5', '负载均衡'),
+  rule(/\blvs\b/i, 'access', 'gateway', 'LVS', '四层负载均衡'),
+  rule(/keepalived/i, 'access', 'gateway', 'Keepalived', '高可用/负载均衡'),
+  rule(/\bwaf\b/i, 'access', 'gateway', 'WAF', 'Web 应用防火墙'),
+  rule(/\bcdn\b/i, 'access', 'gateway', 'CDN', '内容分发网络'),
+  rule(/\b(?:slb|alb|nlb)\b/i, 'access', 'gateway', 'SLB/ALB', '负载均衡'),
+];
+
+/** 数据层：数据库（database）与存储（storage）。 */
+const DATA_RULES: readonly ComponentRule[] = [
+  rule(/mariadb/i, 'data', 'database', 'MariaDB', '关系型数据库'),
+  rule(/mysql|mysqld/i, 'data', 'database', 'MySQL', '关系型数据库'),
+  rule(/postgres|postgresql|pgsql/i, 'data', 'database', 'PostgreSQL', '关系型数据库'),
+  rule(/\boracle\b/i, 'data', 'database', 'Oracle', '关系型数据库'),
+  rule(/\bmssql\b|sqlserver/i, 'data', 'database', 'SQL Server', '关系型数据库'),
+  rule(/mongodb|\bmongo\b/i, 'data', 'database', 'MongoDB', '文档数据库'),
+  rule(/clickhouse/i, 'data', 'database', 'ClickHouse', '列式分析数据库'),
+  rule(/\btidb\b/i, 'data', 'database', 'TiDB', '分布式数据库'),
+  rule(/oceanbase/i, 'data', 'database', 'OceanBase', '分布式数据库'),
+  rule(/dameng|\bdm8\b|dmdb/i, 'data', 'database', '达梦', '关系型数据库'),
+  rule(/elasticsearch/i, 'data', 'storage', 'Elasticsearch', '搜索存储'),
+  rule(/opensearch/i, 'data', 'storage', 'OpenSearch', '搜索存储'),
+  rule(/\bminio\b/i, 'data', 'storage', 'MinIO', '对象存储'),
+  rule(/\bceph\b/i, 'data', 'storage', 'Ceph', '分布式存储'),
+  rule(/\bhdfs\b/i, 'data', 'storage', 'HDFS', '分布式文件存储'),
+];
+
+/** 中间件层：缓存（cache）、消息队列（mq）、注册中心（registry）。 */
+const MIDDLEWARE_RULES: readonly ComponentRule[] = [
+  rule(/redis/i, 'middleware', 'cache', 'Redis', '缓存'),
+  rule(/memcached/i, 'middleware', 'cache', 'Memcached', '分布式缓存'),
+  rule(/\bpika\b/i, 'middleware', 'cache', 'Pika', '缓存'),
+  rule(/kafka/i, 'middleware', 'mq', 'Kafka', '消息队列'),
+  rule(/rabbitmq|\brabbit\b/i, 'middleware', 'mq', 'RabbitMQ', '消息队列'),
+  rule(/rocketmq/i, 'middleware', 'mq', 'RocketMQ', '消息队列'),
+  rule(/activemq/i, 'middleware', 'mq', 'ActiveMQ', '消息队列'),
+  rule(/\bpulsar\b/i, 'middleware', 'mq', 'Pulsar', '消息队列'),
+  rule(/\bnacos\b/i, 'middleware', 'registry', 'Nacos', '注册中心'),
+  rule(/zookeeper/i, 'middleware', 'registry', 'ZooKeeper', '注册中心'),
+  rule(/\betcd\b/i, 'middleware', 'registry', 'etcd', '注册中心'),
+  rule(/\bconsul\b/i, 'middleware', 'registry', 'Consul', '注册中心'),
+  rule(/\beureka\b/i, 'middleware', 'registry', 'Eureka', '注册中心'),
+];
+
+/** 运维观测层：监控（monitoring）、日志（logging）、系统服务（unknown），systemService=true。 */
+const OPS_RULES: readonly ComponentRule[] = [
+  rule(/\bprometheus\b/i, 'ops', 'monitoring', 'Prometheus', '监控', true),
+  rule(/alertmanager/i, 'ops', 'monitoring', 'Alertmanager', '告警管理', true),
+  rule(/\bgrafana\b/i, 'ops', 'monitoring', 'Grafana', '监控可视化', true),
+  rule(/\bzabbix/i, 'ops', 'monitoring', 'Zabbix', '监控', true),
+  rule(/node[_-]exporter/i, 'ops', 'monitoring', 'Node Exporter', '主机监控采集', true),
+  rule(/\btelegraf\b/i, 'ops', 'monitoring', 'Telegraf', '指标采集', true),
+  rule(/\bfilebeat\b/i, 'ops', 'logging', 'Filebeat', '日志采集', true),
+  rule(/\blogstash\b/i, 'ops', 'logging', 'Logstash', '日志处理', true),
+  rule(/fluentd|fluent-bit/i, 'ops', 'logging', 'Fluentd', '日志采集', true),
+  rule(/\bkibana\b/i, 'ops', 'logging', 'Kibana', '日志可视化', true),
+  rule(/\bjaeger\b/i, 'ops', 'monitoring', 'Jaeger', '链路追踪', true),
+  rule(/skywalking/i, 'ops', 'monitoring', 'SkyWalking', '链路追踪', true),
+  rule(/opsagent[-_]agent/i, 'ops', 'monitoring', 'OpsAgent Agent', '运维采集代理', true),
+  rule(/chrony(?:d)?|\bntpd\b/i, 'ops', 'unknown', 'Chrony/NTP', '时间同步', true),
+  rule(/\bsshd\b/i, 'ops', 'unknown', 'OpenSSH', '系统服务（SSH）', true),
+  rule(/\brsyslogd?\b/i, 'ops', 'logging', 'Rsyslog', '系统日志', true),
+  rule(/\bcron(?:d)?\b/i, 'ops', 'unknown', 'Cron', '系统服务（定时任务）', true),
+  rule(/systemd-journald/i, 'ops', 'logging', 'systemd-journald', '系统日志', true),
+  rule(/containerd|\bdocker\b/i, 'ops', 'unknown', '容器运行时', '容器运行时', true),
+];
+
+/** 业务应用运行时 token（出现在进程名/命令行即视为业务进程证据）。 */
+const APP_RUNTIME_TOKENS = [
+  'java',
+  'javaw',
+  'node',
+  'nodejs',
+  'python',
+  'python3',
+  'golang',
+  'go',
+  'dotnet',
+  'php',
+  'php-fpm',
+  'tomcat',
+  'catalina',
+  'gunicorn',
+  'uvicorn',
+  'django',
+  'flask',
+  'fastapi',
+  'spring-boot',
+  'springboot',
+  'jar',
+];
+
+/** 这些关键字说明进程是数据/中间件/运维组件的运行时（如 Kafka 的 JVM），不能算业务应用。 */
+const COMPONENT_RUNTIME_PATTERN =
+  /(kafka|zookeeper|elasticsearch|opensearch|nacos|rocketmq|activemq|pulsar|hadoop|hbase|flink|spark|node[_-]exporter|prometheus|alertmanager|grafana|zabbix|telegraf|filebeat|logstash|fluentd|fluent-bit|kibana|jaeger|skywalking|opsagent|sshd|chrony|ntpd|systemd|containerd|docker)/i;
+
+const GENERIC_SERVICE_NAME_PATTERN =
+  /^(?:java|javaw|node|nodejs|python[0-9.]*|go|dotnet|php(?:-fpm)?|tomcat|catalina|service|app|application|server|unknown|tcp|udp|http|https|systemd|sshd|port\s*\d+)$/i;
+
+const GENERIC_JAR_PATTERN = /^(?:spring-boot|bootstrap|launcher|application|app|main|server)$/i;
+
+/** 所有已知组件的名称模式：业务应用取服务名时排除这些基础设施名。 */
+const COMPONENT_NAME_PATTERN = new RegExp(
+  [...ACCESS_RULES, ...DATA_RULES, ...MIDDLEWARE_RULES, ...OPS_RULES]
+    .map((item) => item.pattern.source)
+    .join('|'),
+  'i',
+);
+
+function hostEvidenceText(host: Pick<TopologyLearningHost, 'services' | 'processes'>): string {
   const parts: string[] = [];
   for (const service of host.services) {
     if (service.name) parts.push(service.name);
     if (service.process) parts.push(service.process);
   }
+  for (const process of host.processes ?? []) {
+    if (process.name) parts.push(process.name);
+    if (process.command) parts.push(process.command);
+    if (process.user) parts.push(process.user);
+  }
   return parts.join(' ').toLowerCase();
 }
 
-function middlewareKind(serviceText: string): TopologyNodeKind {
-  if (/(redis|memcached|pika)/i.test(serviceText)) return 'cache';
-  if (/(kafka|rabbitmq|rocketmq|activemq|pulsar)/i.test(serviceText)) return 'mq';
-  if (/(elasticsearch|opensearch|minio|ceph|hdfs)/i.test(serviceText)) return 'storage';
-  return 'service';
+function findRule(rules: readonly ComponentRule[], evidence: string): ComponentRule | null {
+  if (!evidence) return null;
+  for (const item of rules) {
+    if (item.pattern.test(evidence)) return item;
+  }
+  return null;
+}
+
+function hasToken(text: string, token: string): boolean {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
+}
+
+/** 该进程文本是否代表业务应用运行时（排除 Kafka/Zookeeper/ES 等组件的 JVM、监控采集进程）。 */
+function isBusinessRuntimeText(text: string): boolean {
+  if (!text.trim()) return false;
+  if (COMPONENT_RUNTIME_PATTERN.test(text)) return false;
+  return APP_RUNTIME_TOKENS.some((token) => hasToken(text, token));
+}
+
+function hasBusinessProcess(host: Pick<TopologyLearningHost, 'services' | 'processes'>): boolean {
+  for (const process of host.processes ?? []) {
+    if (isBusinessRuntimeText(`${process.name} ${process.command ?? ''}`)) return true;
+  }
+  for (const service of host.services) {
+    if (isBusinessRuntimeText(`${service.process ?? ''} ${service.name}`)) return true;
+  }
+  return false;
+}
+
+function detectRuntimeLabel(host: Pick<TopologyLearningHost, 'services' | 'processes'>): string {
+  const text = hostEvidenceText(host);
+  if (/spring[- ]?boot|springboot/i.test(text)) return 'Spring Boot';
+  if (/tomcat|catalina/i.test(text)) return 'Tomcat';
+  if (/\.jar\b/i.test(text) || hasToken(text, 'java')) return 'Java';
+  if (hasToken(text, 'node') || hasToken(text, 'nodejs')) return 'Node.js';
+  if (
+    /django|flask|fastapi|gunicorn|uvicorn/i.test(text) ||
+    hasToken(text, 'python') ||
+    hasToken(text, 'python3')
+  ) {
+    return 'Python';
+  }
+  if (/\.dll\b/i.test(text) || hasToken(text, 'dotnet')) return '.NET';
+  if (hasToken(text, 'php') || hasToken(text, 'php-fpm')) return 'PHP';
+  if (hasToken(text, 'go') || /go-build/i.test(text)) return 'Go';
+  return '';
+}
+
+function extractJarProduct(host: Pick<TopologyLearningHost, 'processes'>): string {
+  for (const process of host.processes ?? []) {
+    const command = `${process.name} ${process.command ?? ''}`;
+    const match = /([A-Za-z0-9][A-Za-z0-9_.-]*\.jar)\b/i.exec(command);
+    if (!match?.[1]) continue;
+    const base = match[1].replace(/\.jar$/i, '');
+    if (base && !GENERIC_JAR_PATTERN.test(base)) return cut(base, 60);
+  }
+  return '';
+}
+
+function firstMeaningfulServiceName(host: Pick<TopologyLearningHost, 'services'>): string {
+  for (const service of host.services) {
+    const name = service.name.trim();
+    if (name.length < 2 || name.length > 80) continue;
+    if (GENERIC_SERVICE_NAME_PATTERN.test(name)) continue;
+    if (COMPONENT_NAME_PATTERN.test(name)) continue;
+    return cut(name, 60);
+  }
+  return '';
+}
+
+/** 业务应用主产品：jar 文件名 > 有意义的服务名 > 运行时标签。 */
+function detectAppProduct(host: Pick<TopologyLearningHost, 'services' | 'processes'>): string {
+  const jar = extractJarProduct(host);
+  if (jar) return jar;
+  const serviceName = firstMeaningfulServiceName(host);
+  if (serviceName) return serviceName;
+  const runtime = detectRuntimeLabel(host);
+  if (runtime) return runtime;
+  return '未知应用';
+}
+
+function secondaryRoleLabel(tier: TopologyTier): string {
+  if (tier === 'access') return '接入代理';
+  if (tier === 'data') return '数据库';
+  if (tier === 'middleware') return '中间件';
+  return '组件';
 }
 
 /**
- * 按「接入 → 中间件 → 数据 → 应用 → 基础设施」的优先级给纳管主机分层。
+ * 按 IT 架构分层（access / data / middleware / ops / app / external）给纳管主机分类。
  *
- * - ingress：进程/服务名命中网关关键词，或监听 80/443 且被其他主机访问；
- * - middleware：redis/kafka/nacos/elasticsearch 等；
- * - data：mysql/postgres/oracle/mongodb 等；
- * - infra：无监听服务且无任何访问关系的纳管主机；
- * - app：其余纳管主机。
+ * 证据来源：services（服务名/进程）+ processes（进程名/命令行/user）。多角色主机以业务应用为准：
+ * - 接入代理 + 业务进程 → app，role「业务应用（含接入代理）」，product「主产品 / 接入产品」；
+ * - 数据库/中间件 + 业务进程 → app，并在 note 说明混合角色；
+ * - 只有代理/网关 → access；只有数据/中间件/运维组件 → 对应层；
+ * - 无任何服务/访问关系的纳管主机 → ops（基础设施主机）。
  */
 export function classifyManagedHost(
-  host: Pick<TopologyLearningHost, 'services'>,
+  host: Pick<TopologyLearningHost, 'services' | 'processes'>,
   connections: { readonly inbound: number; readonly total: number },
 ): HostClassification {
-  const serviceText = hostServiceText(host);
-  const listensOnPublicPort = host.services.some((service) => service.port === 80 || service.port === 443);
-  if (INGRESS_PATTERN.test(serviceText) || (listensOnPublicPort && connections.inbound > 0)) {
-    return { tier: 'ingress', kind: 'gateway' };
+  const evidence = hostEvidenceText(host);
+  const accessRule = findRule(ACCESS_RULES, evidence);
+  const dataRule = findRule(DATA_RULES, evidence);
+  const middlewareRule = findRule(MIDDLEWARE_RULES, evidence);
+  const opsRule = findRule(OPS_RULES, evidence);
+  const businessProcess = hasBusinessProcess(host);
+
+  if (businessProcess) {
+    const appProduct = detectAppProduct(host);
+    const secondaryTiers: TopologyTier[] = [];
+    const secondaryProducts: string[] = [];
+    if (accessRule) {
+      secondaryTiers.push('access');
+      secondaryProducts.push(accessRule.product);
+    }
+    if (dataRule) {
+      secondaryTiers.push('data');
+      secondaryProducts.push(dataRule.product);
+    }
+    if (middlewareRule) {
+      secondaryTiers.push('middleware');
+      secondaryProducts.push(middlewareRule.product);
+    }
+    const product = secondaryProducts.length > 0
+      ? cut(`${appProduct} / ${secondaryProducts.join(' / ')}`, 80)
+      : cut(appProduct, 80);
+    const role = secondaryTiers.length > 0
+      ? cut(`业务应用（含${secondaryTiers.map(secondaryRoleLabel).join('、')}）`, 60)
+      : '业务应用';
+    const noteLabels = secondaryTiers
+      .filter((tier) => tier === 'data' || tier === 'middleware')
+      .map(secondaryRoleLabel);
+    return defined<HostClassification>({
+      tier: 'app',
+      kind: 'service',
+      product,
+      role,
+      systemService: false,
+      businessProcess: true,
+      secondaryTiers,
+      note: noteLabels.length > 0
+        ? `同一主机同时运行${noteLabels.join('、')}与业务进程，已按业务应用归类`
+        : undefined,
+    });
   }
-  if (MIDDLEWARE_PATTERN.test(serviceText)) {
-    return { tier: 'middleware', kind: middlewareKind(serviceText) };
+
+  if (accessRule) {
+    return {
+      tier: 'access',
+      kind: accessRule.kind,
+      product: cut(accessRule.product, 80),
+      role: cut(accessRule.role, 60),
+      systemService: false,
+      businessProcess: false,
+      secondaryTiers: [],
+    };
   }
-  if (DATA_PATTERN.test(serviceText)) {
-    return { tier: 'data', kind: 'database' };
+  if (dataRule) {
+    return {
+      tier: 'data',
+      kind: dataRule.kind,
+      product: cut(dataRule.product, 80),
+      role: cut(dataRule.role, 60),
+      systemService: false,
+      businessProcess: false,
+      secondaryTiers: [],
+    };
+  }
+  if (middlewareRule) {
+    return {
+      tier: 'middleware',
+      kind: middlewareRule.kind,
+      product: cut(middlewareRule.product, 80),
+      role: cut(middlewareRule.role, 60),
+      systemService: false,
+      businessProcess: false,
+      secondaryTiers: [],
+    };
+  }
+  if (opsRule) {
+    return {
+      tier: 'ops',
+      kind: opsRule.kind,
+      product: cut(opsRule.product, 80),
+      role: cut(opsRule.role, 60),
+      systemService: true,
+      businessProcess: false,
+      secondaryTiers: [],
+    };
   }
   if (host.services.length === 0 && connections.total === 0) {
-    return { tier: 'infra', kind: 'unknown' };
+    return {
+      tier: 'ops',
+      kind: 'unknown',
+      product: 'Unknown',
+      role: '基础设施主机',
+      systemService: true,
+      businessProcess: false,
+      secondaryTiers: [],
+    };
   }
-  return { tier: 'app', kind: 'service' };
+  return {
+    tier: 'app',
+    kind: 'service',
+    product: cut(detectAppProduct(host), 80),
+    role: '业务应用',
+    systemService: false,
+    businessProcess: false,
+    secondaryTiers: [],
+  };
 }
+
+/** 未纳管外部依赖的默认节点画像。 */
+const EXTERNAL_CLASSIFICATION: HostClassification = {
+  tier: 'external',
+  kind: 'external',
+  product: '外部依赖',
+  role: '未纳管外部服务',
+  systemService: false,
+  businessProcess: false,
+  secondaryTiers: [],
+};
 
 // ---------------------------------------------------------------------------
 // 输入索引：稳定短 id、边解析、外部依赖聚合
@@ -322,6 +679,7 @@ interface ManagedHost {
   appSystemName: string;
   status: string;
   services: TopologyServicePort[];
+  processes: TopologyProcessInfo[];
   anomalies: string[];
   synthetic: boolean;
 }
@@ -391,6 +749,32 @@ function normalizeServices(services: readonly TopologyServicePort[] | undefined)
     byPort.set(port, defined<TopologyServicePort>({ name, port, process: process || undefined, pid: pid ?? undefined }));
   }
   return [...byPort.values()].sort((a, b) => a.port - b.port);
+}
+
+function normalizeProcesses(
+  processes: readonly TopologyProcessInfo[] | undefined,
+): TopologyProcessInfo[] {
+  const byKey = new Map<string, TopologyProcessInfo>();
+  for (const process of processes ?? []) {
+    const name = text(process.name, 80);
+    if (!name) continue;
+    const command = text(process.command, 240);
+    const user = text(process.user, 40);
+    const pid = nonNegativeInt(process.pid);
+    const key = `${name}\u0000${command}`;
+    if (byKey.has(key)) continue;
+    byKey.set(
+      key,
+      defined<TopologyProcessInfo>({
+        name,
+        command: command || undefined,
+        user: user || undefined,
+        pid: pid ?? undefined,
+      }),
+    );
+    if (byKey.size >= 32) break;
+  }
+  return [...byKey.values()];
 }
 
 function resolveEdgePort(edge: TopologyLearningEdge, targetHost: ManagedHost | null): number | null {
@@ -476,6 +860,7 @@ function buildTopologyIndex(input: TopologyLearningInput): TopologyIndex {
       appSystemName: (host.appSystemName ?? '').trim(),
       status: (host.status ?? '').trim(),
       services: normalizeServices(host.services),
+      processes: normalizeProcesses(host.processes),
       anomalies: (host.anomalies ?? [])
         .filter((anomaly): anomaly is string => typeof anomaly === 'string' && anomaly.trim().length > 0)
         .map((anomaly) => cut(anomaly.trim(), 200))
@@ -552,6 +937,7 @@ function buildTopologyIndex(input: TopologyLearningInput): TopologyIndex {
       appSystemName: (appSystemName ?? '').trim(),
       status: 'unknown',
       services: [],
+      processes: [],
       anomalies: [],
       synthetic: true,
     };
@@ -714,7 +1100,7 @@ function buildHeuristicNodes(index: TopologyIndex): TopologyDraftNode[] {
     const classification = classifyManagedHost(host, { inbound, total: inbound + outbound });
     const noteParts: string[] = [];
     if (host.synthetic) noteParts.push('未在主机清单中，由建连边推断');
-    if (classification.tier === 'infra') noteParts.push('窗口内无监听服务且无访问关系');
+    if (classification.note) noteParts.push(classification.note);
     if (host.anomalies.length > 0) noteParts.push(`异常：${host.anomalies[0]}`);
     nodes.push(
       defined<TopologyDraftNode>({
@@ -728,6 +1114,9 @@ function buildHeuristicNodes(index: TopologyIndex): TopologyDraftNode[] {
         appSystemName: host.appSystemName || undefined,
         status: mapHostStatus(host.status),
         services: host.services.slice(0, 24),
+        product: classification.product,
+        role: classification.role,
+        systemService: classification.systemService,
         inferred: host.synthetic,
         note: noteParts.length > 0 ? cut(noteParts.join('；'), 300) : undefined,
       }),
@@ -746,6 +1135,9 @@ function buildHeuristicNodes(index: TopologyIndex): TopologyDraftNode[] {
         appSystemId: null,
         status: 'unknown',
         services,
+        product: '外部依赖',
+        role: '未纳管外部服务',
+        systemService: false,
         inferred: true,
         note: '未纳管外部依赖',
       }),
@@ -951,7 +1343,7 @@ function buildHeuristicInsights(
   const singlePoints: TopologyInsight[] = [];
   sortedSystems.forEach(([, group], index) => {
     const criticalNodes = group.nodes.filter((node) => node.tier === 'data' || node.tier === 'middleware');
-    const consumers = group.nodes.filter((node) => node.tier === 'app' || node.tier === 'ingress');
+    const consumers = group.nodes.filter((node) => node.tier === 'app' || node.tier === 'access');
     if (criticalNodes.length !== 1 || consumers.length === 0) return;
     const node = criticalNodes[0];
     if (!node) return;
@@ -1123,7 +1515,7 @@ function buildHeuristicInsights(
   return insights;
 }
 
-/** 从入口（ingress 或无入边节点）沿出边做受限 DFS，取总连接数最大的 3 条简单路径。 */
+/** 从入口（access 或无入边节点）沿出边做受限 DFS，取总连接数最大的 3 条简单路径。 */
 function buildHotPaths(
   nodes: readonly TopologyDraftNode[],
   edges: readonly TopologyDraftEdge[],
@@ -1154,7 +1546,7 @@ function buildHotPaths(
     .filter(
       (node) =>
         (outgoing.get(node.id)?.length ?? 0) > 0 &&
-        (node.tier === 'ingress' || ((inboundCount.get(node.id) ?? 0) === 0 && node.tier !== 'external')),
+        (node.tier === 'access' || ((inboundCount.get(node.id) ?? 0) === 0 && node.tier !== 'external')),
     )
     .sort(entryCompare);
   const startNodes =
@@ -1241,7 +1633,7 @@ function computeHeuristicConfidence(
   if (edges.length > 0) confidence += 0.03;
   if (systems.some((system) => system.id !== UNASSIGNED_SYSTEM_ID)) confidence += 0.03;
   if (nodes.some((node) => (node.services?.length ?? 0) > 0)) confidence += 0.02;
-  if (nodes.some((node) => node.tier === 'ingress')) confidence += 0.02;
+  if (nodes.some((node) => node.tier === 'access')) confidence += 0.02;
   return round2(clampNumber(confidence, 0.55, 0.65));
 }
 
@@ -1430,28 +1822,56 @@ export function buildHeuristicDraft(input: TopologyLearningInput): TopologyDraft
 // ---------------------------------------------------------------------------
 
 const TOPOLOGY_SYSTEM_PROMPT = [
-  '你是 OpsAgent 的资深 SRE 架构师，负责把真实主机建连数据整理成「一眼看懂」的业务访问拓扑。',
+  '你是 OpsAgent 的资深 SRE / IT 架构师，负责把真实主机的监听服务、进程证据和建连关系整理成「一眼看懂」的业务访问拓扑。',
   '',
-  '任务：分析固定时间窗口内的主机、监听服务、建连边和外部依赖，输出分层拓扑图和具体洞察。',
+  '任务：基于真实证据做 IT 架构分层（access / app / middleware / data / ops / external）和组件识别，输出每个节点的 product（产品/组件名）、role（中文架构角色）、systemService（是否系统/运维服务），以及边、洞察、热点路径、风险。',
   '',
-  '硬性输出要求：',
+  '【证据要求】',
+  '1. 只能基于 hosts[].services（服务名/端口/进程）、hosts[].processes（进程名/command/user）和 edges 的真实证据判断；',
+  '2. processes[].command 是识别关键（如 "java -jar order-service.jar"、"mysqld"、"redis-server"、"nginx: master process"）；',
+  '3. 禁止仅凭主机名猜测，禁止编造输入中不存在的组件、节点或 id；product/role 必须与证据一致。',
+  '',
+  '【6 层定义与优先级】',
+  '1) access 接入层（kind=gateway）：nginx、haproxy、envoy、traefik、apisix、kong、f5、lvs、keepalived、waf、cdn、slb/alb、四七层负载均衡；role 如「接入网关/负载均衡」。',
+  '2) data 数据层：mysql/mariadb/mysqld、postgres/postgresql、oracle、mssql/sqlserver、mongodb、clickhouse、tidb、oceanbase、dameng/dm → kind=database；elasticsearch/opensearch/minio/ceph/hdfs → kind=storage；role 如「关系型数据库/搜索存储/对象存储」。',
+  '3) middleware 中间件层：redis/memcached/pika → cache；kafka/rabbitmq/rocketmq/activemq/pulsar → mq；nacos/zookeeper/etcd/consul/eureka → registry；role 如「缓存/消息队列/注册中心」。',
+  '4) ops 运维观测层：prometheus、alertmanager、grafana、zabbix（server/agent）、node_exporter、telegraf、filebeat、logstash、fluentd、kibana、jaeger、skywalking、opsagent-agent、chrony/ntpd、sshd 等系统/运维服务 → kind=monitoring/logging/unknown，systemService=true，role 如「监控/日志采集/系统服务」。',
+  '5) app 应用层：java（Spring Boot/jar/tomcat）、node、python（django/flask/fastapi）、go、.NET、php 等业务进程 → kind=service，role「业务应用」；product 优先取 jar/服务名（如 order-service），否则「运行时 / 服务名」或运行时名。',
+  '6) external 外部依赖：未纳管 peer → tier=external、kind=external、inferred=true，product「外部依赖」，role「未纳管外部服务」。',
+  '',
+  '【多角色主机规则（重要）】',
+  '- 同时有接入代理（nginx 等）和业务进程（java/node/python/…）时，以业务应用为准：tier=app、kind=service、role「业务应用（含接入代理）」，product 写主产品，可写「order-service / Nginx」；只有代理/网关时才归 access。',
+  '- 同时跑数据库或中间件与业务进程时，同样以业务应用为准：role「业务应用（含数据库/中间件）」，note 说明该主机承担混合角色。',
+  '- 监控/系统服务（node_exporter、telegraf、sshd 等）不能抢走业务应用、数据库或中间件的层级。',
+  '',
+  '【kind 白名单】gateway / service / database / cache / mq / registry / storage / monitoring / logging / external / unknown。',
+  '【tier 白名单】access / app / middleware / data / ops / external。禁止使用旧值 ingress、infra。',
+  '',
+  '【常见产品映射】',
+  'nginx→Nginx；haproxy→HAProxy；envoy→Envoy；traefik→Traefik；apisix→APISIX；kong→Kong；f5→F5；lvs→LVS；keepalived→Keepalived；',
+  'mysql/mariadb→MySQL/MariaDB；postgres→PostgreSQL；oracle→Oracle；sqlserver→SQL Server；mongodb→MongoDB；clickhouse→ClickHouse；tidb→TiDB；oceanbase→OceanBase；dameng→达梦；',
+  'elasticsearch→Elasticsearch；opensearch→OpenSearch；minio→MinIO；ceph→Ceph；hdfs→HDFS；',
+  'redis→Redis；memcached→Memcached；kafka→Kafka；rabbitmq→RabbitMQ；rocketmq→RocketMQ；activemq→ActiveMQ；pulsar→Pulsar；nacos→Nacos；zookeeper→ZooKeeper；etcd→etcd；consul→Consul；eureka→Eureka；',
+  'prometheus→Prometheus；alertmanager→Alertmanager；grafana→Grafana；zabbix→Zabbix；node_exporter→Node Exporter；telegraf→Telegraf；filebeat→Filebeat；logstash→Logstash；fluentd→Fluentd；kibana→Kibana；jaeger→Jaeger；skywalking→SkyWalking；',
+  'java -jar X.jar→X；tomcat→Tomcat；node→Node.js；python/django/flask/fastapi→Python；dotnet→.NET；php→PHP。',
+  '',
+  '【输出要求】',
   '1. 只输出一个严格 JSON 对象；不要 Markdown 围栏，不要解释、前后缀或注释。',
   '2. 节点 id 只能使用输入中出现的 id（hosts[].id、externalPeers[].id、edges[].from/to）；禁止编造节点或 id。',
   '3. 输入里 edges[].from / edges[].to 是边两端的节点 id；输出 edges 时用 source / target（与 from/to 相同）。',
   '4. 端口用输入中的真实端口；opened / failed 用输入边的真实数字；count 参考 opened / active 的真实数量。',
-  '5. 分层 tier 只能取 ingress / app / middleware / data / external / infra。',
-  '6. kind 只能取 gateway / service / database / cache / mq / storage / external / unknown。',
-  '7. 业务系统分组必须使用输入中的 appSystemId 原值；节点 label 用主机名或服务名（可用中文）。',
-  '8. 未纳管外部 peer 必须建成 external 节点，label 用 IP。',
-  '9. insights 必须具体：引用真实节点/边和数字，说明为什么重要；severity 只能是 info / warning / critical；最多 8 条。',
-  '10. risks 只放 warning / critical 的风险；hotPaths 最多 5 条、每条最多 5 个节点。',
-  '11. hotPaths.edgeIds 和 insights.edgeIds 使用「e:源id->目标id:端口」格式，例如 e:e:h:ab12cd34->h:ef56gh78:3306。',
-  '12. confidence 取 0~1，表示整体结论可信度；数据越完整越高。输出节点不超过 120 个、边不超过 240 条。',
+  '5. 每个 node 必须输出 product、role、systemService；product/role 基于 services/processes 证据，禁止编造；systemService 仅当节点主要承载系统/运维服务时为 true。',
+  '6. 业务系统分组必须使用输入中的 appSystemId 原值；节点 label 用主机名或服务名（可用中文）。',
+  '7. 未纳管外部 peer 必须建成 external 节点，label 用 IP。',
+  '8. insights 必须具体：引用真实节点/边和数字，说明为什么重要；severity 只能是 info / warning / critical；最多 8 条。',
+  '9. risks 只放 warning / critical 的风险；hotPaths 最多 5 条、每条最多 5 个节点。',
+  '10. hotPaths.edgeIds 和 insights.edgeIds 使用「e:源id->目标id:端口」格式，例如 e:h:ab12cd34->h:ef56gh78:3306。',
+  '11. confidence 取 0~1，表示整体结论可信度；数据越完整越高。输出节点不超过 120 个、边不超过 240 条。',
   '',
   'JSON schema：',
   '{',
   '  "summary": "string",',
-  '  "nodes": [{"id": "string", "label": "string", "kind": "gateway|service|database|cache|mq|storage|external|unknown", "tier": "ingress|app|middleware|data|external|infra", "hostname": "string?", "ip": "string?", "appSystemId": "string|null?", "appSystemName": "string?", "status": "online|offline|unknown?", "services": [{"name": "string", "port": 3306, "process": "string?"}], "inferred": true, "note": "string?"}],',
+  '  "nodes": [{"id": "string", "label": "string", "kind": "gateway|service|database|cache|mq|registry|storage|monitoring|logging|external|unknown", "tier": "access|app|middleware|data|ops|external", "product": "string", "role": "string", "systemService": false, "hostname": "string?", "ip": "string?", "appSystemId": "string|null?", "appSystemName": "string?", "status": "online|offline|unknown?", "services": [{"name": "string", "port": 3306, "process": "string?"}], "inferred": true, "note": "string?"}],',
   '  "edges": [{"source": "string", "target": "string", "port": 3306, "count": 100, "opened": 90, "failed": 2, "protocol": "tcp", "label": "string?", "confidence": 0.9}],',
   '  "insights": [{"id": "string", "title": "string", "detail": "string", "severity": "info|warning|critical", "nodeIds": ["string"], "edgeIds": ["string"]}],',
   '  "hotPaths": [{"label": "string", "nodeIds": ["string"], "edgeIds": ["string"], "connections": 100}],',
@@ -1459,8 +1879,13 @@ const TOPOLOGY_SYSTEM_PROMPT = [
   '  "confidence": 0.85',
   '}',
   '',
-  '示例（只示意格式和颗粒度）：',
-  '{"summary":"窗口内 4 台主机、3 条访问关系、2 个业务系统；核心链路 web-01 → db-01:3306（128 次）；发现 1 个风险。","nodes":[{"id":"h:ab12cd34","label":"web-01","kind":"gateway","tier":"ingress","hostname":"web-01","ip":"10.0.1.11","appSystemId":"as-1001","appSystemName":"订单系统","status":"online","services":[{"name":"nginx","port":80}]},{"id":"h:ef56gh78","label":"db-01","kind":"database","tier":"data","hostname":"db-01","ip":"10.0.2.21","appSystemId":"as-1001","appSystemName":"订单系统","status":"online","services":[{"name":"mysql","port":3306}]}],"edges":[{"source":"h:ab12cd34","target":"h:ef56gh78","port":3306,"count":128,"opened":96,"failed":2,"protocol":"tcp","confidence":0.9}],"insights":[{"id":"i-1","title":"数据库出现少量失败","detail":"web-01 → db-01:3306 失败 2/96（2.1%），建议观察重试与连接池。","severity":"info","nodeIds":["h:ab12cd34","h:ef56gh78"],"edgeIds":["e:h:ab12cd34->h:ef56gh78:3306"]}],"hotPaths":[{"label":"web-01 → db-01","nodeIds":["h:ab12cd34","h:ef56gh78"],"edgeIds":["e:h:ab12cd34->h:ef56gh78:3306"],"connections":128}],"risks":[],"confidence":0.82}',
+  '示例 1（正确分层与 product/role）：',
+  '{"summary":"窗口内 5 台主机、4 条访问关系、1 个业务系统；核心链路 lb-01 → app-01:8080（320 次）；发现 1 个风险。","nodes":[{"id":"h:aa000001","label":"lb-01","kind":"gateway","tier":"access","product":"Nginx","role":"接入网关/反向代理","systemService":false,"hostname":"lb-01","ip":"10.0.1.10","appSystemId":"as-1001","appSystemName":"订单系统","status":"online","services":[{"name":"nginx","port":80}]},{"id":"h:aa000002","label":"app-01","kind":"service","tier":"app","product":"order-service","role":"业务应用","systemService":false,"hostname":"app-01","ip":"10.0.1.11","appSystemId":"as-1001","appSystemName":"订单系统","status":"online","services":[{"name":"java","port":8080,"process":"java"}]},{"id":"h:aa000003","label":"redis-01","kind":"cache","tier":"middleware","product":"Redis","role":"缓存","systemService":false,"hostname":"redis-01","ip":"10.0.2.10","appSystemId":"as-1001","appSystemName":"订单系统","status":"online","services":[{"name":"redis","port":6379}]},{"id":"h:aa000004","label":"db-01","kind":"database","tier":"data","product":"MySQL","role":"关系型数据库","systemService":false,"hostname":"db-01","ip":"10.0.3.10","appSystemId":"as-1001","appSystemName":"订单系统","status":"online","services":[{"name":"mysql","port":3306}]},{"id":"h:aa000005","label":"mon-01","kind":"monitoring","tier":"ops","product":"Prometheus","role":"监控","systemService":true,"hostname":"mon-01","ip":"10.0.9.10","appSystemId":null,"status":"online","services":[{"name":"prometheus","port":9090}]}],"edges":[{"source":"h:aa000001","target":"h:aa000002","port":8080,"count":320,"opened":300,"failed":2,"protocol":"tcp","confidence":0.9}],"insights":[{"id":"i-1","title":"接入层失败需关注","detail":"lb-01 → app-01:8080 失败 2/300，比例虽低但位于核心链路，建议观察重试。","severity":"info","nodeIds":["h:aa000001","h:aa000002"],"edgeIds":["e:h:aa000001->h:aa000002:8080"]}],"hotPaths":[{"label":"lb-01 → app-01","nodeIds":["h:aa000001","h:aa000002"],"edgeIds":["e:h:aa000001->h:aa000002:8080"],"connections":320}],"risks":[],"confidence":0.86}',
+  '',
+  '示例 2（反例，必须避免）：',
+  '某主机 services 含 nginx:80，processes 含 "java -jar order-service.jar"。',
+  '错误：{"tier":"access","kind":"gateway","product":"Nginx","role":"接入网关/反向代理","systemService":false}',
+  '正确：{"tier":"app","kind":"service","product":"order-service / Nginx","role":"业务应用（含接入代理）","systemService":false}',
   '',
   '注意：即使输入数据很少，也要给出至少一条有信息量的 insight。',
 ].join('\n');
@@ -1471,6 +1896,12 @@ export interface TopologyPromptService {
   readonly process?: string;
 }
 
+export interface TopologyPromptProcess {
+  readonly name: string;
+  readonly command?: string;
+  readonly user?: string;
+}
+
 export interface TopologyPromptHost {
   readonly id: string;
   readonly hostname: string;
@@ -1479,6 +1910,8 @@ export interface TopologyPromptHost {
   readonly appSystemId: string | null;
   readonly appSystemName: string;
   readonly services: readonly TopologyPromptService[];
+  /** 关键进程证据（名称/命令行/用户），模型据此识别中间件、数据库、应用与系统服务。 */
+  readonly processes: readonly TopologyPromptProcess[];
   readonly anomalies?: readonly string[];
 }
 
@@ -1543,6 +1976,23 @@ function buildPromptPayload(input: TopologyLearningInput, index: TopologyIndex):
           process: service.process || undefined,
         }),
       );
+      // 进程证据优先保留带 command 的（识别中间件/数据库/应用主要靠命令行）。
+      const processes = [...host.processes]
+        .sort(
+          (a, b) =>
+            Number(Boolean(b.command)) - Number(Boolean(a.command)) ||
+            compareText(a.name, b.name),
+        )
+        .slice(0, MAX_PROMPT_PROCESSES_PER_HOST)
+        .map((process) =>
+          defined<TopologyPromptProcess>({
+            name: process.name,
+            command: process.command
+              ? cut(process.command, MAX_PROMPT_PROCESS_COMMAND_CHARS)
+              : undefined,
+            user: process.user || undefined,
+          }),
+        );
       return defined<TopologyPromptHost>({
         id: host.id,
         hostname: host.hostname,
@@ -1551,6 +2001,7 @@ function buildPromptPayload(input: TopologyLearningInput, index: TopologyIndex):
         appSystemId: host.appSystemId,
         appSystemName: host.appSystemName,
         services,
+        processes,
         anomalies: host.anomalies.length > 0 ? host.anomalies.slice(0, 3) : undefined,
       });
     });
@@ -1596,7 +2047,7 @@ function buildPromptPayload(input: TopologyLearningInput, index: TopologyIndex):
       failed: external.failed,
     }));
 
-  return {
+  const payload: TopologyPromptPayload = {
     scope: defined<TopologyPromptPayload['scope']>({
       kind: input.scope.kind,
       appSystemId: input.scope.appSystemId ?? null,
@@ -1612,6 +2063,70 @@ function buildPromptPayload(input: TopologyLearningInput, index: TopologyIndex):
     edges: promptEdges,
     externalPeers: promptPeers,
   };
+  return shrinkPromptPayload(payload, MAX_PROMPT_JSON_CHARS);
+}
+
+/**
+ * 确定性压缩：先按主机连接量从低到高逐条移除进程（保留繁忙主机的组件证据），
+ * 再依次裁剪边 → 外部 peer → 主机，直到内嵌 JSON 不超过预算。
+ * 这样即使 60 台主机 × 4 条超长 command + 100 条边，也能保证 system + user ≤45k 字符。
+ */
+function shrinkPromptPayload(
+  payload: TopologyPromptPayload,
+  maxJsonChars: number,
+): TopologyPromptPayload {
+  let current = payload;
+  const overBudget = (): boolean => JSON.stringify(current).length > maxJsonChars;
+  if (!overBudget()) return current;
+
+  // 1) 进程：从连接量最低的主机开始逐条砍（hosts 已按连接量降序）。
+  const processCounts = current.hosts.map((host) => host.processes.length);
+  while (JSON.stringify(current).length > maxJsonChars) {
+    let hostIndex = -1;
+    for (let index = processCounts.length - 1; index >= 0; index -= 1) {
+      if ((processCounts[index] ?? 0) > 0) {
+        hostIndex = index;
+        break;
+      }
+    }
+    if (hostIndex < 0) break;
+    processCounts[hostIndex] = (processCounts[hostIndex] ?? 0) - 1;
+    current = {
+      ...current,
+      hosts: current.hosts.map((host, index) => ({
+        ...host,
+        processes: host.processes.slice(0, processCounts[index] ?? 0),
+      })),
+    };
+  }
+  if (!overBudget()) return current;
+
+  // 2) 边。
+  for (let keepEdges = MAX_PROMPT_EDGES - 20; keepEdges >= 0; keepEdges -= 20) {
+    current = { ...current, edges: current.edges.slice(0, keepEdges) };
+    if (!overBudget()) return current;
+  }
+
+  // 3) 外部 peer。
+  for (let keepPeers = MAX_PROMPT_PEERS - 5; keepPeers >= 0; keepPeers -= 5) {
+    current = { ...current, externalPeers: current.externalPeers.slice(0, keepPeers) };
+    if (!overBudget()) return current;
+  }
+
+  // 4) 主机（连同引用它们的边）。
+  for (let keepHosts = MAX_PROMPT_HOSTS - 10; keepHosts >= 10; keepHosts -= 10) {
+    const keptHosts = current.hosts.slice(0, keepHosts);
+    const hostIds = new Set(keptHosts.map((host) => host.id));
+    current = {
+      ...current,
+      hosts: keptHosts,
+      edges: current.edges.filter(
+        (edge) => hostIds.has(edge.from) && (hostIds.has(edge.to) || edge.to.startsWith('x:')),
+      ),
+    };
+    if (!overBudget()) return current;
+  }
+  return current;
 }
 
 function buildTopologyPromptFromIndex(
@@ -1620,12 +2135,12 @@ function buildTopologyPromptFromIndex(
 ): TopologyPrompt {
   const payload = buildPromptPayload(input, index);
   const prompt = [
-    '任务：根据下面的固定时间窗口建连数据，输出严格 JSON 格式的业务访问拓扑分析（summary / nodes / edges / insights / hotPaths / risks / confidence）。',
+    '任务：根据下面的固定时间窗口建连数据，按 IT 架构分层（access / app / middleware / data / ops / external）输出严格 JSON 拓扑分析（summary / nodes / edges / insights / hotPaths / risks / confidence）。',
     '',
-    '输入数据（紧凑 JSON；字段：scope / window / stats / hosts / edges / externalPeers。hosts[].id、externalPeers[].id 是节点 id，edges[].from / edges[].to 引用这些 id）：',
+    '输入数据（紧凑 JSON；字段：scope / window / stats / hosts / edges / externalPeers。hosts[].id、externalPeers[].id 是节点 id，edges[].from / edges[].to 引用这些 id；hosts[].processes 是识别组件的关键进程证据）：',
     JSON.stringify(payload),
     '',
-    '请只输出拓扑分析 JSON，不要 Markdown 围栏或解释。',
+    '请只输出拓扑分析 JSON，不要 Markdown 围栏或解释。每个节点必须包含 product / role / systemService。',
   ].join('\n');
   return { system: TOPOLOGY_SYSTEM_PROMPT, prompt, payload };
 }
@@ -1839,9 +2354,38 @@ function parseModelDraft(
           inbound: index.inboundByNode.get(id) ?? 0,
           total: (index.inboundByNode.get(id) ?? 0) + (index.outboundByNode.get(id) ?? 0),
         })
-      : { tier: 'external', kind: 'external' };
-    const tier: TopologyTier = isTier(record.tier) ? record.tier : fallbackClassification.tier;
-    const kind: TopologyNodeKind = isKind(record.kind) ? record.kind : fallbackClassification.kind;
+      : EXTERNAL_CLASSIFICATION;
+    // 旧 tier（ingress/infra）视为非法：tier 非法时连 kind 一起回落到启发式。
+    const modelTierValid = isTier(record.tier);
+    let tier: TopologyTier = modelTierValid ? (record.tier as TopologyTier) : fallbackClassification.tier;
+    let kind: TopologyNodeKind =
+      modelTierValid && isKind(record.kind) ? record.kind : fallbackClassification.kind;
+    if (external) {
+      tier = 'external';
+      kind = 'external';
+    } else if (host && tier === 'external') {
+      tier = fallbackClassification.tier;
+      kind = fallbackClassification.kind;
+    }
+    // 多角色主机以业务应用为准：模型若把「nginx + java」判成 access 等层，纠正为 app。
+    const correctBusiness = Boolean(host && fallbackClassification.businessProcess && tier !== 'app');
+    if (correctBusiness) {
+      tier = 'app';
+      kind = 'service';
+    }
+    const modelProduct = text(record.product, 80);
+    const modelRole = text(record.role, 60);
+    const modelSystemService =
+      typeof record.systemService === 'boolean' ? record.systemService : undefined;
+    const product = correctBusiness
+      ? fallbackClassification.product
+      : modelProduct || fallbackClassification.product;
+    const role = correctBusiness
+      ? fallbackClassification.role
+      : modelRole || fallbackClassification.role;
+    const systemService = correctBusiness
+      ? false
+      : modelSystemService ?? fallbackClassification.systemService;
     const status: TopologyNodeStatus = isStatus(record.status)
       ? record.status
       : host
@@ -1863,6 +2407,7 @@ function parseModelDraft(
             : true;
     const note =
       text(record.note, 300) ||
+      fallbackClassification.note ||
       (external
         ? '未纳管外部依赖'
         : host?.synthetic
@@ -1881,6 +2426,9 @@ function parseModelDraft(
         appSystemName: appSystemName || undefined,
         status,
         services: nodeServices,
+        product,
+        role,
+        systemService,
         inferred,
         note: note || undefined,
       }),

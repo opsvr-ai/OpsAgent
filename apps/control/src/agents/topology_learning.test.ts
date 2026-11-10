@@ -8,13 +8,14 @@ import { AgentConnectionEdgeService } from './connection_edges.js';
 import {
   buildGraphPayload,
   buildLearningInput,
+  normalizeTopologyTier,
   TopologyLearningService,
   type LearningAgentSource,
   type LearningEdgeSource,
   type LearningInventorySource,
   type TopologyAnalyzerLike,
 } from './topology_learning.js';
-import type { TopologyScope } from '@opsagent/contracts';
+import type { TopologyLearningInput, TopologyScope } from '@opsagent/contracts';
 
 const databaseUrl = process.env.TEST_DATABASE_URL
   ?? process.env.DATABASE_URL
@@ -80,7 +81,31 @@ const inventory: LearningInventorySource[] = [
     agentId: 'agent-a',
     kind: 'process',
     name: 'java',
-    detail: { command: '/opt/order/order-api.jar' },
+    detail: {
+      name: 'java',
+      command: '/opt/order/order-api.jar --server.port=8080',
+      user: 'app',
+      pid: 200,
+      classification: 'application',
+    },
+  },
+  {
+    agentId: 'agent-a',
+    kind: 'process',
+    name: 'node_exporter',
+    detail: {
+      name: 'node_exporter',
+      command: '/usr/bin/node_exporter --collector.textfile.directory=/var/lib/node_exporter',
+      user: 'root',
+      pid: 9,
+      classification: 'system',
+    },
+  },
+  {
+    agentId: 'agent-b',
+    kind: 'process',
+    name: 'mysqld',
+    detail: { name: 'mysqld', command: '/usr/sbin/mysqld', user: 'mysql', pid: 100, classification: 'application' },
   },
   {
     agentId: 'agent-b',
@@ -166,7 +191,7 @@ const edges: LearningEdgeSource[] = [
   conn({ peerAddress: '10.0.1.11', peerPort: 8080, opened: 2 }),
 ];
 
-function learningInput(scope: TopologyScope = tenantScope) {
+function learningInput(scope: TopologyScope = tenantScope, includeUnassigned = false) {
   return buildLearningInput({
     scope,
     windowStart,
@@ -175,6 +200,7 @@ function learningInput(scope: TopologyScope = tenantScope) {
     inventory,
     edges,
     anomalies: new Map([['agent-b', ['critical: MySQL 连接数过高']]]),
+    includeUnassigned,
   });
 }
 
@@ -239,21 +265,37 @@ describe('buildLearningInput（窗口样本聚合纯函数）', () => {
       seconds: 300,
     });
     expect(input.stats).toEqual({
-      nodeCount: 6,
+      nodeCount: 5,
       edgeCount: 4,
-      hostCount: 4,
+      hostCount: 3,
       systemCount: 2,
       externalCount: 2,
       totalConnections: 16,
       failedConnections: 3,
       samples: 8,
       reportingAgents: 2,
+      excludedUnassigned: 1,
     });
+    // 默认排除未归属主机（agent-d）。
+    expect(input.hosts.map((host) => host.agentId)).toEqual(['agent-c', 'agent-b', 'agent-a']);
     const db = input.hosts.find((host) => host.agentId === 'agent-b');
     expect(db?.services).toEqual([{ name: 'mysql', port: 3306, process: 'mysqld', pid: 100 }]);
     expect(db?.anomalies).toEqual(['critical: MySQL 连接数过高']);
+    expect(db?.processes).toEqual([
+      { name: 'mysqld', command: '/usr/sbin/mysqld', user: 'mysql', pid: 100 },
+    ]);
     const web = input.hosts.find((host) => host.agentId === 'agent-a');
     expect(web?.services).toEqual([{ name: 'order-api', port: 8080, process: 'java', pid: 200 }]);
+    // 业务进程优先于系统进程，命令行/用户/pid 作为模型识别证据。
+    expect(web?.processes).toEqual([
+      { name: 'java', command: '/opt/order/order-api.jar --server.port=8080', user: 'app', pid: 200 },
+      {
+        name: 'node_exporter',
+        command: '/usr/bin/node_exporter --collector.textfile.directory=/var/lib/node_exporter',
+        user: 'root',
+        pid: 9,
+      },
+    ]);
   });
 
   it('limits hosts to the app-system scope plus referenced peer hosts', () => {
@@ -261,7 +303,90 @@ describe('buildLearningInput（窗口样本聚合纯函数）', () => {
     const input = learningInput(scope);
     expect(input.hosts.map((host) => host.agentId).sort()).toEqual(['agent-a', 'agent-b', 'agent-c']);
     expect(input.stats.hostCount).toBe(3);
+    // 按应用系统学习时，未归属主机本就不在候选范围，不计入 excludedUnassigned。
+    expect(input.stats.excludedUnassigned).toBe(0);
     expect(input.scope).toEqual(scope);
+  });
+
+  it('excludes unassigned hosts and their edges/external peers by default', () => {
+    const unassignedEdges: LearningEdgeSource[] = [
+      // A（已归属）→ D（未归属）：整条边丢弃，不降级成外部依赖。
+      conn({ peerAddress: '10.0.4.41', peerPort: 8080, opened: 2, failed: 1, active: 0 }),
+      // D → 公网：未归属主机的出边与外部 peer 一并排除。
+      conn({
+        agentId: 'agent-d',
+        peerAddress: '8.8.8.8',
+        peerPort: 443,
+        opened: 4,
+        failed: 3,
+        active: 0,
+      }),
+      // D 作为服务端的 in 样本：同样排除。
+      conn({
+        agentId: 'agent-d',
+        direction: 'in',
+        process: 'node_exporter',
+        service: 'node_exporter',
+        localAddress: '0.0.0.0',
+        localPort: 8080,
+        peerAddress: '10.0.1.11',
+        peerPort: 0,
+        opened: 2,
+        failed: 1,
+        active: 0,
+      }),
+    ];
+    const excluded = buildLearningInput({
+      scope: tenantScope,
+      windowStart,
+      windowEnd,
+      agents,
+      inventory,
+      edges: unassignedEdges,
+    });
+    expect(excluded.hosts.map((host) => host.agentId)).toEqual(['agent-c', 'agent-b', 'agent-a']);
+    expect(excluded.edges).toEqual([]);
+    expect(excluded.externalPeers).toEqual([]);
+    expect(excluded.stats).toMatchObject({ hostCount: 3, edgeCount: 0, externalCount: 0, excludedUnassigned: 1 });
+
+    const included = buildLearningInput({
+      scope: tenantScope,
+      windowStart,
+      windowEnd,
+      agents,
+      inventory,
+      edges: unassignedEdges,
+      includeUnassigned: true,
+    });
+    expect(included.hosts.map((host) => host.agentId).sort()).toEqual(['agent-a', 'agent-b', 'agent-c', 'agent-d']);
+    expect(included.stats.excludedUnassigned).toBe(0);
+    // A→D 的 out 与 D 作为服务端的 in 合并为一条双向边；D→公网为外部边。
+    const toUnassigned = included.edges.find((edge) => edge.toAgentId === 'agent-d');
+    expect(toUnassigned).toMatchObject({ fromAgentId: 'agent-a', direction: 'both', opened: 2 });
+    expect(included.externalPeers.map((peer) => peer.ip)).toEqual(['8.8.8.8']);
+  });
+
+  it('caps process evidence per host, prioritising business processes with commands', () => {
+    const manyProcesses: LearningInventorySource[] = Array.from({ length: 15 }, (_, index) => ({
+      agentId: 'agent-a',
+      kind: 'process',
+      name: `proc-${String(index).padStart(2, '0')}`,
+      detail: index === 0
+        ? { name: 'long-command', command: 'x'.repeat(500), user: 'app', pid: 1, classification: 'application' }
+        : { name: `proc-${index}`, classification: index % 2 === 0 ? 'application' : 'system', pid: 100 + index },
+    }));
+    const input = buildLearningInput({
+      scope: tenantScope,
+      windowStart,
+      windowEnd,
+      agents: [agents[0]!],
+      inventory: manyProcesses,
+      edges: [],
+    });
+    const host = input.hosts[0];
+    expect(host?.processes).toHaveLength(12);
+    expect(host?.processes[0]?.name).toBe('long-command');
+    expect(host?.processes[0]?.command?.length).toBe(300);
   });
 
   it('keeps multiple services from one host to the same target port as separate edges', () => {
@@ -309,13 +434,16 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
         id: 'h:web-01',
         label: 'web-01',
         kind: 'gateway' as const,
-        tier: 'ingress' as const,
+        tier: 'access' as const,
         hostname: 'web-01',
         ip: '10.0.1.11',
         appSystemId: 'sys-1',
         appSystemName: '订单系统',
         status: 'online' as const,
         services: [{ name: 'order-api', port: 8080 }],
+        product: 'Nginx',
+        role: '接入网关',
+        systemService: false,
       },
       {
         id: 'h:db-01',
@@ -327,6 +455,8 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
         appSystemId: 'sys-1',
         appSystemName: '订单系统',
         status: 'online' as const,
+        product: 'MySQL',
+        role: '关系型数据库',
       },
       {
         id: 'h:cache-01',
@@ -431,6 +561,11 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
     });
     expect(payload.nodes.find((node) => node.id === 'x:203.0.113.9')?.metrics)
       .toMatchObject({ inbound: 3, opened: 3, failed: 2 });
+    // draft 的组件识别字段原样透传到落图节点，缺省不编造。
+    expect(web).toMatchObject({ product: 'Nginx', role: '接入网关', systemService: false });
+    expect(db).toMatchObject({ product: 'MySQL', role: '关系型数据库' });
+    expect(db?.systemService).toBeUndefined();
+    expect(payload.nodes.find((node) => node.id === 'x:203.0.113.9')?.product).toBeUndefined();
   });
 
   it('uses analyzer edge id format and overrides model traffic with observed counts', () => {
@@ -460,7 +595,13 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
     expect(referencedEdgeIds.length).toBeGreaterThan(0);
     expect(referencedEdgeIds.every((id) => edgeIds.has(id))).toBe(true);
     expect(payload.edges.every((item) => typeof item.label === 'string' && item.label.length > 0)).toBe(true);
-    expect(payload.stats).toMatchObject({ nodeCount: 4, edgeCount: 2, totalConnections: 10, failedConnections: 3 });
+    expect(payload.stats).toMatchObject({
+      nodeCount: 4,
+      edgeCount: 2,
+      totalConnections: 10,
+      failedConnections: 3,
+      excludedUnassigned: 1,
+    });
   });
 
   it('falls back to host-derived systems when analyzer returns none', () => {
@@ -471,7 +612,7 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
     ]);
   });
 
-  it('excludes the unassigned group from systemCount but keeps it in systems[]', () => {
+  it('drops the unassigned system group unless includeUnassigned is enabled', () => {
     const draftWithUnassigned = {
       ...draft,
       systems: [
@@ -479,9 +620,26 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
         { id: 'unassigned', name: '未归属', nodeIds: ['x:203.0.113.9'] },
       ],
     };
-    const payload = buildGraphPayload({ input, draft: draftWithUnassigned, analysis, generatedAt });
-    expect(payload.systems).toHaveLength(2);
-    expect(payload.stats.systemCount).toBe(1);
+    const excluded = buildGraphPayload({ input, draft: draftWithUnassigned, analysis, generatedAt });
+    expect(excluded.systems.map((system) => system.name)).toEqual(['订单系统']);
+    expect(excluded.stats.systemCount).toBe(1);
+    const included = buildGraphPayload({
+      input,
+      draft: draftWithUnassigned,
+      analysis,
+      generatedAt,
+      includeUnassigned: true,
+    });
+    expect(included.systems.map((system) => system.name)).toEqual(['订单系统', '未归属']);
+    // 即使保留「未归属」组，systemCount 也只统计真实应用系统。
+    expect(included.stats.systemCount).toBe(1);
+  });
+
+  it('normalises legacy tiers ingress→access and infra→ops', () => {
+    expect(normalizeTopologyTier('ingress')).toBe('access');
+    expect(normalizeTopologyTier('infra')).toBe('ops');
+    expect(normalizeTopologyTier('middleware')).toBe('middleware');
+    expect(normalizeTopologyTier('unknown-tier')).toBe('app');
   });
 
   it('synthesizes a renderable graph when the analyzer returns an empty draft', () => {
@@ -491,11 +649,11 @@ describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
       analysis: { ...analysis, model: 'heuristic', fallback: true },
       generatedAt,
     });
-    expect(payload.nodes.length).toBe(6);
+    expect(payload.nodes.length).toBe(5);
     expect(payload.edges.length).toBe(4);
     expect(payload.edges.every((edge) => edge.id.includes('->'))).toBe(true);
     expect(payload.analysis.fallback).toBe(true);
-    expect(payload.stats.nodeCount).toBe(6);
+    expect(payload.stats.nodeCount).toBe(5);
   });
 });
 
@@ -506,11 +664,15 @@ describeDb('TopologyLearningService (postgres)', () => {
   let service: TopologyLearningService;
   let edgeService: AgentConnectionEdgeService;
   let appSystemId: string;
+  let emptyAppSystemId: string;
   let webId: string;
   let dbId: string;
+  let unassignedId: string;
+  let lastAnalyzerInput: TopologyLearningInput | null = null;
 
   const stubAnalyzer: TopologyAnalyzerLike = {
     async analyze(_tenantId, input) {
+      lastAnalyzerInput = input;
       const nodeIdByAgent = new Map(input.hosts.map((host, index) => [host.agentId, `h:node-${index}`]));
       const nodes = input.hosts.map((host, index) => ({
         id: `h:node-${index}`,
@@ -523,6 +685,7 @@ describeDb('TopologyLearningService (postgres)', () => {
         appSystemName: host.appSystemName,
         status: 'online' as const,
         services: host.services,
+        ...(host.hostname === 'web-01' ? { product: 'Nginx', role: '接入网关', systemService: false } : {}),
       }));
       const draftEdges = input.edges.flatMap((edge) => {
         const source = nodeIdByAgent.get(edge.fromAgentId);
@@ -603,10 +766,16 @@ describeDb('TopologyLearningService (postgres)', () => {
       [tenantId],
     );
     appSystemId = system.rows[0]?.id ?? '';
+    const emptySystem = await pool.query<{ id: string }>(
+      `INSERT INTO app_systems (tenant_id, code, name)
+       VALUES ($1, 'empty-system', '空应用系统') RETURNING id`,
+      [tenantId],
+    );
+    emptyAppSystemId = emptySystem.rows[0]?.id ?? '';
     const web = await pool.query<{ id: string }>(
       `INSERT INTO agents (tenant_id, name, hostname, os, arch, version, agent_key, system_info, app_system_id)
        VALUES ($1, 'web-01', 'web-01', 'linux', 'amd64', '0.1.0', 'key-web', $2::jsonb, $3) RETURNING id`,
-      [tenantId, JSON.stringify({ ip: '10.0.1.11' }), appSystemId],
+      [tenantId, JSON.stringify({ ip: '10.0.1.11', osName: 'Rocky Linux 9.4' }), appSystemId],
     );
     webId = web.rows[0]?.id ?? '';
     const db = await pool.query<{ id: string }>(
@@ -615,13 +784,42 @@ describeDb('TopologyLearningService (postgres)', () => {
       [tenantId, JSON.stringify({ ip: '10.0.2.21' }), appSystemId],
     );
     dbId = db.rows[0]?.id ?? '';
+    const unassigned = await pool.query<{ id: string }>(
+      `INSERT INTO agents (tenant_id, name, hostname, os, arch, version, agent_key, system_info)
+       VALUES ($1, 'ops-01', 'ops-01', 'linux', 'amd64', '0.1.0', 'key-ops', $2::jsonb) RETURNING id`,
+      [tenantId, JSON.stringify({ ip: '10.0.4.41' })],
+    );
+    unassignedId = unassigned.rows[0]?.id ?? '';
     for (const [agentId, name, detail] of [
       [webId, '0.0.0.0:8080', { service: 'order-api', process: 'java', pid: 200 }],
       [dbId, '0.0.0.0:3306', { service: 'mysql', process: 'mysqld', pid: 100 }],
+      [unassignedId, '0.0.0.0:9100', { service: 'node_exporter', process: 'node_exporter', pid: 9 }],
     ] as const) {
       await pool.query(
         `INSERT INTO agent_inventory (tenant_id, agent_id, kind, name, detail)
          VALUES ($1, $2, 'port', $3, $4::jsonb)`,
+        [tenantId, agentId, name, JSON.stringify(detail)],
+      );
+    }
+    for (const [agentId, name, detail] of [
+      [webId, 'java', {
+        name: 'java',
+        command: '/opt/order/order-api.jar --server.port=8080',
+        user: 'app',
+        pid: 200,
+        classification: 'application',
+      }],
+      [unassignedId, 'node_exporter', {
+        name: 'node_exporter',
+        command: '/usr/bin/node_exporter',
+        user: 'root',
+        pid: 9,
+        classification: 'system',
+      }],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO agent_inventory (tenant_id, agent_id, kind, name, detail)
+         VALUES ($1, $2, 'process', $3, $4::jsonb)`,
         [tenantId, agentId, name, JSON.stringify(detail)],
       );
     }
@@ -684,12 +882,14 @@ describeDb('TopologyLearningService (postgres)', () => {
     );
     expect(session.status).toBe('collecting');
     expect(session.windowSeconds).toBe(120);
+    expect(session.includeUnassigned).toBe(false);
     expect(session.scope).toMatchObject({ kind: 'app-system', appSystemId, appSystemName: '学习测试系统' });
     expect(session.progress).toMatchObject({ percent: 0, expectedAgents: 2, phase: 'collecting' });
 
     const reused = await service.start(tenantId, { appSystemId, windowSeconds: 300 });
     expect(reused.id).toBe(session.id);
     expect(reused.windowSeconds).toBe(120);
+    expect(reused.includeUnassigned).toBe(false);
 
     const acceptedOut = await edgeService.sync(tenantId, webId, sampleWindows('out'));
     const acceptedIn = await edgeService.sync(tenantId, dbId, sampleWindows('in'));
@@ -753,6 +953,9 @@ describeDb('TopologyLearningService (postgres)', () => {
     expect(graph?.edges.every((item) => typeof item.label === 'string' && item.label.length > 0)).toBe(true);
     expect(graph?.systems[0]?.nodeIds).toHaveLength(2);
     expect(graph?.analysis.confidence).toBe(0.8);
+    // V2 组件识别字段落图（stub 把 web-01 标成 Nginx/接入网关）。
+    const webNode = graph?.nodes.find((node) => node.hostname === 'web-01');
+    expect(webNode).toMatchObject({ product: 'Nginx', role: '接入网关', systemService: false });
   });
 
   it('re-analyzes a ready session into a new graph version', async () => {
@@ -771,6 +974,81 @@ describeDb('TopologyLearningService (postgres)', () => {
     expect(latest?.version).toBe(2);
     expect(latest?.id).toBe(summaries[0]?.id);
   });
+
+  it('persists includeUnassigned and reuses the stored value', async () => {
+    const session = await service.start(tenantId, {
+      appSystemId,
+      windowSeconds: 60,
+      includeUnassigned: true,
+    });
+    expect(session.includeUnassigned).toBe(true);
+    const reused = await service.start(tenantId, { appSystemId, windowSeconds: 60 });
+    expect(reused.id).toBe(session.id);
+    expect(reused.includeUnassigned).toBe(true);
+    const cancelled = await service.cancel(tenantId, session.id);
+    expect(cancelled?.status).toBe('cancelled');
+  });
+
+  it('excludes unassigned hosts for tenant-scope learning and records excludedUnassigned', async () => {
+    const session = await service.start(tenantId, { windowSeconds: 60 });
+    expect(session.includeUnassigned).toBe(false);
+    await edgeService.sync(tenantId, webId, sampleWindows('out'));
+    await edgeService.sync(tenantId, dbId, sampleWindows('in'));
+    await edgeService.sync(tenantId, unassignedId, [{
+      start: new Date(Date.now() - 1000).toISOString(),
+      end: new Date(Date.now() + 9000).toISOString(),
+      source: 'procfs',
+      edges: [{
+        direction: 'out',
+        process: 'node_exporter',
+        pid: 9,
+        service: 'node_exporter',
+        command: '/usr/bin/node_exporter',
+        localAddress: '10.0.4.41',
+        localPort: 0,
+        peerAddress: '8.8.8.8',
+        peerPort: 443,
+        protocol: 'tcp',
+        opened: 3,
+        closed: 0,
+        failed: 2,
+        active: 0,
+      }],
+    }]);
+    await pool.query(
+      `UPDATE topology_learning_sessions SET status = 'aggregating', updated_at = now() WHERE id = $1`,
+      [session.id],
+    );
+    const ready = await service.finalize(tenantId, session.id);
+    expect(ready?.status).toBe('ready');
+    const graph = await service.get(tenantId, ready?.graphId ?? '');
+    expect(graph?.version).toBe(1);
+    expect(graph?.nodes.map((node) => node.hostname).sort()).toEqual(['db-01', 'web-01']);
+    expect(graph?.stats.excludedUnassigned).toBe(1);
+    expect(graph?.stats.hostCount).toBe(2);
+    expect(graph?.stats.systemCount).toBe(1);
+    expect(lastAnalyzerInput?.hosts).toHaveLength(2);
+    expect(lastAnalyzerInput?.externalPeers).toEqual([]);
+    const webHost = lastAnalyzerInput?.hosts.find((host) => host.agentId === webId);
+    expect(webHost?.os).toBe('Rocky Linux 9.4');
+    expect(webHost?.processes).toContainEqual({
+      name: 'java',
+      command: '/opt/order/order-api.jar --server.port=8080',
+      user: 'app',
+      pid: 200,
+    });
+
+    // 显式包含未归属主机时，会话会记录该开关。
+    const includedSession = await service.start(tenantId, { windowSeconds: 60, includeUnassigned: true });
+    expect(includedSession.includeUnassigned).toBe(true);
+    await service.cancel(tenantId, includedSession.id);
+  });
+
+  it('rejects learning when no managed host is assigned to any app system', async () => {
+    await expect(service.start(tenantId, { appSystemId: emptyAppSystemId, windowSeconds: 60 }))
+      .rejects.toThrow('no_managed_hosts');
+  });
+
 
   it('tick aggregates expired collecting sessions asynchronously', async () => {
     const session = await service.start(tenantId, { appSystemId, windowSeconds: 60 });
@@ -812,8 +1090,14 @@ describeDb('TopologyLearningService (postgres)', () => {
       intervalSeconds: 600,
       windowSeconds: 60,
       scope: { kind: 'app-system', appSystemId },
+      includeUnassigned: true,
     });
-    expect(policy).toMatchObject({ enabled: true, intervalSeconds: 600, windowSeconds: 60 });
+    expect(policy).toMatchObject({
+      enabled: true,
+      intervalSeconds: 600,
+      windowSeconds: 60,
+      includeUnassigned: true,
+    });
     expect(policy.scope).toMatchObject({ kind: 'app-system', appSystemId });
     await pool.query(
       `UPDATE topology_learning_policies SET next_run_at = now() - interval '1 second' WHERE tenant_id = $1`,
@@ -821,12 +1105,14 @@ describeDb('TopologyLearningService (postgres)', () => {
     );
     const result = await service.tick({ autoLearn: true });
     expect(result.scheduled).toBe(1);
-    const scheduled = await pool.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM topology_learning_sessions
+    const scheduled = await pool.query<{ count: string; include_unassigned: boolean }>(
+      `SELECT count(*)::text AS count, bool_and(include_unassigned) AS include_unassigned
+       FROM topology_learning_sessions
        WHERE tenant_id = $1 AND trigger = 'schedule'`,
       [tenantId],
     );
     expect(scheduled.rows[0]?.count).toBe('1');
+    expect(scheduled.rows[0]?.include_unassigned).toBe(true);
     const updated = await service.getPolicy(tenantId);
     expect(updated.lastRunAt).not.toBeNull();
     expect(updated.nextRunAt).not.toBeNull();
@@ -868,10 +1154,11 @@ describeDb('TopologyLearningService (postgres)', () => {
       method: 'POST',
       url: '/api/topologies/learn',
       headers,
-      payload: { appSystemId, windowSeconds: 60 },
+      payload: { appSystemId, windowSeconds: 60, includeUnassigned: true },
     });
     expect(learn.statusCode).toBe(201);
-    const session = learn.json() as { id: string };
+    const session = learn.json() as { id: string; includeUnassigned: boolean };
+    expect(session.includeUnassigned).toBe(true);
     const active = await app.inject({ method: 'GET', url: `/api/topologies/learn/active?appSystemId=${appSystemId}`, headers });
     expect((active.json() as { id: string }).id).toBe(session.id);
 
@@ -890,14 +1177,33 @@ describeDb('TopologyLearningService (postgres)', () => {
 
     const policy = await app.inject({ method: 'GET', url: '/api/topologies/policy', headers });
     expect(policy.statusCode).toBe(200);
+    expect(policy.json()).toMatchObject({ includeUnassigned: true });
     const updatedPolicy = await app.inject({
       method: 'PUT',
       url: '/api/topologies/policy',
       headers,
-      payload: { enabled: false },
+      payload: { enabled: false, includeUnassigned: true },
     });
     expect(updatedPolicy.statusCode).toBe(200);
-    expect((updatedPolicy.json() as { enabled: boolean }).enabled).toBe(false);
+    expect(updatedPolicy.json()).toMatchObject({ enabled: false, includeUnassigned: true });
+
+    // 没有已归属主机的应用系统：409 + no_managed_hosts，提示先归属应用系统。
+    const noManagedHosts = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/learn',
+      headers,
+      payload: { appSystemId: emptyAppSystemId, windowSeconds: 60 },
+    });
+    expect(noManagedHosts.statusCode).toBe(409);
+    expect(noManagedHosts.json()).toEqual({ error: 'no_managed_hosts' });
+
+    const invalidInclude = await app.inject({
+      method: 'PUT',
+      url: '/api/topologies/policy',
+      headers,
+      payload: { includeUnassigned: 'yes' },
+    });
+    expect(invalidInclude.statusCode).toBe(400);
 
     const latestEmpty = await app.inject({
       method: 'GET',
@@ -908,5 +1214,43 @@ describeDb('TopologyLearningService (postgres)', () => {
     expect(latestEmpty.body).toBe('null');
 
     await app.close();
+  });
+
+  it('normalises legacy graph tiers when reading old versions', async () => {
+    const session = await pool.query<{ id: string }>(
+      `SELECT id FROM topology_learning_sessions WHERE tenant_id = $1 ORDER BY created_at LIMIT 1`,
+      [tenantId],
+    );
+    const legacyNodes = [
+      {
+        id: 'h:legacy-gateway',
+        label: 'legacy-gateway',
+        kind: 'gateway',
+        tier: 'ingress',
+        status: 'online',
+        services: [],
+        metrics: { active: 0, opened: 0, closed: 0, failed: 0, inbound: 0, outbound: 0 },
+      },
+      {
+        id: 'h:legacy-infra',
+        label: 'legacy-infra',
+        kind: 'service',
+        tier: 'infra',
+        status: 'online',
+        services: [],
+        metrics: { active: 0, opened: 0, closed: 0, failed: 0, inbound: 0, outbound: 0 },
+      },
+    ];
+    const inserted = await pool.query<{ id: string }>(
+      `INSERT INTO topology_graphs
+         (tenant_id, session_id, scope_kind, mode, version, window_start, window_end, window_seconds,
+          nodes, edges, systems, analysis, stats, model, prompt_version, fallback)
+       VALUES ($1, $2, 'tenant', 'host', 99, now() - interval '1 minute', now(), 60,
+               $3::jsonb, '[]'::jsonb, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb, 'legacy', 'v1', false)
+       RETURNING id`,
+      [tenantId, session.rows[0]?.id ?? null, JSON.stringify(legacyNodes)],
+    );
+    const graph = await service.get(tenantId, inserted.rows[0]?.id ?? '');
+    expect(graph?.nodes.map((node) => node.tier)).toEqual(['access', 'ops']);
   });
 });

@@ -69,7 +69,8 @@ function sendLearningError(reply: FastifyReply, error: unknown): void {
       || error.code === 'session_not_ready'
       || error.code === 'session_collecting'
       || error.code === 'session_cancelled'
-      || error.code === 'session_not_analyzable') {
+      || error.code === 'session_not_analyzable'
+      || error.code === 'no_managed_hosts') {
       reply.code(409).send({ error: error.code });
       return;
     }
@@ -110,12 +111,19 @@ export function registerTopologyRoutes(
   app.post('/api/topologies/learn', async (request, reply) => {
     const ctx = await authorize(request, reply, pool);
     if (!ctx) return;
-    const body = request.body as { appSystemId?: unknown; windowSeconds?: unknown } | undefined;
+    const body = request.body as {
+      appSystemId?: unknown;
+      windowSeconds?: unknown;
+      includeUnassigned?: unknown;
+    } | undefined;
     const appSystemId = parseAppSystemId(body?.appSystemId);
     if (appSystemId === undefined) return reply.code(400).send({ error: 'invalid_app_system' });
     if (body?.windowSeconds !== undefined
       && (typeof body.windowSeconds !== 'number' || !Number.isInteger(body.windowSeconds))) {
       return reply.code(400).send({ error: 'invalid_window' });
+    }
+    if (body?.includeUnassigned !== undefined && typeof body.includeUnassigned !== 'boolean') {
+      return reply.code(400).send({ error: 'invalid_request' });
     }
     try {
       const session = await learning.start(
@@ -123,6 +131,7 @@ export function registerTopologyRoutes(
         {
           appSystemId,
           ...(typeof body?.windowSeconds === 'number' ? { windowSeconds: body.windowSeconds } : {}),
+          ...(typeof body?.includeUnassigned === 'boolean' ? { includeUnassigned: body.includeUnassigned } : {}),
         },
         { requestedBy: ctx.userId, trigger: 'manual' },
       );
@@ -226,8 +235,12 @@ export function registerTopologyRoutes(
       intervalSeconds?: unknown;
       windowSeconds?: unknown;
       scope?: unknown;
+      includeUnassigned?: unknown;
     } | undefined;
     if (body?.enabled !== undefined && typeof body.enabled !== 'boolean') {
+      return reply.code(400).send({ error: 'invalid_request' });
+    }
+    if (body?.includeUnassigned !== undefined && typeof body.includeUnassigned !== 'boolean') {
       return reply.code(400).send({ error: 'invalid_request' });
     }
     if (body?.intervalSeconds !== undefined
@@ -246,6 +259,7 @@ export function registerTopologyRoutes(
         ...(typeof body?.intervalSeconds === 'number' ? { intervalSeconds: body.intervalSeconds } : {}),
         ...(typeof body?.windowSeconds === 'number' ? { windowSeconds: body.windowSeconds } : {}),
         ...(scope ? { scope } : {}),
+        ...(typeof body?.includeUnassigned === 'boolean' ? { includeUnassigned: body.includeUnassigned } : {}),
       });
       return reply.send(policy);
     } catch (error) {

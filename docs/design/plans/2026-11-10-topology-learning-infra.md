@@ -468,3 +468,25 @@ pnpm e2e
   `go build/vet/test`（✅）、`pnpm e2e`（✅ **14 passed / 39.9s / EXIT=0**，见 §9.1）。
   e2e 的「超大 SVG 图标」断言已修：排除 `role="application"`/`role="img"` 的画布与迷你地图，空态示意图 SVG 补 role，
   不再误伤拓扑页。
+
+## 12. 拓扑 V2 验证（2026-11-10 18:30，按用户 6 条反馈迭代）
+
+需求映射：① 未归属主机默认隐藏（开关可选）；② 改为平台浅色风格；③ 缩放 30%~300% + 节点详情；
+④ 大模型基于监听端口/进程命令行/建连证据识别组件（product/role/systemService）；⑤ IT 架构 6 层
+（接入/应用/中间件/数据/运维观测/外部）；⑥ 按业务系统横向泳道排列，替换原竖向堆叠。
+
+- 后端：`topology-v2`；分层 `access|app|middleware|data|ops|external`；节点带 product/role/systemService；
+  prompt 预算 ≤45k 字符（适配 32k/64k 上下文）；规则引擎兜底同口径。
+- 数据验证：插入 1 台未归属测试机 `unassigned-demo-01` 后学习，最终图 `hostCount=13`、
+  `stats.excludedUnassigned=1`、节点中无该主机；示例分类：`prod-cache-01`→middleware/cache/Redis/缓存、
+  `prod-kafka-01`→middleware/mq/Kafka/消息队列、`prod-mysql-01`→data/database/MySQL/关系型数据库、
+  `prod-monitor-01`→ops/monitoring/Prometheus/监控/systemService=true、`prod-web-01`→app/
+  「order-service / Nginx」/业务应用（含接入代理）。
+- 最终图：v3，20 节点 / 36 条访问关系 / 失败 156 / 3 业务系统 / 外部依赖 6；`analysis.model=topology-mock`、
+  `promptVersion=topology-v2`（mock 验证大模型链路；provider 验证后 disabled，新学习走启发式兜底）。
+- 页面：平台浅色 tokens + 业务系统横向泳道 + 6 分层列；默认 fit（1680 下 79%、1440 下 62%），
+  缩放 30%~300%，节点详情展示大模型识别结果（product/role/type）；Playwright audit
+  issueCount=0、无横向溢出、无 console error（仅登录前 `/api/me` 预期 401）。
+- 门禁：`pnpm -r typecheck` ✅、`pnpm build` ✅、`pnpm -r test` ✅（control 233 passed/3 skipped）、
+  `pnpm e2e` ✅ 14 passed；Go 测试未受本轮影响（Agent 版本 0.6.3）。
+

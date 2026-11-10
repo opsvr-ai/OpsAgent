@@ -30,6 +30,7 @@ import {
   computeLayout,
   isUnassignedSystemName,
   matchNodeIds,
+  truncateText,
   type TopoViewMode,
 } from '../topology/layout.js';
 import { TopologyCanvas, type CenterTarget } from '../topology/topology-canvas.js';
@@ -114,6 +115,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [search, setSearch] = useState('');
   const [filterAnomaly, setFilterAnomaly] = useState(false);
   const [filterCross, setFilterCross] = useState(false);
+  const [showUnassigned, setShowUnassigned] = useState(false);
   const [analysisNodeIds, setAnalysisNodeIds] = useState<readonly string[] | null>(null);
   const [analysisEdgeIds, setAnalysisEdgeIds] = useState<readonly string[] | null>(null);
   const [activeHotPath, setActiveHotPath] = useState<number | null>(null);
@@ -321,7 +323,10 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     return () => window.removeEventListener('keydown', handler);
   }, [focusId, policyOpen, selectedId, session, wizardOpen]);
 
-  const view = useMemo(() => (graph ? buildViewGraph(graph, viewMode) : null), [graph, viewMode]);
+  const view = useMemo(
+    () => (graph ? buildViewGraph(graph, viewMode, { includeUnassigned: showUnassigned }) : null),
+    [graph, showUnassigned, viewMode],
+  );
   const layout = useMemo(() => (view ? computeLayout(view) : null), [view]);
   const systemColors = useMemo(
     () => new Map((layout?.systemLegend ?? []).map((system) => [system.id, system.color])),
@@ -362,10 +367,10 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   }, [view, viewMode]);
 
   const hostStats = {
-    nodes: graph?.stats.nodeCount ?? layout?.nodes.length ?? 0,
-    edges: graph?.stats.edgeCount ?? layout?.edges.length ?? 0,
-    connections: graph?.stats.totalConnections ?? 0,
-    failed: graph?.stats.failedConnections ?? 0,
+    nodes: layout?.nodes.length ?? 0,
+    edges: layout?.edges.length ?? 0,
+    connections: layout?.totalConnections ?? 0,
+    failed: layout?.failedConnections ?? 0,
     systems: layout ? layout.systemLegend.filter((system) => !isUnassignedSystemName(system.name)).length : 0,
     external:
       graph?.stats.externalCount ??
@@ -373,17 +378,18 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   };
 
   const startLearning = useCallback(
-    async (input: { appSystemId: string | null; windowSeconds: number }): Promise<void> => {
+    async (input: { appSystemId: string | null; windowSeconds: number; includeUnassigned: boolean }): Promise<void> => {
       setBusy(true);
       setWizardError(null);
       finishedSessionRef.current = null;
       try {
         if (demo) {
-          setSession(demoLearningSession(input.windowSeconds, input.appSystemId));
+          setSession(demoLearningSession(input.windowSeconds, input.appSystemId, 0, input.includeUnassigned));
         } else {
           const created = await startTopologyLearning({
             appSystemId: input.appSystemId,
             windowSeconds: input.windowSeconds,
+            includeUnassigned: input.includeUnassigned,
           });
           setSession(created);
         }
@@ -463,6 +469,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
             ...(input.intervalSeconds !== undefined ? { intervalSeconds: input.intervalSeconds } : {}),
             ...(input.windowSeconds !== undefined ? { windowSeconds: input.windowSeconds } : {}),
             ...(input.scope !== undefined ? { scope: input.scope } : {}),
+            ...(input.includeUnassigned !== undefined ? { includeUnassigned: input.includeUnassigned } : {}),
             nextRunAt: new Date(
               Date.now() + (input.intervalSeconds ?? policy?.intervalSeconds ?? 21_600) * 1000,
             ).toISOString(),
@@ -673,7 +680,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
               <div className="eyebrow">TOPOLOGY · 真实建连关系学习</div>
               <h1>业务访问拓扑</h1>
               <p className="sub">
-                操作系统智能体在固定时间窗内采集真实建连关系，经聚合与大模型分析生成分层拓扑、跨系统访问与风险洞察。
+                大模型基于 Agent 采集的监听端口、进程与建连证据识别组件与 IT 分层，生成业务系统泳道、跨系统访问与风险洞察。
                 <span className="topo-head-scope">当前范围：{scopeName}</span>
               </p>
             </div>
@@ -799,7 +806,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                   <div className="topo-empty-step">
                     <span className="topo-step-index">03</span>
                     <strong>生成</strong>
-                    <p>大模型分层、识别核心链路与风险；模型不可用时用确定性规则兜底。</p>
+                    <p>大模型识别组件与 IT 分层，输出核心链路与风险；模型不可用时由规则引擎兜底。</p>
                   </div>
                 </div>
                 <button type="button" className="btn btn-primary" onClick={() => setWizardOpen(true)}>
@@ -902,6 +909,27 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     >
                       <MiniIcon name="link" size={13} /> 跨系统
                       <em>{layout.edges.filter((edge) => edge.crossSystem).length}</em>
+                    </button>
+                    <button
+                      type="button"
+                      className={`topo-filter${showUnassigned ? ' is-on' : ''}`}
+                      onClick={() => setShowUnassigned((current) => !current)}
+                      aria-pressed={showUnassigned}
+                      title={`默认隐藏不属于任何应用系统的主机；本次学习服务端已排除 ${
+                        graph.stats.excludedUnassigned ?? 0
+                      } 台未归属主机`}
+                    >
+                      <MiniIcon name="layers" size={13} /> 未归属主机
+                      <em>
+                        {showUnassigned
+                          ? view.nodes.filter(
+                              (item) => !item.aggregated && !item.node.appSystemId && item.node.kind !== 'external',
+                            ).length
+                          : view.hiddenUnassigned}
+                        {(graph.stats.excludedUnassigned ?? 0) > 0
+                          ? `（已排除 ${graph.stats.excludedUnassigned}）`
+                          : ''}
+                      </em>
                     </button>
                   </div>
                 </div>
@@ -1081,10 +1109,10 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                 <footer className="topo-stage-foot">
                   <div className="topo-legend-row">
                     <div className="topo-legend-group">
-                      {layout.tiers.map((tier) => (
-                        <span key={`${tier.key}-${tier.x}`} className="topo-legend-item">
-                          <i style={{ background: tier.accent }} /> {tier.title}
-                          <em>{tier.count}</em>
+                      {layout.columns.map((column) => (
+                        <span key={column.id} className="topo-legend-item">
+                          <i style={{ background: column.accent }} /> {column.title}
+                          <em>{column.count}</em>
                         </span>
                       ))}
                     </div>
@@ -1124,7 +1152,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                         title={edge.fullLabel}
                         onClick={() => focusEdgeGroup([edge.edge.id], [edge.sourceId, edge.targetId])}
                       >
-                        <span className="mono">{edge.fullLabel}</span>
+                        <span className="mono">{truncateText(edge.fullLabel, 118, 11)}</span>
                         {viewMode === 'host' ? <em>{edge.edge.count.toLocaleString('zh-CN')}</em> : null}
                       </button>
                     ))}

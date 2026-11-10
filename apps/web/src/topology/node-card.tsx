@@ -1,6 +1,14 @@
 import { memo } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
-import { cardLayout, formatConnections, measureText, serviceLabel, type PositionedNode } from './layout.js';
+import {
+  formatConnections,
+  hostCardLayout,
+  measureText,
+  productTone,
+  systemCardLayout,
+  truncateText,
+  type PositionedNode,
+} from './layout.js';
 import { KindIcon } from './icons.js';
 
 export interface NodeCardProps {
@@ -16,8 +24,14 @@ export interface NodeCardProps {
   readonly onFocus: (id: string) => void;
 }
 
-function chipWidth(text: string): number {
-  return Math.round(measureText(text, 11) + 13);
+function StatusDot({ status, x, y }: { status: string; x: number; y: number }): ReactElement {
+  const fill = status === 'offline' ? '#dc5a5a' : status === 'unknown' ? '#a0aab8' : '#12a171';
+  return (
+    <g>
+      <circle cx={x} cy={y} r={4.6} fill={fill} opacity="0.16" />
+      <circle cx={x} cy={y} r={2.6} fill={fill} />
+    </g>
+  );
 }
 
 function NodeCardView({
@@ -32,25 +46,18 @@ function NodeCardView({
   onSelect,
   onFocus,
 }: NodeCardProps): ReactElement {
-  const { node: data, aggregated } = node;
-  const card = cardLayout(data, aggregated, node.aggregated ? 'system' : 'host');
+  const data = node.node;
   const statusLabel = data.status === 'offline' ? '离线' : data.status === 'unknown' ? '未上报' : '在线';
-  const statusColor = data.status === 'offline' ? '#ff6b6b' : data.status === 'unknown' ? '#8fa3bf' : '#34d399';
   const anomalies = data.anomalies ?? [];
-  const maxChips = aggregated ? 3 : 2;
-  const services = data.services.slice(0, maxChips);
-  const extraServices = data.services.length - services.length;
-
   const className = [
-    'topo-node',
-    aggregated ? 'is-system' : '',
+    'topo2-node',
+    node.aggregated ? 'is-system' : '',
     selected ? 'is-selected' : '',
     hovered ? 'is-hovered' : '',
     highlighted ? 'is-lit' : '',
     dimmed ? 'is-dimmed' : '',
     searching ? (matched ? 'is-match' : 'is-miss') : '',
     data.status === 'offline' ? 'is-offline' : '',
-    data.status === 'unknown' ? 'is-unknown' : '',
     anomalies.length > 0 ? 'is-anomalous' : '',
   ]
     .filter(Boolean)
@@ -67,24 +74,68 @@ function NodeCardView({
     onFocus(node.id);
   };
 
-  const subText = aggregated
-    ? `${node.hostCount} 台主机 · 内部 ${formatConnections(node.internalConnections)} 连接`
-    : card.subText;
-  const titleLines = card.titleLines.length > 0 ? card.titleLines : [data.label];
-  const statusY = card.iconY + card.iconTile / 2;
-  const chipAvailable = card.w - 20;
+  const tone = productTone(data.product);
+  const title = `${data.label} · ${data.product ?? ''} ${data.role ?? ''} · ${statusLabel}`;
+  const tooltip = [
+    data.label,
+    data.product ? `组件：${data.product}` : '',
+    data.role ? `角色：${data.role}` : '',
+    data.ip ? `IP：${data.ip}` : '',
+    data.systemService ? '系统服务' : '',
+    anomalies.length > 0 ? `异常：${anomalies.join('；')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
-  let chipX = 10;
-  const chips = services.map((service) => {
-    const label = serviceLabel(service);
-    const width = chipWidth(label);
-    const item = { service, label, width, x: chipX };
-    chipX += width + 5;
-    return item;
-  });
-  const visibleChips = chips.filter((item) => item.x + item.width <= chipAvailable);
-  const hiddenChips = services.length - visibleChips.length + extraServices;
+  if (node.aggregated) {
+    const card = systemCardLayout(data);
+    return (
+      <g
+        className={className}
+        transform={`translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})`}
+        onPointerEnter={handlePointerEnter}
+        onPointerLeave={handlePointerLeave}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        role="button"
+        aria-label={`${data.label}，${node.hostCount} 台主机`}
+      >
+        <title>{tooltip}</title>
+        <rect className="topo2-node-shadow" width={card.w} height={card.h} rx={12} />
+        <rect className="topo2-node-bg" width={card.w} height={card.h} rx={12} />
+        <rect className="topo2-node-bar" width={4} height={card.h - 20} x={0.5} y={10} rx={2} fill={node.systemColor} />
+        <text className="topo2-node-title is-system" x={16} y={logoBaseline(card.titleLines.length, card.titleFont)} fontSize={card.titleFont}>
+          {card.titleLines.map((line, index) => (
+            <tspan key={`${line}-${index}`} x={16} dy={index === 0 ? 0 : 19}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+        <text className="topo2-node-sub" x={16} y={card.titleLines.length > 1 ? 62 : 50}>
+          {node.hostCount} 台主机 · 内部链路 {formatConnections(node.internalConnections)} 条
+        </text>
+        <text className="topo2-node-sub" x={16} y={card.titleLines.length > 1 ? 80 : 68}>
+          {truncateText(data.product ?? '业务系统', card.w - 32, 11)}
+        </text>
+        <g className="topo2-node-metrics">
+          <text x={16} y={card.h - 12} fontSize={11}>
+            <tspan>入 {formatConnections(node.incoming)}</tspan>
+            <tspan x={16 + measureText(`入 ${formatConnections(node.incoming)}`, 11) + 12}>出 {formatConnections(node.outgoing)}</tspan>
+          </text>
+        </g>
+        {node.failed > 0 ? (
+          <text className="topo2-node-metric-fail" x={card.w - 14} y={card.h - 12} textAnchor="end">
+            异常 {formatConnections(node.failed)}
+          </text>
+        ) : null}
+        <StatusDot status={data.status} x={card.w - 13} y={13} />
+        {selected ? <rect className="topo2-node-ring" width={card.w} height={card.h} rx={12} stroke={node.systemColor} /> : null}
+      </g>
+    );
+  }
 
+  const card = hostCardLayout(data);
+  const productWidth = Math.min(card.productMaxWidth, Math.round(measureText(card.productText, 12) + 12));
   return (
     <g
       className={className}
@@ -94,99 +145,90 @@ function NodeCardView({
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       role="button"
-      aria-label={`${data.label} ${statusLabel}`}
+      aria-label={`${data.label} ${data.product ?? ''} ${statusLabel}`}
     >
-      <rect className="topo-node-glow" x={-6} y={-6} width={card.w + 12} height={card.h + 12} rx={16} fill={node.systemColor} />
-      <rect className="topo-node-bg" width={card.w} height={card.h} rx={aggregated ? 14 : 11} />
-      <rect className="topo-node-tint" width={card.w} height={card.h} rx={aggregated ? 14 : 11} fill={node.systemColor} />
-      <rect
-        className="topo-node-bar"
-        x={0.8}
-        y={12}
-        width={3}
-        height={card.h - 24}
-        rx={1.6}
-        fill={node.systemColor}
-      />
-      <rect
-        className="topo-node-icon-tile"
-        x={card.iconX}
-        y={card.iconY}
-        width={card.iconTile}
-        height={card.iconTile}
-        rx={aggregated ? 9 : 7}
-        fill={node.systemColor}
-      />
-      <g transform={`translate(${card.iconX + (card.iconTile - card.iconSize) / 2} ${card.iconY + (card.iconTile - card.iconSize) / 2})`}>
-        <KindIcon kind={data.kind} size={card.iconSize} color={node.systemColor} strokeWidth={1.9} />
+      <title>{tooltip}</title>
+      <rect className="topo2-node-shadow" width={card.w} height={card.h} rx={10} />
+      <rect className="topo2-node-bg" width={card.w} height={card.h} rx={10} />
+      <rect className="topo2-node-bar" width={3.5} height={card.h - 16} x={0.5} y={8} rx={1.8} fill={node.systemColor} />
+      <g className="topo2-product-badge" style={{ color: tone.fg }}>
+        <rect width={productWidth} height={13} x={9} y={5} rx={4} style={{ fill: tone.bg, stroke: tone.border }} />
+        <text x={9 + productWidth / 2} y={14.5} textAnchor="middle">
+          {truncateText(card.productText, productWidth - 8, 12)}
+        </text>
       </g>
       <text
-        className={aggregated ? 'topo-node-title is-system' : 'topo-node-title'}
-        x={card.titleX}
+        className="topo2-node-title"
+        x={9}
         y={card.titleY}
         fontSize={card.titleFont}
+        {...(card.titleCompress ? { textLength: card.titleWidth, lengthAdjust: 'spacingAndGlyphs' } : {})}
       >
-        {titleLines.map((line, index) => (
-          <tspan key={`${line}-${index}`} x={card.titleX} dy={index === 0 ? 0 : card.titleLineHeight}>
+        {card.titleLines.map((line, index) => (
+          <tspan key={`${line}-${index}`} x={9} dy={index === 0 ? 0 : card.titleLineHeight}>
             {line}
           </tspan>
         ))}
       </text>
-      <circle className="topo-node-status" cx={card.w - 12} cy={statusY} r={3} fill={statusColor} />
-      <text className="topo-node-sub" x={card.subX} y={card.subY}>
-        {subText}
+      <text className="topo2-node-role" x={9} y={card.roleY}>
+        {card.roleLines.map((line, index) => (
+          <tspan key={`${line}-${index}`} x={9} dy={index === 0 ? 0 : card.roleLineHeight}>
+            {line}
+          </tspan>
+        ))}
       </text>
-      {card.ipText ? (
-        <text className="topo-node-ip" x={card.subX} y={card.ipY}>
-          {card.ipText}
+      {card.chips.map((chip, index) => {
+        const previous = card.chips.slice(0, index);
+        const x = 9 + previous.reduce((sum, item) => sum + Math.round(measureText(item, 11.5) + 13) + 4, 0);
+        const width = Math.round(measureText(chip, 11.5) + 13);
+        return (
+          <g key={chip} className="topo2-chip">
+            <rect x={x} y={card.chipY} width={width} height={14} rx={4} />
+            <text x={x + width / 2} y={card.chipY + 10.2} textAnchor="middle">
+              {chip}
+            </text>
+          </g>
+        );
+      })}
+      {card.hiddenChips > 0 ? (
+        <text className="topo2-chip-more" x={card.w - 9} y={card.chipY + 10.8} textAnchor="end">
+          +{card.hiddenChips}
         </text>
       ) : null}
+      <g className="topo2-node-metrics">
+        <text x={8} y={card.metricsY} fontSize={11}>
+          <tspan className="topo2-metric-in">入{formatConnections(node.incoming)}</tspan>
+          <tspan x={8 + measureText(`入${formatConnections(node.incoming)}`, 11) + 6} className="topo2-metric-out">
+            出{formatConnections(node.outgoing)}
+          </tspan>
+          {node.failed > 0 ? (
+            <tspan
+              x={8 + measureText(`入${formatConnections(node.incoming)}`, 11) + measureText(`出${formatConnections(node.outgoing)}`, 11) + 12}
+              className="topo2-metric-fail"
+            >
+              ✕{formatConnections(node.failed)}
+            </tspan>
+          ) : null}
+        </text>
+      </g>
+      <StatusDot status={data.status} x={card.w - 11} y={12} />
       {anomalies.length > 0 ? (
-        <g className="topo-node-alert">
-          <circle className="topo-node-alert-halo" cx={card.w - 12} cy={aggregated ? 34 : 29} r={7} fill="#ff5d5d" />
-          <circle cx={card.w - 12} cy={aggregated ? 34 : 29} r={3.4} fill="#ff5d5d" />
+        <g className="topo2-node-alert">
+          <circle cx={card.w - 11} cy={26} r={3} fill="#dc5a5a" />
           {anomalies.length > 1 ? (
-            <text x={card.w - 20} y={aggregated ? 38 : 33} textAnchor="end">
+            <text x={card.w - 17} y={29} textAnchor="end">
               {anomalies.length}
             </text>
           ) : null}
         </g>
       ) : null}
-      {visibleChips.map((item) => (
-        <g key={`${item.service.name}-${item.service.port}`} className="topo-node-chip">
-          <rect x={item.x} y={card.chipY} width={item.width} height={17} rx={4.5} fill={node.systemColor} />
-          <text x={item.x + item.width / 2} y={card.chipY + 12.5} textAnchor="middle">
-            {item.label}
-          </text>
-        </g>
-      ))}
-      {hiddenChips > 0 ? (
-        <text
-          className="topo-node-chip-more"
-          x={visibleChips.length > 0 ? Math.min(chipAvailable, chipX) - 2 : 10}
-          y={card.chipY + 12.5}
-          textAnchor="start"
-        >
-          +{hiddenChips}
-        </text>
-      ) : null}
-      <g className="topo-node-metrics">
-        <text x={10} y={card.metricsY} fontSize={card.metricsFont}>
-          <tspan className="metric-in">入 {formatConnections(node.incoming)}</tspan>
-          <tspan x={10 + measureText(`入 ${formatConnections(node.incoming)}`, 11.5) + 12} className="metric-out">
-            出 {formatConnections(node.outgoing)}
-          </tspan>
-          <tspan
-            x={10 + measureText(`入 ${formatConnections(node.incoming)}`, 11.5) + measureText(`出 ${formatConnections(node.outgoing)}`, 11.5) + 24}
-            className={node.failed > 0 ? 'metric-fail is-hot' : 'metric-fail'}
-          >
-            异常 {formatConnections(node.failed)}
-          </tspan>
-        </text>
-      </g>
-      {selected ? <rect className="topo-node-ring" width={card.w} height={card.h} rx={aggregated ? 14 : 11} stroke={node.systemColor} /> : null}
+      {selected ? <rect className="topo2-node-ring" width={card.w} height={card.h} rx={10} stroke={node.systemColor} /> : null}
     </g>
   );
+}
+
+function logoBaseline(lines: number, font: number): number {
+  return lines > 1 ? 34 : 32 + font * 0.1;
 }
 
 export const NodeCard = memo(NodeCardView);

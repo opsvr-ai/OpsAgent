@@ -341,11 +341,13 @@ Agent 异常事件上报后自动触发；同一应用系统已有运行中分�
 - 若主机部署了 `conn_collector`（eBPF），Agent 自动读取 `/var/log/conn_collector/edges.json` 的精确 opened/closed/failed 并合并（`source=ebpf|hybrid`）；
 - 控制面把窗口样本写入 `agent_connection_edges`（幂等 upsert），学习会话结束后聚合为「谁在什么时间访问了谁、多少连接、失败多少」，交给服务端大模型分析（模型未配置/超时自动回落规则引擎，图始终可渲染）；
 - 学习结果按不可变版本存 `topology_graphs`，Web「访问拓扑」页以分层画布 + 业务系统色带 + 流水线动效展示，支持主机视图/业务系统视图、聚焦上下游、异常链路、LLM 摘要与风险洞察。
+- **V2（2026-11-10）**：按 IT 架构精确分层为「接入层 / 应用层 / 中间件层 / 数据层 / 运维观测层 / 外部依赖」；节点带 `product`（Nginx、Spring Boot、MySQL、Redis、Kafka、Prometheus 等）、`role`（接入网关、业务应用、关系型数据库、缓存、消息队列、监控…）与 `systemService` 标记。大模型基于「监听端口 + 进程命令行 + 建连证据」识别组件并分层，规则引擎兜底保持同口径。
+- 学习**默认只纳入归属应用系统的主机**（`includeUnassigned=false`），未归属主机不再混入拓扑；需要时可在学习向导/自动学习策略中显式打开。大模型 prompt 压缩预算 ≤45k 字符（适配 32k/64k 上下文），模型不可用时自动回落规则引擎。
 
 API（权限 `agent.manage`）：
 
 ```text
-POST /api/topologies/learn            { appSystemId?, windowSeconds }  # 60~1800s
+POST /api/topologies/learn            { appSystemId?, windowSeconds, includeUnassigned? }  # 60~1800s
 GET  /api/topologies/learn/active
 GET  /api/topologies/learn/:id
 POST /api/topologies/learn/:id/analyze
@@ -354,7 +356,7 @@ POST /api/topologies/learn/:id/samples # 演示/测试注入窗口样本
 GET  /api/topologies                  # 版本列表
 GET  /api/topologies/latest           # 最新拓扑（无图返回 null）
 GET  /api/topologies/:id
-GET|PUT /api/topologies/policy        # 自动学习策略
+GET|PUT /api/topologies/policy        # 自动学习策略（含 includeUnassigned）
 ```
 
 自动学习：控制面 `TopologyLearningScheduler` 每 10s 处理到期会话与策略；`OPSAGENT_TOPOLOGY_AUTOLEARN=false` 可关闭。Agent 可用 `OPSAGENT_CONN_EDGES=false` 关闭采集，或用 `OPSAGENT_CONN_SAMPLE_INTERVAL_SECONDS` / `OPSAGENT_CONN_WINDOW_SECONDS` / `OPSAGENT_CONN_COLLECTOR_DIR` 调整。

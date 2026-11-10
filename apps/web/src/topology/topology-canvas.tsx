@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import {
   SYSTEM_COLORS,
@@ -17,10 +11,10 @@ import {
 } from './layout.js';
 import { EdgePath } from './edge-path.js';
 import { NodeCard } from './node-card.js';
-import { KindIcon, MiniIcon, TierIcon } from './icons.js';
+import { MiniIcon, TierIcon } from './icons.js';
 
-const MIN_K = 0.32;
-const MAX_K = 2.4;
+const MIN_K = 0.3;
+const MAX_K = 3;
 
 interface Emphasis {
   readonly nodes: ReadonlySet<string>;
@@ -72,14 +66,28 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function gradientIdOf(edgeId: string): string {
-  return `topo-g-${edgeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  return `topo2-g-${edgeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 }
 
 function markerIdOf(edge: RoutedEdge): string {
-  if (edge.anomalous) return 'topo-arrow-danger';
-  if (edge.external) return 'topo-arrow-external';
+  if (edge.anomalous) return 'topo2-arrow-danger';
+  if (edge.external) return 'topo2-arrow-external';
   const index = SYSTEM_COLORS.indexOf(edge.colorB);
-  return index >= 0 ? `topo-arrow-s${index}` : 'topo-arrow-external';
+  return index >= 0 ? `topo2-arrow-s${index}` : 'topo2-arrow-external';
+}
+
+function cubicPointOfEdge(edge: RoutedEdge, t: number): { x: number; y: number } {
+  const values = edge.d
+    .replace(/[MC,]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map((value) => Number(value));
+  const [sx = 0, sy = 0, c1x = 0, c1y = 0, c2x = 0, c2y = 0, tx = 0, ty = 0] = values;
+  const mt = 1 - t;
+  return {
+    x: mt * mt * mt * sx + 3 * mt * mt * t * c1x + 3 * mt * t * t * c2x + t * t * t * tx,
+    y: mt * mt * mt * sy + 3 * mt * mt * t * c1y + 3 * mt * t * t * c2y + t * t * t * ty,
+  };
 }
 
 function neighborIds(layout: TopoLayout, nodeId: string): { nodes: Set<string>; edges: Set<string>; label: string } {
@@ -121,19 +129,22 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   const zoomLabelRef = useRef<HTMLSpanElement | null>(null);
   const layoutRef = useRef<TopoLayout | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
-  const transformRef = useRef<ViewTransform>({ x: 0, y: 0, k: 0.86 });
+  const transformRef = useRef<ViewTransform>({ x: 0, y: 0, k: 0.6 });
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [minimapOpen, setMinimapOpen] = useState(true);
+  const [detailZoom, setDetailZoom] = useState(false);
+  const [zoomK, setZoomK] = useState(0.8);
 
-  const viewMode = view.mode;
-  const miniWidth = 180;
+  const miniWidth = 150;
   const miniHeight = useMemo(
-    () => clamp((miniWidth * layout.height) / Math.max(1, layout.width), 74, 132),
+    () => clamp((miniWidth * layout.height) / Math.max(1, layout.width), 58, 104),
     [layout.height, layout.width],
   );
+  const laneHeaderW = layout.columns[0]?.x ?? 150;
 
   layoutRef.current = layout;
   sizeRef.current = size;
@@ -145,41 +156,57 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       `translate(${transform.x.toFixed(2)} ${transform.y.toFixed(2)}) scale(${transform.k.toFixed(4)})`,
     );
     if (zoomLabelRef.current) zoomLabelRef.current.textContent = `${Math.round(transform.k * 100)}%`;
+    const detail = transform.k >= 1.5;
+    setDetailZoom((previous) => (previous === detail ? previous : detail));
+    setZoomK((previous) => (Math.abs(previous - transform.k) > 0.002 ? transform.k : previous));
     const viewport = miniViewportRef.current;
     const current = layoutRef.current;
     const currentSize = sizeRef.current;
     if (viewport && current && miniSvgRef.current) {
       const scale = miniWidth / Math.max(1, current.width);
-      const visibleX = -transform.x / transform.k;
-      const visibleY = -transform.y / transform.k;
-      const visibleW = currentSize.w / transform.k;
-      const visibleH = currentSize.h / transform.k;
-      viewport.setAttribute('x', (visibleX * scale).toFixed(2));
-      viewport.setAttribute('y', (visibleY * scale).toFixed(2));
-      viewport.setAttribute('width', (visibleW * scale).toFixed(2));
-      viewport.setAttribute('height', (visibleH * scale).toFixed(2));
+      viewport.setAttribute('x', ((-transform.x / transform.k) * scale).toFixed(2));
+      viewport.setAttribute('y', ((-transform.y / transform.k) * scale).toFixed(2));
+      viewport.setAttribute('width', ((currentSize.w / transform.k) * scale).toFixed(2));
+      viewport.setAttribute('height', ((currentSize.h / transform.k) * scale).toFixed(2));
     }
   }, [miniWidth]);
 
-  const fitView = useCallback((): void => {
+  const viewToFit = useCallback((minScale: number): void => {
     const current = layoutRef.current;
     const currentSize = sizeRef.current;
     if (!current || currentSize.w === 0 || currentSize.h === 0) return;
-    const pad = 30;
-    const minK = viewMode === 'system' ? 0.62 : 0.68;
-    const maxK = viewMode === 'system' ? 1.12 : 1.02;
-    const k = clamp(
-      Math.min((currentSize.w - pad * 2) / current.width, (currentSize.h - pad * 2) / current.height),
-      minK,
-      maxK,
+    const pad = 20;
+    const fitK = Math.min(
+      (currentSize.w - pad * 2) / current.width,
+      (currentSize.h - pad * 2) / current.height,
     );
+    const k = clamp(Math.max(fitK, minScale), MIN_K, 1.06);
+    const floored = k > fitK + 0.001;
+    transformRef.current = {
+      k,
+      // 放大后的默认视图从左上开始，先保证泳道名和层列头可见，再靠平移看全图。
+      x: floored ? 16 : (currentSize.w - current.width * k) / 2,
+      y: floored ? 12 : (currentSize.h - current.height * k) / 2,
+    };
+    applyView();
+  }, [applyView]);
+
+  const fitView = useCallback((): void => viewToFit(MIN_K), [viewToFit]);
+  // 首次打开完整显示 6 个分层与全部泳道；用户可用 +/− 或 1:1 放大看细节。
+  const initialView = useCallback((): void => viewToFit(MIN_K), [viewToFit]);
+
+  const resetZoom = useCallback((): void => {
+    const current = layoutRef.current;
+    const currentSize = sizeRef.current;
+    if (!current) return;
+    const k = 1;
     transformRef.current = {
       k,
       x: (currentSize.w - current.width * k) / 2,
-      y: (currentSize.h - current.height * k) / 2,
+      y: Math.max(16, (currentSize.h - current.height * k) / 2),
     };
     applyView();
-  }, [applyView, viewMode]);
+  }, [applyView]);
 
   const zoomAt = useCallback(
     (nextK: number, px: number, py: number): void => {
@@ -210,9 +237,9 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
       const k = clamp(
-        Math.min(currentSize.w / (maxX - minX + 300), currentSize.h / (maxY - minY + 240), 1.25),
-        0.62,
-        1.25,
+        Math.min(currentSize.w / (maxX - minX + 320), currentSize.h / (maxY - minY + 260), 1.5),
+        0.6,
+        1.5,
       );
       transformRef.current = {
         k,
@@ -241,13 +268,13 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
 
   useEffect(() => {
     if (size.w === 0 || size.h === 0) return;
-    fitView();
+    initialView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h, layout.width, layout.height]);
 
   useEffect(() => {
     applyView();
-  }, [applyView, layout, miniHeight]);
+  }, [applyView, layout, miniHeight, minimapOpen]);
 
   useEffect(() => {
     const element = wrapRef.current;
@@ -273,7 +300,6 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
     if (event.button !== 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -295,11 +321,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       suppressClickRef.current = true;
     }
     if (!drag.moved) return;
-    transformRef.current = {
-      ...transformRef.current,
-      x: drag.originX + dx,
-      y: drag.originY + dy,
-    };
+    transformRef.current = { ...transformRef.current, x: drag.originX + dx, y: drag.originY + dy };
     applyView();
   };
 
@@ -307,8 +329,19 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
   };
+
+  useEffect(() => {
+    const clearDrag = (): void => {
+      dragRef.current = null;
+    };
+    window.addEventListener('pointerup', clearDrag);
+    window.addEventListener('pointercancel', clearDrag);
+    return () => {
+      window.removeEventListener('pointerup', clearDrag);
+      window.removeEventListener('pointercancel', clearDrag);
+    };
+  }, []);
 
   const handleBackgroundClick = (): void => {
     if (suppressClickRef.current) {
@@ -316,10 +349,6 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       return;
     }
     onSelect(null);
-    onFocus(null);
-  };
-
-  const handleBackgroundDoubleClick = (): void => {
     onFocus(null);
   };
 
@@ -397,7 +426,6 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     setHoveredEdgeId(id);
   }, []);
 
-  // ---- 高亮 / 淡化 -------------------------------------------------------
   const analysisEmphasis = useMemo<Emphasis | null>(() => {
     const hasNodes = (analysisNodeIds?.length ?? 0) > 0;
     const hasEdges = (analysisEdgeIds?.length ?? 0) > 0;
@@ -417,23 +445,18 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     if (!drillSystemId) return null;
     const nodes = new Set<string>();
     for (const node of layout.nodes) {
-      if (viewMode === 'system' ? node.node.appSystemId === drillSystemId : node.systemId === drillSystemId) {
+      if (view.mode === 'system' ? node.node.appSystemId === drillSystemId : node.systemId === drillSystemId) {
         nodes.add(node.id);
       }
     }
     return { nodes, edges: new Set(), hard: true, label: '业务系统聚焦' };
-  }, [drillSystemId, layout.nodes, viewMode]);
+  }, [drillSystemId, layout.nodes, view.mode]);
 
   const emphasis = useMemo<Emphasis | null>(() => {
     if (hoveredEdgeId) {
       const edge = layout.edgeById.get(hoveredEdgeId);
       if (edge) {
-        return {
-          nodes: new Set([edge.sourceId, edge.targetId]),
-          edges: new Set([edge.edge.id]),
-          hard: false,
-          label: edge.fullLabel,
-        };
+        return { nodes: new Set([edge.sourceId, edge.targetId]), edges: new Set([edge.edge.id]), hard: false, label: edge.fullLabel };
       }
     }
     if (hoveredNodeId) {
@@ -514,18 +537,11 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     const active = new Set<string>();
     if (nodeId) {
       active.add(nodeId);
-      const neighbor = neighborIds(layout, nodeId);
-      for (const id of neighbor.nodes) active.add(id);
+      for (const id of neighborIds(layout, nodeId).nodes) active.add(id);
     }
-    const inactive = layout.nodes.filter((node) => !active.has(node.id));
-    const lit = layout.nodes.filter((node) => active.has(node.id));
-    return [...inactive, ...lit];
+    return [...layout.nodes.filter((node) => !active.has(node.id)), ...layout.nodes.filter((node) => active.has(node.id))];
   }, [focusId, hoveredNodeId, layout, selectedId]);
 
-  // 静态端口标签
-  const staticLabels = layout.labels;
-
-  // hover / 聚焦时的完整关系标签：源服务 → 目标服务:端口
   const activeLabels = useMemo(() => {
     const ids = new Set<string>();
     if (hoveredEdgeId) ids.add(hoveredEdgeId);
@@ -547,61 +563,32 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     if (ids.size === 0 && analysisEdgeIds) {
       for (const id of analysisEdgeIds) ids.add(id);
     }
-    if (ids.size === 0 && analysisNodeIds) {
-      for (const edge of layout.edges) {
-        if (analysisNodeIds.includes(edge.sourceId) || analysisNodeIds.includes(edge.targetId)) {
-          ids.add(edge.edge.id);
-          if (ids.size >= 6) break;
-        }
-      }
-    }
-    const staticIds = new Set(layout.labels.map((label) => label.edgeId));
     const chosen = [...ids]
-      .filter((id) => !(view.mode === 'system' && staticIds.has(id)))
       .map((id) => layout.edgeById.get(id))
       .filter((edge) => edge !== undefined)
       .slice(0, 8);
-    const occupied = layout.nodes.map((node) => ({
-      x: node.x - 4,
-      y: node.y - 4,
-      w: node.w + 8,
-      h: node.h + 8,
+    // 标签按屏幕像素排布（缩小时不糊、放大时不变形），沿垂直方向错开避免互相重叠。
+    return chosen.map((edge, index) => ({
+      edge,
+      offset: (index - (chosen.length - 1) / 2) * 24,
+      w: Math.round(measureText(edge.fullLabel, 11.5) + 18),
+      h: 20,
     }));
-    const placed: { edge: RoutedEdge; x: number; y: number; w: number; h: number; text: string }[] = [];
-    const overlaps = (
-      a: { x: number; y: number; w: number; h: number },
-      b: { x: number; y: number; w: number; h: number },
-    ): boolean => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-    for (const edge of chosen) {
-      const text = edge.fullLabel;
-      const w = measureText(text, 11.5) + 16;
-      const h = 19;
-      const offsets = [0, -24, 24, -48, 48];
-      let found: { x: number; y: number } | null = null;
-      for (const offset of offsets) {
-        const rect = { x: edge.mx - w / 2, y: edge.my + offset - h / 2, w, h };
-        if (occupied.some((node) => overlaps(rect, node))) continue;
-        if (placed.some((label) => overlaps(rect, { x: label.x - label.w / 2, y: label.y - label.h / 2, w: label.w, h: label.h }))) continue;
-        found = { x: edge.mx, y: edge.my + offset };
-        break;
-      }
-      if (!found) continue;
-      placed.push({ edge, x: found.x, y: found.y, w, h, text });
-    }
-    return placed;
-  }, [analysisEdgeIds, analysisNodeIds, focusId, hoveredEdgeId, hoveredNodeId, layout, selectedId]);
+  }, [analysisEdgeIds, focusId, hoveredEdgeId, hoveredNodeId, layout, selectedId]);
 
   const gradientEdges = useMemo(
     () => layout.edges.filter((edge) => edge.crossSystem && !edge.external && !edge.anomalous),
     [layout.edges],
   );
-
-  const animatedLimit = layout.edges.length > 80 ? 30 : 26;
+  const animatedLimit = layout.edges.length > 80 ? 30 : 28;
 
   return (
-    <div className={`topo-canvas${viewMode === 'system' ? ' is-system-view' : ''}`} ref={wrapRef}>
+    <div
+      className={`topo2-canvas${view.mode === 'system' ? ' is-system-view' : ''}${hoveredNodeId || hoveredEdgeId ? ' is-hovering' : ''}${detailZoom ? ' is-detail-zoom' : ''}`}
+      ref={wrapRef}
+    >
       <svg
-        className="topo-canvas-svg"
+        className="topo2-canvas-svg"
         width="100%"
         height="100%"
         onPointerDown={handlePointerDown}
@@ -609,53 +596,33 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleBackgroundClick}
-        onDoubleClick={handleBackgroundDoubleClick}
+        onDoubleClick={() => onFocus(null)}
         role="application"
         aria-label="业务访问拓扑画布"
       >
         <defs>
-          <pattern id="topo-stars" width="240" height="220" patternUnits="userSpaceOnUse">
-            <circle cx="18" cy="24" r="1" fill="#9fd0ff" opacity="0.32" />
-            <circle cx="92" cy="68" r="0.8" fill="#bcd9ff" opacity="0.24" />
-            <circle cx="168" cy="32" r="1.1" fill="#8fb6ff" opacity="0.3" />
-            <circle cx="212" cy="120" r="0.7" fill="#d7e9ff" opacity="0.22" />
-            <circle cx="54" cy="156" r="0.9" fill="#9fd0ff" opacity="0.24" />
-            <circle cx="132" cy="190" r="1.2" fill="#7fa8ff" opacity="0.2" />
-            <circle cx="196" cy="196" r="0.8" fill="#cfe6ff" opacity="0.26" />
+          <pattern id="topo2-grid" width="22" height="22" patternUnits="userSpaceOnUse">
+            <path className="topo2-grid-line" d="M 22 0 L 0 0 0 22" fill="none" strokeWidth="1" />
           </pattern>
-          <linearGradient id="topo-vignette" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#0b1a30" />
-            <stop offset="0.45" stopColor="#060d18" />
-            <stop offset="1" stopColor="#04070d" />
-          </linearGradient>
-          <radialGradient id="topo-halo" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0" stopColor="#2b6dff" stopOpacity="0.3" />
-            <stop offset="0.6" stopColor="#1b4fd8" stopOpacity="0.06" />
-            <stop offset="1" stopColor="#0a0f18" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="topo-halo-warm" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0" stopColor="#12b5a0" stopOpacity="0.2" />
-            <stop offset="1" stopColor="#0a0f18" stopOpacity="0" />
-          </radialGradient>
           {SYSTEM_COLORS.map((color, index) => (
             <marker
               key={`marker-${color}`}
-              id={`topo-arrow-s${index}`}
-              markerWidth="9"
-              markerHeight="9"
-              refX="7.6"
-              refY="4.5"
+              id={`topo2-arrow-s${index}`}
+              markerWidth="8"
+              markerHeight="8"
+              refX="6.6"
+              refY="4"
               orient="auto"
               markerUnits="userSpaceOnUse"
             >
-              <path d="M0.6 1 L8.4 4.5 L0.6 8 Z" fill={color} />
+              <path d="M0.5 0.8 L7.6 4 L0.5 7.2 Z" fill={color} />
             </marker>
           ))}
-          <marker id="topo-arrow-danger" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M0.6 1 L9.2 5 L0.6 9 Z" fill="#ff6b6b" />
+          <marker id="topo2-arrow-danger" markerWidth="9" markerHeight="9" refX="7.4" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0.5 0.8 L8.2 4.5 L0.5 8.2 Z" fill="#dc5a5a" />
           </marker>
-          <marker id="topo-arrow-external" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M0.6 1 L8.4 4.5 L0.6 8 Z" fill="#9fb3d1" />
+          <marker id="topo2-arrow-external" markerWidth="8" markerHeight="8" refX="6.6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0.5 0.8 L7.6 4 L0.5 7.2 Z" fill="#8a94a6" />
           </marker>
           {gradientEdges.map((edge) => (
             <linearGradient
@@ -667,50 +634,132 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               x2={edge.bx}
               y2={edge.by}
             >
-              <stop offset="0" stopColor={edge.colorA} stopOpacity="0.92" />
-              <stop offset="1" stopColor={edge.colorB} stopOpacity="0.98" />
+              <stop offset="0" stopColor={edge.colorA} stopOpacity="0.75" />
+              <stop offset="1" stopColor={edge.colorB} stopOpacity="0.85" />
             </linearGradient>
           ))}
         </defs>
 
-        <rect className="topo-canvas-bg" width="100%" height="100%" fill="url(#topo-vignette)" />
-        <rect width="100%" height="100%" fill="url(#topo-stars)" opacity="0.9" />
-        <ellipse className="topo-canvas-halo" cx="30%" cy="18%" rx="46%" ry="52%" fill="url(#topo-halo)" />
-        <ellipse className="topo-canvas-halo" cx="82%" cy="84%" rx="38%" ry="42%" fill="url(#topo-halo-warm)" />
+        <rect className="topo2-canvas-bg" width="100%" height="100%" />
+        <rect width="100%" height="100%" fill="url(#topo2-grid)" />
 
         <g ref={gRef}>
-          {layout.tiers.map((tier) => (
-            <g key={`${tier.key}-${tier.x}`} className="topo-tier">
-              <rect className="topo-tier-band" x={tier.x} y={6} width={tier.w} height={tier.h} rx={16} fill={tier.accent} stroke={tier.accent} />
-              <line className="topo-tier-rule" x1={tier.x + 16} y1={58} x2={tier.x + tier.w - 16} y2={58} stroke={tier.accent} />
-              <g transform={`translate(${tier.x + 15} 18)`}>
-                <TierIcon tier={tier.icon ?? tier.key} size={17} color={tier.accent} strokeWidth={1.7} />
-              </g>
-              <text className="topo-tier-title" x={tier.x + 38} y={30} fill={tier.accent}>
-                {tier.title}
+          {view.mode === 'host' ? (
+            <>
+              <rect className="topo2-header-bg" x={0} y={0} width={layout.width} height={layout.headerHeight} />
+              <text className="topo2-corner-title" x={14} y={28}>
+                业务系统 / 泳道
               </text>
-              <text className="topo-tier-en" x={tier.x + 38} y={45}>
-                {tier.en}
+              <text className="topo2-corner-sub" x={14} y={45}>
+                共 {layout.lanes.length} 条泳道 · 6 个 IT 分层
               </text>
-              <text className="topo-tier-count" x={tier.x + tier.w - 16} y={31} textAnchor="end">
-                {String(tier.count).padStart(2, '0')}
-              </text>
-              <text className="topo-tier-sub" x={tier.x + tier.w - 16} y={46} textAnchor="end">
-                {tier.subLabel ?? `${tier.systems} 系统`}
-              </text>
-            </g>
-          ))}
-
-          {layout.groups.map((group) => (
-            <g key={`${group.tier}-${group.systemId}-${group.x}`} className="topo-group">
-              <rect className="topo-group-bg" x={group.x} y={group.y} width={group.w} height={group.h} rx={13} fill={group.color} stroke={group.color} />
-              <circle cx={group.labelX + 4} cy={group.labelY - 4} r={3} fill={group.color} />
-              <text className="topo-group-label" x={group.labelX + 12} y={group.labelY} fill={group.color}>
-                {group.name}
-                <tspan className="topo-group-count"> · {group.count} 节点</tspan>
-              </text>
-            </g>
-          ))}
+              {layout.columns.map((column, index) => (
+                <g key={column.id} className="topo2-column-head">
+                  <g transform={`translate(${column.x + 12} 14)`}>
+                    <TierIcon tier={column.key} size={16} color={column.accent} strokeWidth={1.7} />
+                  </g>
+                  <text className="topo2-column-title" x={column.x + 34} y={26}>
+                    {column.title}
+                  </text>
+                  <text className="topo2-column-en" x={column.x + 34} y={40}>
+                    {column.en}
+                  </text>
+                  <text className="topo2-column-hint" x={column.x + 12} y={55}>
+                    {column.hint}
+                  </text>
+                  <rect className="topo2-column-count-bg" x={column.x + column.w - 36} y={14} width={24} height={16} rx={5} />
+                  <text className="topo2-column-count" x={column.x + column.w - 24} y={25.5} textAnchor="middle">
+                    {column.count}
+                  </text>
+                  {index > 0 ? (
+                    <line
+                      className="topo2-column-divider"
+                      x1={column.x - 6}
+                      y1={layout.headerHeight}
+                      x2={column.x - 6}
+                      y2={layout.height - 8}
+                    />
+                  ) : null}
+                </g>
+              ))}
+              <line className="topo2-header-line" x1={0} y1={layout.headerHeight} x2={layout.width} y2={layout.headerHeight} />
+              <line className="topo2-lane-header-line" x1={laneHeaderW} y1={layout.headerHeight} x2={laneHeaderW} y2={layout.height - 8} />
+              {layout.lanes.map((lane, index) => (
+                <g key={lane.id} className={`topo2-lane${index % 2 === 1 ? ' is-alt' : ''}`}>
+                  <rect className="topo2-lane-bg" x={0} y={lane.y} width={lane.w} height={lane.h} />
+                  <rect className="topo2-lane-tint" x={laneHeaderW} y={lane.y} width={lane.w - laneHeaderW} height={lane.h} fill={lane.color} />
+                  <line className="topo2-lane-line" x1={0} y1={lane.y + lane.h} x2={lane.w} y2={lane.y + lane.h} />
+                  <rect className="topo2-lane-color" x={14} y={lane.y + 16} width={3.5} height={lane.h - 32} rx={1.8} fill={lane.color} />
+                  <text className="topo2-lane-name" x={26} y={lane.y + 26}>
+                    {lane.name}
+                  </text>
+                  {lane.criticality ? (
+                    <g>
+                      <rect className="topo2-lane-crit-bg" x={26} y={lane.y + 36} width={24} height={15} rx={4} />
+                      <text className="topo2-lane-crit" x={38} y={lane.y + 47} textAnchor="middle">
+                        {lane.criticality}
+                      </text>
+                    </g>
+                  ) : null}
+                  <text className="topo2-lane-meta" x={lane.criticality ? 58 : 26} y={lane.y + (lane.criticality ? 47 : 46)}>
+                    {lane.hostCount} 台主机
+                    {lane.anomalyCount > 0 ? ` · ${lane.anomalyCount} 台异常` : ''}
+                  </text>
+                  <text className="topo2-lane-meta is-strong" x={26} y={lane.y + 68}>
+                    连接 {Math.round(lane.connections / 1000).toFixed(1)}k
+                    {lane.failures > 0 ? ` · 失败 ${lane.failures}` : ''}
+                  </text>
+                </g>
+              ))}
+              {layout.cells.map((cell) => (
+                <rect
+                  key={`${cell.laneId}-${cell.tier}`}
+                  className="topo2-cell"
+                  x={cell.x}
+                  y={cell.y}
+                  width={cell.w}
+                  height={cell.h}
+                  rx={10}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <rect className="topo2-header-bg" x={0} y={0} width={layout.width} height={layout.headerHeight} />
+              {layout.columns.map((column) => (
+                <g key={column.id} className="topo2-column-head">
+                  <g transform={`translate(${column.x + 14} 14)`}>
+                    <TierIcon tier={column.key} size={16} color={column.accent} strokeWidth={1.7} />
+                  </g>
+                  <text className="topo2-column-title" x={column.x + 38} y={26}>
+                    {column.title}
+                  </text>
+                  <text className="topo2-column-en" x={column.x + 38} y={40}>
+                    {column.en}
+                  </text>
+                  <text className="topo2-column-hint" x={column.x + 14} y={55}>
+                    {column.hint}
+                  </text>
+                  <rect className="topo2-column-count-bg" x={column.x + column.w - 38} y={14} width={26} height={16} rx={5} />
+                  <text className="topo2-column-count" x={column.x + column.w - 25} y={25.5} textAnchor="middle">
+                    {column.count}
+                  </text>
+                  <rect className="topo2-system-col-bg" x={column.x} y={layout.headerHeight + 4} width={column.w} height={column.h} rx={12} />
+                </g>
+              ))}
+              <line className="topo2-header-line" x1={0} y1={layout.headerHeight} x2={layout.width} y2={layout.headerHeight} />
+              {layout.groups.map((group) => (
+                <g key={`${group.systemId}-${group.x}`} className="topo2-group">
+                  <rect className="topo2-group-bg" x={group.x} y={group.y} width={group.w} height={group.h} rx={12} fill={group.color} />
+                  <circle cx={group.labelX + 4} cy={group.labelY - 4} r={3} fill={group.color} />
+                  <text className="topo2-group-label" x={group.labelX + 12} y={group.labelY} fill={group.color}>
+                    {group.name}
+                    <tspan className="topo2-group-count"> · {group.count} 个节点</tspan>
+                  </text>
+                </g>
+              ))}
+            </>
+          )}
 
           {sortedEdges.map((edge) => (
             <EdgePath
@@ -723,19 +772,6 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               markerId={markerIdOf(edge)}
               onHover={handleHoverEdge}
             />
-          ))}
-
-          {staticLabels.map((label) => (
-            <g
-              key={`static-${label.edgeId}`}
-              className={view.mode === 'system' ? 'topo-edge-label is-static' : 'topo-port-label'}
-              transform={`translate(${(label.x - label.w / 2).toFixed(1)} ${(label.y - label.h / 2).toFixed(1)})`}
-            >
-              <rect width={label.w} height={label.h} rx={5} />
-              <text x={5} y={label.h / 2 + 4}>
-                {label.text}
-              </text>
-            </g>
           ))}
 
           {sortedNodes.map((node) => (
@@ -754,44 +790,73 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
             />
           ))}
 
+          {layout.labels.map((label) => (
+            <g
+              key={`static-${label.edgeId}`}
+              className="topo2-edge-label is-static"
+              transform={`translate(${(label.x - label.w / 2).toFixed(1)} ${(label.y - label.h / 2).toFixed(1)})`}
+            >
+              <rect width={label.w} height={label.h} rx={5} />
+              <text x={6} y={label.h / 2 + 4}>
+                {label.text}
+              </text>
+            </g>
+          ))}
+
           {activeLabels.map((label) => (
             <g
               key={`active-${label.edge.edge.id}`}
-              className="topo-edge-label"
-              transform={`translate(${(label.x - label.w / 2).toFixed(1)} ${(label.y - label.h / 2).toFixed(1)})`}
+              className={`topo2-edge-label${label.edge.anomalous ? ' is-anomalous' : ''}`}
+              transform={`translate(${label.edge.mx.toFixed(1)} ${(label.edge.my + label.offset / Math.max(0.3, zoomK)).toFixed(1)}) scale(${(1 / Math.max(0.3, zoomK)).toFixed(4)})`}
             >
-              <rect width={label.w} height={label.h} rx={5} stroke={label.edge.anomalous ? '#ff6b6b' : label.edge.colorB} />
-              <text x={6} y={label.h / 2 + 4}>
-                {label.text}
+              <rect x={-label.w / 2} y={-label.h / 2} width={label.w} height={label.h} rx={5} />
+              <text x={-label.w / 2 + 7} y={4}>
+                {label.edge.fullLabel}
               </text>
             </g>
           ))}
         </g>
       </svg>
 
-      <div className="topo-zoom">
-        <button type="button" className="topo-zoom-btn" aria-label="缩小" onClick={() => {
+      <div className="topo2-zoom">
+        <button type="button" className="topo2-zoom-btn" aria-label="缩小" onClick={() => {
           const currentSize = sizeRef.current;
-          zoomAt(transformRef.current.k / 1.22, currentSize.w / 2, currentSize.h / 2);
+          zoomAt(transformRef.current.k / 1.3, currentSize.w / 2, currentSize.h / 2);
         }}>
           <MiniIcon name="minus" size={14} />
         </button>
-        <span className="topo-zoom-value" ref={zoomLabelRef}>
+        <span className="topo2-zoom-value" ref={zoomLabelRef}>
           100%
         </span>
-        <button type="button" className="topo-zoom-btn" aria-label="放大" onClick={() => {
+        <button type="button" className="topo2-zoom-btn" aria-label="放大" onClick={() => {
           const currentSize = sizeRef.current;
-          zoomAt(transformRef.current.k * 1.22, currentSize.w / 2, currentSize.h / 2);
+          zoomAt(transformRef.current.k * 1.3, currentSize.w / 2, currentSize.h / 2);
         }}>
           <MiniIcon name="plus" size={14} />
         </button>
-        <button type="button" className="topo-zoom-btn is-wide" onClick={fitView} title="适应画布">
-          <MiniIcon name="fit" size={14} />
-          适应
+        <span className="topo2-zoom-sep" />
+        <button type="button" className="topo2-zoom-btn is-wide" onClick={fitView} title="适应画布（完整显示全图）">
+          <MiniIcon name="fit" size={13} /> 适应
+        </button>
+        <button
+          type="button"
+          className={`topo2-zoom-btn is-wide${minimapOpen ? ' is-on' : ''}`}
+          onClick={() => setMinimapOpen((current) => !current)}
+          aria-pressed={minimapOpen}
+          title="显示/隐藏全图缩略图"
+        >
+          <MiniIcon name="layers" size={13} /> 全图
+        </button>
+        <button type="button" className="topo2-zoom-btn is-wide" onClick={resetZoom} title="重置为 100%">
+          1:1
         </button>
       </div>
 
-      <div className="topo-minimap">
+      {minimapOpen ? (
+      <div className="topo2-minimap">
+        <button type="button" className="topo2-mini-close" aria-label="收起全图缩略图" onClick={() => setMinimapOpen(false)}>
+          <MiniIcon name="close" size={11} />
+        </button>
         <svg
           ref={miniSvgRef}
           width={miniWidth}
@@ -802,22 +867,14 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
           role="img"
           aria-label="拓扑缩略图"
         >
-          <rect className="topo-mini-bg" width={layout.width} height={layout.height} rx={10} />
-          {layout.tiers.map((tier) => (
-            <rect key={`${tier.key}-${tier.x}`} x={tier.x} y={6} width={tier.w} height={tier.h} rx={12} fill={tier.accent} opacity="0.08" />
-          ))}
-          {layout.edges.map((edge) => (
-            <line
-              key={edge.edge.id}
-              x1={edge.ax}
-              y1={edge.ay}
-              x2={edge.bx}
-              y2={edge.by}
-              stroke={edge.anomalous ? '#ff6b6b' : edge.colorA}
-              strokeWidth={3}
-              strokeOpacity={0.4}
-            />
-          ))}
+          <rect className="topo2-mini-bg" width={layout.width} height={layout.height} rx={8} />
+          {view.mode === 'host'
+            ? layout.lanes.map((lane) => (
+                <rect key={lane.id} x={0} y={lane.y} width={layout.width} height={lane.h} fill={lane.color} opacity="0.09" />
+              ))
+            : layout.columns.map((column) => (
+                <rect key={column.id} x={column.x} y={layout.headerHeight} width={column.w} height={column.h} fill={column.accent} opacity="0.08" />
+              ))}
           {layout.nodes.map((node) => (
             <rect
               key={node.id}
@@ -825,22 +882,20 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               y={node.y}
               width={node.w}
               height={node.h}
-              rx={8}
+              rx={6}
               fill={node.systemColor}
-              opacity={0.82}
+              opacity="0.7"
             />
           ))}
-          <rect ref={miniViewportRef} className="topo-mini-view" x={0} y={0} width={10} height={10} rx={4} />
+          <rect ref={miniViewportRef} className="topo2-mini-view" x={0} y={0} width={10} height={10} rx={3} />
         </svg>
-        <span className="topo-mini-caption">
+        <span className="topo2-mini-caption">
           <MiniIcon name="layers" size={11} /> 全图 {Math.round(layout.width)} × {Math.round(layout.height)}
         </span>
       </div>
+      ) : null}
 
-      <div className="topo-canvas-tip">
-        <KindIcon kind="service" size={12} color="#7fa4d6" />
-        拖拽平移 · 滚轮缩放 · 双击节点聚焦上下游
-      </div>
+
     </div>
   );
 }

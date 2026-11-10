@@ -75,6 +75,33 @@ export function KindIcon({ kind, ...props }: IconProps & { readonly kind: Topolo
         </>,
         props,
       );
+    case 'registry':
+      return frame(
+        <>
+          <circle cx="12" cy="12" r="3" />
+          <circle cx="5" cy="6" r="1.8" />
+          <circle cx="19" cy="6" r="1.8" />
+          <circle cx="5" cy="18" r="1.8" />
+          <circle cx="19" cy="18" r="1.8" />
+          <path d="M6.6 7.2l3.6 3.2M17.4 7.2l-3.6 3.2M6.6 16.8l3.6-3.2M17.4 16.8l-3.6-3.2" />
+        </>,
+        props,
+      );
+    case 'monitoring':
+      return frame(
+        <>
+          <path d="M3 13h4l2.4-6 3.6 11 2.4-5H21" />
+        </>,
+        props,
+      );
+    case 'logging':
+      return frame(
+        <>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
+        </>,
+        props,
+      );
     case 'storage':
       return frame(
         <>
@@ -107,7 +134,7 @@ export function KindIcon({ kind, ...props }: IconProps & { readonly kind: Topolo
 
 export function TierIcon({ tier, ...props }: IconProps & { readonly tier: TopologyTier }): ReactNode {
   switch (tier) {
-    case 'ingress':
+    case 'access':
       return frame(
         <>
           <path d="M4 5h16" />
@@ -154,7 +181,7 @@ export function TierIcon({ tier, ...props }: IconProps & { readonly tier: Topolo
         </>,
         props,
       );
-    default:
+    case 'ops':
       return frame(
         <>
           <rect x="3" y="4" width="18" height="7" rx="2" />
@@ -163,6 +190,8 @@ export function TierIcon({ tier, ...props }: IconProps & { readonly tier: Topolo
         </>,
         props,
       );
+    default:
+      return frame(<circle cx="12" cy="12" r="8" />, props);
   }
 }
 

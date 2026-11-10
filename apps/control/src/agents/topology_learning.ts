@@ -20,6 +20,7 @@ import type {
   TopologyNodeKind,
   TopologyNodeMetrics,
   TopologyNodeStatus,
+  TopologyProcessInfo,
   TopologyScope,
   TopologyServicePort,
   TopologySystemGroup,
@@ -129,6 +130,8 @@ export interface LearningInputSources {
   readonly inventory: readonly LearningInventorySource[];
   readonly edges: readonly LearningEdgeSource[];
   readonly anomalies?: ReadonlyMap<string, readonly string[]>;
+  /** 是否把未归属应用系统的纳管主机纳入拓扑（默认 false）。 */
+  readonly includeUnassigned?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +290,9 @@ function updateLastSeen(target: MutableLearningEdge, source: LearningEdgeSource)
  * - out 与 in 都观测到 → direction=both；本机回环/同机内部流量跳过。
  */
 export function buildLearningInput(sources: LearningInputSources): TopologyLearningInput {
+  const includeUnassigned = sources.includeUnassigned === true;
+  // 默认只把已归属应用系统的主机纳入拓扑；未归属主机整体排除（含其出/入边）。
+  const isEligible = (agent: LearningAgentSource): boolean => includeUnassigned || agent.appSystemId !== null;
   const agentsById = new Map(sources.agents.map((agent) => [agent.id, agent]));
   const byIp = new Map<string, LearningAgentSource>();
   const primaryIp = new Map<string, string>();
@@ -307,16 +313,52 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     }
   }
 
-  // 进程表：comm → command（用于把 java -jar xxx.jar 还原成服务名）。
+  // 进程表：comm → command（用于把 java -jar xxx.jar 还原成服务名），
+  // 同时收集 TopologyProcessInfo 证据供模型识别中间件/数据库/应用/系统服务。
+  interface RawProcessInfo {
+    readonly info: TopologyProcessInfo;
+    readonly hasCommand: boolean;
+    readonly business: boolean;
+  }
   const processesByAgent = new Map<string, Map<string, string>>();
+  const rawProcessesByAgent = new Map<string, RawProcessInfo[]>();
   for (const row of sources.inventory) {
     if (row.kind !== 'process') continue;
-    const name = normalizeProcess(row.name);
+    const name = normalizeProcess(text(row.detail.name, 120) || row.name);
     if (!name) continue;
+    const command = text(row.detail.command, 300);
+    const user = text(row.detail.user, 80);
+    const pid = Math.max(0, Math.floor(num(row.detail.pid)));
     const commands = processesByAgent.get(row.agentId) ?? new Map<string, string>();
-    commands.set(name, typeof row.detail.command === 'string' ? row.detail.command : '');
+    commands.set(name, command);
     processesByAgent.set(row.agentId, commands);
+    const classification = text(row.detail.classification, 40).toLowerCase();
+    const list = rawProcessesByAgent.get(row.agentId) ?? [];
+    list.push({
+      info: {
+        name,
+        ...(command ? { command } : {}),
+        ...(user ? { user } : {}),
+        ...(pid > 0 ? { pid } : {}),
+      },
+      hasCommand: command.length > 0,
+      business: classification !== 'system',
+    });
+    rawProcessesByAgent.set(row.agentId, list);
   }
+  // 每台机最多 12 个：优先业务进程、有命令行的，再按名称稳定排序。
+  const processesForAgent = (agentId: string): TopologyProcessInfo[] => {
+    const list = rawProcessesByAgent.get(agentId) ?? [];
+    return [...list]
+      .sort((left, right) => (
+        Number(right.business) - Number(left.business)
+        || Number(right.hasCommand) - Number(left.hasCommand)
+        || left.info.name.localeCompare(right.info.name)
+        || (left.info.pid ?? 0) - (right.info.pid ?? 0)
+      ))
+      .slice(0, 12)
+      .map((item) => item.info);
+  };
   const processLabel = (agentId: string, raw: string): string => {
     const name = normalizeProcess(raw);
     if (!name) return '';
@@ -401,6 +443,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
   for (const edge of orderedEdges) {
     const localAgent = agentsById.get(edge.agentId);
     if (!localAgent) continue;
+    if (!isEligible(localAgent)) continue;
     if (!isTcpProtocol(edge.protocol)) continue;
     if (edge.direction !== 'out' && edge.direction !== 'in') continue;
     const peerIp = normalizeTopologyAddress(edge.peerAddress);
@@ -410,6 +453,8 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     if (edge.direction === 'out') {
       if (peerPort === 0) continue;
       const target = byIp.get(peerIp);
+      // 对端是纳管主机但未归属应用系统时，整条边丢弃（不降级成外部依赖）。
+      if (target && !isEligible(target)) continue;
       if (target && target.id === localAgent.id) continue;
       const fromService = text(
         edge.service || jarService(edge.command) || processLabel(localAgent.id, edge.process)
@@ -491,6 +536,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     if (localPort === 0) continue;
     const sourceAgent = byIp.get(peerIp);
     if (!sourceAgent || sourceAgent.id === localAgent.id) continue;
+    if (!isEligible(sourceAgent)) continue;
     // 计数口径以 out 样本为准；in 样本只补 direction=both，避免同一条边双端重复累加。
     // in 样本不携带客户端源端口，源主机访问同一目标端口有多个服务时无法精确区分，
     // 这里把该 (源, 目标, 端口) 下的所有 out 逻辑边都标记为双向（不改变计数）。
@@ -534,6 +580,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     if (edge.toAgentId) related.add(edge.toAgentId);
   }
   for (const agent of sources.agents) {
+    if (!isEligible(agent)) continue;
     if (sources.scope.kind === 'tenant') related.add(agent.id);
     else if (sources.scope.appSystemId && agent.appSystemId === sources.scope.appSystemId) related.add(agent.id);
   }
@@ -541,6 +588,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
   const hosts: TopologyLearningHost[] = [];
   for (const agent of sources.agents) {
     if (!related.has(agent.id)) continue;
+    if (!isEligible(agent)) continue;
     const info = agent.systemInfo;
     const osName = typeof info.osName === 'string'
       ? info.osName
@@ -555,6 +603,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
       status: agent.status,
       ...(osName ? { os: osName.slice(0, 120) } : {}),
       services: servicesForAgent(agent.id),
+      processes: processesForAgent(agent.id),
       anomalies,
     });
   }
@@ -612,6 +661,10 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     failedConnections += edge.failed;
   }
   const reportingAgents = new Set(sources.edges.map((edge) => edge.agentId));
+  // 未归属主机只在整个租户范围学习时计入「已排除」；按应用系统学习时它们本就不在候选范围。
+  const excludedUnassigned = !includeUnassigned && sources.scope.kind === 'tenant'
+    ? sources.agents.filter((agent) => !agent.appSystemId).length
+    : 0;
   const windowSeconds = Math.max(1, Math.round((sources.windowEnd.getTime() - sources.windowStart.getTime()) / 1000));
   const stats: TopologyGraphStats = {
     nodeCount: limitedHosts.length + externalPeersList.length,
@@ -623,6 +676,7 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     failedConnections,
     samples: sources.edges.length,
     reportingAgents: reportingAgents.size,
+    excludedUnassigned,
   };
   return {
     scope: sources.scope,
@@ -673,8 +727,16 @@ function nodeMetrics(agentId: string | null, ip: string | null, edges: readonly 
   return metrics;
 }
 
-const NODE_KINDS: readonly TopologyNodeKind[] = ['gateway', 'service', 'database', 'cache', 'mq', 'storage', 'external', 'unknown'];
-const NODE_TIERS: readonly TopologyTier[] = ['ingress', 'app', 'middleware', 'data', 'external', 'infra'];
+const NODE_KINDS: readonly TopologyNodeKind[] = [
+  'gateway', 'service', 'database', 'cache', 'mq', 'registry', 'storage',
+  'monitoring', 'logging', 'external', 'unknown',
+];
+const NODE_TIERS: readonly TopologyTier[] = ['access', 'app', 'middleware', 'data', 'ops', 'external'];
+/** 旧图兼容：ingress 并入 access，infra 并入 ops。 */
+const LEGACY_TIERS: Readonly<Record<string, TopologyTier>> = {
+  ingress: 'access',
+  infra: 'ops',
+};
 const NODE_STATUSES: readonly TopologyNodeStatus[] = ['online', 'offline', 'unknown'];
 const INSIGHT_SEVERITIES = ['info', 'warning', 'critical'] as const;
 
@@ -691,10 +753,12 @@ function normalizeNodeKind(value: unknown): TopologyNodeKind {
     : 'unknown';
 }
 
-function normalizeNodeTier(value: unknown): TopologyTier {
-  return typeof value === 'string' && (NODE_TIERS as readonly string[]).includes(value)
-    ? value as TopologyTier
-    : 'app';
+/** 归一化 tier：兼容旧图中的 ingress/infra，未知值回落到 app。 */
+export function normalizeTopologyTier(value: unknown): TopologyTier {
+  if (typeof value !== 'string') return 'app';
+  const legacy = LEGACY_TIERS[value];
+  if (legacy) return legacy;
+  return (NODE_TIERS as readonly string[]).includes(value) ? value as TopologyTier : 'app';
 }
 
 function normalizeServices(value: unknown): TopologyServicePort[] {
@@ -823,6 +887,8 @@ export interface BuildGraphPayloadArgs {
   readonly draft: TopologyDraft;
   readonly analysis: TopologyAnalysis | null | undefined;
   readonly generatedAt: Date;
+  /** false 时不生成「未归属」业务系统分组（默认 false，V2 行为）。 */
+  readonly includeUnassigned?: boolean;
 }
 
 /**
@@ -871,7 +937,7 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
       id,
       label: text(node.label, 200) || hostname || id,
       kind: normalizeNodeKind(node.kind),
-      tier: normalizeNodeTier(node.tier),
+      tier: normalizeTopologyTier(node.tier),
       ...(hostname ? { hostname } : {}),
       ...(ip ? { ip } : {}),
       appSystemId,
@@ -879,6 +945,9 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
       status: normalizeNodeStatus(node.status, host?.status ?? 'unknown'),
       services,
       metrics: nodeMetrics(host?.agentId ?? null, ip || null, input.edges),
+      ...(text(node.product, 80) ? { product: text(node.product, 80) } : {}),
+      ...(text(node.role, 200) ? { role: text(node.role, 200) } : {}),
+      ...(typeof node.systemService === 'boolean' ? { systemService: node.systemService } : {}),
       ...(anomalies.length > 0 ? { anomalies } : {}),
       ...(node.inferred === true ? { inferred: true } : {}),
       ...(text(node.note, 500) ? { note: text(node.note, 500) } : {}),
@@ -1046,12 +1115,15 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
 
   // 业务系统分组：优先用分析器给的，缺失时按主机归属回填。
   const systems: TopologySystemGroup[] = [];
+  const includeUnassigned = args.includeUnassigned === true;
   const rawSystems = Array.isArray(args.draft?.systems) ? args.draft.systems : [];
   for (const rawSystem of rawSystems.slice(0, 50)) {
     const record = asRecord(rawSystem);
     const id = text(record.id, 160);
     const name = text(record.name, 200);
     if (!id || !name) continue;
+    // 默认排除未归属主机时，也不生成「未归属」业务系统分组。
+    if (!includeUnassigned && (name.includes('未归属') || id === '__unassigned__')) continue;
     const members = Array.isArray(record.nodeIds)
       ? record.nodeIds.filter((item): item is string => typeof item === 'string' && nodeIds.has(item)).slice(0, 200)
       : [];
@@ -1066,14 +1138,21 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
   }
   if (systems.length === 0) {
     const groups = new Map<string, { name: string; nodeIds: string[] }>();
+    const unassignedNodeIds: string[] = [];
     for (const node of effectiveNodes) {
-      if (!node.appSystemId) continue;
+      if (!node.appSystemId) {
+        if (includeUnassigned && node.kind !== 'external') unassignedNodeIds.push(node.id);
+        continue;
+      }
       const group = groups.get(node.appSystemId) ?? { name: node.appSystemName ?? '未归属', nodeIds: [] };
       group.nodeIds.push(node.id);
       groups.set(node.appSystemId, group);
     }
     for (const [id, group] of groups) {
       systems.push({ id, name: group.name, nodeIds: group.nodeIds });
+    }
+    if (unassignedNodeIds.length > 0) {
+      systems.push({ id: '__unassigned__', name: '未归属', nodeIds: unassignedNodeIds });
     }
   }
 
@@ -1101,6 +1180,7 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
     failedConnections: edges.reduce((sum, edge) => sum + edge.failed, 0),
     samples: input.stats.samples,
     reportingAgents: input.stats.reportingAgents,
+    excludedUnassigned: input.stats.excludedUnassigned ?? 0,
   };
 
   return {
@@ -1131,6 +1211,7 @@ interface SessionRow {
   model: string;
   prompt_version: string;
   fallback: boolean;
+  include_unassigned: boolean;
   graph_id: string | null;
   progress: unknown;
   stats: unknown;
@@ -1170,6 +1251,7 @@ interface PolicyRow {
   window_seconds: number;
   scope_kind: 'tenant' | 'app-system';
   app_system_id: string | null;
+  include_unassigned: boolean;
   last_run_at: Date | null;
   next_run_at: Date | null;
   updated_at: Date;
@@ -1203,6 +1285,9 @@ function statsFromValue(value: unknown): TopologyGraphStats | null {
     failedConnections: nonNegative(record.failedConnections),
     samples: nonNegative(record.samples),
     reportingAgents: nonNegative(record.reportingAgents),
+    ...(typeof record.excludedUnassigned === 'number'
+      ? { excludedUnassigned: nonNegative(record.excludedUnassigned) }
+      : {}),
   };
 }
 
@@ -1234,11 +1319,49 @@ function sessionFromRow(row: SessionRow): TopologyLearningSession {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     progress: progressFromValue(row.progress),
+    includeUnassigned: row.include_unassigned === true,
     graphId: row.graph_id,
     model: row.model || null,
     fallback: row.fallback,
     error: row.error,
     ...(stats ? { stats } : {}),
+  };
+}
+
+/** 读取旧图时归一化节点：兼容旧 tier（ingress→access、infra→ops）与新增可选字段。 */
+function normalizeStoredNode(value: unknown): TopologyNode | null {
+  const record = asRecord(value);
+  const id = text(record.id, 160);
+  if (!id) return null;
+  const metrics = asRecord(record.metrics);
+  const anomalies = Array.isArray(record.anomalies)
+    ? record.anomalies.filter((item): item is string => typeof item === 'string').slice(0, 10)
+    : [];
+  return {
+    id,
+    label: text(record.label, 200) || id,
+    kind: normalizeNodeKind(record.kind),
+    tier: normalizeTopologyTier(record.tier),
+    ...(text(record.hostname, 200) ? { hostname: text(record.hostname, 200) } : {}),
+    ...(text(record.ip, 160) ? { ip: text(record.ip, 160) } : {}),
+    appSystemId: typeof record.appSystemId === 'string' && record.appSystemId ? record.appSystemId : null,
+    ...(text(record.appSystemName, 200) ? { appSystemName: text(record.appSystemName, 200) } : {}),
+    status: normalizeNodeStatus(record.status, 'unknown'),
+    services: normalizeServices(record.services),
+    metrics: {
+      active: nonNegative(metrics.active),
+      opened: nonNegative(metrics.opened),
+      closed: nonNegative(metrics.closed),
+      failed: nonNegative(metrics.failed),
+      inbound: nonNegative(metrics.inbound),
+      outbound: nonNegative(metrics.outbound),
+    },
+    ...(anomalies.length > 0 ? { anomalies } : {}),
+    ...(text(record.product, 80) ? { product: text(record.product, 80) } : {}),
+    ...(text(record.role, 200) ? { role: text(record.role, 200) } : {}),
+    ...(typeof record.systemService === 'boolean' ? { systemService: record.systemService } : {}),
+    ...(record.inferred === true ? { inferred: true } : {}),
+    ...(text(record.note, 500) ? { note: text(record.note, 500) } : {}),
   };
 }
 
@@ -1266,7 +1389,12 @@ function graphFromRow(row: GraphRow): TopologyGraph {
       end: iso(row.window_end),
       seconds: row.window_seconds,
     },
-    nodes: Array.isArray(row.nodes) ? row.nodes as TopologyNode[] : [],
+    nodes: Array.isArray(row.nodes)
+      ? row.nodes.flatMap((item) => {
+          const node = normalizeStoredNode(item);
+          return node ? [node] : [];
+        })
+      : [],
     edges: Array.isArray(row.edges) ? row.edges as TopologyEdge[] : [],
     systems: Array.isArray(row.systems) ? row.systems as TopologySystemGroup[] : [],
     analysis,
@@ -1283,6 +1411,7 @@ function policyFromRow(row: PolicyRow): TopologyLearningPolicy {
     intervalSeconds: row.interval_seconds,
     windowSeconds: row.window_seconds,
     scope: scopeFromColumns(row.scope_kind, row.app_system_id, row.app_system_name),
+    includeUnassigned: row.include_unassigned === true,
     lastRunAt: row.last_run_at ? iso(row.last_run_at) : null,
     nextRunAt: row.next_run_at ? iso(row.next_run_at) : null,
     updatedAt: iso(row.updated_at),
@@ -1340,7 +1469,12 @@ export class TopologyLearningService {
   /** 创建（或复用）固定时间窗学习会话。 */
   async start(
     tenantId: string,
-    input: { readonly appSystemId?: string | null; readonly windowSeconds?: number },
+    input: {
+      readonly appSystemId?: string | null;
+      readonly windowSeconds?: number;
+      /** 默认 false：未归属应用系统的主机不进入拓扑。 */
+      readonly includeUnassigned?: boolean;
+    },
     options: StartLearningOptions = {},
   ): Promise<TopologyLearningSession> {
     const windowSeconds = input.windowSeconds === undefined
@@ -1351,6 +1485,7 @@ export class TopologyLearningService {
       || windowSeconds > TOPOLOGY_WINDOW_MAX_SECONDS) {
       throw new TopologyLearningError('invalid_window');
     }
+    const includeUnassigned = input.includeUnassigned === true;
     const requested = typeof input.appSystemId === 'string' && input.appSystemId.trim()
       ? input.appSystemId.trim()
       : null;
@@ -1361,7 +1496,18 @@ export class TopologyLearningService {
     const active = await this.findActiveSession(tenantId, scope.appSystemId ?? null);
     if (active) return active;
 
-    const expectedAgents = await this.expectedAgents(tenantId, scope.appSystemId ?? null);
+    // 默认排除未归属主机：范围内没有已归属主机时不创建会话，直接提示先归属应用系统。
+    if (!includeUnassigned) {
+      const managed = await this.pool.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM agents
+         WHERE tenant_id = $1 AND app_system_id IS NOT NULL
+           AND ($2::uuid IS NULL OR app_system_id = $2)`,
+        [tenantId, scope.appSystemId ?? null],
+      );
+      if ((managed.rows[0]?.count ?? 0) === 0) throw new TopologyLearningError('no_managed_hosts');
+    }
+
+    const expectedAgents = await this.expectedAgents(tenantId, scope.appSystemId ?? null, includeUnassigned);
     const progress: TopologyLearningProgress = {
       elapsedSeconds: 0,
       remainingSeconds: windowSeconds,
@@ -1376,9 +1522,9 @@ export class TopologyLearningService {
       `WITH inserted AS (
          INSERT INTO topology_learning_sessions
            (tenant_id, scope_kind, app_system_id, window_seconds, status, requested_by, trigger,
-            started_at, ends_at, progress, stats, updated_at)
-         VALUES ($1, $2, $3, $4::integer, 'collecting', $5, $6,
-                 now(), now() + ($4::integer * interval '1 second'), $7::jsonb, '{}'::jsonb, now())
+            include_unassigned, started_at, ends_at, progress, stats, updated_at)
+         VALUES ($1, $2, $3, $4::integer, 'collecting', $5, $6, $7,
+                 now(), now() + ($4::integer * interval '1 second'), $8::jsonb, '{}'::jsonb, now())
          RETURNING *
        )
        SELECT i.*, a.name AS app_system_name
@@ -1390,6 +1536,7 @@ export class TopologyLearningService {
         windowSeconds,
         options.requestedBy ?? null,
         trigger,
+        includeUnassigned,
         JSON.stringify(progress),
       ],
     );
@@ -1426,11 +1573,16 @@ export class TopologyLearningService {
     return row ? sessionFromRow(row) : null;
   }
 
-  private async expectedAgents(tenantId: string, appSystemId: string | null): Promise<number> {
+  private async expectedAgents(
+    tenantId: string,
+    appSystemId: string | null,
+    includeUnassigned = true,
+  ): Promise<number> {
     const result = await this.pool.query<{ count: number }>(
       `SELECT count(*)::int AS count FROM agents
-       WHERE tenant_id = $1 AND ($2::uuid IS NULL OR app_system_id = $2)`,
-      [tenantId, appSystemId],
+       WHERE tenant_id = $1 AND ($2::uuid IS NULL OR app_system_id = $2)
+         AND ($3::boolean OR app_system_id IS NOT NULL)`,
+      [tenantId, appSystemId, includeUnassigned],
     );
     return result.rows[0]?.count ?? 0;
   }
@@ -1464,10 +1616,12 @@ export class TopologyLearningService {
        FROM agent_connection_edges e
        JOIN agents a ON a.id = e.agent_id AND a.tenant_id = e.tenant_id
        WHERE e.tenant_id = $1 AND e.window_end > $2 AND e.window_start < $3
-         AND ($4::uuid IS NULL OR a.app_system_id = $4)`,
-      [tenantId, session.startedAt, session.endsAt, scope.appSystemId ?? null],
+         AND ($4::uuid IS NULL OR a.app_system_id = $4)
+         AND ($5::boolean OR a.app_system_id IS NOT NULL)`,
+      [tenantId, session.startedAt, session.endsAt, scope.appSystemId ?? null, session.includeUnassigned],
     );
-    const expected = session.progress.expectedAgents || await this.expectedAgents(tenantId, scope.appSystemId ?? null);
+    const expected = session.progress.expectedAgents
+      || await this.expectedAgents(tenantId, scope.appSystemId ?? null, session.includeUnassigned);
     const sampleRow = sample.rows[0];
     const progress: TopologyLearningProgress = {
       elapsedSeconds,
@@ -1546,7 +1700,11 @@ export class TopologyLearningService {
       try {
         await this.start(
           row.tenant_id,
-          { appSystemId: scope.appSystemId ?? null, windowSeconds: row.window_seconds },
+          {
+            appSystemId: scope.appSystemId ?? null,
+            windowSeconds: row.window_seconds,
+            includeUnassigned: row.include_unassigned === true,
+          },
           { trigger: 'schedule' },
         );
         await this.pool.query(
@@ -1602,6 +1760,7 @@ export class TopologyLearningService {
         draft,
         analysis: result?.analysis,
         generatedAt,
+        includeUnassigned: session.includeUnassigned,
       });
       const versionRow = await this.pool.query<{ version: number }>(
         `SELECT COALESCE(MAX(version), 0) + 1 AS version FROM topology_graphs
@@ -1678,6 +1837,8 @@ export class TopologyLearningService {
          WHERE tenant_id = $1 AND id = $2`,
         [tenantId, sessionId, message],
       ).catch(() => undefined);
+      // 「没有已归属主机」需要让路由返回 409，而不是只落一个 failed 会话。
+      if (error instanceof TopologyLearningError && error.code === 'no_managed_hosts') throw error;
       return this.getSession(tenantId, sessionId);
     }
   }
@@ -1711,16 +1872,18 @@ export class TopologyLearningService {
       ? agents.filter((agent) => agent.appSystemId === appSystemId).map((agent) => agent.id)
       : [];
     if (appSystemId && scopeAgentIds.length === 0) {
-      // 应用系统下暂无主机：仍产出空图，让页面有明确空态。
-      const emptyInput = buildLearningInput({
+      // 默认排除未归属主机时，应用系统下没有主机等同「无纳管主机」，路由返回 409。
+      if (!session.includeUnassigned) throw new TopologyLearningError('no_managed_hosts');
+      // 显式包含未归属主机时仍产出空图，让页面有明确空态。
+      return buildLearningInput({
         scope: session.scope,
         windowStart: new Date(session.startedAt),
         windowEnd: new Date(session.endsAt),
         agents: [],
         inventory: [],
         edges: [],
+        includeUnassigned: true,
       });
-      return emptyInput;
     }
     const inventoryResult = await this.pool.query<{
       agent_id: string;
@@ -1788,7 +1951,7 @@ export class TopologyLearningService {
       lastSeen: row.last_seen ? row.last_seen.toISOString() : null,
     }));
     const anomalies = await this.collectAnomalies(tenantId, appSystemId ? scopeAgentIds : agents.map((agent) => agent.id));
-    return buildLearningInput({
+    const input = buildLearningInput({
       scope: session.scope,
       windowStart: new Date(session.startedAt),
       windowEnd: new Date(session.endsAt),
@@ -1796,7 +1959,12 @@ export class TopologyLearningService {
       inventory,
       edges,
       anomalies,
+      includeUnassigned: session.includeUnassigned,
     });
+    if (!session.includeUnassigned && input.hosts.length === 0) {
+      throw new TopologyLearningError('no_managed_hosts');
+    }
+    return input;
   }
 
   private async collectAnomalies(
@@ -1958,6 +2126,7 @@ export class TopologyLearningService {
       intervalSeconds: 21_600,
       windowSeconds: TOPOLOGY_WINDOW_DEFAULT_SECONDS,
       scope: { kind: 'tenant', appSystemId: null },
+      includeUnassigned: false,
       lastRunAt: null,
       nextRunAt: null,
       updatedAt: new Date().toISOString(),
@@ -1972,12 +2141,14 @@ export class TopologyLearningService {
       readonly intervalSeconds?: number;
       readonly windowSeconds?: number;
       readonly scope?: TopologyScope;
+      readonly includeUnassigned?: boolean;
     },
   ): Promise<TopologyLearningPolicy> {
     const current = await this.getPolicy(tenantId);
     const enabled = input.enabled ?? current.enabled;
     const intervalSeconds = input.intervalSeconds ?? current.intervalSeconds;
     const windowSeconds = input.windowSeconds ?? current.windowSeconds;
+    const includeUnassigned = input.includeUnassigned ?? current.includeUnassigned;
     if (!Number.isInteger(intervalSeconds)
       || intervalSeconds < TOPOLOGY_POLICY_MIN_INTERVAL_SECONDS
       || intervalSeconds > TOPOLOGY_POLICY_MAX_INTERVAL_SECONDS) {
@@ -2006,14 +2177,15 @@ export class TopologyLearningService {
       `WITH upserted AS (
          INSERT INTO topology_learning_policies
            (tenant_id, enabled, interval_seconds, window_seconds, scope_kind, app_system_id,
-            last_run_at, next_run_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+            include_unassigned, last_run_at, next_run_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
          ON CONFLICT (tenant_id) DO UPDATE SET
            enabled = EXCLUDED.enabled,
            interval_seconds = EXCLUDED.interval_seconds,
            window_seconds = EXCLUDED.window_seconds,
            scope_kind = EXCLUDED.scope_kind,
            app_system_id = EXCLUDED.app_system_id,
+           include_unassigned = EXCLUDED.include_unassigned,
            last_run_at = EXCLUDED.last_run_at,
            next_run_at = EXCLUDED.next_run_at,
            updated_at = now()
@@ -2028,6 +2200,7 @@ export class TopologyLearningService {
         windowSeconds,
         scope.kind,
         scope.appSystemId ?? null,
+        includeUnassigned,
         current.lastRunAt ?? null,
         nextRunAt,
       ],
@@ -2050,7 +2223,7 @@ const GRAPH_SELECT = `SELECT g.id, g.tenant_id, g.session_id, g.scope_kind, g.ap
   FROM topology_graphs g LEFT JOIN app_systems a ON a.id = g.app_system_id`;
 
 const POLICY_SELECT = `SELECT p.tenant_id, p.enabled, p.interval_seconds, p.window_seconds,
-  p.scope_kind, p.app_system_id, p.last_run_at, p.next_run_at, p.updated_at,
+  p.scope_kind, p.app_system_id, p.include_unassigned, p.last_run_at, p.next_run_at, p.updated_at,
   a.name AS app_system_name
   FROM topology_learning_policies p LEFT JOIN app_systems a ON a.id = p.app_system_id`;
 

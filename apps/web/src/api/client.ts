@@ -1659,6 +1659,7 @@ export async function getActiveTopologySession(
 export async function startTopologyLearning(body: {
   appSystemId?: string | null;
   windowSeconds: number;
+  includeUnassigned?: boolean;
 }): Promise<TopologyLearningSession> {
   return request<TopologyLearningSession>('/api/topologies/learn', {
     method: 'POST',

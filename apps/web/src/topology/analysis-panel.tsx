@@ -1,7 +1,16 @@
 import type { ReactElement } from 'react';
 import type { TopologyGraph, TopologyHotPath, TopologyInsight } from '@opsagent/contracts';
 import { relativeTime } from '../format.js';
-import { formatConnections, serviceLabel, truncateText, type PositionedNode, type ViewGraph } from './layout.js';
+import {
+  displayProduct,
+  formatConnections,
+  kindLabel,
+  productTone,
+  serviceLabel,
+  truncateText,
+  type PositionedNode,
+  type ViewGraph,
+} from './layout.js';
 import { KindIcon, MiniIcon } from './icons.js';
 
 export interface AnalysisPanelProps {
@@ -64,7 +73,7 @@ export function AnalysisPanel({
     <div className="topo-rail-scroll">
       <div className="topo-rail-head">
         <div>
-          <div className="topo-rail-eyebrow">AI ANALYSIS · 学习结论</div>
+          <div className="topo-rail-eyebrow">AI ANALYSIS · 模型识别</div>
           <h2 className="topo-rail-title">拓扑分析</h2>
         </div>
         <span className={`topo-model-badge${fallback ? ' is-fallback' : ''}`} title={modelLabel}>
@@ -247,7 +256,7 @@ export function NodeDetailPanel({
           <KindIcon kind={node.node.kind} size={20} color={systemColor} />
         </div>
         <div className="topo-detail-titles">
-          <div className="topo-rail-eyebrow">NODE INSPECTOR · 节点详情</div>
+          <div className="topo-rail-eyebrow">NODE INSPECTOR · 组件与节点详情</div>
           <h2 className="topo-rail-title">{node.node.label}</h2>
           <div className="topo-detail-sub">
             <span className="topo-status-pill" data-status={node.node.status}>
@@ -291,6 +300,30 @@ export function NodeDetailPanel({
 
       <section className="topo-rail-section">
         <div className="topo-rail-section-head">
+          <h3>大模型识别结果</h3>
+          <span className="topo-rail-section-sub">依据端口与进程证据</span>
+        </div>
+        <div className="topo-identify-grid">
+          <div>
+            <span>组件 / 产品</span>
+            <strong style={{ color: productTone(node.node.product).fg }}>{displayProduct(node.node)}</strong>
+          </div>
+          <div>
+            <span>架构角色</span>
+            <strong>{node.node.role ?? '未识别'}</strong>
+          </div>
+          <div>
+            <span>节点类型</span>
+            <strong>{node.node.systemService ? '系统/运维服务' : kindLabel(node.node.kind)}</strong>
+          </div>
+        </div>
+        <p className="topo-identify-note">
+          大模型基于 Agent 采集的监听端口、进程名/命令行与建连证据识别组件和分层；模型不可用时由规则引擎兜底。
+        </p>
+      </section>
+
+      <section className="topo-rail-section">
+        <div className="topo-rail-section-head">
           <h3>监听服务</h3>
           <span className="topo-rail-section-sub">{node.node.services.length} 个端口</span>
         </div>
@@ -298,7 +331,7 @@ export function NodeDetailPanel({
           {node.node.services.length === 0 ? <p className="topo-rail-empty">该节点没有上报监听端口。</p> : null}
           {node.node.services.map((service) => (
             <div key={`${service.name}-${service.port}`} className="topo-service-row">
-              <span className="topo-service-name">{serviceLabel(service)}</span>
+              <span className="topo-service-name">{service.name.replace(/:\d+$/, '') || '服务'}</span>
               <span className="topo-service-port mono">:{service.port}</span>
               <span className="topo-service-proc">{service.process ?? '—'}</span>
             </div>
@@ -335,7 +368,7 @@ export function NodeDetailPanel({
               <span className="topo-edge-row-main">
                 <strong>{labelById.get(edge.source) ?? edge.source}</strong>
                 <span className="mono">
-                  {edge.processes?.[0] ?? 'unknown'} → {node.node.services.find((service) => service.port === edge.port)?.name ?? 'port'}:{edge.port}
+                  {edge.processes?.[0] ?? 'unknown'} → {node.node.services.find((service) => service.port === edge.port)?.name?.replace(/:\d+$/, '') ?? ''}:{edge.port}
                 </span>
               </span>
               <span className="topo-edge-row-count">

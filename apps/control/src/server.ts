@@ -29,6 +29,8 @@ import { registerInternalApprovalRoutes } from './internal/approvals.js';
 import { registerKnowledgeRoutes } from './knowledge/routes.js';
 import { registerMessageRoutes } from './messages/routes.js';
 import { registerAgentRoutes } from './agents/routes.js';
+import type { TopologyLearningService } from './agents/topology_learning.js';
+import { registerTopologyRoutes } from './agents/topology_routes.js';
 import { registerAgentCertificateRoutes } from './agents/certificate_routes.js';
 import { registerAgentInstructionRoutes } from './agents/instruction_routes.js';
 import { registerAgentSkillRoutes } from './agents/skills_routes.js';
@@ -55,6 +57,8 @@ export interface BuildServerOptions {
   readonly agentPublicUrl?: string;
   readonly modelSecret?: string;
   readonly desktopUpdateDir?: string;
+  /** 访问拓扑学习服务（index.ts 注入以便调度器复用；不传时路由内部自建）。 */
+  readonly topologyLearning?: TopologyLearningService;
 }
 
 function readTlsHealth(): Record<string, unknown> {
@@ -136,6 +140,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     registerKnowledgeRoutes(app, options.pool, audit);
     registerMessageRoutes(app, options.pool);
     registerAgentRoutes(app, options.pool, options.agentEnrollmentToken, options.modelSecret, audit);
+    registerTopologyRoutes(app, options.pool, options.topologyLearning, options.modelSecret);
     registerAgentCertificateRoutes(app, options.pool);
     registerAgentInstructionRoutes(app, options.pool, audit, options.modelSecret);
     registerAgentSkillRoutes(app, options.pool, audit);

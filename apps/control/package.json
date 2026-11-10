@@ -10,6 +10,7 @@
     "dev": "tsx src/index.ts",
     "seed:dev": "tsx scripts/seed-dev.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "seed:topology": "tsx scripts/seed-topology-demo.ts",
     "rotate:ca": "node scripts/rotate-ca.mjs"
   },
   "dependencies": {

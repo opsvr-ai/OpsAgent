@@ -41,12 +41,13 @@ type registerResponse struct {
 }
 
 type heartbeatRequest struct {
-	AgentKey         string           `json:"agentKey"`
-	Metrics          map[string]any   `json:"metrics"`
-	Discovery        *discoveryReport `json:"discovery,omitempty"`
-	CommandKeyID     string           `json:"commandKeyId,omitempty"`
-	TLSCertExpiresAt string           `json:"tlsCertExpiresAt,omitempty"`
-	TLSCertSerial    string           `json:"tlsCertSerial,omitempty"`
+	AgentKey          string           `json:"agentKey"`
+	Metrics           map[string]any   `json:"metrics"`
+	Discovery         *discoveryReport `json:"discovery,omitempty"`
+	ConnectionWindows []connEdgeWindow `json:"connectionWindows,omitempty"`
+	CommandKeyID      string           `json:"commandKeyId,omitempty"`
+	TLSCertExpiresAt  string           `json:"tlsCertExpiresAt,omitempty"`
+	TLSCertSerial     string           `json:"tlsCertSerial,omitempty"`
 }
 
 type heartbeatResponse struct {
@@ -265,6 +266,12 @@ func runDaemon(paths agentPaths) {
 	registered := registerResponse{}
 	agentStarted = time.Now()
 	started := agentStarted
+	// 建连边表窗口采集：Linux 上启动采样，其它平台为空实现（nil）。
+	// 窗口缓存由 connWindowReporter 托管，心跳成功后确认清空，失败保留重发。
+	connReporter := startConnEdgeSampler()
+	if connReporter != nil {
+		log.Printf("connection window reporter enabled")
+	}
 	var resultPrivateKey ed25519.PrivateKey
 	resultPrivateSeedBase64 := ""
 	resultPublicKeyBase64 := ""
@@ -436,6 +443,9 @@ func runDaemon(paths agentPaths) {
 		metrics["goroutines"] = runtime.NumGoroutine()
 		metrics["heapMB"] = float64(memory.HeapAlloc) / 1024 / 1024
 		metrics["uptimeSec"] = int64(time.Since(started).Seconds())
+		if connReporter != nil {
+			metrics["connSampler"] = connReporter.metrics()
+		}
 		var discovery *discoveryReport
 		if time.Since(lastDiscovery) >= 5*time.Minute {
 			report := collectDiscovery(started, metrics)
@@ -455,22 +465,32 @@ func runDaemon(paths agentPaths) {
 			}
 			lastMetricsSnapshot = time.Now()
 		}
+		var connectionWindows []connEdgeWindow
+		if connReporter != nil {
+			connectionWindows = connReporter.snapshot()
+		}
 		var heartbeat heartbeatResponse
 		certPath := os.Getenv("OPSAGENT_TLS_CERT")
 		if certPath == "" {
 			certPath = filepath.Join(paths.Root, "tls", "agent.pem")
 		}
 		certExpiresAt, certSerial := certificateMetadata(certPath)
-		if err := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
-			AgentKey:         registered.AgentKey,
-			Metrics:          metrics,
-			Discovery:        discovery,
-			CommandKeyID:     registered.CommandKeyID,
-			TLSCertExpiresAt: certExpiresAt,
-			TLSCertSerial:    certSerial,
-		}, &heartbeat); err != nil {
-			log.Printf("heartbeat: %v", err)
-		} else if len(heartbeat.CommandPublicKeys) > 0 {
+		heartbeatErr := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
+			AgentKey:          registered.AgentKey,
+			Metrics:           metrics,
+			Discovery:         discovery,
+			ConnectionWindows: connectionWindows,
+			CommandKeyID:      registered.CommandKeyID,
+			TLSCertExpiresAt:  certExpiresAt,
+			TLSCertSerial:     certSerial,
+		}, &heartbeat)
+		if heartbeatErr != nil {
+			log.Printf("heartbeat: %v", heartbeatErr)
+			// 心跳失败时窗口保留在 reporter 中，下次心跳成功后重发。
+		} else if connReporter != nil {
+			connReporter.ack(len(connectionWindows))
+		}
+		if heartbeatErr == nil && len(heartbeat.CommandPublicKeys) > 0 {
 			registered.CommandKeyID = heartbeat.CommandKeyID
 			registered.CommandPublicKeys = heartbeat.CommandPublicKeys
 			registered.CommandPublicKey = heartbeat.CommandPublicKeys[0].PublicKey

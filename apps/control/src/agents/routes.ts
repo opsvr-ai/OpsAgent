@@ -16,6 +16,7 @@ import { PatrolPolicyService, DEFAULT_PATROL_POLICY } from './patrol_policy.js';
 import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js';
 import { AgentInventoryService } from './inventory_service.js';
 import { AgentConnectionService } from './connection_service.js';
+import { AgentConnectionEdgeService } from './connection_edges.js';
 import { AppSystemTopologyService } from './topology_service.js';
 import { FaultAnalysisService } from './fault_analysis.js';
 
@@ -50,6 +51,7 @@ export function registerAgentRoutes(
   const skillService = new AgentSkillService(pool);
   const inventoryService = new AgentInventoryService(pool);
   const connectionService = new AgentConnectionService(pool);
+  const connectionEdges = new AgentConnectionEdgeService(pool);
   const topologyService = new AppSystemTopologyService(pool);
   const faultAnalysis = new FaultAnalysisService(pool, modelSecret);
 
@@ -130,6 +132,8 @@ export function registerAgentRoutes(
       commandKeyId?: unknown;
       tlsCertExpiresAt?: unknown;
       tlsCertSerial?: unknown;
+      /** 固定时间窗建连边表（10s 窗口），由 Agent 的 procfs/eBPF 采集器上报。 */
+      connectionWindows?: unknown;
     } | undefined;
     if (typeof body?.agentKey !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
@@ -148,6 +152,22 @@ export function registerAgentRoutes(
       typeof body.tlsCertSerial === 'string' ? body.tlsCertSerial : undefined,
     );
     if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
+    // 窗口建连边独立入库：失败只记日志，不影响心跳返回。
+    if (Array.isArray(body.connectionWindows) && body.connectionWindows.length > 0) {
+      try {
+        const tenant = await pool.query<{ tenant_id: string }>(
+          'SELECT tenant_id FROM agents WHERE id = $1',
+          [request.params.id],
+        );
+        const tenantId = tenant.rows[0]?.tenant_id;
+        if (tenantId) {
+          const accepted = await connectionEdges.sync(tenantId, request.params.id, body.connectionWindows);
+          request.log.debug({ agentId: request.params.id, accepted }, 'connection windows synced');
+        }
+      } catch (error) {
+        request.log.warn({ err: error, agentId: request.params.id }, 'connection window sync failed');
+      }
+    }
     const discoveryAgent = body.discovery && typeof body.discovery === 'object'
       ? (body.discovery as { agent?: { skills?: unknown } }).agent
       : undefined;

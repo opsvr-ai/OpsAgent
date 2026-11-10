@@ -22,6 +22,7 @@ import { Members } from './routes/members.js';
 import { Models } from './routes/models.js';
 import { Skills } from './routes/skills.js';
 import { Faults } from './routes/faults.js';
+import { Topology } from './routes/topology.js';
 import { Platform } from './routes/platform.js';
 import { DataStore } from './routes/data-store.js';
 import { Appearance } from './routes/appearance.js';
@@ -29,11 +30,18 @@ import { Help } from './routes/help.js';
 import { SessionContext } from './session-context.js';
 
 export function App() {
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('demo') === 'topology') {
+    return <Topology demo />;
+  }
+  return <AppInner />;
+}
+
+function AppInner() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
-  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'deployments' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'skills' | 'faults' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
+  const [view, setView] = useState<'home' | 'scenarios' | 'audit' | 'shares' | 'studio' | 'incidents' | 'deployments' | 'approvals' | 'connectors' | 'knowledge' | 'messages' | 'agents' | 'skills' | 'faults' | 'topology' | 'tasks' | 'sessions' | 'members' | 'models' | 'data' | 'appearance' | 'help'>('home');
   const navEpoch = useRef(0);
 
   async function refresh() {
@@ -95,7 +103,7 @@ export function App() {
       }
       const allowed = new Set([
         'home', 'scenarios', 'audit', 'shares', 'studio', 'incidents', 'deployments', 'approvals',
-        'connectors', 'knowledge', 'messages', 'agents', 'skills', 'faults', 'tasks', 'sessions',
+        'connectors', 'knowledge', 'messages', 'agents', 'skills', 'faults', 'topology', 'tasks', 'sessions',
         'members', 'models', 'data', 'appearance', 'help',
       ]);
       if (allowed.has(id)) setView(id as typeof view);
@@ -146,6 +154,7 @@ export function App() {
   if (view === 'agents') return withSession(<Agents onBack={() => setView('home')} />);
   if (view === 'skills') return withSession(<Skills onBack={() => setView('home')} />);
   if (view === 'faults') return withSession(<Faults onBack={() => setView('home')} />);
+  if (view === 'topology') return withSession(<Topology onBack={() => setView('home')} />);
   if (view === 'tasks') return withSession(<Tasks onBack={() => setView('home')} />);
   if (view === 'sessions') return withSession(<Sessions onBack={() => setView('home')} onOpenSession={openSession} />);
   if (view === 'members') return withSession(<Members onBack={() => setView('home')} />);

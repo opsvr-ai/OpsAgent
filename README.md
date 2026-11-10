@@ -332,6 +332,41 @@ POST /api/fault-analyses {appSystemId}
 
 Agent 异常事件上报后自动触发；同一应用系统已有运行中分析时复用，不重复创建。
 
+### 访问拓扑自动学习（2026-11-10）
+
+操作系统智能体不再只上报点状 netstat 快照，而是参考 eBPF 采集器 `conn_collector` 的原理，按固定时间窗输出**建连边表**：
+
+- Agent 每 5s 采样 `/proc/net/tcp{,6}`，按 10s 窗口聚合 `opened / closed / failed / active`，随 10s 心跳的 `connectionWindows` 字段上报；
+- 采集侧完成 listen 端口→进程归因、方向判定（out/in）、本机回环与同机内网流量过滤、启动基线（连接池长连接）、容器短 ID 识别；
+- 若主机部署了 `conn_collector`（eBPF），Agent 自动读取 `/var/log/conn_collector/edges.json` 的精确 opened/closed/failed 并合并（`source=ebpf|hybrid`）；
+- 控制面把窗口样本写入 `agent_connection_edges`（幂等 upsert），学习会话结束后聚合为「谁在什么时间访问了谁、多少连接、失败多少」，交给服务端大模型分析（模型未配置/超时自动回落规则引擎，图始终可渲染）；
+- 学习结果按不可变版本存 `topology_graphs`，Web「访问拓扑」页以分层画布 + 业务系统色带 + 流水线动效展示，支持主机视图/业务系统视图、聚焦上下游、异常链路、LLM 摘要与风险洞察。
+
+API（权限 `agent.manage`）：
+
+```text
+POST /api/topologies/learn            { appSystemId?, windowSeconds }  # 60~1800s
+GET  /api/topologies/learn/active
+GET  /api/topologies/learn/:id
+POST /api/topologies/learn/:id/analyze
+POST /api/topologies/learn/:id/cancel
+POST /api/topologies/learn/:id/samples # 演示/测试注入窗口样本
+GET  /api/topologies                  # 版本列表
+GET  /api/topologies/latest           # 最新拓扑（无图返回 null）
+GET  /api/topologies/:id
+GET|PUT /api/topologies/policy        # 自动学习策略
+```
+
+自动学习：控制面 `TopologyLearningScheduler` 每 10s 处理到期会话与策略；`OPSAGENT_TOPOLOGY_AUTOLEARN=false` 可关闭。Agent 可用 `OPSAGENT_CONN_EDGES=false` 关闭采集，或用 `OPSAGENT_CONN_SAMPLE_INTERVAL_SECONDS` / `OPSAGENT_CONN_WINDOW_SECONDS` / `OPSAGENT_CONN_COLLECTOR_DIR` 调整。
+
+本地演示数据（13 主机 / 3 业务系统 / 37 条访问关系，含失败链路）：
+
+```bash
+docker compose exec -T control pnpm --filter @opsagent/control seed:topology
+```
+
+文档：[2026-11-10-topology-learning.md](docs/design/plans/2026-11-10-topology-learning.md)、[Agent 窗口采集](docs/design/plans/2026-11-10-agent-connection-windows.md)。
+
 ### 日志排查
 
 控制面默认输出结构化请求日志：

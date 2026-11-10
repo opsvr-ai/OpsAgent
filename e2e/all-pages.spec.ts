@@ -23,16 +23,24 @@ test('all sidebar pages render without console or page errors', async ({ page })
 
   async function assertLayout(): Promise<void> {
     const layout = await page.evaluate(() => {
+      const oversizedDetail: string[] = [];
       const oversized = Array.from(document.querySelectorAll('svg')).filter((svg) => {
+        // 业务画布/拓扑图/迷你地图是数据可视化，不是图标，不参与「超大图标」断言。
+        if (svg.getAttribute('role') === 'application' || svg.getAttribute('role') === 'img') return false;
+        if (svg.closest('[class*="topo-canvas"], [class*="topo-minimap"], [class*="topology-canvas"], [class*="topology-minimap"]')) return false;
         const box = svg.getBoundingClientRect();
-        return box.width > 48 || box.height > 48;
+        if (box.width <= 48 && box.height <= 48) return false;
+        oversizedDetail.push(`${svg.getAttribute('class') ?? svg.getAttribute('aria-label') ?? 'svg'} ${Math.round(box.width)}x${Math.round(box.height)}`);
+        return true;
       }).length;
       return {
         oversized,
+        oversizedDetail,
         horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
       };
     });
-    expect(layout.oversized, 'no oversized SVG icons').toBe(0);
+    const title = (await page.locator('h1').first().textContent().catch(() => '')) ?? '';
+    expect(layout.oversized, `no oversized SVG icons on "${title}": ${layout.oversizedDetail.join(' | ')}`).toBe(0);
     expect(layout.horizontalOverflow, 'no horizontal page overflow').toBe(false);
   }
 

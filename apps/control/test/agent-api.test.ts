@@ -226,10 +226,23 @@ describe('agent registry API', () => {
     });
     expect(ai.statusCode).toBe(201);
 
-    const pending = await app.inject({
+    // 上报事件会触发应用系统健康检查，后台可能已为同一 Agent 创建 inspect 指令；
+    // pending 按 created_at 返回最早一条，这里先完成其它待执行指令，再断言 diagnostics。
+    const fetchPending = () => app.inject({
       method: 'GET',
       url: `/api/agents/${body.agent.id}/commands/pending?agentKey=${body.agentKey}`,
     });
+    let pending = await fetchPending();
+    for (let guard = 0; guard < 5; guard += 1) {
+      const current = pending.json() as { id?: string; type?: string };
+      if (!current.id || current.type === 'diagnostics') break;
+      await app.inject({
+        method: 'POST',
+        url: `/api/agents/${body.agent.id}/commands/${current.id}/complete`,
+        payload: { agentKey: body.agentKey, result: { ok: true, skipped: true } },
+      });
+      pending = await fetchPending();
+    }
     expect(pending.json()).toMatchObject({
       id: commandId,
       type: 'diagnostics',

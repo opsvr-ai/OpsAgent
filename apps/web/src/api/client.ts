@@ -1617,3 +1617,78 @@ export async function cleanupDataStore(
     body: JSON.stringify({ beforeDays, dryRun }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// 访问拓扑学习
+// ---------------------------------------------------------------------------
+
+import type {
+  TopologyGraph,
+  TopologyGraphSummary,
+  TopologyLearningPolicy,
+  TopologyLearningPolicyUpdate,
+  TopologyLearningSession,
+} from '@opsagent/contracts';
+
+function topologyQuery(appSystemId?: string): string {
+  return appSystemId ? `?appSystemId=${encodeURIComponent(appSystemId)}` : '';
+}
+
+export async function getTopologyGraphs(): Promise<{ graphs: TopologyGraphSummary[] }> {
+  return request<{ graphs: TopologyGraphSummary[] }>('/api/topologies');
+}
+
+export async function getLatestTopology(appSystemId?: string): Promise<TopologyGraph | null> {
+  return request<TopologyGraph | null>(`/api/topologies/latest${topologyQuery(appSystemId)}`);
+}
+
+export async function getTopologyGraph(id: string): Promise<TopologyGraph> {
+  return request<TopologyGraph>(`/api/topologies/${encodeURIComponent(id)}`);
+}
+
+export async function getTopologySession(id: string): Promise<TopologyLearningSession> {
+  return request<TopologyLearningSession>(`/api/topologies/learn/${encodeURIComponent(id)}`);
+}
+
+export async function getActiveTopologySession(
+  appSystemId?: string,
+): Promise<TopologyLearningSession | null> {
+  return request<TopologyLearningSession | null>(`/api/topologies/learn/active${topologyQuery(appSystemId)}`);
+}
+
+export async function startTopologyLearning(body: {
+  appSystemId?: string | null;
+  windowSeconds: number;
+}): Promise<TopologyLearningSession> {
+  return request<TopologyLearningSession>('/api/topologies/learn', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function analyzeTopologySession(id: string): Promise<TopologyLearningSession> {
+  return request<TopologyLearningSession>(`/api/topologies/learn/${encodeURIComponent(id)}/analyze`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function cancelTopologySession(id: string): Promise<TopologyLearningSession> {
+  return request<TopologyLearningSession>(`/api/topologies/learn/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function getTopologyPolicy(): Promise<TopologyLearningPolicy> {
+  return request<TopologyLearningPolicy>('/api/topologies/policy');
+}
+
+export async function updateTopologyPolicy(
+  body: TopologyLearningPolicyUpdate,
+): Promise<TopologyLearningPolicy> {
+  return request<TopologyLearningPolicy>('/api/topologies/policy', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}

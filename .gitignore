@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 .env
+ebpf-coll.tgz
 *.log
 .DS_Store
 .pnpm-store/

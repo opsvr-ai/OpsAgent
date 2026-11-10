@@ -4,3 +4,4 @@ export * from './permissions.js';
 export * from './roles.js';
 export * from './runtime.js';
 export * from './theme.js';
+export * from './topology.js';

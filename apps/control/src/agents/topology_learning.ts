@@ -308,6 +308,13 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
   const includeUnassigned = sources.includeUnassigned === true;
   // 默认只把已归属应用系统的主机纳入拓扑；未归属主机整体排除（含其出/入边）。
   const isEligible = (agent: LearningAgentSource): boolean => includeUnassigned || agent.appSystemId !== null;
+  // 按应用系统学习时，只为该系统的主机聚合边；跨系统目标/来源主机作为
+  // 「被引用主机」保留（可见跨系统访问），但其他系统的无关主机不会进入拓扑。
+  const scopeAgentSystemId = sources.scope.kind === 'app-system'
+    ? sources.scope.appSystemId ?? null
+    : null;
+  const inScope = (agent: LearningAgentSource): boolean =>
+    scopeAgentSystemId === null || agent.appSystemId === scopeAgentSystemId;
   const agentsById = new Map(sources.agents.map((agent) => [agent.id, agent]));
   const byIp = new Map<string, LearningAgentSource>();
   const primaryIp = new Map<string, string>();
@@ -459,6 +466,9 @@ export function buildLearningInput(sources: LearningInputSources): TopologyLearn
     const localAgent = agentsById.get(edge.agentId);
     if (!localAgent) continue;
     if (!isEligible(localAgent)) continue;
+    // 范围过滤：非本应用系统主机的边不参与聚合，避免切到某个系统后仍出现
+    // 其他系统的完整内部拓扑；跨系统目标主机由本系统主机的边引用进来。
+    if (!inScope(localAgent)) continue;
     if (!isTcpProtocol(edge.protocol)) continue;
     if (edge.direction !== 'out' && edge.direction !== 'in') continue;
     // 排除 Agent 自身到控制面的管理连接（心跳/命令通道）。

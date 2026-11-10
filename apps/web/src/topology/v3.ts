@@ -547,3 +547,260 @@ export function splitServices(
   }
   return { business, management };
 }
+
+// ---------------------------------------------------------------------------
+// 应用系统范围过滤：把「全部应用系统」的拓扑裁剪为单个应用系统的视图。
+// - 保留该系统的纳管主机与它们的外部依赖；
+// - 跨系统访问收敛为「其他系统」边界节点，避免只显示一半关系；
+// - 重新计算节点指标与统计，保证与当前视图一致。
+// ---------------------------------------------------------------------------
+
+interface ScopedEdgeAcc {
+  source: string;
+  target: string;
+  port: number;
+  protocol: string;
+  opened: number;
+  closed: number;
+  failed: number;
+  count: number;
+  confidence: number;
+  processes: Set<string>;
+  label?: string;
+  direction?: 'out' | 'in' | 'both';
+  external?: boolean;
+  lastSeen?: string;
+}
+
+interface BoundaryAcc {
+  readonly systemId: string;
+  readonly name: string;
+  ports: Set<number>;
+}
+
+export function filterGraphByScope(
+  graph: TopologyGraph,
+  appSystemId: string | null | undefined,
+): TopologyGraph {
+  if (!appSystemId) return graph;
+  if (graph.scope.kind === 'app-system' && graph.scope.appSystemId === appSystemId) return graph;
+
+  const internal = new Set(
+    graph.nodes.filter((node) => node.appSystemId === appSystemId).map((node) => node.id),
+  );
+  const selectedSystem = graph.systems.find((system) => system.id === appSystemId);
+  const selectedName = selectedSystem?.name
+    ?? graph.nodes.find((node) => node.appSystemId === appSystemId)?.appSystemName
+    ?? '应用系统';
+  const scope = {
+    kind: 'app-system' as const,
+    appSystemId,
+    appSystemName: selectedName,
+  };
+
+  if (internal.size === 0) {
+    return {
+      ...graph,
+      scope,
+      nodes: [],
+      edges: [],
+      systems: [],
+      stats: {
+        ...graph.stats,
+        nodeCount: 0,
+        edgeCount: 0,
+        hostCount: 0,
+        systemCount: 1,
+        externalCount: 0,
+        totalConnections: 0,
+        failedConnections: 0,
+      },
+    };
+  }
+
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const keptNodeIds = new Set(internal);
+  const boundary = new Map<string, BoundaryAcc>();
+  const edges = new Map<string, ScopedEdgeAcc>();
+
+  const boundaryId = (systemId: string): string => `scope-sys:${systemId}`;
+  const ensureBoundary = (peer: TopologyNode): string | null => {
+    if (peer.kind === 'external' || peer.tier === 'external' || (peer.inferred && !peer.appSystemId)) {
+      keptNodeIds.add(peer.id);
+      return peer.id;
+    }
+    if (!peer.appSystemId || peer.appSystemId === appSystemId) return null;
+    const id = boundaryId(peer.appSystemId);
+    keptNodeIds.add(id);
+    const current = boundary.get(peer.appSystemId);
+    if (current) {
+      current.ports.add(0);
+    } else {
+      boundary.set(peer.appSystemId, {
+        systemId: peer.appSystemId,
+        name: peer.appSystemName ?? peer.label,
+        ports: new Set<number>(),
+      });
+    }
+    return id;
+  };
+
+  const addEdge = (source: string, target: string, edge: TopologyEdge): void => {
+    const key = `${source}|${target}|${edge.port}`;
+    const current = edges.get(key);
+    if (current) {
+      current.opened += edge.opened;
+      current.closed += 0;
+      current.failed += edge.failed;
+      current.count += edge.count;
+      current.confidence = Math.max(current.confidence, edge.confidence);
+      for (const process of edge.processes ?? []) current.processes.add(process);
+      if (current.direction && edge.direction && current.direction !== edge.direction) {
+        current.direction = 'both';
+      }
+      return;
+    }
+    const direction: 'out' | 'in' | 'both' | undefined = edge.direction
+      ?? (target.startsWith('scope-sys:') ? 'out' : undefined);
+    edges.set(key, {
+      source,
+      target,
+      port: edge.port,
+      protocol: edge.protocol,
+      opened: edge.opened,
+      closed: 0,
+      failed: edge.failed,
+      count: edge.count,
+      confidence: edge.confidence,
+      processes: new Set(edge.processes ?? []),
+      ...(edge.label ? { label: edge.label } : {}),
+      ...(direction ? { direction } : {}),
+      ...(edge.external ? { external: true } : {}),
+      ...(edge.lastSeen ? { lastSeen: edge.lastSeen } : {}),
+    });
+    if (target.startsWith('scope-sys:')) {
+      const systemId = target.slice('scope-sys:'.length);
+      const item = boundary.get(systemId);
+      if (item) item.ports.add(edge.port);
+    }
+  };
+
+  for (const edge of graph.edges) {
+    const sourceIn = internal.has(edge.source);
+    const targetIn = internal.has(edge.target);
+    if (!sourceIn && !targetIn) continue;
+    if (sourceIn && targetIn) {
+      addEdge(edge.source, edge.target, edge);
+      continue;
+    }
+    if (sourceIn) {
+      const peer = nodeById.get(edge.target);
+      if (!peer) continue;
+      const target = ensureBoundary(peer);
+      if (target) addEdge(edge.source, target, { ...edge, direction: 'out' });
+      continue;
+    }
+    const peer = nodeById.get(edge.source);
+    if (!peer) continue;
+    const source = ensureBoundary(peer);
+    if (source) addEdge(source, edge.target, { ...edge, direction: 'in' });
+  }
+
+  const metrics = new Map<string, {
+    active: number; opened: number; closed: number; failed: number; inbound: number; outbound: number;
+  }>();
+  for (const id of keptNodeIds) {
+    metrics.set(id, { active: 0, opened: 0, closed: 0, failed: 0, inbound: 0, outbound: 0 });
+  }
+  for (const edge of edges.values()) {
+    const source = metrics.get(edge.source);
+    if (source) {
+      source.active += edge.count;
+      source.opened += edge.opened;
+      source.failed += edge.failed;
+      source.outbound += edge.opened;
+    }
+    const target = metrics.get(edge.target);
+    if (target) {
+      target.active += edge.count;
+      target.opened += edge.opened;
+      target.failed += edge.failed;
+      target.inbound += edge.opened;
+    }
+  }
+
+  const internalNodes = graph.nodes
+    .filter((node) => internal.has(node.id))
+    .map((node) => ({ ...node, metrics: metrics.get(node.id) ?? node.metrics }));
+  const externalNodes = graph.nodes
+    .filter((node) => keptNodeIds.has(node.id) && !internal.has(node.id))
+    .map((node) => ({ ...node, metrics: metrics.get(node.id) ?? node.metrics }));
+  const boundaryNodes: TopologyNode[] = [...boundary.values()].map((item) => ({
+    id: boundaryId(item.systemId),
+    label: `${item.name}（其他系统）`,
+    kind: 'service',
+    tier: 'external',
+    status: 'unknown',
+    services: [],
+    metrics: metrics.get(boundaryId(item.systemId)) ?? {
+      active: 0, opened: 0, closed: 0, failed: 0, inbound: 0, outbound: 0,
+    },
+    product: '其他业务系统',
+    role: '跨系统访问（目标系统聚合）',
+    appSystemName: item.name,
+    inferred: true,
+    note: '跨业务系统访问的目标系统（其他系统内部拓扑已收起）',
+  }));
+
+  const scopedEdges: TopologyEdge[] = [...edges.values()].map((edge) => ({
+    id: `e:${edge.source}->${edge.target}:${edge.port}`,
+    source: edge.source,
+    target: edge.target,
+    protocol: edge.protocol,
+    port: edge.port,
+    count: edge.count,
+    opened: edge.opened,
+    failed: edge.failed,
+    confidence: edge.confidence,
+    ...(edge.direction ? { direction: edge.direction } : {}),
+    ...(edge.processes.size > 0 ? { processes: [...edge.processes].slice(0, 8) } : {}),
+    ...(edge.external ? { external: true } : {}),
+    ...(edge.label ? { label: edge.label } : {}),
+    ...(edge.lastSeen ? { lastSeen: edge.lastSeen } : {}),
+  }));
+
+  const nodes = [...internalNodes, ...externalNodes, ...boundaryNodes];
+  const totalConnections = scopedEdges.reduce((sum, edge) => sum + edge.count, 0);
+  const failedConnections = scopedEdges.reduce((sum, edge) => sum + edge.failed, 0);
+  const scopeNote = `当前为「${selectedName}」应用系统范围视图：拓扑与统计已按该范围裁剪，AI 摘要/洞察基于学习窗口的全部应用系统。`;
+  return {
+    ...graph,
+    scope,
+    nodes,
+    edges: scopedEdges,
+    systems: [
+      {
+        id: appSystemId,
+        name: selectedName,
+        ...(selectedSystem?.code ? { code: selectedSystem.code } : {}),
+        nodeIds: [...internal],
+        ...(selectedSystem?.criticality ? { criticality: selectedSystem.criticality } : {}),
+      },
+    ],
+    analysis: {
+      ...graph.analysis,
+      warning: graph.analysis.warning ? `${graph.analysis.warning} ${scopeNote}` : scopeNote,
+    },
+    stats: {
+      ...graph.stats,
+      nodeCount: nodes.length,
+      edgeCount: scopedEdges.length,
+      hostCount: internalNodes.length,
+      systemCount: 1,
+      externalCount: externalNodes.length,
+      totalConnections,
+      failedConnections,
+    },
+  };
+}
+

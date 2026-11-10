@@ -55,6 +55,7 @@ import {
 import {
   DEFAULT_DISPLAY_SETTINGS,
   buildRelatedNodes,
+  filterGraphByScope,
   loadDisplaySettings,
   prepareTopology,
   saveDisplaySettings,
@@ -192,7 +193,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
 
   const loadTopology = useCallback(async (): Promise<void> => {
     if (demo) {
-      setGraph(initialGraph);
+      setGraph(initialGraph ? filterGraphByScope(initialGraph, scopeId || null) : null);
       setGraphList([...initialSummaries]);
       setHistoryId(initialGraph.id);
       setLoading(false);
@@ -204,11 +205,19 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     try {
       const listResult = await getTopologyGraphs().catch(() => ({ graphs: [] as TopologyGraphSummary[] }));
       setGraphList(listResult.graphs);
-      let latest = await getLatestTopology(scopeId || undefined);
+      // 版本列表里优先挑与当前范围一致的图：应用系统范围优先精确 scope 的图；
+      // 全部范围优先 tenant 图。没有匹配时取最新图，再按范围裁剪。
+      const preferred = scopeId
+        ? listResult.graphs.find((item) => item.scope.kind === 'app-system' && item.scope.appSystemId === scopeId)
+        : listResult.graphs.find((item) => item.scope.kind === 'tenant');
+      let latest = preferred
+        ? await getTopologyGraph(preferred.id).catch(() => null)
+        : null;
+      if (!latest) latest = await getLatestTopology();
       if (!latest && listResult.graphs[0]) {
         latest = await getTopologyGraph(listResult.graphs[0].id).catch(() => null);
       }
-      setGraph(latest);
+      setGraph(latest ? filterGraphByScope(latest, scopeId || null) : null);
       setHistoryId(latest?.id ?? '');
     } catch (error) {
       setLoadError(loadErrorFrom(error));
@@ -276,7 +285,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       if (demo) {
         const nextVersion = (graph?.version ?? 0) + 1;
         const nextGraph = demoNextGraph(nextVersion);
-        setGraph(nextGraph);
+        setGraph(filterGraphByScope(nextGraph, scopeId || null));
         setGraphList((current) => [summaryOf(nextGraph), ...current]);
         setHistoryId(nextGraph.id);
         showToast('ok', `已生成第 ${nextVersion} 版拓扑`);
@@ -285,11 +294,17 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       try {
         const [list, latest] = await Promise.all([
           getTopologyGraphs().catch(() => ({ graphs: [] as TopologyGraphSummary[] })),
-          getLatestTopology(scopeId || undefined),
+          getLatestTopology(),
         ]);
         setGraphList(list.graphs);
         if (latest) {
-          setGraph(latest);
+          // 若刚完成的是某个应用系统的学习，自动把范围切到该系统，避免全部范围
+          // 只加载到这份 scoped 图。
+          const nextScope = latest.scope.kind === 'app-system'
+            ? latest.scope.appSystemId ?? ''
+            : scopeId;
+          if (nextScope !== scopeId) setScopeId(nextScope);
+          setGraph(filterGraphByScope(latest, nextScope || null));
           setHistoryId(latest.id);
           showToast('ok', `已生成第 ${latest.version} 版拓扑`);
         } else {
@@ -725,20 +740,21 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       if (!id) return;
       setHistoryId(id);
       if (demo) {
-        setGraph(denseCase && id === DEMO_DENSE_GRAPH.id ? DEMO_DENSE_GRAPH : demoGraphById(id));
+        const next = denseCase && id === DEMO_DENSE_GRAPH.id ? DEMO_DENSE_GRAPH : demoGraphById(id);
+        setGraph(next ? filterGraphByScope(next, scopeId || null) : null);
         return;
       }
       setLoading(true);
       try {
         const next = await getTopologyGraph(id);
-        setGraph(next);
+        setGraph(filterGraphByScope(next, scopeId || null));
       } catch {
         showToast('error', '加载历史版本失败，请重试。');
       } finally {
         setLoading(false);
       }
     },
-    [denseCase, demo, showToast],
+    [denseCase, demo, scopeId, showToast],
   );
 
   const back = onBack ?? ((): void => {

@@ -22,6 +22,7 @@ export interface AnalysisPanelProps {
   readonly onInsight: (insight: TopologyInsight) => void;
   readonly onClear: () => void;
   readonly onOpenModels: () => void;
+  readonly onOpenTrace: () => void;
   readonly canReanalyze?: boolean;
   readonly reanalyzing?: boolean;
   readonly onReanalyze?: () => void;
@@ -61,6 +62,7 @@ export function AnalysisPanel({
   onInsight,
   onClear,
   onOpenModels,
+  onOpenTrace,
   canReanalyze = false,
   reanalyzing = false,
   onReanalyze,
@@ -92,6 +94,14 @@ export function AnalysisPanel({
         </span>
       </div>
 
+      <button type="button" className="topo-trace-btn" onClick={onOpenTrace}>
+        <MiniIcon name="chart" size={13} />
+        查看分析过程
+        <span className="topo-v4-muted">
+          {analysis.trace ? `· ${analysis.trace.status === 'success' ? '成功' : analysis.trace.status === 'fallback' ? '兜底' : '失败'}` : '· 旧图未记录'}
+        </span>
+      </button>
+
       {fallback ? (
         <div className="topo-fallback-notice">
           <div className="topo-fallback-head">
@@ -101,6 +111,13 @@ export function AnalysisPanel({
           <p>
             在「模型配置」添加 OpenAI / Anthropic 兼容模型后重新学习，将由大模型基于提示词识别组件与分层。
           </p>
+          {analysis.fallbackReason ? (
+            <div className="topo-fallback-reason">
+              <span>fallbackReason</span>
+              <code>{analysis.fallbackReason}</code>
+              {analysis.trace?.error?.code ? <span>· trace error {analysis.trace.error.code}</span> : null}
+            </div>
+          ) : null}
           <button type="button" className="btn btn-outline btn-sm" onClick={onOpenModels}>
             <MiniIcon name="settings" size={12} /> 去模型配置
           </button>
@@ -179,9 +196,6 @@ export function AnalysisPanel({
       </div>
 
       {analysis.warning ? <p className="topo-analysis-warning">{analysis.warning}</p> : null}
-      {analysis.fallbackReason ? (
-        <p className="topo-analysis-warning">模型调用失败原因：{analysis.fallbackReason}</p>
-      ) : null}
 
       <section className="topo-rail-section">
         <div className="topo-rail-section-head">

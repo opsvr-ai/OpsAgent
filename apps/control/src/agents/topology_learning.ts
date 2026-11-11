@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type {
   TopologyAnalysis,
+  TopologyAnalysisTrace,
   TopologyDraft,
   TopologyDraftEdge,
   TopologyEdge,
@@ -892,6 +893,8 @@ export function normalizeTopologyAnalysis(
   const confidence = clamp01(record.confidence);
   const durationMs = Math.floor(num(record.durationMs));
   const warning = text(record.warning, MAX_ERROR_LENGTH);
+  const fallbackReason = text(record.fallbackReason, MAX_ERROR_LENGTH);
+  const trace = asRecord(record.trace);
   const generated = typeof record.generatedAt === 'string' && !Number.isNaN(Date.parse(record.generatedAt))
     ? new Date(record.generatedAt).toISOString()
     : generatedAt.toISOString();
@@ -906,6 +909,8 @@ export function normalizeTopologyAnalysis(
     confidence,
     ...(durationMs > 0 ? { durationMs } : {}),
     fallback: record.fallback === true,
+    ...(fallbackReason ? { fallbackReason } : {}),
+    ...(trace ? { trace: trace as unknown as TopologyAnalysisTrace } : {}),
     ...(warning ? { warning } : {}),
   };
 }

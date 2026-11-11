@@ -74,8 +74,29 @@ async function postJson(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
+export interface ModelDescription {
+  /** 实际请求的模型名（model 字段）。 */
+  readonly name: string;
+  readonly provider: string;
+  readonly baseUrl: string;
+}
+
 export class ModelCompletionService {
   constructor(private readonly models: ModelProviderService) {}
+
+  /**
+   * 解析当前租户的默认（或指定）模型，供分析 trace / 排障展示。
+   * 不返回 apiKey 等敏感信息；未配置模型时返回 null。
+   */
+  async describe(tenantId: string, modelId?: string): Promise<ModelDescription | null> {
+    const model = await this.models.resolve(tenantId, modelId);
+    if (!model) return null;
+    return {
+      name: model.model,
+      provider: model.provider,
+      baseUrl: model.baseUrl,
+    };
+  }
 
   async complete(input: CompletionRequest): Promise<string> {
     const model = await this.models.resolve(input.tenantId, input.modelId);

@@ -187,6 +187,48 @@ export interface TopologyInsight {
 }
 
 /** 服务端大模型/启发式分析结论。 */
+export interface TopologyAnalysisStep {
+  readonly id: string;
+  readonly label: string;
+  readonly status: 'ok' | 'error' | 'skipped';
+  readonly startedAt: string;
+  readonly durationMs: number;
+  readonly detail?: string;
+}
+
+export interface TopologyAnalysisTrace {
+  readonly id: string;
+  readonly status: 'success' | 'fallback' | 'error';
+  readonly startedAt: string;
+  readonly completedAt: string;
+  readonly durationMs: number;
+  readonly model: {
+    readonly name?: string;
+    readonly provider?: string;
+    readonly baseUrl?: string;
+    readonly resolved: boolean;
+  };
+  readonly prompt: {
+    readonly version: string;
+    readonly chars: number;
+    readonly hosts: number;
+    readonly edges: number;
+    readonly budgetChars?: number;
+  };
+  readonly request?: {
+    readonly durationMs?: number;
+    readonly httpStatus?: number;
+    readonly responseChars?: number;
+    readonly responseExcerpt?: string;
+  };
+  readonly error?: {
+    readonly code?: string;
+    readonly message: string;
+  };
+  readonly fallbackReason?: string;
+  readonly steps: readonly TopologyAnalysisStep[];
+}
+
 export interface TopologyAnalysis {
   readonly summary: string;
   readonly insights: readonly TopologyInsight[];
@@ -202,6 +244,8 @@ export interface TopologyAnalysis {
   /** 兜底时的具体失败原因（如 model_timeout / model_http_401 / model_json_invalid）。 */
   readonly fallbackReason?: string;
   readonly warning?: string;
+  /** 模型调用/解析的完整过程（成功与失败都记录），供页面展示与排障。 */
+  readonly trace?: TopologyAnalysisTrace;
 }
 
 /** 业务系统分组（Web 用来画分组色带 / 系统视图）。 */

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   TopologyDraft,
   TopologyExternalPeer,
@@ -201,7 +201,14 @@ const basePeers: TopologyExternalPeer[] = [
 
 const baseInput = makeInput({ hosts: orderHosts, edges: orderEdges, externalPeers: basePeers });
 
-function completionWith(handler: (request: CompletionRequest) => Promise<string> | string): {
+function completionWith(
+  handler: (request: CompletionRequest) => Promise<string> | string,
+  described: { name: string; provider: string; baseUrl: string } | null = {
+    name: 'topology-mock',
+    provider: 'openai',
+    baseUrl: 'http://mock.local/v1',
+  },
+): {
   service: ModelCompletionService;
   calls: CompletionRequest[];
 } {
@@ -210,8 +217,9 @@ function completionWith(handler: (request: CompletionRequest) => Promise<string>
     calls.push(request);
     return handler(request);
   };
-  // 断言 mock 已满足 ModelCompletionService 的最小形状（complete）。
-  return { service: { complete } as unknown as ModelCompletionService, calls };
+  const describe = async (): Promise<{ name: string; provider: string; baseUrl: string } | null> => described;
+  // 断言 mock 已满足 ModelCompletionService 的最小形状（complete + describe）。
+  return { service: { complete, describe } as unknown as ModelCompletionService, calls };
 }
 
 function expectRenderable(draft: TopologyDraft): void {
@@ -1420,5 +1428,134 @@ describe('model output clamping (v2)', () => {
     expect(draft.insights?.[0]?.severity).toBe('info');
     expect(analysis.confidence).toBeGreaterThanOrEqual(0.75);
     expect(analysis.confidence).toBeLessThanOrEqual(0.9);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 分析过程 trace：模型 / prompt / 请求 / 解析 / 兜底全链路
+// ---------------------------------------------------------------------------
+
+describe('analysis trace', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('records a success trace with model, prompt, request, parse and finalize steps', async () => {
+    const { service } = completionWith(async () => modelDraftAnswer());
+    const result = await new TopologyAnalyzer(service).analyze('tenant-1', baseInput, {
+      modelLabel: 'openai-compatible-mock',
+    });
+    const trace = result.analysis.trace;
+
+    expect(result.analysis.fallback).toBe(false);
+    expect(trace).toBeDefined();
+    expect(trace?.status).toBe('success');
+    expect(trace?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(Number.isNaN(Date.parse(trace?.startedAt ?? ''))).toBe(false);
+    expect(Number.isNaN(Date.parse(trace?.completedAt ?? ''))).toBe(false);
+    expect(trace?.durationMs).toBeGreaterThanOrEqual(0);
+
+    expect(trace?.model).toEqual({
+      resolved: true,
+      name: 'topology-mock',
+      provider: 'openai',
+      baseUrl: 'http://mock.local/v1',
+    });
+    expect(trace?.prompt).toMatchObject({
+      version: 'topology-v2',
+      hosts: 3,
+      edges: 2,
+      budgetChars: 45_000,
+    });
+    expect(trace?.prompt.chars).toBeGreaterThan(0);
+
+    expect(trace?.request?.responseChars).toBeGreaterThan(0);
+    expect(trace?.request?.responseExcerpt).toContain('summary');
+    expect((trace?.request?.responseExcerpt ?? '').length).toBeLessThanOrEqual(8000);
+    expect(trace?.request?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(trace?.error).toBeUndefined();
+    expect(trace?.fallbackReason).toBeUndefined();
+
+    expect(trace?.steps.map((step) => step.id)).toEqual([
+      'resolve-model',
+      'build-prompt',
+      'request-model',
+      'parse-response',
+      'finalize',
+    ]);
+    expect(trace?.steps.every((step) => step.status === 'ok')).toBe(true);
+    for (const step of trace?.steps ?? []) {
+      expect(step.label.length).toBeGreaterThan(0);
+      expect(step.durationMs).toBeGreaterThanOrEqual(0);
+      expect(Number.isNaN(Date.parse(step.startedAt))).toBe(false);
+    }
+    expect(trace?.steps.find((step) => step.id === 'parse-response')?.detail).toContain('节点');
+  });
+
+  it('records a fallback trace when the model is not configured', async () => {
+    const { service } = completionWith(() => {
+      throw new Error('model_not_configured');
+    }, null);
+    const result = await new TopologyAnalyzer(service).analyze('tenant-1', baseInput);
+    const trace = result.analysis.trace;
+
+    expect(result.analysis.fallback).toBe(true);
+    expect(trace?.status).toBe('fallback');
+    expect(trace?.model.resolved).toBe(false);
+    expect(trace?.error).toEqual({ code: 'model_not_configured', message: 'model_not_configured' });
+    expect(trace?.fallbackReason).toContain('model_not_configured');
+    expect(result.analysis.fallbackReason).toContain('model_not_configured');
+
+    expect(trace?.steps.find((step) => step.id === 'resolve-model')).toMatchObject({
+      status: 'error',
+      detail: 'model_not_configured',
+    });
+    expect(trace?.steps.find((step) => step.id === 'build-prompt')?.status).toBe('ok');
+    expect(trace?.steps.find((step) => step.id === 'request-model')).toMatchObject({
+      status: 'error',
+    });
+    expect(trace?.steps.find((step) => step.id === 'request-model')?.detail).toContain('model_not_configured');
+    expect(trace?.steps.find((step) => step.id === 'parse-response')?.status).toBe('skipped');
+    expect(trace?.steps.find((step) => step.id === 'finalize')).toMatchObject({ status: 'ok' });
+  });
+
+  it('records request.httpStatus and error code for model_http_401', async () => {
+    const { service } = completionWith(() => {
+      throw new Error('model_http_401:unauthorized');
+    });
+    const result = await new TopologyAnalyzer(service).analyze('tenant-1', baseInput);
+    const trace = result.analysis.trace;
+
+    expect(trace?.status).toBe('fallback');
+    expect(trace?.model.resolved).toBe(true);
+    expect(trace?.error?.code).toBe('model_http_401');
+    expect(trace?.request?.httpStatus).toBe(401);
+    expect(trace?.request?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(trace?.fallbackReason).toContain('model_http_401');
+    expect(trace?.steps.find((step) => step.id === 'request-model')).toMatchObject({
+      status: 'error',
+    });
+    expect(trace?.steps.find((step) => step.id === 'request-model')?.detail).toContain('401');
+  });
+
+  it('records parse-response error and fallbackReason for invalid JSON', async () => {
+    const { service } = completionWith(() => '这不是 JSON');
+    const result = await new TopologyAnalyzer(service).analyze('tenant-1', baseInput);
+    const trace = result.analysis.trace;
+
+    expect(trace?.status).toBe('fallback');
+    expect(trace?.error?.code).toBe('model_json_invalid');
+    expect(trace?.fallbackReason).toContain('model_json_invalid');
+    expect(result.analysis.fallbackReason).toContain('model_json_invalid');
+    expect(trace?.request?.responseChars).toBeGreaterThan(0);
+    expect(trace?.steps.find((step) => step.id === 'request-model')?.status).toBe('ok');
+    expect(trace?.steps.find((step) => step.id === 'parse-response')).toMatchObject({
+      status: 'error',
+    });
+    expect(trace?.steps.find((step) => step.id === 'parse-response')?.detail).toContain('model_json_invalid');
+    expect(trace?.steps.find((step) => step.id === 'finalize')).toMatchObject({ status: 'ok' });
   });
 });

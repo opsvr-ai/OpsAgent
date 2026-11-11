@@ -31,6 +31,8 @@
  */
 import type {
   TopologyAnalysis,
+  TopologyAnalysisStep,
+  TopologyAnalysisTrace,
   TopologyDraft,
   TopologyDraftEdge,
   TopologyDraftNode,
@@ -49,6 +51,7 @@ import type {
   TopologyTier,
 } from '@opsagent/contracts';
 import type { ModelCompletionService } from '../models/completion.js';
+import { randomUUID } from 'node:crypto';
 
 export const TOPOLOGY_PROMPT_VERSION = 'topology-v2';
 
@@ -72,6 +75,8 @@ const MAX_PROMPT_PROCESSES_PER_HOST = 4;
 const MAX_PROMPT_PROCESS_COMMAND_CHARS = 120;
 /** prompt 内嵌 JSON 的硬上限（system prompt 约 7.2k 字符，合计保证 ≤45k 字符）。 */
 const MAX_PROMPT_JSON_CHARS = 37_200;
+/** system + user prompt 的总字符预算（trace.prompt.budgetChars 展示用）。 */
+const TOPOLOGY_PROMPT_BUDGET_CHARS = 45_000;
 const MAX_HOT_PATH_NODES = 5;
 
 const TIER_ORDER: Record<TopologyTier, number> = {
@@ -2561,6 +2566,86 @@ function parseModelDraft(
 // 对外服务
 // ---------------------------------------------------------------------------
 
+interface CompletionDescription {
+  readonly name: string;
+  readonly provider: string;
+  readonly baseUrl: string;
+}
+
+type CompletionDescribe = (
+  tenantId: string,
+  modelId?: string,
+) => Promise<CompletionDescription | null>;
+
+interface TraceBuildInput {
+  readonly startedMs: number;
+  readonly status: 'success' | 'fallback' | 'error';
+  readonly model: TopologyAnalysisTrace['model'];
+  readonly prompt: TopologyAnalysisTrace['prompt'];
+  readonly request: TopologyAnalysisTrace['request'] | undefined;
+  readonly error: TopologyAnalysisTrace['error'] | undefined;
+  readonly fallbackReason: string | undefined;
+  readonly steps: readonly TopologyAnalysisStep[];
+}
+
+function errorMessageOf(error: unknown): string {
+  if (error instanceof Error) return error.message || error.name || 'unknown_error';
+  if (typeof error === 'string' && error.trim()) return error;
+  return 'unknown_error';
+}
+
+/** 从错误 message 提取机器可读 code（model_http_401 / model_timeout / model_json_invalid 等）。 */
+function errorCodeOf(message: string): string {
+  const http = /model_http_(\d{3})/i.exec(message);
+  if (http?.[1]) return `model_http_${http[1]}`;
+  const token = /(model_[a-z0-9_]+)/i.exec(message);
+  if (token?.[1]) return token[1].toLowerCase();
+  if (/timeout|aborted|ETIMEDOUT/i.test(message)) return 'model_timeout';
+  return 'model_error';
+}
+
+function httpStatusOf(message: string): number | undefined {
+  const match = /model_http_(\d{3})/i.exec(message);
+  if (!match?.[1]) return undefined;
+  const status = Number.parseInt(match[1], 10);
+  return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+}
+
+function traceStep(
+  id: string,
+  label: string,
+  status: TopologyAnalysisStep['status'],
+  startedMs: number,
+  durationMs: number,
+  detail?: string,
+): TopologyAnalysisStep {
+  return defined<TopologyAnalysisStep>({
+    id,
+    label,
+    status,
+    startedAt: new Date(startedMs).toISOString(),
+    durationMs: Math.max(0, Math.trunc(durationMs)),
+    detail: detail ? cut(detail, 1000) : undefined,
+  });
+}
+
+function buildTrace(input: TraceBuildInput): TopologyAnalysisTrace {
+  const completedMs = Date.now();
+  return defined<TopologyAnalysisTrace>({
+    id: randomUUID(),
+    status: input.status,
+    startedAt: new Date(input.startedMs).toISOString(),
+    completedAt: new Date(completedMs).toISOString(),
+    durationMs: Math.max(0, completedMs - input.startedMs),
+    model: input.model,
+    prompt: input.prompt,
+    request: input.request,
+    error: input.error,
+    fallbackReason: input.fallbackReason,
+    steps: [...input.steps],
+  });
+}
+
 function buildAnalysis(
   draft: TopologyDraft,
   details: {
@@ -2570,6 +2655,7 @@ function buildAnalysis(
     readonly fallback: boolean;
     readonly warning?: string;
     readonly fallbackReason?: string;
+    readonly trace?: TopologyAnalysisTrace;
   },
 ): TopologyAnalysis {
   return {
@@ -2585,6 +2671,7 @@ function buildAnalysis(
     fallback: details.fallback,
     ...(details.warning ? { warning: details.warning } : {}),
     ...(details.fallbackReason ? { fallbackReason: details.fallbackReason } : {}),
+    ...(details.trace ? { trace: details.trace } : {}),
   };
 }
 
@@ -2596,69 +2683,340 @@ export class TopologyAnalyzer {
     input: TopologyLearningInput,
     options?: AnalyzeTopologyOptions,
   ): Promise<TopologyAnalysisResult> {
-    const startedAt = Date.now();
+    const traceStartedMs = Date.now();
     const generatedAt = new Date().toISOString();
     const index = buildTopologyIndex(input);
     const requestedLabel = options?.modelLabel?.trim() ?? '';
     const modelLabel = requestedLabel || DEFAULT_MODEL_LABEL;
 
+    const steps: TopologyAnalysisStep[] = [];
+    let traceModel: TopologyAnalysisTrace['model'] = { resolved: false };
+    let tracePrompt: TopologyAnalysisTrace['prompt'] = {
+      version: TOPOLOGY_PROMPT_VERSION,
+      chars: 0,
+      hosts: 0,
+      edges: 0,
+      budgetChars: TOPOLOGY_PROMPT_BUDGET_CHARS,
+    };
+    let traceRequest: TopologyAnalysisTrace['request'] | undefined;
+    let traceError: TopologyAnalysisTrace['error'] | undefined;
+    let traceFallbackReason: string | undefined;
+
+    // a. 解析默认模型（不通过则继续尝试调用，由 request 步骤记录真实错误）。
+    const resolveStartedMs = Date.now();
+    const describe = (this.completion as unknown as { describe?: CompletionDescribe }).describe;
+    if (typeof describe === 'function') {
+      try {
+        const described = await describe.call(this.completion, tenantId);
+        if (described) {
+          traceModel = defined<TopologyAnalysisTrace['model']>({
+            resolved: true,
+            name: described.name,
+            provider: described.provider,
+            baseUrl: described.baseUrl,
+          });
+          steps.push(
+            traceStep(
+              'resolve-model',
+              '解析默认模型',
+              'ok',
+              resolveStartedMs,
+              Date.now() - resolveStartedMs,
+              `${described.provider} · ${described.name} · ${described.baseUrl}`,
+            ),
+          );
+        } else {
+          traceModel = { resolved: false };
+          steps.push(
+            traceStep(
+              'resolve-model',
+              '解析默认模型',
+              'error',
+              resolveStartedMs,
+              Date.now() - resolveStartedMs,
+              'model_not_configured',
+            ),
+          );
+        }
+      } catch (error) {
+        const message = errorMessageOf(error);
+        traceModel = { resolved: false };
+        steps.push(
+          traceStep(
+            'resolve-model',
+            '解析默认模型',
+            'error',
+            resolveStartedMs,
+            Date.now() - resolveStartedMs,
+            `模型解析失败：${message}`,
+          ),
+        );
+      }
+    } else {
+      traceModel = { resolved: false };
+      steps.push(
+        traceStep(
+          'resolve-model',
+          '解析默认模型',
+          'skipped',
+          resolveStartedMs,
+          Date.now() - resolveStartedMs,
+          '当前 completion 未提供 describe，跳过模型信息解析',
+        ),
+      );
+    }
+
+    // b. 组装 prompt。
+    const buildStartedMs = Date.now();
+    let topologyPrompt: ReturnType<typeof buildTopologyPromptFromIndex> | null = null;
     try {
-      const { system, prompt } = buildTopologyPromptFromIndex(input, index);
-      const answer = await this.requestCompletion(tenantId, system, prompt, options);
-      const parsed = parseModelDraft(answer, input, index);
-      const draft = finalizeDraft(parsed.draft, input, index, {
-        mode: 'model',
-        modelStats: parsed.stats,
-        reportedConfidence: parsed.reportedConfidence,
-      });
+      topologyPrompt = buildTopologyPromptFromIndex(input, index);
+      const chars = topologyPrompt.system.length + topologyPrompt.prompt.length;
+      tracePrompt = {
+        version: TOPOLOGY_PROMPT_VERSION,
+        chars,
+        hosts: topologyPrompt.payload.hosts.length,
+        edges: topologyPrompt.payload.edges.length,
+        budgetChars: TOPOLOGY_PROMPT_BUDGET_CHARS,
+      };
+      steps.push(
+        traceStep(
+          'build-prompt',
+          '组装分析提示词',
+          'ok',
+          buildStartedMs,
+          Date.now() - buildStartedMs,
+          `${TOPOLOGY_PROMPT_VERSION} · ${chars} chars · ${tracePrompt.hosts} hosts · ${tracePrompt.edges} edges`,
+        ),
+      );
+    } catch (error) {
+      const message = errorMessageOf(error);
+      traceError = { code: errorCodeOf(message), message: cut(message, 1000) };
+      traceFallbackReason = cut(message, 1000);
+      steps.push(
+        traceStep(
+          'build-prompt',
+          '组装分析提示词',
+          'error',
+          buildStartedMs,
+          Date.now() - buildStartedMs,
+          message,
+        ),
+      );
+    }
+
+    // c. 调用大模型。
+    let answer: string | null = null;
+    let draft: TopologyDraft | null = null;
+    let modelSucceeded = false;
+    if (topologyPrompt) {
+      const requestStartedMs = Date.now();
+      try {
+        answer = await this.requestCompletion(
+          tenantId,
+          topologyPrompt.system,
+          topologyPrompt.prompt,
+          options,
+        );
+        const durationMs = Date.now() - requestStartedMs;
+        traceRequest = {
+          durationMs,
+          responseChars: answer.length,
+          responseExcerpt: cut(answer, 8000),
+        };
+        steps.push(
+          traceStep(
+            'request-model',
+            '调用大模型',
+            'ok',
+            requestStartedMs,
+            durationMs,
+            `response ${answer.length} chars`,
+          ),
+        );
+      } catch (error) {
+        const durationMs = Date.now() - requestStartedMs;
+        const message = errorMessageOf(error);
+        traceRequest = defined<TopologyAnalysisTrace['request']>({
+          durationMs,
+          httpStatus: httpStatusOf(message),
+        });
+        traceError = { code: errorCodeOf(message), message: cut(message, 1000) };
+        traceFallbackReason = cut(message, 1000);
+        steps.push(
+          traceStep(
+            'request-model',
+            '调用大模型',
+            'error',
+            requestStartedMs,
+            durationMs,
+            `${traceError.code}: ${message}`,
+          ),
+        );
+        steps.push(
+          traceStep(
+            'parse-response',
+            '解析 JSON / 校验节点与边',
+            'skipped',
+            Date.now(),
+            0,
+            '模型调用失败，未执行解析',
+          ),
+        );
+      }
+    } else {
+      steps.push(
+        traceStep('request-model', '调用大模型', 'skipped', Date.now(), 0, '提示词构建失败，未调用模型'),
+      );
+      steps.push(
+        traceStep(
+          'parse-response',
+          '解析 JSON / 校验节点与边',
+          'skipped',
+          Date.now(),
+          0,
+          '未调用模型，跳过解析',
+        ),
+      );
+    }
+
+    // d. 解析 JSON 并校验节点/边（含最终化）。
+    if (answer !== null) {
+      const parseStartedMs = Date.now();
+      try {
+        const parsed = parseModelDraft(answer, input, index);
+        draft = finalizeDraft(parsed.draft, input, index, {
+          mode: 'model',
+          modelStats: parsed.stats,
+          reportedConfidence: parsed.reportedConfidence,
+        });
+        modelSucceeded = true;
+        steps.push(
+          traceStep(
+            'parse-response',
+            '解析 JSON / 校验节点与边',
+            'ok',
+            parseStartedMs,
+            Date.now() - parseStartedMs,
+            `${draft.nodes.length} 节点 / ${draft.edges.length} 边`,
+          ),
+        );
+      } catch (error) {
+        const message = errorMessageOf(error);
+        traceError = { code: errorCodeOf(message), message: cut(message, 1000) };
+        traceFallbackReason = cut(message, 1000);
+        steps.push(
+          traceStep(
+            'parse-response',
+            '解析 JSON / 校验节点与边',
+            'error',
+            parseStartedMs,
+            Date.now() - parseStartedMs,
+            message,
+          ),
+        );
+      }
+    }
+
+    // e. 成功：生成拓扑并返回 success trace。
+    const finalizeStartedMs = Date.now();
+    if (modelSucceeded && draft) {
+      steps.push(
+        traceStep(
+          'finalize',
+          '生成拓扑 / 规则兜底',
+          'ok',
+          finalizeStartedMs,
+          Date.now() - finalizeStartedMs,
+          `模型路径生成 ${draft.nodes.length} 节点 / ${draft.edges.length} 边`,
+        ),
+      );
       return {
         draft,
         analysis: buildAnalysis(draft, {
           model: modelLabel,
           generatedAt,
-          durationMs: Date.now() - startedAt,
+          durationMs: Date.now() - traceStartedMs,
           fallback: false,
-        }),
-      };
-    } catch (error) {
-      // 把失败原因带进 warning，便于页面/日志定位（401/404/超时/JSON 截断等）。
-      const reason = (error instanceof Error ? error.message : String(error)).slice(0, 200);
-      console.warn(`[topology] model analysis failed: ${reason}`);
-      let draft: TopologyDraft;
-      try {
-        draft = buildHeuristicDraftFromIndex(input, index);
-      } catch {
-        // 极端兜底：启发式也失败时返回空图（可渲染的空态），不抛错。
-        draft = {
-          nodes: [],
-          edges: [],
-          insights: [
-            {
-              id: 'insight-empty',
-              title: '窗口内暂无有效访问关系',
-              detail: '未采集到可分析的建连数据，请确认 Agent 连接采集是否开启，或扩大学习时间窗口后重试。',
-              severity: 'info',
-            },
-          ],
-          hotPaths: [],
-          risks: [],
-          summary: '窗口内未采集到可分析的建连数据；核心链路 无显著访问关系；发现 0 个风险。',
-          systems: [],
-          confidence: 0.55,
-        };
-      }
-      return {
-        draft,
-        analysis: buildAnalysis(draft, {
-          model: 'heuristic',
-          generatedAt,
-          durationMs: Date.now() - startedAt,
-          fallback: true,
-          warning: TOPOLOGY_FALLBACK_WARNING,
-          fallbackReason: reason,
+          trace: buildTrace({
+            startedMs: traceStartedMs,
+            status: 'success',
+            model: traceModel,
+            prompt: tracePrompt,
+            request: traceRequest,
+            error: undefined,
+            fallbackReason: undefined,
+            steps,
+          }),
         }),
       };
     }
+
+    // f. 失败：规则兜底，生成 fallback / error trace。
+    const failure = traceError ?? {
+      code: 'model_unavailable',
+      message: '模型路径未成功，使用规则引擎生成',
+    };
+    const reason = cut(failure.message, 1000);
+    console.warn(`[topology] model analysis failed: ${reason}`);
+    let heuristicOk = true;
+    let fallbackDraft: TopologyDraft;
+    try {
+      fallbackDraft = buildHeuristicDraftFromIndex(input, index);
+    } catch {
+      heuristicOk = false;
+      // 极端兜底：启发式也失败时返回空图（可渲染的空态），不抛错。
+      fallbackDraft = {
+        nodes: [],
+        edges: [],
+        insights: [
+          {
+            id: 'insight-empty',
+            title: '窗口内暂无有效访问关系',
+            detail: '未采集到可分析的建连数据，请确认 Agent 连接采集是否开启，或扩大学习时间窗口后重试。',
+            severity: 'info',
+          },
+        ],
+        hotPaths: [],
+        risks: [],
+        summary: '窗口内未采集到可分析的建连数据；核心链路 无显著访问关系；发现 0 个风险。',
+        systems: [],
+        confidence: 0.55,
+      };
+    }
+    steps.push(
+      traceStep(
+        'finalize',
+        '生成拓扑 / 规则兜底',
+        heuristicOk ? 'ok' : 'error',
+        finalizeStartedMs,
+        Date.now() - finalizeStartedMs,
+        heuristicOk
+          ? `规则引擎兜底生成（${failure.code}）`
+          : `规则引擎兜底失败（${failure.code}）`,
+      ),
+    );
+    return {
+      draft: fallbackDraft,
+      analysis: buildAnalysis(fallbackDraft, {
+        model: 'heuristic',
+        generatedAt,
+        durationMs: Date.now() - traceStartedMs,
+        fallback: true,
+        warning: TOPOLOGY_FALLBACK_WARNING,
+        fallbackReason: reason,
+        trace: buildTrace({
+          startedMs: traceStartedMs,
+          status: heuristicOk ? 'fallback' : 'error',
+          model: traceModel,
+          prompt: tracePrompt,
+          request: traceRequest,
+          error: defined<TopologyAnalysisTrace['error']>({ code: failure.code, message: reason }),
+          fallbackReason: reason,
+          steps,
+        }),
+      }),
+    };
   }
 
   private async requestCompletion(

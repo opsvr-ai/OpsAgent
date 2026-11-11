@@ -51,6 +51,7 @@ import {
 } from '../topology/layout.js';
 import { TopologyCanvas, type CenterTarget } from '../topology/topology-canvas.js';
 import { AnalysisPanel, NodeDetailPanel } from '../topology/analysis-panel.js';
+import { AnalysisTracePanel } from '../topology/analysis-trace-panel.js';
 import { LearningWizard, PolicyPanel, type AppSystemOption } from '../topology/learning.js';
 import {
   HttpRequestsPanel,
@@ -70,6 +71,7 @@ import {
   DEMO_GRAPH,
   DEMO_GRAPH_SUMMARIES,
   DEMO_POLICY,
+  DEMO_SUCCESS_TRACE,
   advanceDemoSession,
   demoGraphById,
   demoLearningSession,
@@ -349,6 +351,10 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [policyError, setPolicyError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
+  const [traceRunning, setTraceRunning] = useState(false);
+  const [traceStartedAt, setTraceStartedAt] = useState<number | null>(null);
+  const [traceRequestError, setTraceRequestError] = useState<string | null>(null);
   const toastSeq = useRef(0);
   const centerEpoch = useRef(0);
   const finishedSessionRef = useRef<string | null>(null);
@@ -1099,26 +1105,50 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
 
   const reanalyze = useCallback(async (): Promise<void> => {
     const sessionId = graph?.sessionId;
-    if (!sessionId) {
-      showToast('warn', '当前图没有对应的学习会话，无法重新分析；请重新学习。');
-      return;
-    }
+    setTraceRequestError(null);
+    setTraceOpen(true);
+    if (!sessionId) return;
+    if (reanalyzing) return;
     setReanalyzing(true);
+    setTraceRunning(true);
+    setTraceStartedAt(Date.now());
     try {
+      if (demo) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1800));
+        setGraph((current) => {
+          if (!current) return current;
+          const { warning: _warning, fallbackReason: _fallbackReason, trace: _trace, ...rest } = current.analysis;
+          return {
+            ...current,
+            analysis: {
+              ...rest,
+              model: 'qwen2.5-72b-instruct',
+              fallback: false,
+              durationMs: DEMO_SUCCESS_TRACE.durationMs,
+              generatedAt: new Date().toISOString(),
+              trace: DEMO_SUCCESS_TRACE,
+            },
+          };
+        });
+        showToast('ok', '已用当前模型重新分析（演示 trace）');
+        return;
+      }
       const next = await analyzeTopologySession(sessionId);
       await loadTopology();
       if (next.fallback) {
-        showToast('warn', '重新分析完成，但模型仍不可用（规则兜底）；请查看分析面板中的具体失败原因。');
+        showToast('warn', '重新分析完成，但模型仍不可用（规则兜底）；请查看分析过程弹层中的具体失败原因。');
       } else {
         showToast('ok', `已使用模型 ${next.model || ''} 重新分析并更新拓扑。`.trim());
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown';
+      setTraceRequestError(`HTTP/接口错误：${message}`);
       showToast('error', `重新分析失败：${message}`);
     } finally {
       setReanalyzing(false);
+      setTraceRunning(false);
     }
-  }, [graph?.sessionId, loadTopology, showToast]);
+  }, [demo, graph?.sessionId, loadTopology, reanalyzing, showToast]);
 
   const probeDefaultModel = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
     try {
@@ -2040,8 +2070,12 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                       }
                       window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'models' }));
                     }}
-                    canReanalyze={!demo && Boolean(graph.sessionId)}
+                    canReanalyze={Boolean(graph.sessionId)}
                     reanalyzing={reanalyzing}
+                    onOpenTrace={() => {
+                      setTraceRequestError(null);
+                      setTraceOpen(true);
+                    }}
                     onReanalyze={() => void reanalyze()}
                     {...(!demo ? { onTestModel: probeDefaultModel } : {})}
                   />
@@ -2138,6 +2172,27 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
             setSuggestError(null);
           }}
           onConfirm={(selected) => void applySuggestions(selected)}
+        />
+      ) : null}
+
+      {graph ? (
+        <AnalysisTracePanel
+          open={traceOpen}
+          graph={graph}
+          running={traceRunning}
+          startedAt={traceStartedAt}
+          requestError={traceRequestError}
+          noSessionReason={graph.sessionId ? null : '该图没有学习会话样本，请重新学习后再分析。'}
+          onClose={() => setTraceOpen(false)}
+          onReanalyze={() => void reanalyze()}
+          {...(!demo ? { onTestModel: probeDefaultModel } : {})}
+          onOpenModels={() => {
+            if (demo) {
+              showToast('ok', '演示模式：已模拟跳转到模型配置');
+              return;
+            }
+            window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'models' }));
+          }}
         />
       ) : null}
 

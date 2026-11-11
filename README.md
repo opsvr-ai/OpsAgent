@@ -353,6 +353,7 @@ Agent 异常事件上报后自动触发；同一应用系统已有运行中分�
   - **Agent 0.7.0** 新增明文七层旁路观察器（AF_PACKET）：HTTP/1 请求行、HTTP/2 HEADERS、gRPC（按 50051/9090 端口/服务名识别），按 10s 窗口通过心跳 `httpRequestWindows` 上报；支持 `OPSAGENT_HTTP_METRICS`（默认 true）/`OPSAGENT_HTTP_IFACE`/`OPSAGENT_GRPC_PORTS`/`OPSAGENT_HTTP_MAX_EDGES`/`OPSAGENT_HTTP_WINDOW_SECONDS`/`OPSAGENT_HTTP_DEBUG`。**仅明文 HTTP/1、h2c、明文 gRPC；HTTPS/gRPC-TLS/HTTP3 无法解密不计数；需要 root/CAP_NET_RAW，权限不足自动禁用**。详见 [agents/opsagent-agent/README-http-metrics.md](agents/opsagent-agent/README-http-metrics.md)。
   - Control 新增 `agent_http_requests`（迁移 0081，保留 7 天），Web「访问量分析」可切换 **TCP 建连 / HTTP/gRPC 请求**，请求视图显示协议、方法、请求数、失败、sparkline，24h/7d 自动小时/天桶。
   - **AI 自动打标签**：`POST /api/topologies/edge-tags/suggest` 把访问关系摘要交给大模型，输出标签/类别/置信度/原因；模型不可用自动规则兜底（运维工具/外部依赖/数据访问/中间件访问/应用调用），Web 建议弹层支持全选/单选采纳，落库 `source='model'`；无模型时可手动打标签。
+  - **分析过程 trace（排障）**：每次拓扑分析记录「解析默认模型 → 组装 prompt → 调用模型 → 解析/校验 → 生成/兜底」五步（含模型名/provider/Base URL、prompt 统计、请求耗时/HTTP 状态/响应字符、响应片段、error code/message、fallbackReason），随图持久化；Web 分析侧栏「查看分析过程」可展开完整过程、复制响应片段；模型不可用时直接显示具体错误（如 `model_fetch_failed:ECONNREFUSED`、`model_http_401`、`model_json_invalid`）。
 
 API（权限 `agent.manage`）：
 

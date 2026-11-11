@@ -18,10 +18,76 @@ import type {
   TopologyServicePort,
   TopologySystemGroup,
   TopologyTier,
+  TopologyAnalysisTrace,
 } from '@opsagent/contracts';
 
 const NOW = Date.now();
 const iso = (offsetMs: number): string => new Date(NOW + offsetMs).toISOString();
+
+/** 演示：成功分析过程（供「查看分析过程」弹层展示）。 */
+export const DEMO_SUCCESS_TRACE: TopologyAnalysisTrace = {
+  id: 'trace-demo-success',
+  status: 'success',
+  startedAt: iso(-10_000),
+  completedAt: iso(-500),
+  durationMs: 9420,
+  model: {
+    name: 'qwen2.5-72b-instruct',
+    provider: 'openai-compatible',
+    baseUrl: 'https://llm.internal.example/v1',
+    resolved: true,
+  },
+  prompt: { version: 'topology-v2', chars: 12_840, hosts: 14, edges: 36, budgetChars: 16_000 },
+  request: {
+    durationMs: 9210,
+    httpStatus: 200,
+    responseChars: 6421,
+    responseExcerpt:
+      '{\n  "summary": "识别到 3 个业务系统、14 台纳管主机与 2 个外部依赖。支付链路存在 8.4% 的回调失败。",\n  "insights": [\n    { "title": "支付回调失败率 8.1%", "severity": "critical" },\n    { "title": "跨业务系统调用 13 条", "severity": "info" }\n  ],\n  "hotPaths": [\n    { "label": "下单主链路：APP → 网关 → 订单 → 支付 → MySQL" }\n  ]\n}',
+  },
+  steps: [
+    { id: 'resolve-model', label: '解析默认模型', status: 'ok', startedAt: iso(-10_000), durationMs: 180, detail: 'qwen2.5-72b-instruct · openai-compatible' },
+    { id: 'build-prompt', label: '组装分析 Prompt', status: 'ok', startedAt: iso(-9_800), durationMs: 90, detail: '14 台主机 / 36 条链路 · 12,840 字符（预算 16,000）' },
+    { id: 'request-model', label: '调用大模型', status: 'ok', startedAt: iso(-9_700), durationMs: 9210, detail: 'HTTP 200 · 响应 6,421 字符' },
+    { id: 'parse-response', label: '解析并校验响应', status: 'ok', startedAt: iso(-480), durationMs: 45, detail: '4 条洞察 / 3 条核心链路 / 3 条风险' },
+    { id: 'finalize', label: '生成拓扑图', status: 'ok', startedAt: iso(-430), durationMs: 20, detail: 'graph v2 · 20 节点 / 36 链路' },
+  ],
+};
+
+/** 演示：模型 401 兜底分析过程（供失败详情截图）。 */
+export const DEMO_FALLBACK_TRACE: TopologyAnalysisTrace = {
+  id: 'trace-demo-fallback',
+  status: 'fallback',
+  startedAt: iso(-14_000),
+  completedAt: iso(-12_000),
+  durationMs: 2140,
+  model: {
+    name: 'qwen2.5-72b-instruct',
+    provider: 'openai-compatible',
+    baseUrl: 'https://llm.internal.example/v1',
+    resolved: true,
+  },
+  prompt: { version: 'topology-v2', chars: 8_912, hosts: 4, edges: 20, budgetChars: 16_000 },
+  request: {
+    durationMs: 1980,
+    httpStatus: 401,
+    responseChars: 96,
+    responseExcerpt: '{"error":{"message":"Invalid API key provided","type":"invalid_request_error","code":"invalid_api_key"}}',
+  },
+  error: {
+    code: 'model_http_401',
+    message: '大模型返回 HTTP 401 Unauthorized：Invalid API key provided',
+  },
+  fallbackReason: 'model_http_401',
+  steps: [
+    { id: 'resolve-model', label: '解析默认模型', status: 'ok', startedAt: iso(-14_000), durationMs: 120, detail: 'qwen2.5-72b-instruct · openai-compatible' },
+    { id: 'build-prompt', label: '组装分析 Prompt', status: 'ok', startedAt: iso(-13_880), durationMs: 40, detail: '4 台主机 / 20 条链路 · 8,912 字符' },
+    { id: 'request-model', label: '调用大模型', status: 'error', startedAt: iso(-13_840), durationMs: 1980, detail: 'HTTP 401 Unauthorized · Invalid API key provided' },
+    { id: 'parse-response', label: '解析并校验响应', status: 'skipped', startedAt: iso(-11_860), durationMs: 0, detail: '模型请求失败，跳过响应解析' },
+    { id: 'finalize', label: '生成拓扑图（规则兜底）', status: 'ok', startedAt: iso(-11_860), durationMs: 18, detail: '使用确定性启发式生成 graph' },
+  ],
+};
+
 
 export interface DemoAppSystemOption {
   readonly id: string;
@@ -563,6 +629,7 @@ function buildGraph(config: GraphVersionConfig): TopologyGraph {
       confidence: version === 3 ? 0.88 : 0.81,
       durationMs: 9420,
       fallback: false,
+      ...(version === 2 ? { trace: DEMO_SUCCESS_TRACE } : {}),
     },
     stats: {
       nodeCount: nodes.length,
@@ -1057,6 +1124,8 @@ function buildDenseGraph(): TopologyGraph {
       confidence: 0.62,
       durationMs: 12,
       fallback: true,
+      fallbackReason: 'model_http_401',
+      trace: DEMO_FALLBACK_TRACE,
     },
     stats: {
       nodeCount: preparedNodes.length,

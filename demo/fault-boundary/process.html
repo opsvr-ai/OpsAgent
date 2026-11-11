@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="dsh-design" content="web">
+  <title>故障定界 · 定界过程</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">OA</div>
+        <div>
+          <div class="brand-name">OpsAgent</div>
+          <div class="brand-sub">智能运维控制台</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-label">工作区</div>
+        <a href="index.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a href="#"><svg><use href="icons.svg#i-message"></use></svg>智能体会话</a>
+        <a class="active" href="index.html"><svg><use href="icons.svg#i-activity"></use></svg>故障定界</a>
+        <a href="#"><svg><use href="icons.svg#i-shield"></use></svg>事件指挥</a>
+        <div class="nav-label">运行资产</div>
+        <a href="#"><svg><use href="icons.svg#i-server"></use></svg>操作系统智能体</a>
+        <a href="#"><svg><use href="icons.svg#i-node"></use></svg>应用系统</a>
+        <a href="#"><svg><use href="icons.svg#i-terminal"></use></svg>巡检对象</a>
+        <div class="nav-label">配置</div>
+        <a href="#"><svg><use href="icons.svg#i-book"></use></svg>技能与知识</a>
+        <a href="#"><svg><use href="icons.svg#i-bell"></use></svg>通知策略</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div>生产环境 · 华东一区</div>
+        <div>最后同步 21:36:24</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs">
+          <a href="index.html">故障定界</a>
+          <svg><use href="icons.svg#i-chevron"></use></svg>
+          <a href="detail.html">订单中心</a>
+          <svg><use href="icons.svg#i-chevron"></use></svg>
+          <strong>定界过程</strong>
+        </div>
+        <div class="top-search"><svg><use href="icons.svg#i-search"></use></svg>搜索 Agent、主机或证据编号</div>
+        <div class="tenant"><span class="tenant-dot"></span>自动化运维管理平台</div>
+      </header>
+
+      <div class="page">
+        <a class="back-link" href="detail.html"><svg><use href="icons.svg#i-arrow-left"></use></svg>返回订单中心定界</a>
+
+        <div class="page-head" style="margin-bottom:14px">
+          <div>
+            <div class="page-kicker">Fault boundary / process 0142</div>
+            <h1>故障定界过程</h1>
+            <p class="page-sub">总调度先发现异常，再把“需要什么证据”变成受控采集任务分发给操作系统智能体；智能体返回本机事实，总调度据此更新候选、边界，最后收敛根因。</p>
+          </div>
+          <div class="actions">
+            <span class="badge warn">进行中 · 82%</span>
+            <button class="btn" type="button"><svg><use href="icons.svg#i-refresh"></use></svg>刷新过程</button>
+          </div>
+        </div>
+
+        <section class="panel process-panel">
+          <div class="process-head">
+            <div>
+              <div class="section-label">Orchestration topology</div>
+              <h2 style="font-size:13px;margin:4px 0 0;font-weight:650">从发现到结论的调度拓扑</h2>
+            </div>
+            <div class="process-legend">
+              <span><i style="background:#8db4d1"></i>总调度</span>
+              <span><i style="background:#9fc7b3"></i>智能体已返回</span>
+              <span><i style="background:#cf9a96"></i>最终结论</span>
+            </div>
+          </div>
+          <div class="source-strip">
+            <div class="source-title">
+              <strong>访问关系由操作系统智能体采集后自动绘制</strong>
+              <span>总调度归并 Agent 上报的 netstat / ss ESTAB 连接，映射到节点、进程/服务和端口，再叠加巡检异常。</span>
+            </div>
+            <span class="source-step"><b>1</b>Agent 采集 netstat</span>
+            <span class="source-step"><b>2</b>按 IP 归并节点</span>
+            <span class="source-step"><b>3</b>映射进程/端口</span>
+            <span class="source-step"><b>4</b>叠加异常</span>
+            <span class="source-step"><b>5</b>自动画边</span>
+          </div>
+
+          <svg class="process-svg" viewBox="0 0 1120 640" role="img" aria-label="故障定界过程拓扑">
+            <!-- phase separators -->
+            <line x1="272" y1="46" x2="272" y2="610" stroke="#dce4ed" stroke-width="1" stroke-dasharray="3 5"></line>
+            <line x1="720" y1="46" x2="720" y2="610" stroke="#dce4ed" stroke-width="1" stroke-dasharray="3 5"></line>
+            <text class="phase-label" x="24" y="32">01 发现</text>
+            <text class="phase-label" x="292" y="32">02 调度与采集</text>
+            <text class="phase-label" x="738" y="32">03 返回与二次决策</text>
+            <text class="phase-label" x="184" y="472">04 最终结论与边界</text>
+
+            <!-- signals -->
+            <rect class="node-base" x="24" y="62" width="224" height="48" rx="5"></rect>
+            <text class="node-title" x="38" y="82">Agent 事件 · MySQL 拒绝连接</text>
+            <text class="node-sub" x="38" y="98">db-01 · 21:34:02</text>
+
+            <rect class="node-base" x="24" y="122" width="224" height="48" rx="5"></rect>
+            <text class="node-title" x="38" y="142">指标越过阈值 · 连接 312/300</text>
+            <text class="node-sub" x="38" y="158">app-01 · 21:34:08</text>
+
+            <rect class="node-base" x="24" y="182" width="224" height="48" rx="5"></rect>
+            <text class="node-title" x="38" y="202">巡检对象异常 · Java 进程</text>
+            <text class="node-sub" x="38" y="218">app-01 · CPU 96% · 21:34:08</text>
+
+            <!-- signal to master -->
+            <path class="flow" d="M248 86 C270 86, 278 106, 300 106"></path>
+            <path class="flow" d="M248 146 C270 146, 278 122, 300 118"></path>
+            <path class="flow" d="M248 206 C270 206, 278 140, 300 130"></path>
+
+            <!-- master -->
+            <rect class="node-master" x="300" y="62" width="204" height="96" rx="7"></rect>
+            <text class="node-title" x="316" y="84">总调度智能体</text>
+            <text class="node-line" x="316" y="102">汇总 5 条异常 · 建一个 Case</text>
+            <text class="node-line" x="316" y="118">生成 2 个待验证候选</text>
+            <rect class="mini-chip" x="316" y="128" width="72" height="18" rx="3"></rect>
+            <text class="mini-chip-text" x="323" y="140">round 1</text>
+
+            <!-- dispatch to agents -->
+            <path class="flow" d="M504 94 C640 94, 650 96, 780 96"></path>
+            <path class="flow" d="M504 116 C640 116, 660 182, 780 182"></path>
+            <path class="flow" d="M504 138 C640 138, 660 268, 780 268"></path>
+            <text class="flow-label" x="626" y="82">① 下发受控采集</text>
+            <text class="flow-label" x="626" y="158">① 下发受控采集</text>
+            <text class="flow-label" x="626" y="252">① 下发受控采集</text>
+
+            <!-- agents -->
+            <rect class="node-agent returned" x="780" y="62" width="300" height="68" rx="6"></rect>
+            <text class="node-title" x="796" y="82">opsagent-app-01</text>
+            <text class="node-sub" x="796" y="98">netstat 1,842 ESTAB → 38 条边</text>
+            <rect class="mini-chip" x="796" y="106" width="158" height="16" rx="3"></rect>
+            <text class="mini-chip-text" x="803" y="117">返回 LOG-008 / PROBE-006</text>
+
+            <rect class="node-agent returned" x="780" y="148" width="300" height="68" rx="6"></rect>
+            <text class="node-title" x="796" y="168">opsagent-db-01</text>
+            <text class="node-sub" x="796" y="184">netstat 2,106 ESTAB → 24 条边</text>
+            <rect class="mini-chip" x="796" y="192" width="158" height="16" rx="3"></rect>
+            <text class="mini-chip-text" x="803" y="203">返回 PROBE-007 / METRIC-044</text>
+
+            <rect class="node-agent returned" x="780" y="234" width="300" height="68" rx="6"></rect>
+            <text class="node-title" x="796" y="254">opsagent-app-02</text>
+            <text class="node-sub" x="796" y="270">netstat 1,034 ESTAB → 16 条边</text>
+            <rect class="mini-chip" x="796" y="278" width="158" height="16" rx="3"></rect>
+            <text class="mini-chip-text" x="803" y="289">返回 LOG-009 / CONN-003</text>
+
+            <!-- returns -->
+            <path class="flow return" d="M780 118 C620 118, 640 150, 504 150"></path>
+            <path class="flow return" d="M780 204 C620 204, 640 174, 504 166"></path>
+            <path class="flow return" d="M780 290 C620 290, 640 186, 504 174"></path>
+            <text class="flow-label" x="600" y="338">② 结构化证据返回</text>
+
+            <!-- decision -->
+            <path class="flow decision" d="M930 302 C930 360, 900 386, 740 386"></path>
+            <text class="flow-label" x="846" y="354">③ 证据汇总</text>
+            <rect class="node-decision" x="300" y="348" width="440" height="86" rx="6"></rect>
+            <text class="node-title" x="316" y="370">总调度二次决策</text>
+            <text class="node-line" x="316" y="389">排除 db-01 根因：连接 1204 / 1500，未达上限</text>
+            <text class="node-line" x="316" y="406">锁定 app-01 连接池；app-02 标记为受影响边界</text>
+            <text class="flow-label red" x="316" y="423">候选：order-service 0.64 → 0.82</text>
+
+            <!-- deeper probe -->
+            <path class="flow" d="M740 382 C770 382, 776 382, 800 382"></path>
+            <rect class="node-agent" x="800" y="348" width="280" height="68" rx="6"></rect>
+            <text class="node-title" x="816" y="368">⑤ app-01 深挖</text>
+            <text class="node-sub" x="816" y="384">jstack · 连接池配置 · 慢 SQL 关联</text>
+            <rect class="mini-chip" x="816" y="392" width="160" height="16" rx="3"></rect>
+            <text class="mini-chip-text" x="823" y="403">返回 POOL-002 / LOG-012</text>
+            <path class="flow return" d="M800 414 C760 414, 744 430, 740 430"></path>
+
+            <!-- conclusion -->
+            <path class="flow conclusion" d="M520 434 C520 462, 520 470, 520 500"></path>
+            <text class="flow-label red" x="530" y="472">⑥ 定界收敛</text>
+            <rect class="node-conclusion" x="180" y="500" width="700" height="104" rx="7"></rect>
+            <text class="node-title" x="198" y="523">最终结论 · order-service 连接池耗尽</text>
+            <text class="node-line" x="198" y="543">根因节点 app-01 · 受影响 app-02 / db-01 · 边界外：短信网关</text>
+            <text class="node-line" x="198" y="561">证据引用 LOG-008 / PROBE-006 / PROBE-007 / LOG-009 / CONN-003</text>
+            <text class="flow-label red" x="198" y="583">置信度 0.82 · 待人工确认</text>
+
+            <!-- footer note -->
+            <text class="flow-label" x="24" y="622">整个过程由平台控制命令、Agent 执行探测、平台合并证据，模型只参与候选收敛与表达。</text>
+          </svg>
+        </section>
+
+        <div class="process-grid">
+          <section class="panel process-card">
+            <div class="section-label">What agents returned</div>
+            <h3>智能体采集到的本机事实</h3>
+            <div class="return-item"><span class="return-dot"></span><div><strong>app-01 · 连接池耗尽</strong><span class="muted">312 个线程；日志出现 HikariPool 连接超时 17 次；进程持续存活。</span></div></div>
+            <div class="return-item"><span class="return-dot"></span><div><strong>db-01 · 数据库正常</strong><span class="muted">3306 正常监听；连接数 1204 / max 1500；慢查询 14 条，未达上限。</span></div></div>
+            <div class="return-item"><span class="return-dot"></span><div><strong>app-02 · 仅受下游影响</strong><span class="muted">错误率 8.7%，连接池使用率 61%，无独立资源异常。</span></div></div>
+          </section>
+
+          <section class="panel process-card">
+            <div class="section-label">Decision changes</div>
+            <h3>每次返回如何改变决策</h3>
+            <div class="score-change"><div><strong>order-service 连接池</strong><div class="muted">app-01 日志/线程证据</div></div><b>0.64 → 0.82</b></div>
+            <div class="score-change"><div><strong>MySQL 连接数上限</strong><div class="muted">db-01 端口/连接证据</div></div><b>0.61 → 0.34</b></div>
+            <div class="score-change"><div><strong>app-02 根因可能</strong><div class="muted">错误率与连接池证据</div></div><b>已排除</b></div>
+            <div class="score-change"><div><strong>受影响边界</strong><div class="muted">app-02 + db-01</div></div><b>+2 节点</b></div>
+          </section>
+
+          <section class="panel process-card">
+            <div class="section-label">Why it is enough</div>
+            <h3>结论收敛条件</h3>
+            <p>根因候选已与时间顺序、访问关系和日志证据同时对齐，且数据库侧根因被排除。</p>
+            <div class="score-change"><div><strong>时间顺序</strong><div class="muted">连接数先于 CPU 饱和</div></div><b>✓</b></div>
+            <div class="score-change"><div><strong>访问关系</strong><div class="muted">app-01 → db-01 连接边</div></div><b>✓</b></div>
+            <div class="score-change"><div><strong>补采证据</strong><div class="muted">LOG-008 / POOL-002</div></div><b>✓</b></div>
+            <div class="score-change"><div><strong>反证</strong><div class="muted">db-01 未达连接上限</div></div><b>✓</b></div>
+          </section>
+        </div>
+
+        <section class="panel conclusion-final">
+          <div class="conclusion-head">
+            <div class="row-sm"><span class="section-label">Final conclusion</span><span class="badge warn">待人工确认</span></div>
+            <div class="row-sm"><a class="btn btn-sm" href="collaboration.html">查看完整对话</a><button class="btn btn-primary btn-sm" type="button">确认根因</button></div>
+          </div>
+          <div class="access-head">
+            <div>
+              <div class="section-label">Auto-generated access graph</div>
+              <h2>节点、进程、服务与端口访问关系</h2>
+              <div class="muted">节点异常来自 Agent 巡检；边来自 Agent 上报的 netstat / ss ESTAB 连接。</div>
+            </div>
+            <div style="text-align:right"><span class="badge danger">根因区</span> <span class="badge warn">受影响区</span></div>
+          </div>
+          <svg class="access-svg" viewBox="0 0 1120 390" role="img" aria-label="自动生成的应用访问关系">
+            <defs>
+              <marker id="access-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#b43a35" stroke="none"></path>
+              </marker>
+              <marker id="access-arrow-warn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#b1843a" stroke="none"></path>
+              </marker>
+              <marker id="access-arrow-gray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#9aa9b8" stroke="none"></path>
+              </marker>
+            </defs>
+
+            <!-- root edge -->
+            <path class="aedge root" d="M300 106 C520 106, 600 144, 800 144" marker-end="url(#access-arrow)"></path>
+            <text class="aedge-label root" x="544" y="96" text-anchor="middle">java(order-service):48012 → mysqld:3306</text>
+            <text class="aedge-label root" x="544" y="112" text-anchor="middle">TCP ESTAB · 312 · 采集自 app-01</text>
+
+            <!-- affected app edge -->
+            <path class="aedge warn" d="M300 248 C520 248, 600 196, 800 196" marker-end="url(#access-arrow-warn)"></path>
+            <text class="aedge-label warn" x="544" y="238" text-anchor="middle">java(order-service):48012 → mysqld:3306</text>
+            <text class="aedge-label warn" x="544" y="254" text-anchor="middle">TCP ESTAB · 46 · 采集自 app-02</text>
+
+            <!-- external boundary -->
+            <path class="aedge external" d="M300 132 C560 300, 640 298, 800 292" marker-end="url(#access-arrow-gray)"></path>
+            <text class="aedge-label" x="540" y="326" text-anchor="middle">java:48012 → sms-gw:443 · 18 ESTAB · 边界外</text>
+
+            <!-- app-01 -->
+            <rect class="anode root" x="20" y="50" width="280" height="120" rx="7"></rect>
+            <text class="anode-title" x="36" y="72">zdh-sit1-app-01</text>
+            <text class="anode-sub" x="36" y="88">10.24.18.21 · 采集 opsagent-app-01</text>
+            <text class="anode-line" x="36" y="108">order-service / java</text>
+            <text class="anode-sub" x="36" y="123">监听 :8080 · 出站 :48012</text>
+            <text class="anode-alert" x="36" y="145">异常：连接池 312 / 300 · CPU 96%</text>
+            <text class="anode-sub" x="36" y="160">netstat 1,842 ESTAB</text>
+
+            <!-- app-02 -->
+            <rect class="anode affected" x="20" y="200" width="280" height="104" rx="7"></rect>
+            <text class="anode-title" x="36" y="222">zdh-sit1-app-02</text>
+            <text class="anode-sub" x="36" y="238">10.24.18.22 · 采集 opsagent-app-02</text>
+            <text class="anode-line" x="36" y="258">order-service / java</text>
+            <text class="anode-sub" x="36" y="273">监听 :8080 · 出站 :48012</text>
+            <text class="anode-alert warn" x="36" y="291">异常：错误率 8.7% · 46 条超时</text>
+
+            <!-- db -->
+            <rect class="anode affected" x="800" y="100" width="300" height="108" rx="7"></rect>
+            <text class="anode-title" x="816" y="122">zdh-sit1-db-01</text>
+            <text class="anode-sub" x="816" y="138">10.24.18.41 · 采集 opsagent-db-01</text>
+            <text class="anode-line" x="816" y="158">mysqld / mysql</text>
+            <text class="anode-sub" x="816" y="173">监听 :3306 · 连接 1,204 / 1,500</text>
+            <text class="anode-alert warn" x="816" y="194">异常：连接拒绝 18% · 慢查询 14</text>
+
+            <!-- external -->
+            <rect class="anode external" x="800" y="260" width="300" height="66" rx="7"></rect>
+            <text class="anode-title" x="816" y="282">短信网关</text>
+            <text class="anode-sub" x="816" y="298">sms-gw · :443 · 边界外依赖</text>
+            <text class="anode-line" x="816" y="314">不参与故障扩散</text>
+          </svg>
+          <div class="edge-caption">
+            <span><i></i>根因连接 312 ESTAB</span>
+            <span><i class="warn"></i>受影响连接 46 ESTAB</span>
+            <span><i class="external"></i>边界外依赖 18 ESTAB</span>
+          </div>
+          <div class="access-provenance">
+            <strong>数据来源</strong>
+            <span>opsagent-app-01 · opsagent-app-02 · opsagent-db-01</span>
+            <span class="evidence-tag">CONN-001</span><span class="evidence-tag">CONN-003</span><span class="evidence-tag">CONN-006</span>
+            <span>采集时间 21:34:08</span>
+          </div>
+          <div class="access-rule">
+            自动绘制规则：<code>ESTABLISHED</code> 连接 → 源/目标 IP 映射 Agent 节点 → 端口映射到本机进程或服务 →
+            叠加巡检对象异常 → 外部地址标记为边界外，不参与继续扩散。
+          </div>
+          <div class="conclusion-body">
+            <div>
+              <div class="conclusion-text">
+                根因是 <strong>app-01 上 order-service 的数据库连接池耗尽</strong>，不是 db-01 达到连接上限，也不是 app-02 的独立故障。
+                <span class="muted">app-02 通过 3306 访问 db-01 时被下游拖慢，属于受影响边界；短信网关不在本应用系统内，标记为边界外依赖。</span>
+              </div>
+              <div class="row-sm" style="margin-top:11px"><span class="evidence-tag">LOG-008</span><span class="evidence-tag">PROBE-006</span><span class="evidence-tag">PROBE-007</span><span class="evidence-tag">LOG-009</span><span class="evidence-tag">CONN-003</span></div>
+            </div>
+            <div class="conclusion-side">
+              <div class="confidence-box"><strong>82%</strong><span>根因置信度</span></div>
+              <div class="checkline"><b>✓</b>3 个智能体返回 5 条证据</div>
+              <div class="checkline"><b>✓</b>数据库根因已排除</div>
+              <div class="checkline"><b>✓</b>受影响边界已确认</div>
+              <div class="recommend">提高 order-service 连接池上限至 500<span>观察 10 分钟后回归验证</span></div>
+              <div class="recommend">核对 HikariCP 与 db-01 max_connections<span>避免单点扩容后再次打满</span></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

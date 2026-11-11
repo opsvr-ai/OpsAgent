@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="dsh-design" content="web">
+  <title>故障定界 · 订单中心</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">OA</div>
+        <div>
+          <div class="brand-name">OpsAgent</div>
+          <div class="brand-sub">智能运维控制台</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-label">工作区</div>
+        <a href="index.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a href="#"><svg><use href="icons.svg#i-message"></use></svg>智能体会话</a>
+        <a class="active" href="index.html"><svg><use href="icons.svg#i-activity"></use></svg>故障定界</a>
+        <a href="#"><svg><use href="icons.svg#i-shield"></use></svg>事件指挥</a>
+        <div class="nav-label">运行资产</div>
+        <a href="#"><svg><use href="icons.svg#i-server"></use></svg>操作系统智能体</a>
+        <a href="#"><svg><use href="icons.svg#i-node"></use></svg>应用系统</a>
+        <a href="#"><svg><use href="icons.svg#i-terminal"></use></svg>巡检对象</a>
+        <div class="nav-label">配置</div>
+        <a href="#"><svg><use href="icons.svg#i-book"></use></svg>技能与知识</a>
+        <a href="#"><svg><use href="icons.svg#i-bell"></use></svg>通知策略</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div>生产环境 · 华东一区</div>
+        <div>最后同步 21:34:08</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs">
+          <a href="index.html">故障定界</a>
+          <svg><use href="icons.svg#i-chevron"></use></svg>
+          <strong>订单中心 · 2026-11-05 21:34</strong>
+        </div>
+        <div class="top-search"><svg><use href="icons.svg#i-search"></use></svg>搜索证据、进程或端口</div>
+        <div class="tenant"><span class="tenant-dot"></span>自动化运维管理平台</div>
+      </header>
+
+      <div class="page">
+        <a class="back-link" href="index.html"><svg><use href="icons.svg#i-arrow-left"></use></svg>返回定界工作台</a>
+
+        <section class="detail-head">
+          <div class="detail-title-row">
+            <div>
+              <div class="page-kicker">Fault case / 订单中心</div>
+              <h2 class="detail-title">MySQL 连接池耗尽导致订单提交超时</h2>
+              <div class="detail-sub">
+                <span class="badge danger">P1 · 分析中</span>
+                <span>应用系统 <strong>订单中心</strong></span>
+                <span>主信号 <span class="mono">mysql:3306 / connection_refused</span></span>
+                <span>开始于 21:34:02</span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button"><svg><use href="icons.svg#i-refresh"></use></svg>重新分析</button>
+              <button class="btn btn-primary" type="button"><svg><use href="icons.svg#i-shield"></use></svg>创建事件</button>
+            </div>
+          </div>
+          <div class="detail-stats">
+            <div><div class="stat-label">受影响节点</div><div class="stat-value danger">2 / 5</div></div>
+            <div><div class="stat-label">受影响应用</div><div class="stat-value warn">3</div></div>
+            <div><div class="stat-label">自动补采</div><div class="stat-value">2 / 4</div></div>
+            <div><div class="stat-label">根因置信度</div><div class="stat-value">82%</div></div>
+          </div>
+        </section>
+
+        <section class="panel collab-summary">
+          <span class="section-label">Agent collaboration</span>
+          <div class="collab-agent-strip">
+            <span class="collab-agent"><i></i>opsagent-app-01 <small>3 probes</small></span>
+            <span class="collab-agent"><i></i>opsagent-db-01 <small>2 probes</small></span>
+            <span class="collab-agent"><i></i>opsagent-app-02 <small>1 probe</small></span>
+          </div>
+          <a class="collab-link" href="process.html">查看故障定界全过程 <svg><use href="icons.svg#i-chevron"></use></svg></a>
+        </section>
+
+        <div class="detail-grid">
+          <section class="panel topology-panel">
+            <div class="topo-head">
+              <div>
+                <div class="section-label">Blast radius</div>
+                <h2 style="font-size:13px;margin:4px 0 0;font-weight:650">访问关系与故障边界</h2>
+              </div>
+              <div class="legend">
+                <span><i style="background:#b43a35"></i>根因候选</span>
+                <span><i style="background:#ddb36b"></i>受影响</span>
+                <span><i style="background:#c6d2df"></i>边界外</span>
+              </div>
+            </div>
+            <div class="topo-wrap">
+              <svg class="topo-svg" viewBox="0 0 760 380" role="img" aria-label="订单中心访问关系与故障边界">
+                <defs>
+                  <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                    <path d="M0,0 L7,3.5 L0,7 Z" fill="#8da4b8" stroke="none"></path>
+                  </marker>
+                  <marker id="arrow-danger" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                    <path d="M0,0 L7,3.5 L0,7 Z" fill="#b43a35" stroke="none"></path>
+                  </marker>
+                </defs>
+
+                <!-- root links -->
+                <path class="edge" d="M380 58 C380 88, 140 88, 140 130" marker-end="url(#arrow)"></path>
+                <path class="edge" d="M380 58 C380 88, 620 88, 620 130" marker-end="url(#arrow)"></path>
+                <path class="edge" d="M380 58 C380 240, 380 240, 380 280" marker-end="url(#arrow)"></path>
+
+                <!-- call links -->
+                <path class="edge strong" d="M250 180 C350 180, 410 180, 510 180" marker-end="url(#arrow-danger)"></path>
+                <text class="edge-label" x="380" y="171" text-anchor="middle">java(order-service):48012 → mysqld:3306</text>
+                <text class="edge-label" x="380" y="196" text-anchor="middle">TCP ESTAB · 312 · 采集自 app-01</text>
+
+                <path class="edge" d="M380 280 C380 255, 500 255, 550 248" marker-end="url(#arrow)"></path>
+                <text class="edge-label" x="462" y="267" text-anchor="middle">java:48012 → mysqld:3306 · 46</text>
+
+                <!-- root -->
+                <rect class="root-card" x="280" y="12" width="200" height="46" rx="6"></rect>
+                <text class="root-title" x="380" y="31" text-anchor="middle">订单中心</text>
+                <text class="root-sub" x="380" y="46" text-anchor="middle">order-center · 5 nodes</text>
+
+                <!-- candidate host -->
+                <rect class="node-card candidate" x="30" y="130" width="220" height="118" rx="6"></rect>
+                <text class="node-title" x="46" y="151">zdh-sit1-app-01</text>
+                <text class="node-sub" x="46" y="166">10.24.18.21 · Java 应用节点</text>
+                <rect class="node-chip" x="46" y="178" width="132" height="19" rx="3"></rect>
+                <text class="node-chip-text" x="54" y="191">order-service :8080</text>
+                <rect class="node-chip" x="46" y="202" width="96" height="19" rx="3"></rect>
+                <text class="node-chip-text" x="54" y="215">java :48012</text>
+                <text class="node-sub" x="46" y="237" style="fill:#b43a35">CPU 96% · 连接 312 / 300</text>
+
+                <!-- target db -->
+                <rect class="node-card affected" x="510" y="130" width="220" height="118" rx="6"></rect>
+                <text class="node-title" x="526" y="151">zdh-sit1-db-01</text>
+                <text class="node-sub" x="526" y="166">10.24.18.41 · MySQL 主库</text>
+                <rect class="node-chip" x="526" y="178" width="94" height="19" rx="3"></rect>
+                <text class="node-chip-text" x="534" y="191">mysqld :3306</text>
+                <text class="node-sub" x="526" y="216" style="fill:#9b671c">连接 1,204 · 拒绝率 18%</text>
+                <rect class="node-chip" x="526" y="226" width="88" height="19" rx="3"></rect>
+                <text class="node-chip-text" x="534" y="239">慢查询 14</text>
+
+                <!-- affected app -->
+                <rect class="node-card affected" x="270" y="280" width="220" height="78" rx="6"></rect>
+                <text class="node-title" x="286" y="301">zdh-sit1-app-02</text>
+                <text class="node-sub" x="286" y="316">10.24.18.22 · order-service</text>
+                <rect class="node-chip" x="286" y="326" width="132" height="18" rx="3"></rect>
+                <text class="node-chip-text" x="294" y="339">order-service :8080</text>
+
+                <!-- external boundary -->
+                <rect class="node-card" x="30" y="300" width="190" height="52" rx="6"></rect>
+                <text class="node-title" x="46" y="321" style="fill:#778697">外部依赖 · 短信网关</text>
+                <text class="node-sub" x="46" y="336">边界外 · 不参与扩散</text>
+              </svg>
+            </div>
+            <div class="topo-foot">
+              <span><strong>来源：</strong>3 个 Agent 上报 netstat / ss</span>
+              <span><strong>自动映射：</strong>IP → 节点，端口 → 进程/服务</span>
+              <span><strong>异常叠加：</strong>app-01 / app-02 / db-01</span>
+              <span><strong>快照：</strong>21:34:08</span>
+            </div>
+          </section>
+
+          <aside class="panel">
+            <div class="panel-head">
+              <h2>根因候选</h2>
+              <span class="muted">Top 3 · 动态评分</span>
+            </div>
+            <div class="candidates">
+              <div class="candidate">
+                <div class="candidate-top"><div class="candidate-name">order-service 连接池耗尽</div><div class="candidate-score">0.82</div></div>
+                <div class="candidate-desc">app-01 的 312 个连接全部占用，超过 300 上限；日志出现 pool exhausted，数据库拒绝率同步上升。</div>
+                <div class="score-bar"><i class="danger" style="width:82%"></i></div>
+                <div class="candidate-evidence"><span class="evidence-tag">EVT-0142</span><span class="evidence-tag">METRIC-032</span><span class="evidence-tag">LOG-008</span></div>
+              </div>
+              <div class="candidate">
+                <div class="candidate-top"><div class="candidate-name">MySQL 连接数达到上限</div><div class="candidate-score">0.61</div></div>
+                <div class="candidate-desc">db-01 最大连接数 1000，当前 1204；慢查询增加，但不能解释唯一的 CPU 尖峰。</div>
+                <div class="score-bar"><i style="width:61%"></i></div>
+                <div class="candidate-evidence"><span class="evidence-tag">METRIC-044</span><span class="evidence-tag">PROBE-003</span></div>
+              </div>
+              <div class="candidate">
+                <div class="candidate-top"><div class="candidate-name">app-01 节点 CPU 饱和</div><div class="candidate-score">0.34</div></div>
+                <div class="candidate-desc">CPU 96% 是结果不是起点；同一节点 14 分钟前无异常，连接数先于 CPU 升高。</div>
+                <div class="score-bar"><i style="width:34%"></i></div>
+                <div class="candidate-evidence"><span class="evidence-tag">METRIC-032</span></div>
+              </div>
+            </div>
+            <div class="panel-body" style="border-top:1px solid var(--line)">
+              <div class="row-between"><span class="section-label">继续收敛</span><button class="btn btn-sm" type="button">发起补采</button></div>
+              <p class="muted" style="margin:8px 0 0;line-height:1.6;font-size:10px">当前候选差距不足，还需要 app-01 的进程树和最近 200 行应用日志。</p>
+            </div>
+          </aside>
+        </div>
+
+        <div class="detail-grid" style="grid-template-columns:minmax(0, 1.45fr) minmax(300px, .75fr);">
+          <section class="panel evidence-panel" style="margin-top:0">
+            <div class="panel-head"><h2>证据链</h2><span class="muted">按时间 · 6 条</span></div>
+            <div class="timeline">
+              <div class="tl-item">
+                <div class="tl-time">21:34:02</div><span class="tl-dot alert"></span>
+                <div><div class="tl-title">Agent 上报 MySQL 连接拒绝</div><div class="tl-desc">zdh-sit1-db-01 · <code>connection_refused</code> · critical</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-time">21:34:08</div><span class="tl-dot alert"></span>
+                <div><div class="tl-title">指标越过阈值：连接数 312 / 300</div><div class="tl-desc">app-01 · CPU 96% · 应用日志错误率 11.4%</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-time">21:34:12</div><span class="tl-dot probe"></span>
+                <div><div class="tl-title">自动调度补采：进程树</div><div class="tl-desc">目标 <code>app-01</code> · 等待返回</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-time">21:34:26</div><span class="tl-dot probe"></span>
+                <div><div class="tl-title">自动调度补采：日志 tail</div><div class="tl-desc">目标 <code>app.log</code> · 已返回</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-time">21:34:31</div><span class="tl-dot ok"></span>
+                <div><div class="tl-title">发现连接池耗尽证据</div><div class="tl-desc"><code>HikariPool-1 - Connection is not available, request timed out</code></div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-time">21:34:41</div><span class="tl-dot ok"></span>
+                <div><div class="tl-title">总调度智能体完成候选收敛</div><div class="tl-desc">主根因置信度 0.82 · 等待人工确认</div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><h2>补采任务</h2><span class="muted">受控 probe</span></div>
+            <table class="probe-table">
+              <thead><tr><th>类型</th><th>目标</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td><strong>进程树</strong></td><td class="mono">app-01 / java</td><td><span class="badge warn">运行中</span></td></tr>
+                <tr><td><strong>日志 tail</strong></td><td class="mono">app.log</td><td><span class="badge ok">已完成</span></td></tr>
+                <tr><td><strong>端口状态</strong></td><td class="mono">db-01 / 3306</td><td><span class="badge neutral">排队</span></td></tr>
+                <tr><td><strong>连接采样</strong></td><td class="mono">order → mysql</td><td><span class="badge ok">已完成</span></td></tr>
+              </tbody>
+            </table>
+            <div class="panel-body" style="border-top:1px solid var(--line)">
+              <div class="row-between"><span class="muted">预算 4 / 6</span><span class="badge neutral">最多 6 个</span></div>
+            </div>
+          </section>
+        </div>
+
+        <section class="conclusion">
+          <div class="conclusion-head">
+            <div class="row-sm"><span class="section-label">Commander conclusion</span><span class="badge warn">待人工确认</span></div>
+            <div class="row-sm"><button class="btn btn-sm" type="button">驳回</button><button class="btn btn-primary btn-sm" type="button">确认根因</button></div>
+          </div>
+          <div class="conclusion-body">
+            <div>
+              <div class="conclusion-text">
+                根因是 <strong>app-01 上 order-service 的数据库连接池耗尽</strong>。连接数先于 CPU 饱和，随后导致 db-01 拒绝连接，app-02 的订单请求也被下游超时拖慢。
+                <span class="muted">依据：连接池超时日志、连接数指标、app-01 进程树与 db-01 连接拒绝事件。未发现网络丢包或磁盘异常证据。</span>
+              </div>
+              <div class="row-sm" style="margin-top:11px">
+                <span class="evidence-tag">EVT-0142</span><span class="evidence-tag">METRIC-032</span><span class="evidence-tag">LOG-008</span><span class="evidence-tag">PROBE-006</span>
+              </div>
+            </div>
+            <div class="conclusion-side">
+              <div class="confidence-box"><strong>82%</strong><span>根因置信度</span></div>
+              <div class="checkline"><b>✓</b>时间顺序一致</div>
+              <div class="checkline"><b>✓</b>访问关系支持</div>
+              <div class="checkline"><b>✓</b>补采证据支持</div>
+              <div class="checkline"><b>!</b>缺少 db-01 连接数采样</div>
+              <div class="recommend">提高 order-service 连接池上限至 500<span>观察 10 分钟后回归验证</span></div>
+              <div class="recommend">检查 MySQL max_connections 与慢查询<span>db-01 · 待执行</span></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

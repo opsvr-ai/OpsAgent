@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="dsh-design" content="web">
+  <title>故障定界 · 智能体协作</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">OA</div>
+        <div>
+          <div class="brand-name">OpsAgent</div>
+          <div class="brand-sub">智能运维控制台</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-label">工作区</div>
+        <a href="index.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a href="#"><svg><use href="icons.svg#i-message"></use></svg>智能体会话</a>
+        <a class="active" href="index.html"><svg><use href="icons.svg#i-activity"></use></svg>故障定界</a>
+        <a href="#"><svg><use href="icons.svg#i-shield"></use></svg>事件指挥</a>
+        <div class="nav-label">运行资产</div>
+        <a href="#"><svg><use href="icons.svg#i-server"></use></svg>操作系统智能体</a>
+        <a href="#"><svg><use href="icons.svg#i-node"></use></svg>应用系统</a>
+        <a href="#"><svg><use href="icons.svg#i-terminal"></use></svg>巡检对象</a>
+        <div class="nav-label">配置</div>
+        <a href="#"><svg><use href="icons.svg#i-book"></use></svg>技能与知识</a>
+        <a href="#"><svg><use href="icons.svg#i-bell"></use></svg>通知策略</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div>生产环境 · 华东一区</div>
+        <div>最后同步 21:36:24</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs">
+          <a href="index.html">故障定界</a>
+          <svg><use href="icons.svg#i-chevron"></use></svg>
+          <a href="detail.html">订单中心</a>
+          <svg><use href="icons.svg#i-chevron"></use></svg>
+          <strong>智能体协作</strong>
+        </div>
+        <div class="top-search"><svg><use href="icons.svg#i-search"></use></svg>搜索 Agent、主机或证据编号</div>
+        <div class="tenant"><span class="tenant-dot"></span>自动化运维管理平台</div>
+      </header>
+
+      <div class="page">
+        <a class="back-link" href="detail.html"><svg><use href="icons.svg#i-arrow-left"></use></svg>返回订单中心定界</a>
+
+        <div class="page-head" style="margin-bottom:14px">
+          <div>
+            <div class="page-kicker">Agent collaboration / case 0142</div>
+            <h1>智能体协作过程</h1>
+            <p class="page-sub">平台总调度把“需要什么证据”拆成受控探测任务，分发给对应操作系统智能体；智能体在本机执行采集并返回结构化结果，平台再用这些结果更新故障边界和根因评分。</p>
+          </div>
+          <div class="actions">
+            <span class="badge warn">分析中</span>
+            <button class="btn" type="button"><svg><use href="icons.svg#i-refresh"></use></svg>刷新协作记录</button>
+          </div>
+        </div>
+
+        <div class="kpi-strip" style="margin-bottom:14px">
+          <div class="kpi"><div class="kpi-label">参与智能体</div><div class="kpi-value">3</div><div class="kpi-note">app-01 · db-01 · app-02</div></div>
+          <div class="kpi"><div class="kpi-label">受控探测任务</div><div class="kpi-value">6</div><div class="kpi-note">4 已完成 · 2 运行中</div></div>
+          <div class="kpi"><div class="kpi-label">返回证据</div><div class="kpi-value">5</div><div class="kpi-note">日志 2 · 指标 2 · 连接 1</div></div>
+          <div class="kpi"><div class="kpi-label">协作耗时</div><div class="kpi-value">2m 18s</div><div class="kpi-note ok">根因评分更新 2 次</div></div>
+        </div>
+
+        <div class="collab-layout">
+          <section class="panel">
+            <div class="panel-head"><h2>协作时间线</h2><span class="muted">平台 ↔ 操作系统智能体</span></div>
+            <div class="feed">
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-node"></use></svg>总调度</div>
+                  <div class="role-meta">21:34:12<br>平台</div>
+                </div>
+                <div class="msg platform">
+                  <div class="msg-head"><strong>下发补采任务</strong><span class="badge neutral">PROBE-006</span><span class="badge warn">进行中</span></div>
+                  <div class="msg-body">
+                    <p><strong>@opsagent-app-01</strong> 请采集 app-01 上的 order-service 运行态：进程树、Java 线程栈、3306 连接和最近 200 行应用日志。</p>
+                    <p>原因：候选「order-service 连接池耗尽」缺少进程与日志证据；任务预算 30 秒，最多 3 个采集动作。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-server"></use></svg>app-01</div>
+                  <div class="role-meta">21:34:18<br>6.2s 返回</div>
+                </div>
+                <div class="msg">
+                  <div class="msg-head"><strong>opsagent-app-01</strong><span class="muted mono">v0.6.0 · zdh-sit1-app-01</span><span class="badge ok">completed</span></div>
+                  <div class="msg-body">
+                    <ul class="cmd-list">
+                      <li><code>ps -eo pid,ppid,user,comm,args | grep java</code></li>
+                      <li><code>ps -T -p 2811 | wc -l</code></li>
+                      <li><code>ss -tnp | grep ESTAB</code></li>
+                      <li><code>tail -n 200 /var/log/order/app.log</code></li>
+                    </ul>
+                    <div class="result-box"><strong>辅助定界：</strong>进程 PID 2811 持续存活，312 个线程；netstat 采集 1,842 条 ESTAB，提取 38 条跨节点边；日志出现 <code>HikariPool-1 - Connection is not available</code> 17 次。连接池是异常源头，不是节点宕机。</div>
+                    <div class="evidence-line">返回证据 <span class="evidence-tag">PROBE-006</span><span class="evidence-tag">LOG-008</span><span class="evidence-tag">METRIC-032</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-node"></use></svg>总调度</div>
+                  <div class="role-meta">21:34:22<br>平台</div>
+                </div>
+                <div class="msg platform">
+                  <div class="msg-head"><strong>排除数据库根因</strong><span class="badge neutral">PROBE-007</span><span class="badge ok">已完成</span></div>
+                  <div class="msg-body">
+                    <p><strong>@opsagent-db-01</strong> 检查 3306 监听、最大连接数、当前连接和慢查询，确认数据库侧是否达到上限。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-server"></use></svg>db-01</div>
+                  <div class="role-meta">21:34:28<br>5.4s 返回</div>
+                </div>
+                <div class="msg">
+                  <div class="msg-head"><strong>opsagent-db-01</strong><span class="muted mono">v0.6.0 · zdh-sit1-db-01</span><span class="badge ok">completed</span></div>
+                  <div class="msg-body">
+                    <ul class="cmd-list">
+                      <li><code>ss -lntp | grep 3306</code></li>
+                      <li><code>ss -tnp | grep ESTAB</code></li>
+                      <li><code>mysql -N -e "show status like 'Threads_connected'"</code></li>
+                      <li><code>mysql -N -e "show variables like 'max_connections'"</code></li>
+                    </ul>
+                    <div class="result-box"><strong>辅助定界：</strong>3306 正常监听；netstat 采集 2,106 条 ESTAB；当前连接 1204 / max_connections 1500，未达到数据库上限。拒绝来自应用侧连接池，降低 db-01 根因候选。</div>
+                    <div class="evidence-line">返回证据 <span class="evidence-tag">PROBE-007</span><span class="evidence-tag">METRIC-044</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-node"></use></svg>总调度</div>
+                  <div class="role-meta">21:34:31<br>平台</div>
+                </div>
+                <div class="msg platform">
+                  <div class="msg-head"><strong>确认受影响边界</strong><span class="badge neutral">PROBE-008</span><span class="badge ok">已完成</span></div>
+                  <div class="msg-body">
+                    <p><strong>@opsagent-app-02</strong> 检查 order-service 是否也出现连接超时，判断 app-02 是受影响节点还是第二个根因。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-server"></use></svg>app-02</div>
+                  <div class="role-meta">21:34:37<br>4.1s 返回</div>
+                </div>
+                <div class="msg">
+                  <div class="msg-head"><strong>opsagent-app-02</strong><span class="muted mono">v0.6.0 · zdh-sit1-app-02</span><span class="badge ok">completed</span></div>
+                  <div class="msg-body">
+                    <ul class="cmd-list">
+                      <li><code>ss -tnp | grep 3306</code></li>
+                      <li><code>tail -n 100 /var/log/order/app.log</code></li>
+                    </ul>
+                    <div class="result-box"><strong>辅助定界：</strong>netstat 采集 1,034 条 ESTAB；错误率 8.7%，有 46 条连接超时，但连接池使用率仅 61%；确认它是下游受影响节点，不是第二个根因。</div>
+                    <div class="evidence-line">返回证据 <span class="evidence-tag">LOG-009</span><span class="evidence-tag">CONN-003</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="interaction">
+                <div class="interaction-role">
+                  <div class="role-name role-bot"><svg><use href="icons.svg#i-node"></use></svg>总调度</div>
+                  <div class="role-meta">21:36:24<br>平台</div>
+                </div>
+                <div class="msg platform">
+                  <div class="msg-head"><strong>合并证据，更新根因</strong><span class="badge neutral">CONCLUDE</span><span class="badge warn">待人工确认</span></div>
+                  <div class="msg-body">
+                    <p>3 个智能体返回 5 条证据。order-service 连接池候选从 <code>0.64 → 0.82</code>；MySQL 连接数候选从 <code>0.61 → 0.34</code>；app-02 标记为受影响边界。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="rail">
+            <section class="panel">
+              <div class="panel-head"><h2>智能体贡献</h2><span class="muted">对定界的直接影响</span></div>
+              <div class="contribution">
+                <div class="contribution-head"><strong>opsagent-app-01</strong><span class="delta">0.64 → 0.82</span></div>
+                <p>提供连接池超时日志和 312 个线程证据，把根因从“疑似数据库问题”拉回到应用连接池，并确认根因节点。</p>
+              </div>
+              <div class="contribution">
+                <div class="contribution-head"><strong>opsagent-db-01</strong><span class="delta">0.61 → 0.34</span></div>
+                <p>确认 3306 正常监听、连接数未达上限，排除数据库为根因，同时保留了“下游受影响”的证据。</p>
+              </div>
+              <div class="contribution">
+                <div class="contribution-head"><strong>opsagent-app-02</strong><span class="delta">边界 +1</span></div>
+                <p>确认 app-02 有连接超时但连接池仅 61%，将其标记为受影响节点而不是第二个根因。</p>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><h2>参与节点</h2><span class="muted">本机执行</span></div>
+              <div class="agent-roster">
+                <div class="roster-row">
+                  <div class="roster-avatar">A1</div>
+                  <div><div class="roster-name">zdh-sit1-app-01</div><div class="roster-meta">app-01 · 10.24.18.21<br>3 probes / 6.2s</div></div>
+                  <span class="roster-status badge ok">已返回</span>
+                </div>
+                <div class="roster-row">
+                  <div class="roster-avatar">D1</div>
+                  <div><div class="roster-name">zdh-sit1-db-01</div><div class="roster-meta">db-01 · 10.24.18.41<br>2 probes / 5.4s</div></div>
+                  <span class="roster-status badge ok">已返回</span>
+                </div>
+                <div class="roster-row">
+                  <div class="roster-avatar">A2</div>
+                  <div><div class="roster-name">zdh-sit1-app-02</div><div class="roster-meta">app-02 · 10.24.18.22<br>1 probe / 4.1s</div></div>
+                  <span class="roster-status badge ok">已返回</span>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

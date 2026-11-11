@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="dsh-design" content="web">
+  <title>故障定界 · 定界工作台</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">OA</div>
+        <div>
+          <div class="brand-name">OpsAgent</div>
+          <div class="brand-sub">智能运维控制台</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-label">工作区</div>
+        <a href="index.html"><svg><use href="icons.svg#i-grid"></use></svg>工作台</a>
+        <a href="#"><svg><use href="icons.svg#i-message"></use></svg>智能体会话</a>
+        <a class="active" href="index.html"><svg><use href="icons.svg#i-activity"></use></svg>故障定界</a>
+        <a href="#"><svg><use href="icons.svg#i-shield"></use></svg>事件指挥</a>
+        <div class="nav-label">运行资产</div>
+        <a href="#"><svg><use href="icons.svg#i-server"></use></svg>操作系统智能体</a>
+        <a href="#"><svg><use href="icons.svg#i-node"></use></svg>应用系统</a>
+        <a href="#"><svg><use href="icons.svg#i-terminal"></use></svg>巡检对象</a>
+        <div class="nav-label">配置</div>
+        <a href="#"><svg><use href="icons.svg#i-book"></use></svg>技能与知识</a>
+        <a href="#"><svg><use href="icons.svg#i-bell"></use></svg>通知策略</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div>生产环境 · 华东一区</div>
+        <div>最后同步 21:34:08</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs">
+          <span>运维</span>
+          <svg><use href="icons.svg#i-chevron"></use></svg>
+          <strong>故障定界</strong>
+        </div>
+        <div class="top-search"><svg><use href="icons.svg#i-search"></use></svg>搜索应用系统、主机或定界案例</div>
+        <div class="tenant"><span class="tenant-dot"></span>自动化运维管理平台</div>
+      </header>
+
+      <div class="page">
+        <div class="page-head">
+          <div>
+            <div class="page-kicker">Fault boundary / 01</div>
+            <h1>故障定界</h1>
+            <p class="page-sub">按应用系统汇总异常和性能指标，沿真实访问关系计算故障边界，再自动调度智能体补齐证据，最终收敛到可追溯的根因。</p>
+          </div>
+          <div class="actions">
+            <button class="btn" type="button"><svg><use href="icons.svg#i-refresh"></use></svg>刷新信号</button>
+            <a class="btn btn-primary" href="detail.html"><svg><use href="icons.svg#i-plus"></use></svg>发起定界</a>
+          </div>
+        </div>
+
+        <div class="kpi-strip">
+          <div class="kpi">
+            <div class="kpi-label"><span>进行中的定界</span><span class="mono">LIVE</span></div>
+            <div class="kpi-value">4</div>
+            <div class="kpi-note"><strong>2</strong> 个 P1 正在收敛</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label"><span>受影响节点</span><span class="mono">12 / 86</span></div>
+            <div class="kpi-value">12</div>
+            <div class="kpi-note">集中在 3 个应用系统</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label"><span>自动补采任务</span><span class="mono">PROBE</span></div>
+            <div class="kpi-value">7</div>
+            <div class="kpi-note"><strong>2</strong> 个等待智能体返回</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label"><span>本周已定位</span><span class="mono">7 DAYS</span></div>
+            <div class="kpi-value">23</div>
+            <div class="kpi-note ok"><strong>18</strong> 条根因被人工确认</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button class="chip is-active" type="button">全部 12</button>
+          <button class="chip" type="button">分析中 4</button>
+          <button class="chip" type="button">已结论 6</button>
+          <button class="chip" type="button">待确认 2</button>
+          <span class="muted">按最近信号排序 · 自动刷新 30s</span>
+        </div>
+
+        <div class="layout">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>定界案例</h2>
+              <span class="muted">最近 24 小时 · 共 12 个</span>
+            </div>
+            <div class="case-list">
+              <a class="case-row" href="detail.html">
+                <span class="case-sev critical"></span>
+                <div>
+                  <div class="case-title">订单中心 <span class="badge danger">P1</span><span class="badge warn">分析中</span></div>
+                  <div class="case-meta"><span>MySQL 连接池耗尽导致订单提交超时</span><span>·</span><span>14 分钟前开始</span></div>
+                </div>
+                <div class="case-scope"><strong>2</strong> 节点 / 3 应用<br><span class="muted">order-svc · mysql:3306</span></div>
+                <div class="case-conf">置信度 <strong class="mono">82%</strong><div class="conf-bar"><i style="width:82%"></i></div></div>
+                <div class="case-time">2 分钟前<span>查看定界 →</span></div>
+              </a>
+
+              <a class="case-row" href="detail.html">
+                <span class="case-sev warning"></span>
+                <div>
+                  <div class="case-title">支付网关 <span class="badge warn">P2</span><span class="badge neutral">待补采</span></div>
+                  <div class="case-meta"><span>调用 MySQL 3306 连接被拒绝</span><span>·</span><span>9 分钟前</span></div>
+                </div>
+                <div class="case-scope"><strong>1</strong> 节点 / 2 应用<br><span class="muted">pay-gateway · mysql:3306</span></div>
+                <div class="case-conf">置信度 <strong class="mono">64%</strong><div class="conf-bar"><i style="width:64%; background:#9b671c"></i></div></div>
+                <div class="case-time">9 分钟前<span>查看定界 →</span></div>
+              </a>
+
+              <a class="case-row" href="detail.html">
+                <span class="case-sev critical"></span>
+                <div>
+                  <div class="case-title">基础平台 <span class="badge danger">P1</span><span class="badge warn">分析中</span></div>
+                  <div class="case-meta"><span>Redis 主从同步延迟超过 8s</span><span>·</span><span>14 分钟前</span></div>
+                </div>
+                <div class="case-scope"><strong>2</strong> 节点 / 4 应用<br><span class="muted">redis-master · redis-slave</span></div>
+                <div class="case-conf">置信度 <strong class="mono">71%</strong><div class="conf-bar"><i style="width:71%"></i></div></div>
+                <div class="case-time">14 分钟前<span>查看定界 →</span></div>
+              </a>
+
+              <a class="case-row" href="detail.html">
+                <span class="case-sev info"></span>
+                <div>
+                  <div class="case-title">会员中心 <span class="badge neutral">P3</span><span class="badge ok">已结论</span></div>
+                  <div class="case-meta"><span>Java 进程 Full GC 周期变长</span><span>·</span><span>28 分钟前</span></div>
+                </div>
+                <div class="case-scope"><strong>1</strong> 节点 / 1 应用<br><span class="muted">member-svc · java:48012</span></div>
+                <div class="case-conf">置信度 <strong class="mono">56%</strong><div class="conf-bar"><i style="width:56%"></i></div></div>
+                <div class="case-time">28 分钟前<span>查看定界 →</span></div>
+              </a>
+
+              <a class="case-row" href="detail.html">
+                <span class="case-sev info"></span>
+                <div>
+                  <div class="case-title">商品中心 <span class="badge neutral">P3</span><span class="badge ok">已关闭</span></div>
+                  <div class="case-meta"><span>接口 P99 从 120ms 升至 480ms</span><span>·</span><span>1 小时前</span></div>
+                </div>
+                <div class="case-scope"><strong>0</strong> 节点 / 0 应用<br><span class="muted">已恢复 · 无边界</span></div>
+                <div class="case-conf">置信度 <strong class="mono">78%</strong><div class="conf-bar"><i style="width:78%; background:#2c7357"></i></div></div>
+                <div class="case-time">1 小时前<span>查看定界 →</span></div>
+              </a>
+            </div>
+          </section>
+
+          <aside class="rail">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>自动补采队列</h2>
+                <span class="muted">2 运行中</span>
+              </div>
+              <div class="panel-body">
+                <div class="probe">
+                  <div class="probe-icon"><svg><use href="icons.svg#i-terminal"></use></svg></div>
+                  <div><div class="probe-title">进程树 · order-svc</div><div class="probe-meta">zdh-sit1-app-01 · 运行中</div></div>
+                  <span class="badge warn">RUN</span>
+                </div>
+                <div class="probe">
+                  <div class="probe-icon"><svg><use href="icons.svg#i-book"></use></svg></div>
+                  <div><div class="probe-title">日志 tail · app.log</div><div class="probe-meta">zdh-sit1-app-01 · 最近 200 行</div></div>
+                  <span class="badge warn">RUN</span>
+                </div>
+                <div class="probe">
+                  <div class="probe-icon"><svg><use href="icons.svg#i-node"></use></svg></div>
+                  <div><div class="probe-title">端口状态 · mysql:3306</div><div class="probe-meta">zdh-sit1-db-01 · 等待调度</div></div>
+                  <span class="badge neutral">QUEUE</span>
+                </div>
+                <div class="probe">
+                  <div class="probe-icon"><svg><use href="icons.svg#i-activity"></use></svg></div>
+                  <div><div class="probe-title">连接采样 · order → mysql</div><div class="probe-meta">窗口 5 分钟 · 已完成</div></div>
+                  <span class="badge ok">DONE</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><h2>定界方法</h2><span class="muted">v0.2</span></div>
+              <div class="panel-body">
+                <ul class="rule-list">
+                  <li><span class="rule-index">01</span><div><b>按应用系统聚合。</b>同窗口同指纹的异常进入同一个 Case，不重复分析。</div></li>
+                  <li><span class="rule-index">02</span><div><b>拓扑算边界。</b>沿真实访问连接向下游扩散，区分根因区、受影响区和边界外依赖。</div></li>
+                  <li><span class="rule-index">03</span><div><b>证据不足才补采。</b>平台生成受控 probe，不让模型直接执行命令。</div></li>
+                  <li><span class="rule-index">04</span><div><b>结论必须带证据。</b>总调度智能体只能引用已存在的证据编号。</div></li>
+                </ul>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

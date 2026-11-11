@@ -2348,3 +2348,46 @@ html[data-theme="dark"] .topo2-header-bg { fill: var(--surface); }
 .topo-adjust-history-actions .btn { height: 28px; font-size: 11px; }
 .topo-adjust-history-actions .btn.is-danger { color: var(--danger); border-color: var(--danger); }
 .topo-adjust-confirm { color: var(--danger); font-size: 10.5px; }
+
+/* 操作系统智能体页内嵌：复用访问拓扑画布（不含外部依赖） */
+.topology-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.topology-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.topology-preview-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.topology-preview-head strong { font-size: 13px; color: var(--text); }
+.topology-preview-head span { font-size: 11px; color: var(--muted); }
+.topology-preview-canvas {
+  display: flex;
+  height: 560px;
+  min-height: 360px;
+  background: var(--bg-subtle);
+}
+.topology-preview-canvas .topo2-canvas { border-top: 0; }
+.topology-preview-state {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 32px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.topology-preview-state.is-bad { color: var(--danger); }

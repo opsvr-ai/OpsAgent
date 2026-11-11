@@ -110,24 +110,44 @@ export class ModelCompletionService {
       return text;
     }
 
-    const response = await postJson(`${openAiBase(model.baseUrl)}/chat/completions`, {
+    const messages = [
+      { role: 'system', content: input.system },
+      { role: 'user', content: input.prompt },
+    ];
+    const url = `${openAiBase(model.baseUrl)}/chat/completions`;
+    const headers = {
+      'content-type': 'application/json',
+      authorization: `Bearer ${model.apiKey}`,
+    };
+    let response = await postJson(url, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${model.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model.model,
-        temperature: 0.2,
-        max_tokens: maxTokens,
-        messages: [
-          { role: 'system', content: input.system },
-          { role: 'user', content: input.prompt },
-        ],
-      }),
+      headers,
+      // stream:false 显式声明，兼容默认开启流式的内网网关。
+      body: JSON.stringify({ model: model.model, temperature: 0.2, max_tokens: maxTokens, messages, stream: false }),
       signal: timeout,
     });
-    const { body, raw } = await readJson(response);
+    let parsed = await readJson(response);
+    // 部分内网网关不接受 temperature/max_tokens/stream 等可选参数（400/422），
+    // 用最小 payload 重试一次，尽量兼容。
+    if (!response.ok && (response.status === 400 || response.status === 422)) {
+      const retry = await postJson(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model: model.model, messages }),
+        signal: timeout,
+      });
+      const retryParsed = await readJson(retry);
+      if (retry.ok) {
+        response = retry;
+        parsed = retryParsed;
+      } else {
+        throw new Error(
+          `model_http_${response.status}:${errorMessage(parsed.body, parsed.raw)}`
+          + ` / retry_${retry.status}:${errorMessage(retryParsed.body, retryParsed.raw)}`,
+        );
+      }
+    }
+    const { body, raw } = parsed;
     if (!response.ok) throw new Error(`model_http_${response.status}:${errorMessage(body, raw)}`);
     const choices = Array.isArray(body.choices)
       ? (body.choices as Array<Record<string, unknown>>)

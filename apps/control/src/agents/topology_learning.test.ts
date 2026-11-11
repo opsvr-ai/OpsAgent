@@ -5,6 +5,7 @@ import { migrate } from '../db/migrate.js';
 import { seed } from '../db/seed.js';
 import { buildServer } from '../server.js';
 import { AgentConnectionEdgeService } from './connection_edges.js';
+import { AgentHttpRequestService } from './topology_http_requests.js';
 import {
   buildGraphPayload,
   buildLearningInput,
@@ -1288,6 +1289,101 @@ describeDb('TopologyLearningService (postgres)', () => {
     expect(invalidWindow.statusCode).toBe(400);
     const invalidBucket = await app.inject({ method: 'GET', url: '/api/topologies/access-trends?bucket=minute', headers });
     expect(invalidBucket.statusCode).toBe(400);
+
+    // HTTP/gRPC 请求趋势：先注入一个心跳窗口样本。
+    const httpRequests = new AgentHttpRequestService(pool);
+    const now = Date.now();
+    await httpRequests.sync(tenantId, webId, [{
+      start: new Date(now - 60_000).toISOString(),
+      end: new Date(now).toISOString(),
+      source: 'userspace',
+      requests: [{
+        direction: 'out',
+        protocol: 'http2',
+        method: 'POST',
+        localAddress: '10.0.1.11',
+        localPort: 41234,
+        peerAddress: '10.0.2.21',
+        peerPort: 8080,
+        service: 'order-api',
+        requests: 9,
+        errors: 1,
+        firstSeen: new Date(now - 60_000).toISOString(),
+        lastSeen: new Date(now).toISOString(),
+      }],
+    }]);
+    const httpTrends = await app.inject({
+      method: 'GET',
+      url: `/api/topologies/http-requests?windowHours=24&bucket=hour&appSystemId=${appSystemId}`,
+      headers,
+    });
+    expect(httpTrends.statusCode).toBe(200);
+    const httpBody = httpTrends.json() as {
+      windowSeconds: number;
+      rows: Array<{ relationKey: string; protocol: string; method: string; totalRequests: number; buckets: unknown[] }>;
+    };
+    expect(httpBody).toMatchObject({ windowSeconds: 86400, bucket: 'hour' });
+    const httpRow = httpBody.rows.find((row) => row.relationKey === 'web-01|db-01|8080');
+    expect(httpRow).toMatchObject({ protocol: 'http2', method: 'POST', totalRequests: 9 });
+    expect(httpRow?.buckets.length).toBeGreaterThanOrEqual(24);
+    const invalidHttpWindow = await app.inject({
+      method: 'GET',
+      url: '/api/topologies/http-requests?windowHours=999',
+      headers,
+    });
+    expect(invalidHttpWindow.statusCode).toBe(400);
+
+    // AI 标签建议：分类器未就绪时规则兜底；relationKeys 过滤；无图 404。
+    const suggest = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags/suggest',
+      headers,
+      payload: { appSystemId },
+    });
+    expect(suggest.statusCode).toBe(200);
+    const suggestBody = suggest.json() as {
+      fallback: boolean;
+      model: string;
+      suggestions: Array<{ relationKey: string; label: string; category: string; source: string }>;
+    };
+    expect(typeof suggestBody.fallback).toBe('boolean');
+    expect(suggestBody.suggestions.length).toBeGreaterThan(0);
+    expect(suggestBody.suggestions.every((item) => item.source === 'model' || item.source === 'rule')).toBe(true);
+    const filteredSuggest = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags/suggest',
+      headers,
+      payload: { appSystemId, relationKeys: [relationKey] },
+    });
+    expect(filteredSuggest.statusCode).toBe(200);
+    expect((filteredSuggest.json() as { suggestions: Array<{ relationKey?: string }> }).suggestions
+      .every((item) => item.relationKey === relationKey)).toBe(true);
+    const noGraphSuggest = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags/suggest',
+      headers,
+      payload: { appSystemId: '00000000-0000-4000-8000-0000000000ff' },
+    });
+    expect(noGraphSuggest.statusCode).toBe(404);
+
+    // source='model' 采纳后落库并返回。
+    const modelTag = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags',
+      headers,
+      payload: { relationKey, label: 'AI建议-核心链路', category: '数据访问', source: 'model' },
+    });
+    expect(modelTag.statusCode).toBe(201);
+    expect((modelTag.json() as { source: string }).source).toBe('model');
+    const modelTagId = (modelTag.json() as { id: string }).id;
+    const recreatedAsUser = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags',
+      headers,
+      payload: { relationKey, label: 'AI建议-核心链路', category: '数据访问', source: 'user' },
+    });
+    expect((recreatedAsUser.json() as { source: string }).source).toBe('user');
+    await app.inject({ method: 'DELETE', url: `/api/topologies/edge-tags/${modelTagId}`, headers });
 
     const deleted = await app.inject({ method: 'DELETE', url: `/api/topologies/edge-tags/${tagId}`, headers });
     expect(deleted.statusCode).toBe(200);

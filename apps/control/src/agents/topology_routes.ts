@@ -1,18 +1,32 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
-import type { TopologyScope } from '@opsagent/contracts';
+import type {
+  EdgeTagSuggestion,
+  EdgeTagSuggestResponse,
+  TopologyEdgeTag,
+  TopologyGraph,
+  TopologyScope,
+} from '@opsagent/contracts';
 import { SESSION_COOKIE, readSession } from '../auth/session.js';
 import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext } from '../tenancy/context.js';
 import type { TenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
+import { ModelCompletionService } from '../models/completion.js';
+import { ModelProviderService } from '../models/service.js';
 import { AgentConnectionEdgeService } from './connection_edges.js';
 import {
   TopologyLearningError,
   TopologyLearningService,
 } from './topology_learning.js';
-import { TopologyEdgeTagService, normalizeEdgeTagInput } from './topology_tags.js';
+import {
+  TopologyEdgeTagService,
+  normalizeEdgeTagInput,
+  topologyNodeRelationName,
+  topologyRelationKey,
+} from './topology_tags.js';
 import { AccessTrendError, AccessTrendService } from './topology_trends.js';
+import { HttpRequestTrendError, HttpRequestTrendService } from './topology_http_requests.js';
 
 /**
  * 访问拓扑学习 API（/api/topologies 前缀）。
@@ -101,16 +115,208 @@ function parseScope(value: unknown): TopologyScope | undefined {
   return undefined;
 }
 
+// ---------------------------------------------------------------------------
+// AI 标签建议：EdgeClassificationInput → TopologyEdgeClassifier → 兜底规则
+// ---------------------------------------------------------------------------
+
+/** 与 topology-llm 的 topology_edge_classifier.ts 保持结构一致（该文件由其维护）。 */
+export interface EdgeClassificationInput {
+  readonly relationKey: string;
+  readonly sourceHost: string;
+  readonly targetHost: string;
+  readonly targetPort: number;
+  readonly sourceService?: string;
+  readonly targetProduct?: string;
+  readonly targetTier?: string;
+  readonly protocol?: string;
+}
+
+export interface EdgeClassifierResultLike {
+  readonly suggestions: readonly EdgeTagSuggestion[];
+  readonly model: string;
+  readonly fallback: boolean;
+  readonly warning?: string;
+}
+
+export interface EdgeClassifierLike {
+  suggest(tenantId: string, edges: readonly EdgeClassificationInput[]): Promise<EdgeClassifierResultLike>;
+}
+
+const OPS_TAG_PORTS = new Set([22, 3000, 9090, 9100, 10050, 10051]);
+const OPS_TAG_PATTERN = /(opsagent|sshd|zabbix|node_exporter|prometheus|grafana)/i;
+const DATA_TAG_PATTERN = /(mysql|mariadb|postgres|postgresql|oracle|mongo|clickhouse|elasticsearch)/i;
+const DATA_TAG_ES_PATTERN = /(^|[-_])es($|[-_])/i;
+const MIDDLEWARE_TAG_PATTERN = /(redis|kafka|rabbitmq|nacos|zookeeper)/i;
+
+function fallbackTagCategory(edge: EdgeClassificationInput): string {
+  const service = edge.sourceService ?? '';
+  if (OPS_TAG_PORTS.has(edge.targetPort) || OPS_TAG_PATTERN.test(service)) return '运维工具';
+  if (edge.targetTier === 'external') return '外部依赖';
+  const product = edge.targetProduct ?? '';
+  if (edge.targetTier === 'data' || DATA_TAG_PATTERN.test(product) || DATA_TAG_ES_PATTERN.test(product)) {
+    return '数据访问';
+  }
+  if (edge.targetTier === 'middleware' || MIDDLEWARE_TAG_PATTERN.test(product)) return '中间件访问';
+  return '应用调用';
+}
+
+/** 确定性规则兜底建议（分类器不可用/输出为空时使用）。 */
+export function buildRuleSuggestions(
+  edges: readonly EdgeClassificationInput[],
+  warning?: string,
+): EdgeTagSuggestResponse {
+  const suggestions: EdgeTagSuggestion[] = edges.map((edge) => {
+    const category = fallbackTagCategory(edge);
+    return {
+      relationKey: edge.relationKey,
+      label: category,
+      category,
+      confidence: 0.55,
+      reason: `规则兜底：按端口 ${edge.targetPort} / 目标层级 ${edge.targetTier ?? 'unknown'} 判定为${category}`,
+      source: 'rule',
+    };
+  });
+  return {
+    suggestions,
+    model: 'rule',
+    fallback: true,
+    ...(warning ? { warning: warning.slice(0, 500) } : {}),
+  };
+}
+
+function edgeSourceName(graph: TopologyGraph, id: string): string {
+  const node = graph.nodes.find((item) => item.id === id);
+  return node ? topologyNodeRelationName(node) : id;
+}
+
+function edgeTargetNode(graph: TopologyGraph, id: string) {
+  return graph.nodes.find((item) => item.id === id);
+}
+
+/** 从最新拓扑图取前 80 条边，构造分类器输入（relationKeys 传入时先过滤）。 */
+export function collectEdgeClassificationInputs(
+  graph: TopologyGraph,
+  relationKeys?: readonly string[],
+): EdgeClassificationInput[] {
+  const wanted = relationKeys && relationKeys.length > 0 ? new Set(relationKeys) : null;
+  const inputs: EdgeClassificationInput[] = [];
+  for (const edge of graph.edges) {
+    if (inputs.length >= 80) break;
+    const targetNode = edgeTargetNode(graph, edge.target);
+    const relationKey = edge.relationKey
+      ?? topologyRelationKey(edgeSourceName(graph, edge.source), edgeTargetNode(graph, edge.target)
+        ? topologyNodeRelationName(edgeTargetNode(graph, edge.target)!)
+        : edge.target, edge.port);
+    if (wanted && !wanted.has(relationKey)) continue;
+    const sourceNode = graph.nodes.find((item) => item.id === edge.source);
+    inputs.push({
+      relationKey,
+      sourceHost: sourceNode ? topologyNodeRelationName(sourceNode) : edge.source,
+      targetHost: targetNode ? topologyNodeRelationName(targetNode) : edge.target,
+      targetPort: edge.port,
+      ...(edge.processes?.[0] ? { sourceService: edge.processes[0].slice(0, 120) } : {}),
+      ...(targetNode?.product ? { targetProduct: targetNode.product.slice(0, 120) } : {}),
+      ...(targetNode?.tier ? { targetTier: targetNode.tier } : {}),
+      ...(edge.protocol ? { protocol: edge.protocol } : {}),
+    });
+  }
+  return inputs;
+}
+
+function normalizeClassifierSuggestions(
+  suggestions: readonly EdgeTagSuggestion[],
+  inputs: readonly EdgeClassificationInput[],
+  source: 'model' | 'rule',
+): EdgeTagSuggestion[] {
+  const allowed = new Map(inputs.map((input) => [input.relationKey, input]));
+  const output: EdgeTagSuggestion[] = [];
+  for (const suggestion of suggestions.slice(0, 80)) {
+    if (!allowed.has(suggestion.relationKey)) continue;
+    const label = typeof suggestion.label === 'string' ? suggestion.label.trim().slice(0, 40) : '';
+    const category = typeof suggestion.category === 'string' ? suggestion.category.trim().slice(0, 40) : '';
+    if (!label || !category) continue;
+    const confidence = Number.isFinite(suggestion.confidence) ? Math.min(Math.max(suggestion.confidence, 0), 1) : 0.6;
+    output.push({
+      relationKey: suggestion.relationKey,
+      label,
+      category,
+      confidence,
+      ...(typeof suggestion.reason === 'string' && suggestion.reason.trim()
+        ? { reason: suggestion.reason.trim().slice(0, 300) }
+        : {}),
+      source,
+    });
+  }
+  return output;
+}
+
+/** 调用分类器；不可用/抛错/空结果时回退规则建议（fallback=true，warning 带原因）。 */
+export async function suggestEdgeTagsFromGraph(args: {
+  readonly tenantId: string;
+  readonly edges: readonly EdgeClassificationInput[];
+  readonly classifier?: EdgeClassifierLike | undefined;
+}): Promise<EdgeTagSuggestResponse> {
+  if (args.edges.length === 0) {
+    return { suggestions: [], model: 'rule', fallback: false };
+  }
+  if (!args.classifier) {
+    return buildRuleSuggestions(args.edges, 'classifier_unavailable: 分类器未就绪，已按规则给出建议');
+  }
+  try {
+    const result = await args.classifier.suggest(args.tenantId, args.edges);
+    const suggestions = normalizeClassifierSuggestions(
+      result.suggestions ?? [],
+      args.edges,
+      result.fallback ? 'rule' : 'model',
+    );
+    if (suggestions.length === 0) {
+      return buildRuleSuggestions(args.edges, 'classifier_empty: 分类器未返回有效建议，已按规则给出建议');
+    }
+    const warning = result.fallback
+      ? `模型建议不可用（${result.warning ?? 'model_unavailable'}），已按规则给出建议`
+      : result.warning;
+    return {
+      suggestions,
+      model: (result.model || 'llm').slice(0, 120),
+      fallback: result.fallback === true,
+      ...(warning ? { warning: warning.slice(0, 500) } : {}),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return buildRuleSuggestions(args.edges, `classifier_error: ${message}`.slice(0, 500));
+  }
+}
+
+/** 动态加载 LLM 分类器；topology-llm 交付前保持可控降级。 */
+async function loadEdgeClassifier(completion: ModelCompletionService): Promise<EdgeClassifierLike | undefined> {
+  // TODO(classifier): topology_edge_classifier.ts 交付后改为静态 import。
+  const specifier = './topology_edge_classifier.js';
+  try {
+    const loaded = (await import(specifier)) as {
+      TopologyEdgeClassifier?: new (service: ModelCompletionService) => EdgeClassifierLike;
+    };
+    const Classifier = loaded.TopologyEdgeClassifier;
+    return typeof Classifier === 'function' ? new Classifier(completion) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function registerTopologyRoutes(
   app: FastifyInstance,
   pool: Pool,
   service?: TopologyLearningService,
   modelSecret?: string,
+  edgeClassifier?: EdgeClassifierLike,
 ): void {
   const learning = service ?? new TopologyLearningService(pool, modelSecret);
   const edgeSamples = new AgentConnectionEdgeService(pool);
   const edgeTags = new TopologyEdgeTagService(pool);
   const trends = new AccessTrendService(pool, edgeTags);
+  const httpTrends = new HttpRequestTrendService(pool, edgeTags);
+  const completion = new ModelCompletionService(
+    new ModelProviderService(pool, modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret'),
+  );
 
   app.post('/api/topologies/learn', async (request, reply) => {
     const ctx = await authorize(request, reply, pool);
@@ -325,6 +531,65 @@ export function registerTopologyRoutes(
       }
     },
   );
+
+  // HTTP/gRPC 请求量趋势（仅明文旁路：http1/http2/grpc）。
+  app.get<{ Querystring: { windowHours?: string; bucket?: string; appSystemId?: string } }>(
+    '/api/topologies/http-requests',
+    async (request, reply) => {
+      const ctx = await authorize(request, reply, pool);
+      if (!ctx) return;
+      const windowHours = request.query.windowHours === undefined
+        ? 24
+        : Number.parseInt(request.query.windowHours, 10);
+      if (!Number.isFinite(windowHours)) return reply.code(400).send({ error: 'invalid_window' });
+      const bucket = request.query.bucket ?? 'hour';
+      if (bucket !== 'hour' && bucket !== 'day') return reply.code(400).send({ error: 'invalid_bucket' });
+      const appSystemId = parseAppSystemId(request.query.appSystemId);
+      if (appSystemId === undefined) return reply.code(400).send({ error: 'invalid_app_system' });
+      try {
+        const response = await httpTrends.get(ctx.tenantId, { windowHours, bucket, appSystemId });
+        return reply.send(response);
+      } catch (error) {
+        if (error instanceof HttpRequestTrendError) {
+          return reply.code(400).send({ error: error.code });
+        }
+        throw error;
+      }
+    },
+  );
+
+  // AI 标签建议：调用 LLM 分类器；不可用时规则兜底并返回 warning。
+  app.post('/api/topologies/edge-tags/suggest', async (request, reply) => {
+    const ctx = await authorize(request, reply, pool);
+    if (!ctx) return;
+    const body = request.body as {
+      appSystemId?: unknown;
+      relationKeys?: unknown;
+    } | undefined;
+    const appSystemId = parseAppSystemId(body?.appSystemId);
+    if (appSystemId === undefined) return reply.code(400).send({ error: 'invalid_app_system' });
+    let relationKeys: string[] | undefined;
+    if (body?.relationKeys !== undefined) {
+      if (!Array.isArray(body.relationKeys)
+        || body.relationKeys.some((item) => typeof item !== 'string')) {
+        return reply.code(400).send({ error: 'invalid_relation_keys' });
+      }
+      relationKeys = (body.relationKeys as string[])
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 500);
+    }
+    const graph = await learning.latest(ctx.tenantId, appSystemId);
+    if (!graph) return reply.code(404).send({ error: 'topology_not_found' });
+    const inputs = collectEdgeClassificationInputs(graph, relationKeys);
+    const classifier = edgeClassifier ?? await loadEdgeClassifier(completion);
+    const response = await suggestEdgeTagsFromGraph({
+      tenantId: ctx.tenantId,
+      edges: inputs,
+      ...(classifier ? { classifier } : {}),
+    });
+    return reply.send(response);
+  });
 
   // 注意：通配 /:id 必须放在最后。
   app.get<{ Params: { id: string } }>('/api/topologies/:id', async (request, reply) => {

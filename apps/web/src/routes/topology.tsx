@@ -11,6 +11,10 @@ import type {
   TopologyEdgeTagInput,
   AccessTrendsResponse,
   AccessTrendRow,
+  HttpRequestTrendsResponse,
+  HttpRequestTrendRow,
+  EdgeTagSuggestResponse,
+  EdgeTagSuggestion,
 } from '@opsagent/contracts';
 import {
   ApiError,
@@ -26,6 +30,8 @@ import {
   deleteEdgeTag,
   getAccessTrends,
   getEdgeTags,
+  getHttpRequests,
+  suggestEdgeTags,
   listAppSystems,
   listAvailableModels,
   startTopologyLearning,
@@ -47,10 +53,13 @@ import { TopologyCanvas, type CenterTarget } from '../topology/topology-canvas.j
 import { AnalysisPanel, NodeDetailPanel } from '../topology/analysis-panel.js';
 import { LearningWizard, PolicyPanel, type AppSystemOption } from '../topology/learning.js';
 import {
+  HttpRequestsPanel,
   RelationsPanel,
+  TagSuggestionsDialog,
   TrendsPanel,
   suggestedTagForPort,
   type RelationRow,
+  type TrendMode,
 } from '../topology/visits-panel.js';
 import { MiniIcon } from '../topology/icons.js';
 import {
@@ -73,6 +82,7 @@ import {
   filterGraphByScope,
   loadDisplaySettings,
   prepareTopology,
+  isManagementService,
   saveDisplaySettings,
   splitServices,
   type ExternalGroupInfo,
@@ -187,6 +197,93 @@ function demoAccessTrends(graph: TopologyGraph, windowHours: number): AccessTren
   };
 }
 
+function demoHttpRequests(graph: TopologyGraph, windowHours: number): HttpRequestTrendsResponse {
+  const bucket = windowHours <= 24 ? 'hour' : 'day';
+  const bucketCount = windowHours <= 24 ? 24 : 7;
+  const now = Date.now();
+  const bucketMs = (windowHours * 3_600_000) / bucketCount;
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const httpPorts = new Set([80, 8080, 3000, 50051, 9090]);
+  const rows: HttpRequestTrendRow[] = graph.edges
+    .filter((edge) => httpPorts.has(edge.port))
+    .map((edge, index) => {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      const protocol: HttpRequestTrendRow['protocol'] =
+        edge.port === 50051 || edge.port === 9090 ? 'grpc' : index % 2 === 0 ? 'http2' : 'http1';
+      const method = protocol === 'grpc' ? 'POST' : index % 3 === 0 ? 'POST' : 'GET';
+      const requestCount = Math.max(12, Math.round(edge.opened * 0.42));
+      const buckets = Array.from({ length: bucketCount }, (_, bucketIndex) => {
+        const weight = 0.5 + ((Math.sin((index + bucketIndex) * 1.4) + 1) / 2) * 0.8;
+        return {
+          start: new Date(now - (bucketCount - bucketIndex) * bucketMs).toISOString(),
+          requests: Math.max(1, Math.round((requestCount / bucketCount) * weight)),
+          errors: Math.round((edge.failed / bucketCount) * weight),
+        };
+      });
+      return {
+        id: `http-${edge.id}`,
+        relationKey: edge.relationKey ?? edge.id,
+        sourceAgentId: edge.source,
+        sourceHost: source?.hostname ?? source?.label ?? edge.source,
+        sourceService:
+          source?.services.find((service) => !isManagementService(service))?.name ??
+          source?.product ??
+          '服务',
+        sourceIp: source?.ip ?? '—',
+        targetAgentId: target?.id ?? null,
+        targetHost: target?.hostname ?? target?.label ?? edge.target,
+        targetIp: target?.ip ?? '—',
+        targetPort: edge.port,
+        protocol,
+        method,
+        totalRequests: buckets.reduce((sum, item) => sum + item.requests, 0),
+        totalErrors: buckets.reduce((sum, item) => sum + item.errors, 0),
+        buckets,
+      };
+    });
+  return {
+    windowSeconds: windowHours * 3_600,
+    bucket,
+    from: new Date(now - windowHours * 3_600_000).toISOString(),
+    to: new Date(now).toISOString(),
+    rows,
+  };
+}
+
+function demoTagsSuggestions(rows: readonly RelationRow[]): EdgeTagSuggestResponse {
+  const suggestions: EdgeTagSuggestion[] = rows.slice(0, 8).map((row, index) => {
+    const category = row.external ? '外部依赖' : suggestedTagForPort(row.targetPort, false);
+    const label =
+      category === '数据访问'
+        ? '数据库访问'
+        : category === '中间件访问'
+          ? '缓存/消息访问'
+          : category === '外部依赖'
+            ? '外部依赖'
+            : category === '运维工具'
+              ? '运维监控'
+              : '应用调用';
+    return {
+      relationKey: row.relationKey,
+      label,
+      category,
+      confidence: Math.round((0.72 + (index % 5) * 0.05) * 100) / 100,
+      reason:
+        category === '应用调用'
+          ? '目标为应用服务端口，存在稳定的应用层调用。'
+          : `根据目标端口 ${row.targetPort} 与连接的组件判断为${category}。`,
+      source: index % 3 === 0 ? 'model' : 'rule',
+    } as EdgeTagSuggestion;
+  });
+  return {
+    suggestions,
+    model: 'rules-v2',
+    fallback: true,
+    warning: '演示模式：当前由规则引擎生成建议；配置模型后将由大模型基于访问关系生成。',
+  };
+}
+
 export function Topology({ onBack, demo = false }: TopologyProps): ReactElement {
   const denseCase = demo && new URLSearchParams(window.location.search).get('case') === 'dense';
   const initialGraph = denseCase ? DEMO_DENSE_GRAPH : DEMO_GRAPH;
@@ -228,6 +325,16 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [trendError, setTrendError] = useState<string | null>(null);
   const [trendReload, setTrendReload] = useState(0);
   const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
+  const [trendMode, setTrendMode] = useState<TrendMode>('tcp');
+  const [httpData, setHttpData] = useState<HttpRequestTrendsResponse | null>(null);
+  const [httpLoading, setHttpLoading] = useState(false);
+  const [httpError, setHttpError] = useState<string | null>(null);
+  const [httpReload, setHttpReload] = useState(0);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestData, setSuggestData] = useState<EdgeTagSuggestResponse | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [suggestApplying, setSuggestApplying] = useState(false);
   const [analysisNodeIds, setAnalysisNodeIds] = useState<readonly string[] | null>(null);
   const [analysisEdgeIds, setAnalysisEdgeIds] = useState<readonly string[] | null>(null);
   const [activeHotPath, setActiveHotPath] = useState<number | null>(null);
@@ -641,6 +748,39 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       cancelled = true;
     };
   }, [demo, panelTab, prepared, scopeId, trendReload, trendWindow]);
+
+  useEffect(() => {
+    if (panelTab !== 'trends' || trendMode !== 'http') return;
+    let cancelled = false;
+    if (demo) {
+      setHttpData(prepared ? demoHttpRequests(prepared.graph, trendWindow) : null);
+      setHttpLoading(false);
+      setHttpError(null);
+      return;
+    }
+    setHttpLoading(true);
+    setHttpError(null);
+    void getHttpRequests({
+      windowHours: trendWindow,
+      bucket: trendWindow <= 24 ? 'hour' : 'day',
+      ...(scopeId ? { appSystemId: scopeId } : {}),
+    })
+      .then((response) => {
+        if (!cancelled) setHttpData(response);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setHttpData(null);
+          setHttpError(error instanceof Error ? error.message : 'HTTP/gRPC 请求量接口暂不可用');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setHttpLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, httpReload, panelTab, prepared, scopeId, trendMode, trendWindow]);
 
   const neighbourhood = useMemo(() => {
     if (!layout || !selectedId) return new Set<string>();
@@ -1083,6 +1223,75 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       setAdoptingKey(null);
     },
     [saveAccessTag],
+  );
+
+  const suggestionLabels = useMemo(
+    () =>
+      new Map(
+        relationRows.map((row) => [
+          row.relationKey,
+          `${row.sourceLabel} → ${row.targetLabel}:${row.targetPort}`,
+        ]),
+      ),
+    [relationRows],
+  );
+
+  const openAiSuggestions = useCallback(async (): Promise<void> => {
+    if (!demo && modelAvailable === false) {
+      showToast('warn', '未配置模型，请先在「模型配置」中添加 OpenAI / Anthropic 兼容模型。');
+      if (!demo) {
+        window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'models' }));
+      }
+      return;
+    }
+    setSuggestOpen(true);
+    setSuggestLoading(true);
+    setSuggestError(null);
+    setSuggestData(null);
+    if (demo) {
+      setSuggestData(demoTagsSuggestions(relationRows));
+      setSuggestLoading(false);
+      return;
+    }
+    try {
+      const response = await suggestEdgeTags({
+        ...(scopeId ? { appSystemId: scopeId } : {}),
+        relationKeys: relationRows.map((row) => row.relationKey),
+      });
+      setSuggestData(response);
+    } catch (error: unknown) {
+      // 接口未就绪时降级为本地确定性规则建议，仍可采纳。
+      const fallbackSuggestions = demoTagsSuggestions(relationRows);
+      setSuggestData({
+        suggestions: fallbackSuggestions.suggestions.map((item) => ({ ...item, source: 'rule' as const })),
+        model: 'local-rules',
+        fallback: true,
+        warning: `自动打标签接口暂不可用（${error instanceof Error ? error.message : '请求失败'}），已使用本地规则建议。`,
+      });
+      setSuggestError(null);
+    } finally {
+      setSuggestLoading(false);
+    }
+  }, [demo, modelAvailable, relationRows, scopeId, showToast]);
+
+  const applySuggestions = useCallback(
+    async (selected: readonly EdgeTagSuggestion[]): Promise<void> => {
+      setSuggestApplying(true);
+      for (const item of selected) {
+        await saveAccessTag({
+          relationKey: item.relationKey,
+          label: item.label,
+          category: item.category,
+          color: item.source === 'model' ? '#3d7ab8' : '#8a63c9',
+          source: 'model',
+        });
+      }
+      setSuggestApplying(false);
+      setSuggestOpen(false);
+      setSuggestData(null);
+      showToast('ok', `已采纳 ${selected.length} 条 AI 标签建议`);
+    },
+    [saveAccessTag, showToast],
   );
 
   const running = session !== null && RUNNING_STATUS.has(session.status);
@@ -1871,9 +2080,13 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                 onSaveTag={(input) => void saveAccessTag(input)}
                 onDeleteTag={(tag) => void removeAccessTag(tag)}
                 onFocusRow={focusRelation}
+                onSuggest={() => void openAiSuggestions()}
+                suggesting={suggestLoading}
               />
-            ) : (
+            ) : trendMode === 'tcp' ? (
               <TrendsPanel
+                mode={trendMode}
+                onModeChange={setTrendMode}
                 data={trendData}
                 loading={trendLoading}
                 error={trendError}
@@ -1888,9 +2101,44 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                 onEditTag={() => setPanelTab('relations')}
                 onRetry={() => setTrendReload((current) => current + 1)}
               />
+            ) : (
+              <HttpRequestsPanel
+                mode={trendMode}
+                onModeChange={setTrendMode}
+                data={httpData}
+                loading={httpLoading}
+                error={httpError}
+                windowHours={trendWindow}
+                scopeLabel={scopeName}
+                tagsByRelation={tagsByRelation}
+                selectedKey={highlightRelationKey}
+                onWindowChange={(hours) => setTrendWindow(hours === 168 ? 168 : 24)}
+                onRowClick={focusRelation}
+                onEditTag={() => setPanelTab('relations')}
+                onRetry={() => setHttpReload((current) => current + 1)}
+              />
             )}
           </div>
         </div>
+      ) : null}
+
+      {suggestOpen ? (
+        <TagSuggestionsDialog
+          suggestions={suggestData?.suggestions ?? []}
+          labels={suggestionLabels}
+          loading={suggestLoading}
+          error={suggestError}
+          warning={suggestData?.warning ?? null}
+          model={suggestData?.model ?? null}
+          fallback={suggestData?.fallback ?? false}
+          applying={suggestApplying}
+          onClose={() => {
+            if (suggestApplying) return;
+            setSuggestOpen(false);
+            setSuggestError(null);
+          }}
+          onConfirm={(selected) => void applySuggestions(selected)}
+        />
       ) : null}
 
       <LearningWizard

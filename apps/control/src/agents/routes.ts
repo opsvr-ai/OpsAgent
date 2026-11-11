@@ -17,6 +17,7 @@ import { AgentSkillService, type BuiltinSkillPayload } from './skills_service.js
 import { AgentInventoryService } from './inventory_service.js';
 import { AgentConnectionService } from './connection_service.js';
 import { AgentConnectionEdgeService } from './connection_edges.js';
+import { AgentHttpRequestService } from './topology_http_requests.js';
 import { AppSystemTopologyService } from './topology_service.js';
 import { FaultAnalysisService } from './fault_analysis.js';
 
@@ -52,6 +53,7 @@ export function registerAgentRoutes(
   const inventoryService = new AgentInventoryService(pool);
   const connectionService = new AgentConnectionService(pool);
   const connectionEdges = new AgentConnectionEdgeService(pool);
+  const httpRequests = new AgentHttpRequestService(pool);
   const topologyService = new AppSystemTopologyService(pool);
   const faultAnalysis = new FaultAnalysisService(pool, modelSecret);
 
@@ -134,6 +136,8 @@ export function registerAgentRoutes(
       tlsCertSerial?: unknown;
       /** 固定时间窗建连边表（10s 窗口），由 Agent 的 procfs/eBPF 采集器上报。 */
       connectionWindows?: unknown;
+      /** HTTP/gRPC 请求级计数窗口（仅明文），由 Agent 七层旁路解析后上报。 */
+      httpRequestWindows?: unknown;
     } | undefined;
     if (typeof body?.agentKey !== 'string') {
       return reply.code(400).send({ error: 'invalid_request' });
@@ -166,6 +170,22 @@ export function registerAgentRoutes(
         }
       } catch (error) {
         request.log.warn({ err: error, agentId: request.params.id }, 'connection window sync failed');
+      }
+    }
+    // HTTP/gRPC 请求窗口独立入库：失败只记日志，不影响心跳返回。
+    if (Array.isArray(body.httpRequestWindows) && body.httpRequestWindows.length > 0) {
+      try {
+        const tenant = await pool.query<{ tenant_id: string }>(
+          'SELECT tenant_id FROM agents WHERE id = $1',
+          [request.params.id],
+        );
+        const tenantId = tenant.rows[0]?.tenant_id;
+        if (tenantId) {
+          const accepted = await httpRequests.sync(tenantId, request.params.id, body.httpRequestWindows);
+          request.log.debug({ agentId: request.params.id, accepted }, 'http request windows synced');
+        }
+      } catch (error) {
+        request.log.warn({ err: error, agentId: request.params.id }, 'http request window sync failed');
       }
     }
     const discoveryAgent = body.discovery && typeof body.discovery === 'object'

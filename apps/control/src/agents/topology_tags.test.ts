@@ -14,6 +14,13 @@ import {
   topologyNodeRelationName,
   topologyRelationKey,
 } from './topology_tags.js';
+import {
+  buildRuleSuggestions,
+  collectEdgeClassificationInputs,
+  suggestEdgeTagsFromGraph,
+  type EdgeClassificationInput,
+  type EdgeClassifierLike,
+} from './topology_routes.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL
   ?? process.env.DATABASE_URL
@@ -168,12 +175,121 @@ describe('topology tags 纯函数', () => {
       category: 'C'.repeat(100),
       color: 'COLOR'.repeat(20),
       note: 'N'.repeat(1000),
+      source: 'model',
     });
     expect(normalized?.relationKey).toBe('web-01|db-01|3306');
     expect(normalized?.label.length).toBe(EDGE_TAG_LABEL_MAX);
     expect(normalized?.category.length).toBe(EDGE_TAG_CATEGORY_MAX);
     expect(normalized?.note.length).toBe(EDGE_TAG_NOTE_MAX);
     expect(normalized?.color.length).toBe(20);
+    expect(normalized?.source).toBe('model');
+    expect(normalizeEdgeTagInput({ relationKey: 'x|y|1', label: '业务标签' })?.source).toBe('user');
+  });
+});
+
+describe('AI 标签建议纯函数', () => {
+  const edgeInput = (overrides: Partial<EdgeClassificationInput>): EdgeClassificationInput => ({
+    relationKey: 'web-01|db-01|3306',
+    sourceHost: 'web-01',
+    targetHost: 'db-01',
+    targetPort: 3306,
+    ...overrides,
+  });
+
+  it('collects inputs from latest graph, filters relationKeys and caps at 80', () => {
+    const inputs = collectEdgeClassificationInputs(graph());
+    expect(inputs.map((input) => input.relationKey)).toEqual([
+      'web-01|db-01|3306',
+      'web-01|203.0.113.9|443',
+    ]);
+    expect(inputs[0]).toMatchObject({ sourceHost: 'web-01', targetHost: 'db-01', targetPort: 3306 });
+    const filtered = collectEdgeClassificationInputs(graph(), ['web-01|203.0.113.9|443']);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.targetTier).toBe('external');
+  });
+
+  it('builds deterministic rule fallback suggestions by port/tier', () => {
+    const response = buildRuleSuggestions([
+      edgeInput({ relationKey: 'a|b|22', targetPort: 22 }),
+      edgeInput({ relationKey: 'a|ext|443', targetPort: 443, targetTier: 'external' }),
+      edgeInput({ relationKey: 'a|db|3306', targetPort: 3306, targetProduct: 'MySQL', targetTier: 'data' }),
+      edgeInput({ relationKey: 'a|mq|6379', targetPort: 6379, targetProduct: 'Redis', targetTier: 'middleware' }),
+      edgeInput({ relationKey: 'a|svc|8080', targetPort: 8080, targetTier: 'app' }),
+    ], 'classifier_unavailable');
+    expect(response).toMatchObject({ model: 'rule', fallback: true, warning: 'classifier_unavailable' });
+    expect(response.suggestions.map((suggestion) => suggestion.category)).toEqual([
+      '运维工具',
+      '外部依赖',
+      '数据访问',
+      '中间件访问',
+      '应用调用',
+    ]);
+    expect(response.suggestions.every((suggestion) => suggestion.source === 'rule')).toBe(true);
+  });
+
+  it('uses classifier suggestions and filters unknown relation keys', async () => {
+    const classifier: EdgeClassifierLike = {
+      async suggest() {
+        return {
+          suggestions: [
+            {
+              relationKey: 'web-01|db-01|3306',
+              label: '核心数据链路',
+              category: '数据访问',
+              confidence: 0.91,
+              reason: 'MySQL 访问',
+              source: 'model',
+            },
+            {
+              relationKey: 'unknown|edge|1',
+              label: '不存在',
+              category: '应用调用',
+              confidence: 0.5,
+              source: 'model',
+            },
+          ],
+          model: 'mock-model',
+          fallback: false,
+        };
+      },
+    };
+    const response = await suggestEdgeTagsFromGraph({
+      tenantId,
+      edges: [edgeInput({})],
+      classifier,
+    });
+    expect(response).toMatchObject({ model: 'mock-model', fallback: false });
+    expect(response.suggestions).toHaveLength(1);
+    expect(response.suggestions[0]).toMatchObject({
+      relationKey: 'web-01|db-01|3306',
+      label: '核心数据链路',
+      category: '数据访问',
+      confidence: 0.91,
+      source: 'model',
+    });
+  });
+
+  it('falls back to rules when classifier throws or is unavailable', async () => {
+    const throwing: EdgeClassifierLike = {
+      async suggest() {
+        throw new Error('model_timeout');
+      },
+    };
+    const failed = await suggestEdgeTagsFromGraph({
+      tenantId,
+      edges: [edgeInput({})],
+      classifier: throwing,
+    });
+    expect(failed.fallback).toBe(true);
+    expect(failed.warning).toContain('model_timeout');
+    expect(failed.suggestions[0]?.source).toBe('rule');
+
+    const unavailable = await suggestEdgeTagsFromGraph({
+      tenantId,
+      edges: [edgeInput({})],
+    });
+    expect(unavailable.fallback).toBe(true);
+    expect(unavailable.warning).toContain('classifier_unavailable');
   });
 });
 

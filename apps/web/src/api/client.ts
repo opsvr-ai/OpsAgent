@@ -1631,6 +1631,9 @@ import type {
   TopologyEdgeTag,
   TopologyEdgeTagInput,
   AccessTrendsResponse,
+  HttpRequestTrendsResponse,
+  EdgeTagSuggestResponse,
+  EdgeTagSuggestion,
 } from '@opsagent/contracts';
 
 function topologyQuery(appSystemId?: string): string {
@@ -1757,3 +1760,31 @@ export async function getAccessTrends(query: AccessTrendsQuery): Promise<AccessT
   if (query.appSystemId) params.set('appSystemId', query.appSystemId);
   return request<AccessTrendsResponse>(`/api/topologies/access-trends?${params.toString()}`);
 }
+
+
+export interface HttpRequestsQuery {
+  readonly windowHours: number;
+  readonly bucket: 'hour' | 'day';
+  readonly appSystemId?: string;
+}
+
+export async function getHttpRequests(query: HttpRequestsQuery): Promise<HttpRequestTrendsResponse> {
+  const params = new URLSearchParams({
+    windowHours: String(query.windowHours),
+    bucket: query.bucket,
+  });
+  if (query.appSystemId) params.set('appSystemId', query.appSystemId);
+  return request<HttpRequestTrendsResponse>(`/api/topologies/http-requests?${params.toString()}`);
+}
+
+export async function suggestEdgeTags(body: {
+  appSystemId?: string;
+  relationKeys?: readonly string[];
+}): Promise<EdgeTagSuggestResponse> {
+  return request<EdgeTagSuggestResponse>('/api/topologies/edge-tags/suggest', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type { EdgeTagSuggestion };

@@ -73,6 +73,7 @@ export interface NormalizedEdgeTagInput {
   readonly category: string;
   readonly color: string;
   readonly note: string;
+  readonly source: 'user' | 'model';
 }
 
 /** 校验并截断标签输入；relationKey/label 缺失返回 null（路由 400）。 */
@@ -88,6 +89,8 @@ export function normalizeEdgeTagInput(value: unknown): NormalizedEdgeTagInput | 
     category: typeof record.category === 'string' ? record.category.trim().slice(0, EDGE_TAG_CATEGORY_MAX) : '',
     color: typeof record.color === 'string' ? record.color.trim().slice(0, EDGE_TAG_COLOR_MAX) : '',
     note: typeof record.note === 'string' ? record.note.trim().slice(0, EDGE_TAG_NOTE_MAX) : '',
+    // 用户手工标签默认 user；采纳 AI 建议时可显式传 model。
+    source: record.source === 'model' ? 'model' : 'user',
   };
 }
 
@@ -145,12 +148,12 @@ export class TopologyEdgeTagService {
     const result = await this.pool.query<EdgeTagRow>(
       `INSERT INTO topology_edge_tags
          (tenant_id, relation_key, label, category, color, note, source, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, 'user', $7)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (tenant_id, relation_key, label) DO UPDATE SET
          category = EXCLUDED.category,
          color = EXCLUDED.color,
          note = EXCLUDED.note,
-         source = 'user',
+         source = EXCLUDED.source,
          updated_at = now()
        RETURNING id, relation_key, label, category, color, note, source`,
       [
@@ -160,6 +163,7 @@ export class TopologyEdgeTagService {
         normalized.category,
         normalized.color,
         normalized.note,
+        normalized.source,
         createdBy,
       ],
     );

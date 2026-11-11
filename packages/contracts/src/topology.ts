@@ -128,6 +128,8 @@ export interface TopologyEdgeTagInput {
   readonly category?: string;
   readonly color?: string;
   readonly note?: string;
+  /** 手动打标为 user；大模型采纳的建议标为 model。 */
+  readonly source?: 'user' | 'model';
 }
 
 /** 访问次数趋势（小时/天粒度），用于量化分析与表格展示。 */
@@ -350,6 +352,85 @@ export interface ConnectionWindowReport {
     readonly activeConnections?: number;
     readonly dropped?: number;
   };
+}
+
+/** Agent 七层旁路解析：HTTP/1、HTTP/2（含 gRPC）请求级计数（明文）。 */
+export interface HttpRequestEdgeReport {
+  readonly direction: 'out' | 'in';
+  readonly protocol: 'http1' | 'http2' | 'grpc';
+  readonly method: string;
+  readonly localAddress: string;
+  readonly localPort: number;
+  readonly peerAddress: string;
+  readonly peerPort: number;
+  readonly service?: string;
+  readonly requests: number;
+  readonly errors: number;
+  readonly firstSeen?: string;
+  readonly lastSeen?: string;
+}
+
+export interface HttpRequestWindowReport {
+  readonly start: string;
+  readonly end: string;
+  readonly source: 'userspace' | 'ebpf' | 'hybrid';
+  readonly requests: readonly HttpRequestEdgeReport[];
+  readonly stats?: {
+    readonly packets?: number;
+    readonly flows?: number;
+    readonly dropped?: number;
+  };
+}
+
+export interface HttpRequestTrendBucket {
+  readonly start: string;
+  readonly requests: number;
+  readonly errors: number;
+}
+
+export interface HttpRequestTrendRow {
+  readonly id: string;
+  readonly relationKey: string;
+  readonly sourceAgentId: string;
+  readonly sourceHost: string;
+  readonly sourceService: string;
+  readonly sourceIp: string;
+  readonly targetAgentId?: string | null;
+  readonly targetHost: string;
+  readonly targetIp: string;
+  readonly targetPort: number;
+  readonly protocol: 'http1' | 'http2' | 'grpc';
+  readonly method: string;
+  readonly totalRequests: number;
+  readonly totalErrors: number;
+  readonly buckets: readonly HttpRequestTrendBucket[];
+  readonly lastSeen?: string;
+  readonly tags?: readonly TopologyEdgeTag[];
+}
+
+export interface HttpRequestTrendsResponse {
+  readonly windowSeconds: number;
+  readonly bucket: 'hour' | 'day';
+  readonly from: string;
+  readonly to: string;
+  readonly rows: readonly HttpRequestTrendRow[];
+}
+
+/** 大模型给访问关系打标签的建议。 */
+export interface EdgeTagSuggestion {
+  readonly relationKey: string;
+  readonly label: string;
+  readonly category: string;
+  readonly confidence: number;
+  readonly reason?: string;
+  readonly source: 'model' | 'rule';
+}
+
+export interface EdgeTagSuggestResponse {
+  readonly suggestions: readonly EdgeTagSuggestion[];
+  readonly model: string;
+  readonly fallback: boolean;
+  readonly warning?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -792,7 +792,7 @@ interface DenseEdgeSpec {
 function buildDenseGraph(): TopologyGraph {
   const externalHosts = Array.from({ length: 22 }, (_, index) => {
     const ip = `198.51.100.${index + 1}`;
-    const ports = [5180, 5993, 443, 8443, 9001, 7001, 16001, 32000];
+    const ports = [8080, 50051, 9090, 8443, 9001, 7001, 16001, 32000];
     const port = ports[index % ports.length] ?? 5180;
     return {
       id: `ext-${ip.replace(/\./g, '-')}`,

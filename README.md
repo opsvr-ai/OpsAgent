@@ -349,6 +349,10 @@ Agent 异常事件上报后自动触发；同一应用系统已有运行中分�
   - **节点可拖动**，拖动时实时重算连线并高亮 1 跳关联节点/边、其余淡化，松手保留位置，「重置布局」恢复自动布局；
   - **访问关系标签**：可按关系（源主机→目标主机:端口，`relationKey` 跨版本稳定）打「运维工具 / 应用调用 / 数据访问 / 中间件访问 / 外部依赖」等标签，支持颜色、类别过滤、边 tooltip/节点详情/趋势表展示；标签持久化到 `topology_edge_tags`；
   - **访问量分析**：24h/7d、小时/天分桶，表格按访问次数/失败排序，含 SVG 趋势 sparkline、Top 链路、建议标签一键采纳、点击行在画布定位对应边；访问次数口径为 **Agent 每 10s 窗口统计的 TCP 建连次数（opened 合计，不是 HTTP 请求数）**。
+- **V5（2026-11-11）HTTP/gRPC 请求级计数 + 大模型自动打标签**：
+  - **Agent 0.7.0** 新增明文七层旁路观察器（AF_PACKET）：HTTP/1 请求行、HTTP/2 HEADERS、gRPC（按 50051/9090 端口/服务名识别），按 10s 窗口通过心跳 `httpRequestWindows` 上报；支持 `OPSAGENT_HTTP_METRICS`（默认 true）/`OPSAGENT_HTTP_IFACE`/`OPSAGENT_GRPC_PORTS`/`OPSAGENT_HTTP_MAX_EDGES`/`OPSAGENT_HTTP_WINDOW_SECONDS`/`OPSAGENT_HTTP_DEBUG`。**仅明文 HTTP/1、h2c、明文 gRPC；HTTPS/gRPC-TLS/HTTP3 无法解密不计数；需要 root/CAP_NET_RAW，权限不足自动禁用**。详见 [agents/opsagent-agent/README-http-metrics.md](agents/opsagent-agent/README-http-metrics.md)。
+  - Control 新增 `agent_http_requests`（迁移 0081，保留 7 天），Web「访问量分析」可切换 **TCP 建连 / HTTP/gRPC 请求**，请求视图显示协议、方法、请求数、失败、sparkline，24h/7d 自动小时/天桶。
+  - **AI 自动打标签**：`POST /api/topologies/edge-tags/suggest` 把访问关系摘要交给大模型，输出标签/类别/置信度/原因；模型不可用自动规则兜底（运维工具/外部依赖/数据访问/中间件访问/应用调用），Web 建议弹层支持全选/单选采纳，落库 `source='model'`；无模型时可手动打标签。
 
 API（权限 `agent.manage`）：
 
@@ -366,9 +370,11 @@ GET|PUT /api/topologies/policy        # 自动学习策略（含 includeUnassign
 GET|POST /api/topologies/edge-tags    # 访问关系标签（GET 列表 / POST upsert）
 DELETE /api/topologies/edge-tags/:id  # 删除标签
 GET  /api/topologies/access-trends    # 访问量趋势 ?windowHours=24&bucket=hour&appSystemId=
+GET  /api/topologies/http-requests    # HTTP/gRPC 请求趋势 ?windowHours=24&bucket=hour&appSystemId=
+POST /api/topologies/edge-tags/suggest # AI 自动打标签建议 {appSystemId?, relationKeys?}
 ```
 
-自动学习：控制面 `TopologyLearningScheduler` 每 10s 处理到期会话与策略；`OPSAGENT_TOPOLOGY_AUTOLEARN=false` 可关闭。Agent 可用 `OPSAGENT_CONN_EDGES=false` 关闭采集，或用 `OPSAGENT_CONN_SAMPLE_INTERVAL_SECONDS` / `OPSAGENT_CONN_WINDOW_SECONDS` / `OPSAGENT_CONN_COLLECTOR_DIR` 调整。
+自动学习：控制面 `TopologyLearningScheduler` 每 10s 处理到期会话与策略；`OPSAGENT_TOPOLOGY_AUTOLEARN=false` 可关闭。Agent 可用 `OPSAGENT_CONN_EDGES=false` 关闭采集，或用 `OPSAGENT_CONN_SAMPLE_INTERVAL_SECONDS` / `OPSAGENT_CONN_WINDOW_SECONDS` / `OPSAGENT_CONN_COLLECTOR_DIR` 调整；HTTP/gRPC 请求计数用 `OPSAGENT_HTTP_METRICS=false` 关闭（默认开启，权限不足自动禁用）。
 
 本地演示数据（13 主机 / 3 业务系统 / 37 条访问关系，含失败链路）：
 

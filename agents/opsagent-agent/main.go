@@ -41,13 +41,14 @@ type registerResponse struct {
 }
 
 type heartbeatRequest struct {
-	AgentKey          string           `json:"agentKey"`
-	Metrics           map[string]any   `json:"metrics"`
-	Discovery         *discoveryReport `json:"discovery,omitempty"`
-	ConnectionWindows []connEdgeWindow `json:"connectionWindows,omitempty"`
-	CommandKeyID      string           `json:"commandKeyId,omitempty"`
-	TLSCertExpiresAt  string           `json:"tlsCertExpiresAt,omitempty"`
-	TLSCertSerial     string           `json:"tlsCertSerial,omitempty"`
+	AgentKey           string              `json:"agentKey"`
+	Metrics            map[string]any      `json:"metrics"`
+	Discovery          *discoveryReport    `json:"discovery,omitempty"`
+	ConnectionWindows  []connEdgeWindow    `json:"connectionWindows,omitempty"`
+	HTTPRequestWindows []httpRequestWindow `json:"httpRequestWindows,omitempty"`
+	CommandKeyID       string              `json:"commandKeyId,omitempty"`
+	TLSCertExpiresAt   string              `json:"tlsCertExpiresAt,omitempty"`
+	TLSCertSerial      string              `json:"tlsCertSerial,omitempty"`
 }
 
 type heartbeatResponse struct {
@@ -272,6 +273,12 @@ func runDaemon(paths agentPaths) {
 	if connReporter != nil {
 		log.Printf("connection window reporter enabled")
 	}
+	// HTTP/gRPC 明文请求级计数（AF_PACKET 旁路）：Linux 上启动，其它平台 nil。
+	// 无 CAP_NET_RAW/root 时观察器自行日志一次并禁用，不影响主流程。
+	httpReporter := startHTTPObserver()
+	if httpReporter != nil {
+		log.Printf("http request reporter enabled")
+	}
 	var resultPrivateKey ed25519.PrivateKey
 	resultPrivateSeedBase64 := ""
 	resultPublicKeyBase64 := ""
@@ -446,6 +453,9 @@ func runDaemon(paths agentPaths) {
 		if connReporter != nil {
 			metrics["connSampler"] = connReporter.metrics()
 		}
+		if httpReporter != nil {
+			metrics["httpObserver"] = httpReporter.metrics()
+		}
 		var discovery *discoveryReport
 		if time.Since(lastDiscovery) >= 5*time.Minute {
 			report := collectDiscovery(started, metrics)
@@ -469,6 +479,10 @@ func runDaemon(paths agentPaths) {
 		if connReporter != nil {
 			connectionWindows = connReporter.snapshot()
 		}
+		var httpRequestWindows []httpRequestWindow
+		if httpReporter != nil {
+			httpRequestWindows = httpReporter.snapshot()
+		}
 		var heartbeat heartbeatResponse
 		certPath := os.Getenv("OPSAGENT_TLS_CERT")
 		if certPath == "" {
@@ -476,19 +490,25 @@ func runDaemon(paths agentPaths) {
 		}
 		certExpiresAt, certSerial := certificateMetadata(certPath)
 		heartbeatErr := post(controlURL+"/api/agents/"+registered.Agent.ID+"/heartbeat", nil, heartbeatRequest{
-			AgentKey:          registered.AgentKey,
-			Metrics:           metrics,
-			Discovery:         discovery,
-			ConnectionWindows: connectionWindows,
-			CommandKeyID:      registered.CommandKeyID,
-			TLSCertExpiresAt:  certExpiresAt,
-			TLSCertSerial:     certSerial,
+			AgentKey:           registered.AgentKey,
+			Metrics:            metrics,
+			Discovery:          discovery,
+			ConnectionWindows:  connectionWindows,
+			HTTPRequestWindows: httpRequestWindows,
+			CommandKeyID:       registered.CommandKeyID,
+			TLSCertExpiresAt:   certExpiresAt,
+			TLSCertSerial:      certSerial,
 		}, &heartbeat)
 		if heartbeatErr != nil {
 			log.Printf("heartbeat: %v", heartbeatErr)
 			// 心跳失败时窗口保留在 reporter 中，下次心跳成功后重发。
-		} else if connReporter != nil {
-			connReporter.ack(len(connectionWindows))
+		} else {
+			if connReporter != nil {
+				connReporter.ack(len(connectionWindows))
+			}
+			if httpReporter != nil {
+				httpReporter.ack(len(httpRequestWindows))
+			}
 		}
 		if heartbeatErr == nil && len(heartbeat.CommandPublicKeys) > 0 {
 			registered.CommandKeyID = heartbeat.CommandKeyID

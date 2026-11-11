@@ -665,7 +665,7 @@ export function demoLearningSession(
     progress: {
       elapsedSeconds,
       remainingSeconds: Math.max(0, windowSeconds - elapsedSeconds),
-      percent: Math.round(percent * 1000) / 1000,
+      percent: Math.round(percent * 1000) / 10,
       reportingAgents: Math.round(14 * Math.min(1, percent * 1.6)),
       expectedAgents: 14,
       edgeSamples: Math.round(28640 * percent),
@@ -694,7 +694,7 @@ export function advanceDemoSession(session: TopologyLearningSession, stepSeconds
       ...session.progress,
       elapsedSeconds: elapsed,
       remainingSeconds: Math.max(0, total - elapsed),
-      percent: Math.round(percent * 1000) / 1000,
+      percent: Math.round(percent * 1000) / 10,
       reportingAgents: Math.round(14 * Math.min(1, percent * 1.6)),
       edgeSamples: Math.round(28640 * Math.min(1, percent + 0.04)),
       uniqueEdges: Math.round(EDGE_SPECS.length * Math.min(1, percent * 1.35)),

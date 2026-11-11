@@ -85,7 +85,7 @@ export function LearningWizard({
   const running = session !== null && ['collecting', 'aggregating', 'analyzing'].includes(session.status);
   const ready = session?.status === 'ready';
   const failed = session?.status === 'failed' || Boolean(error);
-  const percent = session ? Math.round(session.progress.percent * 100) : 0;
+  const percent = session ? Math.min(100, Math.max(0, Math.round(session.progress.percent))) : 0;
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
 

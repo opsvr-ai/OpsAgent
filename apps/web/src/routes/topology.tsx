@@ -904,7 +904,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                 status: 'ready',
                 error: null,
                 graphId: DEMO_GRAPH.id,
-                progress: { ...current.progress, percent: 1, remainingSeconds: 0, phase: 'ready' },
+                progress: { ...current.progress, percent: 100, remainingSeconds: 0, phase: 'ready' },
               }
             : current,
         );

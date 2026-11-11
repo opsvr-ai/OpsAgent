@@ -259,6 +259,7 @@ export interface TopologyGraph {
 export interface TopologyLearningProgress {
   readonly elapsedSeconds: number;
   readonly remainingSeconds: number;
+  /** 采集进度 0~100（100 表示窗口采集结束）。 */
   readonly percent: number;
   readonly reportingAgents: number;
   readonly expectedAgents: number;

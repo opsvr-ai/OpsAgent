@@ -1642,6 +1642,22 @@ export async function getLatestTopology(appSystemId?: string): Promise<TopologyG
   return request<TopologyGraph | null>(`/api/topologies/latest${topologyQuery(appSystemId)}`);
 }
 
+export interface ModelTestResult {
+  readonly ok: boolean;
+  readonly model?: string;
+  readonly latencyMs?: number;
+  readonly sample?: string;
+  readonly error?: string;
+}
+
+/** 模型连通性自检：返回真实错误（401/404/超时/响应格式等）。 */
+export async function testModel(id: string): Promise<ModelTestResult> {
+  return request<ModelTestResult>(`/api/models/${encodeURIComponent(id)}/test`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function getTopologyGraph(id: string): Promise<TopologyGraph> {
   return request<TopologyGraph>(`/api/topologies/${encodeURIComponent(id)}`);
 }

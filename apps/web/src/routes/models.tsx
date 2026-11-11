@@ -5,6 +5,7 @@ import {
   discoverModels,
   listModels,
   setModelAsAgentDefault,
+  testModel,
   updateModel,
   type DiscoveredModel,
   type ModelProvider,
@@ -41,6 +42,8 @@ export function Models({ onBack }: ModelsProps) {
   const [editApiKey, setEditApiKey] = useState('');
   const [editStatus, setEditStatus] = useState<'active' | 'disabled'>('active');
   const [editBusy, setEditBusy] = useState(false);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void listModels()
@@ -159,6 +162,25 @@ export function Models({ onBack }: ModelsProps) {
       if (editing?.id === id) setEditing(null);
     } catch {
       setError('删除失败');
+    }
+  }
+
+  async function runTest(id: string) {
+    setTestingId(id);
+    setTestResults((current) => ({ ...current, [id]: '测试中…' }));
+    try {
+      const result = await testModel(id);
+      setTestResults((current) => ({
+        ...current,
+        [id]: result.ok
+          ? `连接成功 · ${result.latencyMs ?? 0}ms · ${result.sample ?? ''}`
+          : `连接失败：${result.error ?? 'unknown'}`,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'model_test_failed';
+      setTestResults((current) => ({ ...current, [id]: `连接失败：${message}` }));
+    } finally {
+      setTestingId(null);
     }
   }
 
@@ -313,11 +335,27 @@ export function Models({ onBack }: ModelsProps) {
               {item.isAgentDefault ? <span className="badge badge-info">智能体默认</span> : null}
               <div className="row-sm" style={{ marginTop: 8 }}>
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => startEdit(item)}>编辑</button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={item.status !== 'active' || testingId === item.id}
+                  onClick={() => void runTest(item.id)}
+                >
+                  {testingId === item.id ? '测试中…' : '测试连接'}
+                </button>
                 {item.status === 'active' && !item.isAgentDefault ? (
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => void saveDefault(item.id)}>设为智能体默认</button>
                 ) : null}
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => void remove(item.id)}>删除</button>
               </div>
+              {testResults[item.id] ? (
+                <p
+                  className="muted"
+                  style={{ marginTop: 8, fontSize: 12, wordBreak: 'break-all' }}
+                >
+                  {testResults[item.id]}
+                </p>
+              ) : null}
             </div>
           </article>
         ))}

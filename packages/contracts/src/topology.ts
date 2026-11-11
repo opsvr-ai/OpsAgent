@@ -139,6 +139,8 @@ export interface TopologyAnalysis {
   readonly durationMs?: number;
   /** true 表示模型不可用/输出非法，使用确定性启发式生成。 */
   readonly fallback?: boolean;
+  /** 兜底时的具体失败原因（如 model_timeout / model_http_401 / model_json_invalid）。 */
+  readonly fallbackReason?: string;
   readonly warning?: string;
 }
 

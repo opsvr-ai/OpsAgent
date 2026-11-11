@@ -6,6 +6,7 @@ import { createMembershipRepository } from '../tenancy/db-repo.js';
 import { resolveTenantContext, type TenantContext } from '../tenancy/context.js';
 import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { ModelProviderService } from './service.js';
+import { ModelCompletionService } from './completion.js';
 import { discoverModels } from './discovery.js';
 
 async function context(pool: Pool, request: FastifyRequest): Promise<TenantContext | null> {
@@ -67,8 +68,46 @@ export function registerModelRoutes(
     }
   });
 
-  app.post('/api/models/batch', async (request, reply) => {
+  // 模型连通性自检：用已保存的配置发一个小请求，返回真实错误原因，
+  // 方便内网排查 401/404/超时/响应格式不兼容等问题。
+  app.post<{ Params: { id: string } }>('/api/models/:id/test', async (request, reply) => {
     const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const list = await models.list(ctx.tenantId);
+    const target = list.find((item) => item.id === request.params.id);
+    if (!target) return reply.code(404).send({ error: 'model_not_found' });
+    if (target.status !== 'active') return reply.code(409).send({ error: 'model_disabled' });
+    const completion = new ModelCompletionService(models);
+    const started = Date.now();
+    try {
+      const sample = await completion.complete({
+        tenantId: ctx.tenantId,
+        modelId: target.id,
+        system: 'You are a connectivity probe. Reply with the single word: ok',
+        prompt: 'ping',
+        maxTokens: 16,
+        timeoutMs: 20_000,
+      });
+      return reply.send({
+        ok: true,
+        model: target.model,
+        latencyMs: Date.now() - started,
+        sample: sample.trim().slice(0, 160),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'model_test_failed';
+      request.log.warn({ err: error, modelId: target.id }, 'model connectivity test failed');
+      return reply.code(502).send({ ok: false, error: message.slice(0, 300) });
+    }
+  });
+
+  app.post('/api/models/batch', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {
       requirePermission(ctx, 'model.configure');

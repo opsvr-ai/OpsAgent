@@ -157,6 +157,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [policySaving, setPolicySaving] = useState(false);
   const [policyError, setPolicyError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const toastSeq = useRef(0);
   const centerEpoch = useRef(0);
   const finishedSessionRef = useRef<string | null>(null);
@@ -756,6 +757,29 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     },
     [denseCase, demo, scopeId, showToast],
   );
+
+  const reanalyze = useCallback(async (): Promise<void> => {
+    const sessionId = graph?.sessionId;
+    if (!sessionId) {
+      showToast('warn', '当前图没有对应的学习会话，无法重新分析；请重新学习。');
+      return;
+    }
+    setReanalyzing(true);
+    try {
+      const next = await analyzeTopologySession(sessionId);
+      await loadTopology();
+      if (next.fallback) {
+        showToast('warn', '重新分析完成，但模型仍不可用（规则兜底）；请查看分析面板中的具体失败原因。');
+      } else {
+        showToast('ok', `已使用模型 ${next.model || ''} 重新分析并更新拓扑。`.trim());
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown';
+      showToast('error', `重新分析失败：${message}`);
+    } finally {
+      setReanalyzing(false);
+    }
+  }, [graph?.sessionId, loadTopology, showToast]);
 
   const back = onBack ?? ((): void => {
     window.location.href = window.location.pathname;
@@ -1488,6 +1512,9 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                       }
                       window.dispatchEvent(new CustomEvent('opsagent:navigate', { detail: 'models' }));
                     }}
+                    canReanalyze={!demo && Boolean(graph.sessionId)}
+                    reanalyzing={reanalyzing}
+                    onReanalyze={() => void reanalyze()}
                   />
                 )}
               </aside>

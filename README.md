@@ -370,6 +370,18 @@ docker compose exec -T control pnpm --filter @opsagent/control seed:topology
 
 文档：[2026-11-10-topology-learning.md](docs/design/plans/2026-11-10-topology-learning.md)、[Agent 窗口采集](docs/design/plans/2026-11-10-agent-connection-windows.md)。
 
+#### 配置了模型，拓扑仍提示「规则引擎兜底」？
+
+1. 已生成的拓扑图是**不可变快照**，配置模型不会自动重算旧图。需要二选一：
+   - 在「访问拓扑」分析侧栏点「用当前模型重新分析」（复用该图对应学习会话的窗口样本），或
+   - 用「学习向导」重新学习一个时间窗口。
+2. 先到「模型配置」对目标模型点「测试连接」：
+   - 成功会显示延迟与返回片段；失败会显示真实原因（如 `fetch failed` = 控制面访问不到 Base URL；`model_http_401` = API Key；`model_http_404` = 路径/模型 ID 不对；`model_timeout` = 模型太慢/超时）。
+   - 有多个模型时，把测试成功的那个设为「智能体默认」——拓扑分析默认使用它。
+   - 对应 API：`POST /api/models/:id/test`。
+3. 拓扑分析默认超时 120s、输出上限 4096 tokens；失败时分析面板的兜底提示会附带具体原因（`模型不可用，已使用规则引擎生成（...）`）。
+4. 控制面日志：`docker compose logs --tail=200 control | grep -E '\[topology\]|model test failed'`。
+
 #### 内网部署后看不到「访问拓扑」？
 
 该页面是**前端新增页面**，只更新 control（后端）不会出现；必须把 Web 前端重新构建/部署，并强刷浏览器。排查顺序：

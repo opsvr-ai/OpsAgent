@@ -22,6 +22,9 @@ export interface AnalysisPanelProps {
   readonly onInsight: (insight: TopologyInsight) => void;
   readonly onClear: () => void;
   readonly onOpenModels: () => void;
+  readonly canReanalyze?: boolean;
+  readonly reanalyzing?: boolean;
+  readonly onReanalyze?: () => void;
 }
 
 const SEVERITY_LABEL: Record<TopologyInsight['severity'], string> = {
@@ -56,6 +59,9 @@ export function AnalysisPanel({
   onInsight,
   onClear,
   onOpenModels,
+  canReanalyze = false,
+  reanalyzing = false,
+  onReanalyze,
 }: AnalysisPanelProps): ReactElement {
   const analysis = graph.analysis;
   const fallback = analysis.fallback ?? false;
@@ -93,6 +99,17 @@ export function AnalysisPanel({
           <button type="button" className="btn btn-outline btn-sm" onClick={onOpenModels}>
             <MiniIcon name="settings" size={12} /> 去模型配置
           </button>
+          {canReanalyze && onReanalyze ? (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              disabled={reanalyzing}
+              onClick={onReanalyze}
+              style={{ marginTop: 8 }}
+            >
+              <MiniIcon name="refresh" size={12} /> {reanalyzing ? '重新分析中…' : '用当前模型重新分析'}
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="topo-model-line">
@@ -133,6 +150,9 @@ export function AnalysisPanel({
       </div>
 
       {analysis.warning ? <p className="topo-analysis-warning">{analysis.warning}</p> : null}
+      {analysis.fallbackReason ? (
+        <p className="topo-analysis-warning">模型调用失败原因：{analysis.fallbackReason}</p>
+      ) : null}
 
       <section className="topo-rail-section">
         <div className="topo-rail-section-head">

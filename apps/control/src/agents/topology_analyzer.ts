@@ -2548,6 +2548,7 @@ function buildAnalysis(
     readonly durationMs: number;
     readonly fallback: boolean;
     readonly warning?: string;
+    readonly fallbackReason?: string;
   },
 ): TopologyAnalysis {
   return {
@@ -2562,6 +2563,7 @@ function buildAnalysis(
     durationMs: details.durationMs,
     fallback: details.fallback,
     ...(details.warning ? { warning: details.warning } : {}),
+    ...(details.fallbackReason ? { fallbackReason: details.fallbackReason } : {}),
   };
 }
 
@@ -2597,7 +2599,10 @@ export class TopologyAnalyzer {
           fallback: false,
         }),
       };
-    } catch {
+    } catch (error) {
+      // 把失败原因带进 warning，便于页面/日志定位（401/404/超时/JSON 截断等）。
+      const reason = (error instanceof Error ? error.message : String(error)).slice(0, 200);
+      console.warn(`[topology] model analysis failed: ${reason}`);
       let draft: TopologyDraft;
       try {
         draft = buildHeuristicDraftFromIndex(input, index);
@@ -2629,6 +2634,7 @@ export class TopologyAnalyzer {
           durationMs: Date.now() - startedAt,
           fallback: true,
           warning: TOPOLOGY_FALLBACK_WARNING,
+          fallbackReason: reason,
         }),
       };
     }
@@ -2640,8 +2646,8 @@ export class TopologyAnalyzer {
     prompt: string,
     options?: AnalyzeTopologyOptions,
   ): Promise<string> {
-    const maxTokens = clampInt(options?.maxTokens ?? 2600, 128, 4096);
-    const timeoutMs = clampInt(options?.timeoutMs ?? 45_000, 1_000, 45_000);
+    const maxTokens = clampInt(options?.maxTokens ?? 4096, 128, 4096);
+    const timeoutMs = clampInt(options?.timeoutMs ?? 120_000, 1_000, 180_000);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => reject(new Error('model_timeout')), timeoutMs);
@@ -2649,7 +2655,7 @@ export class TopologyAnalyzer {
     });
     try {
       const answer = await Promise.race([
-        this.completion.complete({ tenantId, system, prompt, maxTokens }),
+        this.completion.complete({ tenantId, system, prompt, maxTokens, timeoutMs }),
         timeout,
       ]);
       const trimmed = typeof answer === 'string' ? answer.trim() : '';

@@ -2320,7 +2320,25 @@ function parseModelDraft(
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    return index.idByLower.get(trimmed.toLowerCase()) ?? null;
+    const lower = trimmed.toLowerCase();
+    const direct = index.idByLower.get(lower);
+    if (direct) return direct;
+    // 容错：真实模型经常把节点 id 写成 hostname / IP / label（而不是输入里的 h:/x: id）。
+    // 只要能在输入主机/外部依赖里唯一对上，就映射回 canonical id，避免整图被模型路径丢弃。
+    const managed = index.managedHosts.find((host) =>
+      (host.hostname && host.hostname.toLowerCase() === lower)
+      || (host.ip && host.ip.trim().toLowerCase() === lower));
+    if (managed) return managed.id;
+    const external = index.externalNodes.find((node) =>
+      node.ip.toLowerCase() === lower || node.id.toLowerCase() === lower);
+    if (external) return external.id;
+    // 形如 "gw-01 (Nginx)" / "prod-web-01 / nginx"：在主机名唯一出现时也接受。
+    const contained = index.managedHosts.filter((host) =>
+      host.hostname.length >= 3
+      && lower.includes(host.hostname.toLowerCase())
+      && lower.length <= host.hostname.length + 30);
+    if (contained.length === 1) return contained[0]?.id ?? null;
+    return null;
   };
 
   const nodesById = new Map<string, TopologyDraftNode>();
@@ -2331,7 +2349,10 @@ function parseModelDraft(
       droppedNodes += 1;
       continue;
     }
-    const id = canonicalId(record.id);
+    const id = canonicalId(record.id)
+      ?? canonicalId(record.hostname)
+      ?? canonicalId(record.ip)
+      ?? canonicalId(record.label);
     if (!id || nodesById.has(id)) {
       droppedNodes += 1;
       continue;
@@ -2655,7 +2676,7 @@ export class TopologyAnalyzer {
     });
     try {
       const answer = await Promise.race([
-        this.completion.complete({ tenantId, system, prompt, maxTokens, timeoutMs }),
+        this.completion.complete({ tenantId, system, prompt, maxTokens, timeoutMs, json: true }),
         timeout,
       ]);
       const trimmed = typeof answer === 'string' ? answer.trim() : '';

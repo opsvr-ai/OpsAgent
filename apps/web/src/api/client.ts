@@ -1661,6 +1661,14 @@ export async function testModel(id: string): Promise<ModelTestResult> {
   });
 }
 
+/** 按拓扑分析同款「默认模型」解析做自检。 */
+export async function testDefaultModel(): Promise<ModelTestResult & { provider?: string; baseUrl?: string }> {
+  return request<ModelTestResult & { provider?: string; baseUrl?: string }>('/api/models/test-default', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function getTopologyGraph(id: string): Promise<TopologyGraph> {
   return request<TopologyGraph>(`/api/topologies/${encodeURIComponent(id)}`);
 }

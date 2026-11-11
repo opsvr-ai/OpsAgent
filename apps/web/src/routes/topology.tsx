@@ -29,6 +29,7 @@ import {
   listAppSystems,
   listAvailableModels,
   startTopologyLearning,
+  testDefaultModel,
   updateTopologyPolicy,
 } from '../api/client.js';
 import { relativeTime } from '../format.js';
@@ -979,6 +980,19 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     }
   }, [graph?.sessionId, loadTopology, showToast]);
 
+  const probeDefaultModel = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const result = await testDefaultModel();
+      return {
+        ok: true,
+        message: `连接成功 · ${result.model ?? ''}${result.latencyMs ? ` · ${result.latencyMs}ms` : ''}${result.sample ? ` · ${result.sample}` : ''}`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'model_test_failed';
+      return { ok: false, message: `测试失败：${message}` };
+    }
+  }, []);
+
   const back = onBack ?? ((): void => {
     window.location.href = window.location.pathname;
   });
@@ -1820,6 +1834,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     canReanalyze={!demo && Boolean(graph.sessionId)}
                     reanalyzing={reanalyzing}
                     onReanalyze={() => void reanalyze()}
+                    {...(!demo ? { onTestModel: probeDefaultModel } : {})}
                   />
                 )}
               </aside>

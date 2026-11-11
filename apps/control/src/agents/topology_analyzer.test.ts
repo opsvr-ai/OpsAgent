@@ -463,6 +463,33 @@ describe('TopologyAnalyzer model path (v2)', () => {
     });
   });
 
+  it('maps model node/edge ids written as hostnames or IPs back to canonical ids', async () => {
+    const answer = JSON.stringify({
+      summary: '模型使用主机名作为 id',
+      nodes: [
+        { id: 'gw-01', label: 'gw-01', kind: 'gateway', tier: 'access', product: 'Nginx', role: '接入网关', systemService: false },
+        { id: 'app-01', label: 'app-01', kind: 'service', tier: 'app', product: 'order', role: '应用服务', systemService: false },
+        { id: 'db-01 (MySQL)', label: 'db-01', kind: 'database', tier: 'data', product: 'MySQL', role: '数据库', systemService: false },
+        { id: EXTERNAL_IP, label: EXTERNAL_IP, kind: 'external', tier: 'external', product: '外部依赖', role: '外部服务', systemService: false },
+      ],
+      edges: [
+        { source: 'gw-01', target: 'app-01', port: 8080, count: 1 },
+        { source: 'app-01', target: 'db-01 (MySQL)', port: 3306, count: 1 },
+        { source: 'app-01', target: EXTERNAL_IP, port: 443, count: 1 },
+      ],
+      insights: [],
+      hotPaths: [],
+      risks: [],
+      confidence: 0.9,
+    });
+    const { service } = completionWith(async () => answer);
+    const result = await new TopologyAnalyzer(service).analyze('tenant-1', baseInput);
+    expect(result.analysis.fallback).toBe(false);
+    expect(result.draft.nodes.map((node) => node.hostname).filter(Boolean).sort())
+      .toEqual([EXTERNAL_IP, 'app-01', 'db-01', 'gw-01']);
+    expect(result.draft.edges.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('uses the default llm label without a user-facing warning when modelLabel is not provided', async () => {
     const { service } = completionWith(async () =>
       JSON.stringify({

@@ -107,6 +107,46 @@ export function registerModelRoutes(
     }
   });
 
+  // 使用「拓扑分析同款」默认模型解析做连通性自检：与拓扑分析器完全一致的
+  // tenant/model 选择逻辑，避免用户在多个模型间无法确认实际生效的是哪个。
+  app.post('/api/models/test-default', async (request, reply) => {
+    const ctx = await context(pool, request);
+    if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
+    try {
+      requirePermission(ctx, 'model.configure');
+    } catch (error) {
+      if (error instanceof ForbiddenError) return reply.code(403).send({ error: 'forbidden' });
+      throw error;
+    }
+    const resolved = await models.resolve(ctx.tenantId);
+    if (!resolved) {
+      return reply.code(409).send({ ok: false, error: 'model_not_configured' });
+    }
+    const completion = new ModelCompletionService(models);
+    const started = Date.now();
+    try {
+      const sample = await completion.complete({
+        tenantId: ctx.tenantId,
+        system: 'You are a connectivity probe. Reply with the single word: ok',
+        prompt: 'ping',
+        maxTokens: 16,
+        timeoutMs: 20_000,
+      });
+      return reply.send({
+        ok: true,
+        model: resolved.model,
+        provider: resolved.provider,
+        baseUrl: resolved.baseUrl,
+        latencyMs: Date.now() - started,
+        sample: sample.trim().slice(0, 160),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'model_test_failed';
+      request.log.warn({ err: error, model: resolved.model }, 'default model connectivity test failed');
+      return reply.code(502).send({ ok: false, error: message.slice(0, 300) });
+    }
+  });
+
   app.post('/api/models/batch', async (request, reply) => {    const ctx = await context(pool, request);
     if (!ctx) return reply.code(401).send({ error: 'unauthorized' });
     try {

@@ -8,6 +8,8 @@ export interface CompletionRequest {
   readonly maxTokens?: number;
   /** 请求超时（毫秒），默认 45s；拓扑分析等长任务可显式放宽。 */
   readonly timeoutMs?: number;
+  /** 要求 OpenAI 兼容网关返回 JSON object（不支持时自动按 400 重试）。 */
+  readonly json?: boolean;
 }
 
 function openAiBase(baseUrl: string): string {
@@ -123,7 +125,14 @@ export class ModelCompletionService {
       method: 'POST',
       headers,
       // stream:false 显式声明，兼容默认开启流式的内网网关。
-      body: JSON.stringify({ model: model.model, temperature: 0.2, max_tokens: maxTokens, messages, stream: false }),
+      body: JSON.stringify({
+        model: model.model,
+        temperature: 0.2,
+        max_tokens: maxTokens,
+        messages,
+        stream: false,
+        ...(input.json ? { response_format: { type: 'json_object' } } : {}),
+      }),
       signal: timeout,
     });
     let parsed = await readJson(response);

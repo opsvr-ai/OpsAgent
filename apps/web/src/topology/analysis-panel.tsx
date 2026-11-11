@@ -25,6 +25,8 @@ export interface AnalysisPanelProps {
   readonly canReanalyze?: boolean;
   readonly reanalyzing?: boolean;
   readonly onReanalyze?: () => void;
+  /** 用拓扑分析同款默认模型做连通性自检；返回给面板展示的文案。 */
+  readonly onTestModel?: () => Promise<{ ok: boolean; message: string }>;
 }
 
 const SEVERITY_LABEL: Record<TopologyInsight['severity'], string> = {
@@ -62,7 +64,10 @@ export function AnalysisPanel({
   canReanalyze = false,
   reanalyzing = false,
   onReanalyze,
+  onTestModel,
 }: AnalysisPanelProps): ReactElement {
+  const [testingModel, setTestingModel] = useState(false);
+  const [modelTestText, setModelTestText] = useState<string | null>(null);
   const analysis = graph.analysis;
   const fallback = analysis.fallback ?? false;
   const confidence = Math.round(analysis.confidence * 100);
@@ -99,6 +104,27 @@ export function AnalysisPanel({
           <button type="button" className="btn btn-outline btn-sm" onClick={onOpenModels}>
             <MiniIcon name="settings" size={12} /> 去模型配置
           </button>
+          {onTestModel ? (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              disabled={testingModel}
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setTestingModel(true);
+                setModelTestText(null);
+                void onTestModel()
+                  .then((result) => setModelTestText(result.message))
+                  .catch((error: unknown) => {
+                    const message = error instanceof Error ? error.message : 'model_test_failed';
+                    setModelTestText(`测试失败：${message}`);
+                  })
+                  .finally(() => setTestingModel(false));
+              }}
+            >
+              <MiniIcon name="spark" size={12} /> {testingModel ? '测试中…' : '测试当前模型'}
+            </button>
+          ) : null}
           {canReanalyze && onReanalyze ? (
             <button
               type="button"
@@ -109,6 +135,9 @@ export function AnalysisPanel({
             >
               <MiniIcon name="refresh" size={12} /> {reanalyzing ? '重新分析中…' : '用当前模型重新分析'}
             </button>
+          ) : null}
+          {modelTestText ? (
+            <p className="topo-analysis-warning" style={{ wordBreak: 'break-all' }}>{modelTestText}</p>
           ) : null}
         </div>
       ) : (

@@ -354,6 +354,7 @@ Agent 异常事件上报后自动触发；同一应用系统已有运行中分�
   - Control 新增 `agent_http_requests`（迁移 0081，保留 7 天），Web「访问量分析」可切换 **TCP 建连 / HTTP/gRPC 请求**，请求视图显示协议、方法、请求数、失败、sparkline，24h/7d 自动小时/天桶。
   - **AI 自动打标签**：`POST /api/topologies/edge-tags/suggest` 把访问关系摘要交给大模型，输出标签/类别/置信度/原因；模型不可用自动规则兜底（运维工具/外部依赖/数据访问/中间件访问/应用调用），Web 建议弹层支持全选/单选采纳，落库 `source='model'`；无模型时可手动打标签。
   - **分析过程 trace（排障）**：每次拓扑分析记录「解析默认模型 → 组装 prompt → 调用模型 → 解析/校验 → 生成/兜底」五步（含模型名/provider/Base URL、prompt 统计、请求耗时/HTTP 状态/响应字符、响应片段、error code/message、fallbackReason），随图持久化；Web 分析侧栏「查看分析过程」可展开完整过程、复制响应片段；模型不可用时直接显示具体错误（如 `model_fetch_failed:ECONNREFUSED`、`model_http_401`、`model_json_invalid`）。
+  - **AI 自然语言微调**：拓扑生成后，在页面「AI 微调」输入一句话（如「隐藏外部依赖」「只看 prod-db-01」「把 prod-db-01 改名为 订单数据库」「给 gateway-order-01→prod-web-01:443 打标签：核心入口」「重置视图」），服务端大模型解析为受控视图操作（隐藏/显示节点或边、改名、改层级/类型、打标签、过滤、聚焦、微移、重置），只影响当前视图/标签，不修改原始学习结果；操作历史持久化到 `topology_view_adjustments`，可撤销/清空；模型不可用时规则解析常见指令。
 
 API（权限 `agent.manage`）：
 

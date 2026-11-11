@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { migrate } from '../db/migrate.js';
 import { seed } from '../db/seed.js';
 import { buildServer } from '../server.js';
+import { setTopologyAdjusterForTests } from './topology_routes.js';
 import { AgentConnectionEdgeService } from './connection_edges.js';
 import { AgentHttpRequestService } from './topology_http_requests.js';
 import {
@@ -1245,6 +1246,142 @@ describeDb('TopologyLearningService (postgres)', () => {
     };
     const relationKey = graph.edges[0]?.relationKey;
     expect(relationKey).toBe('web-01|db-01|3306');
+
+    // 自然语言微调：stub adjuster 保存历史、截断 operations、列表/删除/参数与权限。
+    setTopologyAdjusterForTests({
+      async adjust(_tenant, input) {
+        return {
+          reply: `已处理：${input.instruction}`,
+          operations: [
+            { op: 'setFilter', key: 'external', value: false },
+            { op: 'hideNode', nodeId: input.graph.nodes[0]?.id ?? 'h:node-0' },
+            ...Array.from({ length: 60 }, (_, index) => ({
+              op: 'hideNode' as const,
+              nodeId: `h:${index}`,
+            })),
+          ],
+          model: 'stub-adjuster',
+          fallback: false,
+        };
+      },
+    });
+    let firstAdjustmentId = '';
+    try {
+      const adjusted = await app.inject({
+        method: 'POST',
+        url: `/api/topologies/${graphId}/adjust`,
+        headers,
+        payload: { instruction: '隐藏外部依赖' },
+      });
+      expect(adjusted.statusCode).toBe(201);
+      const adjustedBody = adjusted.json() as {
+        id: string;
+        graphId: string;
+        instruction: string;
+        reply: string;
+        operations: unknown[];
+        model: string;
+        fallback: boolean;
+        createdAt: string;
+      };
+      firstAdjustmentId = adjustedBody.id;
+      expect(adjustedBody).toMatchObject({
+        graphId,
+        instruction: '隐藏外部依赖',
+        model: 'stub-adjuster',
+        fallback: false,
+      });
+      expect(adjustedBody.operations).toHaveLength(50);
+      expect(adjustedBody.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+      const adjustedAgain = await app.inject({
+        method: 'POST',
+        url: `/api/topologies/${graphId}/adjust`,
+        headers,
+        payload: { instruction: '重新显示' },
+      });
+      expect(adjustedAgain.statusCode).toBe(201);
+      const secondAdjustmentId = (adjustedAgain.json() as { id: string }).id;
+
+      const adjustments = await app.inject({
+        method: 'GET',
+        url: `/api/topologies/${graphId}/adjustments`,
+        headers,
+      });
+      expect(adjustments.statusCode).toBe(200);
+      const listBody = adjustments.json() as { adjustments: Array<{ id: string }> };
+      expect(listBody.adjustments.map((item) => item.id)).toEqual([secondAdjustmentId, firstAdjustmentId]);
+
+      const deleteAdjustment = await app.inject({
+        method: 'DELETE',
+        url: `/api/topologies/${graphId}/adjustments/${secondAdjustmentId}`,
+        headers,
+      });
+      expect(deleteAdjustment.statusCode).toBe(200);
+      expect(deleteAdjustment.json()).toEqual({ ok: true });
+      const deleteAgain = await app.inject({
+        method: 'DELETE',
+        url: `/api/topologies/${graphId}/adjustments/${secondAdjustmentId}`,
+        headers,
+      });
+      expect(deleteAgain.statusCode).toBe(404);
+
+      const afterDelete = await app.inject({
+        method: 'GET',
+        url: `/api/topologies/${graphId}/adjustments`,
+        headers,
+      });
+      expect((afterDelete.json() as { adjustments: Array<{ id: string }> }).adjustments
+        .map((item) => item.id)).toEqual([firstAdjustmentId]);
+
+      const emptyInstruction = await app.inject({
+        method: 'POST',
+        url: `/api/topologies/${graphId}/adjust`,
+        headers,
+        payload: { instruction: '   ' },
+      });
+      expect(emptyInstruction.statusCode).toBe(400);
+      const longInstruction = await app.inject({
+        method: 'POST',
+        url: `/api/topologies/${graphId}/adjust`,
+        headers,
+        payload: { instruction: 'x'.repeat(501) },
+      });
+      expect(longInstruction.statusCode).toBe(400);
+      const unknownGraph = await app.inject({
+        method: 'POST',
+        url: '/api/topologies/00000000-0000-4000-8000-0000000000ff/adjust',
+        headers,
+        payload: { instruction: '隐藏外部依赖' },
+      });
+      expect(unknownGraph.statusCode).toBe(404);
+      const unauthorizedAdjust = await app.inject({
+        method: 'POST',
+        url: `/api/topologies/${graphId}/adjust`,
+        payload: { instruction: '隐藏外部依赖' },
+      });
+      expect(unauthorizedAdjust.statusCode).toBe(401);
+    } finally {
+      setTopologyAdjusterForTests(undefined);
+    }
+
+    // 微调器不可用：仍返回 201 规则兜底结果，不 500。
+    setTopologyAdjusterForTests(null);
+    try {
+      const fallbackAdjust = await app.inject({
+        method: 'POST',
+        url: `/api/topologies/${graphId}/adjust`,
+        headers,
+        payload: { instruction: '只看订单服务' },
+      });
+      expect(fallbackAdjust.statusCode).toBe(201);
+      const fallbackBody = fallbackAdjust.json() as { fallback: boolean; warning?: string; operations: unknown[] };
+      expect(fallbackBody.fallback).toBe(true);
+      expect(fallbackBody.warning).toContain('adjuster_unavailable');
+      expect(fallbackBody.operations).toEqual([]);
+    } finally {
+      setTopologyAdjusterForTests(undefined);
+    }
 
     // 标签 CRUD + latest/get 挂载。
     const createdTag = await app.inject({

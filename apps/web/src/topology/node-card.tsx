@@ -90,6 +90,7 @@ function NodeCardView({
     data.ip ? `IP：${data.ip}` : '',
     data.systemService ? '系统服务' : '',
     anomalies.length > 0 ? `异常：${anomalies.join('；')}` : '',
+    data.note ? `备注：${data.note}` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -137,6 +138,12 @@ function NodeCardView({
           </text>
         ) : null}
         <StatusDot status={data.status} x={card.w - 13} y={13} />
+        {data.note?.includes('手动调整') ? (
+          <g className="topo2-node-manual">
+            <rect x={card.w - 40} y={23} width={31} height={13} rx={3} />
+            <text x={card.w - 24.5} y={32.5} textAnchor="middle">手动</text>
+          </g>
+        ) : null}
         {selected ? <rect className="topo2-node-ring" width={card.w} height={card.h} rx={12} stroke={node.systemColor} /> : null}
       </g>
     );

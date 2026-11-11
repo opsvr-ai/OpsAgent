@@ -47,6 +47,7 @@ export interface TopologyCanvasProps {
   readonly resetEpoch?: number;
   readonly edgeTags?: ReadonlyMap<string, readonly TopologyEdgeTag[]>;
   readonly highlightRelationKey?: string | null;
+  readonly adjustmentOffsets?: Readonly<Record<string, { x: number; y: number }>>;
   readonly onSelect: (id: string | null) => void;
   readonly onFocus: (id: string | null) => void;
   readonly onDrill: (systemId: string) => void;
@@ -128,6 +129,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     resetEpoch,
     edgeTags,
     highlightRelationKey,
+    adjustmentOffsets,
     onSelect,
     onFocus,
     onDrill,
@@ -155,6 +157,18 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const nodeDragRef = useRef<{ id: string; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const nodeSelectRef = useRef<((id: string) => void) | null>(null);
+
+  const effectivePosition = useCallback(
+    (id: string): { x: number; y: number } | null => {
+      const node = layout.nodeById.get(id);
+      if (!node) return null;
+      const manual = offsets[id];
+      if (manual) return manual;
+      const adjustment = adjustmentOffsets?.[id];
+      return adjustment ? { x: node.x + adjustment.x, y: node.y + adjustment.y } : null;
+    },
+    [adjustmentOffsets, layout.nodeById, offsets],
+  );
 
   const miniWidth = 150;
   const miniHeight = useMemo(
@@ -479,7 +493,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       if (event.button !== 0) return;
       const node = layoutRef.current?.nodeById.get(id);
       if (!node) return;
-      const origin = offsets[id] ?? { x: node.x, y: node.y };
+      const origin = effectivePosition(id) ?? { x: node.x, y: node.y };
       const drag = {
         id,
         startX: event.clientX,
@@ -523,7 +537,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);
     },
-    [offsets],
+    [effectivePosition],
   );
 
   const analysisEmphasis = useMemo<Emphasis | null>(() => {
@@ -921,13 +935,13 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               onHover={handleHoverNode}
               onSelect={handleNodeSelect}
               onFocus={handleNodeFocus}
-              {...(offsets[node.id] ? { position: offsets[node.id] } : {})}
+              {...(effectivePosition(node.id) ? { position: effectivePosition(node.id)! } : {})}
               dragging={draggingId === node.id}
               onPointerDown={(event) => beginNodeDrag(node.id, event)}
             />
           ))}
 
-          {Object.keys(offsets).length === 0 ? layout.labels.map((label) => (
+          {Object.keys(offsets).length === 0 && Object.keys(adjustmentOffsets ?? {}).length === 0 ? layout.labels.map((label) => (
             <g
               key={`static-${label.edgeId}`}
               className="topo2-edge-label is-static"

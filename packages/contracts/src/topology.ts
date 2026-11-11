@@ -479,6 +479,45 @@ export interface EdgeTagSuggestResponse {
 }
 
 // ---------------------------------------------------------------------------
+// 拓扑自然语言微调（只影响视图/标签，不改原始采集图）
+// ---------------------------------------------------------------------------
+
+export type TopologyAdjustOperation =
+  | { readonly op: 'hideNode'; readonly nodeId: string }
+  | { readonly op: 'showNode'; readonly nodeId: string }
+  | { readonly op: 'hideEdge'; readonly relationKey: string }
+  | { readonly op: 'showEdge'; readonly relationKey: string }
+  | { readonly op: 'renameNode'; readonly nodeId: string; readonly label: string }
+  | { readonly op: 'setNodeDisplay'; readonly nodeId: string; readonly tier?: TopologyTier; readonly kind?: TopologyNodeKind; readonly product?: string; readonly role?: string }
+  | { readonly op: 'tagEdge'; readonly relationKey: string; readonly label: string; readonly category?: string; readonly color?: string }
+  | { readonly op: 'setFilter'; readonly key: 'external' | 'management' | 'lowTraffic' | 'unassigned'; readonly value: boolean }
+  | { readonly op: 'focusNode'; readonly nodeId: string }
+  | { readonly op: 'moveNode'; readonly nodeId: string; readonly direction: 'left' | 'right' | 'top' | 'bottom'; readonly distance?: number }
+  | { readonly op: 'resetView' };
+
+export interface TopologyAdjustment {
+  readonly id: string;
+  readonly graphId: string;
+  readonly instruction: string;
+  readonly reply: string;
+  readonly operations: readonly TopologyAdjustOperation[];
+  readonly model: string;
+  readonly fallback: boolean;
+  readonly warning?: string;
+  readonly createdAt: string;
+}
+
+export interface TopologyAdjustmentResponse {
+  readonly reply: string;
+  readonly operations: readonly TopologyAdjustOperation[];
+  readonly model: string;
+  readonly fallback: boolean;
+  readonly warning?: string;
+  /** 指令无法映射时询问用户，例如“图里有 3 个 MySQL 节点，你说的是哪一台？”。 */
+  readonly clarification?: string;
+}
+
+// ---------------------------------------------------------------------------
 // 学习输入（控制面聚合后交给分析器）
 // ---------------------------------------------------------------------------
 

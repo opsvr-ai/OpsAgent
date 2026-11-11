@@ -1634,6 +1634,8 @@ import type {
   HttpRequestTrendsResponse,
   EdgeTagSuggestResponse,
   EdgeTagSuggestion,
+  TopologyAdjustment,
+  TopologyAdjustOperation,
 } from '@opsagent/contracts';
 
 function topologyQuery(appSystemId?: string): string {
@@ -1788,3 +1790,41 @@ export async function suggestEdgeTags(body: {
 }
 
 export type { EdgeTagSuggestion };
+
+
+// ---------------------------------------------------------------------------
+// 拓扑自然语言微调（视图/标签，不改原始图）
+// ---------------------------------------------------------------------------
+
+export async function adjustTopology(
+  graphId: string,
+  instruction: string,
+): Promise<TopologyAdjustment & { clarification?: string }> {
+  return request<TopologyAdjustment & { clarification?: string }>(
+    `/api/topologies/${encodeURIComponent(graphId)}/adjust`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ instruction }),
+    },
+  );
+}
+
+export async function getTopologyAdjustments(
+  graphId: string,
+): Promise<{ adjustments: TopologyAdjustment[] }> {
+  return request<{ adjustments: TopologyAdjustment[] }>(
+    `/api/topologies/${encodeURIComponent(graphId)}/adjustments`,
+  );
+}
+
+export async function deleteTopologyAdjustment(
+  graphId: string,
+  adjustmentId: string,
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    `/api/topologies/${encodeURIComponent(graphId)}/adjustments/${encodeURIComponent(adjustmentId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export type { TopologyAdjustment, TopologyAdjustOperation };

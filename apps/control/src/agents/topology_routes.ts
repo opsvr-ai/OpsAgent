@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type {
   EdgeTagSuggestion,
   EdgeTagSuggestResponse,
+  TopologyAdjustmentResponse,
   TopologyEdgeTag,
   TopologyGraph,
   TopologyScope,
@@ -15,6 +16,8 @@ import { ForbiddenError, requirePermission } from '../tenancy/guards.js';
 import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
 import { AgentConnectionEdgeService } from './connection_edges.js';
+import { TopologyAdjuster } from './topology_adjuster.js';
+import { TopologyAdjustmentService } from './topology_adjustments.js';
 import {
   TopologyLearningError,
   TopologyLearningService,
@@ -302,6 +305,40 @@ async function loadEdgeClassifier(completion: ModelCompletionService): Promise<E
   }
 }
 
+// ---------------------------------------------------------------------------
+// 自然语言拓扑微调：TopologyAdjuster → 持久化历史
+// ---------------------------------------------------------------------------
+
+/** 与 topology-llm 的 topology_adjuster.ts 保持结构一致。 */
+export interface TopologyAdjusterLike {
+  adjust(
+    tenantId: string,
+    input: { readonly graph: TopologyGraph; readonly instruction: string },
+  ): Promise<TopologyAdjustmentResponse>;
+}
+
+let adjusterForTests: TopologyAdjusterLike | null | undefined;
+
+/** 测试注入：不传参数恢复为动态加载，传 null 模拟"微调器不可用"。 */
+export function setTopologyAdjusterForTests(adjuster?: TopologyAdjusterLike | null): void {
+  adjusterForTests = adjuster;
+}
+
+/** 自然语言微调器（topology-llm 提供，接口稳定）。 */
+function loadTopologyAdjuster(completion: ModelCompletionService): TopologyAdjusterLike {
+  return new TopologyAdjuster(completion);
+}
+
+function fallbackAdjustmentResponse(warning: string): TopologyAdjustmentResponse {
+  return {
+    reply: '暂时无法调用 AI 微调器，已保留原图。请稍后重试，或用更明确的指令。',
+    operations: [],
+    model: 'rule',
+    fallback: true,
+    warning: warning.slice(0, 500),
+  };
+}
+
 export function registerTopologyRoutes(
   app: FastifyInstance,
   pool: Pool,
@@ -314,6 +351,7 @@ export function registerTopologyRoutes(
   const edgeTags = new TopologyEdgeTagService(pool);
   const trends = new AccessTrendService(pool, edgeTags);
   const httpTrends = new HttpRequestTrendService(pool, edgeTags);
+  const adjustments = new TopologyAdjustmentService(pool);
   const completion = new ModelCompletionService(
     new ModelProviderService(pool, modelSecret ?? process.env.OPSAGENT_SECRET_KEY ?? 'dev-only-secret'),
   );
@@ -590,6 +628,68 @@ export function registerTopologyRoutes(
     });
     return reply.send(response);
   });
+
+  // 自然语言微调：调用 LLM 微调器生成视图操作并持久化历史。
+  app.post<{ Params: { id: string } }>('/api/topologies/:id/adjust', async (request, reply) => {
+    const ctx = await authorize(request, reply, pool);
+    if (!ctx) return;
+    if (!isUuid(request.params.id)) return reply.code(404).send({ error: 'topology_not_found' });
+    const body = request.body as { instruction?: unknown } | undefined;
+    const instruction = typeof body?.instruction === 'string' ? body.instruction.trim() : '';
+    if (!instruction || instruction.length > 500) {
+      return reply.code(400).send({ error: 'invalid_instruction' });
+    }
+    const graph = await learning.get(ctx.tenantId, request.params.id);
+    if (!graph) return reply.code(404).send({ error: 'topology_not_found' });
+    let response: TopologyAdjustmentResponse;
+    try {
+      const adjuster = adjusterForTests !== undefined
+        ? adjusterForTests
+        : loadTopologyAdjuster(completion);
+      if (!adjuster) {
+        response = fallbackAdjustmentResponse('adjuster_unavailable: AI 微调器未就绪');
+      } else {
+        response = await adjuster.adjust(ctx.tenantId, { graph, instruction });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      response = fallbackAdjustmentResponse(`adjuster_error: ${message}`);
+    }
+    const saved = await adjustments.create({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      graphId: request.params.id,
+      instruction,
+      response,
+    });
+    if (!saved) return reply.code(404).send({ error: 'topology_not_found' });
+    return reply.code(201).send(saved);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/topologies/:id/adjustments', async (request, reply) => {
+    const ctx = await authorize(request, reply, pool);
+    if (!ctx) return;
+    if (!isUuid(request.params.id)) return reply.code(404).send({ error: 'topology_not_found' });
+    const graph = await learning.get(ctx.tenantId, request.params.id);
+    if (!graph) return reply.code(404).send({ error: 'topology_not_found' });
+    return reply.send({ adjustments: await adjustments.list(ctx.tenantId, request.params.id, 100) });
+  });
+
+  app.delete<{ Params: { id: string; adjustmentId: string } }>(
+    '/api/topologies/:id/adjustments/:adjustmentId',
+    async (request, reply) => {
+      const ctx = await authorize(request, reply, pool);
+      if (!ctx) return;
+      if (!isUuid(request.params.id) || !isUuid(request.params.adjustmentId)) {
+        return reply.code(404).send({ error: 'adjustment_not_found' });
+      }
+      const graph = await learning.get(ctx.tenantId, request.params.id);
+      if (!graph) return reply.code(404).send({ error: 'topology_not_found' });
+      const deleted = await adjustments.delete(ctx.tenantId, request.params.id, request.params.adjustmentId);
+      if (!deleted) return reply.code(404).send({ error: 'adjustment_not_found' });
+      return reply.send({ ok: true });
+    },
+  );
 
   // 注意：通配 /:id 必须放在最后。
   app.get<{ Params: { id: string } }>('/api/topologies/:id', async (request, reply) => {

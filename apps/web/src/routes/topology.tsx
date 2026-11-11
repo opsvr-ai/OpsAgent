@@ -15,6 +15,8 @@ import type {
   HttpRequestTrendRow,
   EdgeTagSuggestResponse,
   EdgeTagSuggestion,
+  TopologyAdjustment,
+  TopologyAdjustOperation,
 } from '@opsagent/contracts';
 import {
   ApiError,
@@ -26,9 +28,12 @@ import {
   getTopologySession,
   analyzeTopologySession,
   cancelTopologySession,
+  adjustTopology,
   createEdgeTag,
   deleteEdgeTag,
+  deleteTopologyAdjustment,
   getAccessTrends,
+  getTopologyAdjustments,
   getEdgeTags,
   getHttpRequests,
   suggestEdgeTags,
@@ -52,6 +57,12 @@ import {
 import { TopologyCanvas, type CenterTarget } from '../topology/topology-canvas.js';
 import { AnalysisPanel, NodeDetailPanel } from '../topology/analysis-panel.js';
 import { AnalysisTracePanel } from '../topology/analysis-trace-panel.js';
+import { AdjustmentPanel, type AdjustFeedback } from '../topology/adjustment-panel.js';
+import {
+  applyViewAdjustments,
+  localAdjustment,
+  replayAdjustments,
+} from '../topology/adjustments.js';
 import { LearningWizard, PolicyPanel, type AppSystemOption } from '../topology/learning.js';
 import {
   HttpRequestsPanel,
@@ -355,6 +366,14 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [traceRunning, setTraceRunning] = useState(false);
   const [traceStartedAt, setTraceStartedAt] = useState<number | null>(null);
   const [traceRequestError, setTraceRequestError] = useState<string | null>(null);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustInput, setAdjustInput] = useState('');
+  const [adjustSending, setAdjustSending] = useState(false);
+  const [adjustFeedback, setAdjustFeedback] = useState<AdjustFeedback | null>(null);
+  const [adjustments, setAdjustments] = useState<TopologyAdjustment[]>([]);
+  const [adjustUndoBusy, setAdjustUndoBusy] = useState(false);
+  const demoAdjustmentsRef = useRef(new Map<string, TopologyAdjustment[]>());
+  const previousAdjustFocusRef = useRef<string | null>(null);
   const toastSeq = useRef(0);
   const centerEpoch = useRef(0);
   const finishedSessionRef = useRef<string | null>(null);
@@ -609,21 +628,40 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     };
   }, [fullscreen]);
 
+  const adjustmentState = useMemo(() => replayAdjustments(adjustments), [adjustments]);
+  const effectiveDisplaySettings = useMemo(
+    () => ({
+      ...displaySettings,
+      management: adjustmentState.filters.management ?? displaySettings.management,
+      showAllEdges: adjustmentState.filters.lowTraffic ?? displaySettings.showAllEdges,
+    }),
+    [adjustmentState.filters.lowTraffic, adjustmentState.filters.management, displaySettings],
+  );
+  const effectiveShowUnassigned = adjustmentState.filters.unassigned ?? showUnassigned;
   const prepared = useMemo(
-    () => (graph ? prepareTopology(graph, displaySettings, showUnassigned) : null),
-    [displaySettings, graph, showUnassigned],
+    () => (graph ? prepareTopology(graph, effectiveDisplaySettings, effectiveShowUnassigned) : null),
+    [effectiveDisplaySettings, effectiveShowUnassigned, graph],
+  );
+  const adjusted = useMemo(
+    () => (prepared ? applyViewAdjustments(prepared.graph, adjustmentState) : null),
+    [adjustmentState, prepared],
   );
   const view = useMemo(
     () =>
-      prepared
-        ? buildViewGraph(prepared.graph, viewMode, { includeUnassigned: showUnassigned })
+      adjusted
+        ? buildViewGraph(adjusted.graph, viewMode, { includeUnassigned: effectiveShowUnassigned })
         : null,
-    [prepared, showUnassigned, viewMode],
+    [adjusted, effectiveShowUnassigned, viewMode],
   );
   const layout = useMemo(
-    () => (view ? computeLayout(view, { compactCards: displaySettings.compactCards }) : null),
-    [displaySettings.compactCards, view],
+    () => (view ? computeLayout(view, { compactCards: effectiveDisplaySettings.compactCards }) : null),
+    [effectiveDisplaySettings.compactCards, view],
   );
+  const adjustmentOffsets = useMemo(() => {
+    const result: Record<string, { x: number; y: number }> = {};
+    for (const [nodeId, offset] of adjustmentState.offsets) result[nodeId] = offset;
+    return result;
+  }, [adjustmentState.offsets]);
   const systemColors = useMemo(
     () => new Map((layout?.systemLegend ?? []).map((system) => [system.id, system.color])),
     [layout],
@@ -636,10 +674,10 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     selectedId && prepared ? prepared.externalGroups.get(selectedId) ?? null : null;
   const relatedNodes = useMemo(
     () =>
-      prepared && selectedId
-        ? buildRelatedNodes(prepared.graph.edges, prepared.graph.nodes, selectedId)
+      adjusted && selectedId
+        ? buildRelatedNodes(adjusted.graph.edges, adjusted.graph.nodes, selectedId)
         : { outgoing: [], incoming: [] },
-    [prepared, selectedId],
+    [adjusted, selectedId],
   );
   const selectedNodeServices = useMemo(
     () => (selectedNode ? splitServices(selectedNode.node.services) : { business: [], management: [] }),
@@ -787,6 +825,46 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
       cancelled = true;
     };
   }, [demo, httpReload, panelTab, prepared, scopeId, trendMode, trendWindow]);
+
+  useEffect(() => {
+    if (!graph) return;
+    let cancelled = false;
+    setAdjustInput('');
+    setAdjustFeedback(null);
+    setResetEpoch((current) => current + 1);
+    if (demo) {
+      setAdjustments(demoAdjustmentsRef.current.get(graph.id) ?? []);
+      return;
+    }
+    setAdjustments([]);
+    void getTopologyAdjustments(graph.id)
+      .then(({ adjustments: list }) => {
+        if (!cancelled) setAdjustments(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAdjustments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, graph?.id]);
+
+  useEffect(() => {
+    const focus = adjustmentState.focusNode;
+    if (!focus) {
+      if (previousAdjustFocusRef.current) {
+        previousAdjustFocusRef.current = null;
+        setSelectedId(null);
+        setFocusId(null);
+      }
+      return;
+    }
+    if (previousAdjustFocusRef.current === focus) return;
+    if (!layout?.nodeById.has(focus)) return;
+    previousAdjustFocusRef.current = focus;
+    setSelectedId(focus);
+    setFocusId(focus);
+  }, [adjustmentState.focusNode, layout]);
 
   const neighbourhood = useMemo(() => {
     if (!layout || !selectedId) return new Set<string>();
@@ -1324,6 +1402,129 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     [saveAccessTag, showToast],
   );
 
+  const sendAdjustment = useCallback(async (): Promise<void> => {
+    if (!graph || adjustSending) return;
+    const instruction = adjustInput.trim();
+    if (!instruction) return;
+    setAdjustSending(true);
+    setAdjustFeedback(null);
+    const graphId = graph.id;
+    try {
+      let result: TopologyAdjustment & { clarification?: string };
+      if (demo) {
+        result = localAdjustment(graphId, instruction, prepared?.graph ?? graph);
+      } else {
+        try {
+          result = await adjustTopology(graphId, instruction);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'unknown';
+          result = localAdjustment(graphId, instruction, prepared?.graph ?? graph);
+          result = {
+            ...result,
+            warning: `微调接口暂不可用（${message}），已使用本地规则解析；接口就绪后会自动改用大模型。`,
+          };
+        }
+      }
+      const clarification = result.clarification;
+      for (const operation of result.operations) {
+        if (operation.op !== 'tagEdge') continue;
+        await saveAccessTag({
+          relationKey: operation.relationKey,
+          label: operation.label,
+          category: operation.category ?? '其他',
+          color: operation.color ?? '#3d7ab8',
+          source: 'model',
+        });
+      }
+      if (result.operations.some((operation) => operation.op === 'resetView')) {
+        setResetEpoch((current) => current + 1);
+        setHighlightRelationKey(null);
+      }
+      if (!clarification) {
+        setAdjustments((current) => {
+          const next = [...current, result];
+          if (demo) demoAdjustmentsRef.current.set(graphId, next);
+          return next;
+        });
+        if (result.operations.length > 0) setAdjustInput('');
+      }
+      setAdjustFeedback({
+        reply: result.reply,
+        operations: result.operations,
+        model: result.model,
+        fallback: result.fallback,
+        ...(result.warning ? { warning: result.warning } : {}),
+        ...(clarification ? { clarification } : {}),
+        error: '',
+      });
+    } catch (error) {
+      setAdjustFeedback({
+        reply: '',
+        operations: [],
+        model: '',
+        fallback: false,
+        error: `微调失败：${error instanceof Error ? error.message : 'unknown'}`,
+      });
+    } finally {
+      setAdjustSending(false);
+    }
+  }, [adjustInput, adjustSending, demo, graph, prepared, saveAccessTag]);
+
+  const undoLastAdjustment = useCallback(async (): Promise<void> => {
+    if (!graph || adjustments.length === 0 || adjustUndoBusy) return;
+    const last = adjustments[adjustments.length - 1];
+    if (!last) return;
+    setAdjustUndoBusy(true);
+    try {
+      if (!demo) await deleteTopologyAdjustment(graph.id, last.id);
+      setAdjustments((current) => {
+        const next = current.filter((item) => item.id !== last.id);
+        if (demo) demoAdjustmentsRef.current.set(graph.id, next);
+        return next;
+      });
+      setAdjustFeedback(null);
+    } catch (error) {
+      setAdjustFeedback({
+        reply: '',
+        operations: [],
+        model: '',
+        fallback: false,
+        error: `撤销失败：${error instanceof Error ? error.message : 'unknown'}`,
+      });
+    } finally {
+      setAdjustUndoBusy(false);
+    }
+  }, [adjustUndoBusy, adjustments, demo, graph]);
+
+  const clearAdjustments = useCallback(async (): Promise<void> => {
+    if (!graph || adjustUndoBusy) return;
+    setAdjustUndoBusy(true);
+    try {
+      if (!demo) {
+        for (const adjustment of adjustments) {
+          await deleteTopologyAdjustment(graph.id, adjustment.id);
+        }
+      }
+      demoAdjustmentsRef.current.set(graph.id, []);
+      setAdjustments([]);
+      setAdjustFeedback(null);
+      setResetEpoch((current) => current + 1);
+      setHighlightRelationKey(null);
+      setSelectedId(null);
+      setFocusId(null);
+    } catch (error) {
+      setAdjustFeedback({
+        reply: '',
+        operations: [],
+        model: '',
+        fallback: false,
+        error: `清空微调失败：${error instanceof Error ? error.message : 'unknown'}`,
+      });
+    } finally {
+      setAdjustUndoBusy(false);
+    }
+  }, [adjustUndoBusy, adjustments, demo, graph]);
+
   const running = session !== null && RUNNING_STATUS.has(session.status);
   const stats = graph?.stats;
   const failedEdges = layout?.anomalies ?? 0;
@@ -1377,6 +1578,16 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                       : '未配置策略'}
                   </em>
                 </span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline topo-btn-auto"
+                onClick={() => setAdjustOpen(true)}
+                disabled={!graph}
+                title="用自然语言微调当前视图（不修改原始学习版本）"
+              >
+                <MiniIcon name="spark" size={14} /> AI 微调
+                {adjustments.length > 0 ? <em className="topo-adjust-count">{adjustments.length}</em> : null}
               </button>
               <button
                 type="button"
@@ -1959,6 +2170,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                   resetEpoch={resetEpoch}
                   edgeTags={tagsByRelation}
                   highlightRelationKey={highlightRelationKey}
+                  adjustmentOffsets={adjustmentOffsets}
                   onSelect={handleSelect}
                   onFocus={handleFocus}
                   onDrill={handleDrill}
@@ -2027,7 +2239,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                   <NodeDetailPanel
                     node={selectedNode}
                     view={view}
-                    graph={prepared?.graph ?? graph}
+                    graph={adjusted?.graph ?? prepared?.graph ?? graph}
                     systemColors={systemColors}
                     services={selectedNodeServices}
                     relatedNodes={relatedNodes}
@@ -2174,6 +2386,21 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
           onConfirm={(selected) => void applySuggestions(selected)}
         />
       ) : null}
+
+      <AdjustmentPanel
+        open={adjustOpen}
+        graphId={graph?.id ?? null}
+        history={adjustments}
+        value={adjustInput}
+        sending={adjustSending}
+        feedback={adjustFeedback}
+        undoBusy={adjustUndoBusy}
+        onValueChange={setAdjustInput}
+        onSend={() => void sendAdjustment()}
+        onUndo={() => void undoLastAdjustment()}
+        onClear={() => void clearAdjustments()}
+        onClose={() => setAdjustOpen(false)}
+      />
 
       {graph ? (
         <AnalysisTracePanel

@@ -1865,13 +1865,14 @@ const TOPOLOGY_SYSTEM_PROMPT = [
   '2. 节点 id 只能使用输入中出现的 id（hosts[].id、externalPeers[].id、edges[].from/to）；禁止编造节点或 id。',
   '3. 输入里 edges[].from / edges[].to 是边两端的节点 id；输出 edges 时用 source / target（与 from/to 相同）。',
   '4. 端口用输入中的真实端口；opened / failed 用输入边的真实数字；count 参考 opened / active 的真实数量。',
-  '5. 每个 node 必须输出 product、role、systemService；product/role 基于 services/processes 证据，禁止编造；systemService 仅当节点主要承载系统/运维服务时为 true。',
+  '5. 每个 node 必须输出 id/label/kind/tier；product/role/systemService/services/note 为可选（缺失会由规则补全），有证据时尽量给出；禁止编造。',
   '6. 业务系统分组必须使用输入中的 appSystemId 原值；节点 label 用主机名或服务名（可用中文）。',
   '7. 未纳管外部 peer 必须建成 external 节点，label 用 IP。',
-  '8. insights 必须具体：引用真实节点/边和数字，说明为什么重要；severity 只能是 info / warning / critical；最多 8 条。',
-  '9. risks 只放 warning / critical 的风险；hotPaths 最多 5 条、每条最多 5 个节点。',
+  '8. insights 必须具体：引用真实节点/边和数字，说明为什么重要；severity 只能是 info / warning / critical；最多 5 条，每条 detail 尽量不超过 120 字。',
+  '9. risks 只放 warning / critical 的风险；hotPaths 最多 3 条、每条最多 5 个节点。',
   '10. hotPaths.edgeIds 和 insights.edgeIds 使用「e:源id->目标id:端口」格式，例如 e:h:ab12cd34->h:ef56gh78:3306。',
   '11. confidence 取 0~1，表示整体结论可信度；数据越完整越高。输出节点不超过 120 个、边不超过 240 条。',
+  '12. 输出必须紧凑，避免重复 hostname/ip/services 等输入已有字段；若输出较长，优先保证 nodes/edges 完整。',
   '',
   'JSON schema：',
   '{',
@@ -2145,7 +2146,7 @@ function buildTopologyPromptFromIndex(
     '输入数据（紧凑 JSON；字段：scope / window / stats / hosts / edges / externalPeers。hosts[].id、externalPeers[].id 是节点 id，edges[].from / edges[].to 引用这些 id；hosts[].processes 是识别组件的关键进程证据）：',
     JSON.stringify(payload),
     '',
-    '请只输出拓扑分析 JSON，不要 Markdown 围栏或解释。每个节点必须包含 product / role / systemService。',
+    '请只输出拓扑分析 JSON，不要 Markdown 围栏或解释。优先保证 nodes/edges 的 id、tier、kind、端口完整；product/role/systemService 可省略，由规则补全。',
   ].join('\n');
   return { system: TOPOLOGY_SYSTEM_PROMPT, prompt, payload };
 }
@@ -2158,6 +2159,19 @@ export function buildTopologyPrompt(input: TopologyLearningInput): TopologyPromp
 // ---------------------------------------------------------------------------
 // 模型输出解析 / 校验 / 真实数字回填
 // ---------------------------------------------------------------------------
+
+function buildCompactRetryPrompt(prompt: string, errorMessage: string): string {
+  return [
+    prompt,
+    '',
+    `【上一次输出无法解析：${cut(errorMessage, 200)}】`,
+    '请重新输出一个更紧凑的严格 JSON 对象，不要解释：',
+    '- 必须包含完整的 nodes 和 edges；nodes 只给 id/label/kind/tier（product/role/systemService 可省略）；',
+    '- edges 只给 source/target/port/opened/failed；',
+    '- insights/hotPaths/risks 各最多 2 条，detail 不超过 80 字；',
+    '- 优先保证 JSON 完整闭合，不要省略右括号。',
+  ].join('\n');
+}
 
 function extractJsonObject(answer: string): Record<string, unknown> {
   const trimmed = answer.trim();
@@ -2915,6 +2929,65 @@ export class TopologyAnalyzer {
             message,
           ),
         );
+        // 真实内网模型常见：输出体积达到 max_tokens 被截断，或首次输出了推理/Markdown。
+        // 用更紧凑的提示词重试一次，而不是直接放弃模型结果。
+        if (topologyPrompt) {
+          const retryStartedMs = Date.now();
+          try {
+            const retryAnswer = await this.requestCompletion(
+              tenantId,
+              topologyPrompt.system,
+              buildCompactRetryPrompt(topologyPrompt.prompt, message),
+              { ...options, maxTokens: 8192, timeoutMs: 180_000 },
+            );
+            const retried = parseModelDraft(retryAnswer, input, index);
+            draft = finalizeDraft(retried.draft, input, index, {
+              mode: 'model',
+              modelStats: retried.stats,
+              reportedConfidence: retried.reportedConfidence,
+            });
+            modelSucceeded = true;
+            traceError = undefined;
+            traceFallbackReason = undefined;
+            traceRequest = {
+              durationMs: (traceRequest?.durationMs ?? 0) + (Date.now() - retryStartedMs),
+              responseChars: retryAnswer.length,
+              responseExcerpt: cut(retryAnswer, 8000),
+            };
+            steps[steps.length - 1] = traceStep(
+              'retry-model',
+              '重试调用大模型（紧凑 JSON）',
+              'ok',
+              retryStartedMs,
+              Date.now() - retryStartedMs,
+              `response ${retryAnswer.length} chars`,
+            );
+            steps.push(
+              traceStep(
+                'parse-response',
+                '解析 JSON / 校验节点与边',
+                'ok',
+                parseStartedMs,
+                Date.now() - parseStartedMs,
+                `紧凑重试后解析成功：${draft.nodes.length} 节点 / ${draft.edges.length} 边`,
+              ),
+            );
+          } catch (retryError) {
+            const retryMessage = errorMessageOf(retryError);
+            traceError = { code: errorCodeOf(retryMessage), message: cut(retryMessage, 1000) };
+            traceFallbackReason = cut(retryMessage, 1000);
+            steps.push(
+              traceStep(
+                'retry-model',
+                '重试调用大模型（紧凑 JSON）',
+                'error',
+                retryStartedMs,
+                Date.now() - retryStartedMs,
+                `${traceError.code}: ${retryMessage}`,
+              ),
+            );
+          }
+        }
       }
     }
 
@@ -3025,7 +3098,7 @@ export class TopologyAnalyzer {
     prompt: string,
     options?: AnalyzeTopologyOptions,
   ): Promise<string> {
-    const maxTokens = clampInt(options?.maxTokens ?? 4096, 128, 4096);
+    const maxTokens = clampInt(options?.maxTokens ?? 8192, 128, 16_384);
     const timeoutMs = clampInt(options?.timeoutMs ?? 120_000, 1_000, 180_000);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {

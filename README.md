@@ -395,7 +395,7 @@ docker compose exec -T control pnpm --filter @opsagent/control seed:topology
    - 有多个模型时，把测试成功的那个设为「智能体默认」——拓扑分析默认使用它。
    - 对应 API：`POST /api/models/:id/test`（指定模型）、`POST /api/models/test-default`（拓扑同款默认模型）。
 3. 旧图不会自动带上新的失败原因：在分析侧栏点「用当前模型重新分析」后，若仍兜底会显示具体 `模型调用失败原因`（如 `model_json_invalid`、`model_timeout`、`model_nodes_empty`）。
-3. 拓扑分析默认超时 120s、输出上限 4096 tokens；失败时分析面板的兜底提示会附带具体原因（`模型不可用，已使用规则引擎生成（...）`）。
+3. 拓扑分析默认超时 120s、输出上限 **8192 tokens**（product/role 可省略，由规则补全）；首次 JSON 解析失败会自动用**紧凑 JSON 提示词重试一次**。失败时分析面板会显示 `模型调用失败原因` 与「查看分析过程」完整 trace（模型/Base URL/prompt 统计/请求耗时/响应片段/错误码）。
 4. 控制面日志：`docker compose logs --tail=200 control | grep -E '\[topology\]|model test failed'`。
 
 #### 内网部署后看不到「访问拓扑」？

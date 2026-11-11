@@ -498,6 +498,20 @@ describe('TopologyAnalyzer model path (v2)', () => {
     expect(result.draft.edges.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('retries with a compact prompt when the first JSON is truncated/invalid', async () => {
+    let attempt = 0;
+    const { service, calls } = completionWith(async () => {
+      attempt += 1;
+      return attempt === 1 ? '{"summary":"被截断", "nodes":[{"id":' : modelDraftAnswer();
+    });
+    const result = await new TopologyAnalyzer(service).analyze('tenant-1', baseInput);
+    expect(result.analysis.fallback).toBe(false);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.maxTokens).toBe(8192);
+    expect(calls[1]?.prompt).toContain('上一次输出无法解析');
+    expect(result.analysis.trace?.steps.map((step) => step.id)).toContain('retry-model');
+  });
+
   it('uses the default llm label without a user-facing warning when modelLabel is not provided', async () => {
     const { service } = completionWith(async () =>
       JSON.stringify({

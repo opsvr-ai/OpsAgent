@@ -101,7 +101,7 @@ export class ModelCompletionService {
   async complete(input: CompletionRequest): Promise<string> {
     const model = await this.models.resolve(input.tenantId, input.modelId);
     if (!model) throw new Error('model_not_configured');
-    const maxTokens = Math.min(Math.max(input.maxTokens ?? 1200, 128), 4096);
+    const maxTokens = Math.min(Math.max(input.maxTokens ?? 1200, 128), 16_384);
     const timeout = AbortSignal.timeout(clampTimeout(input.timeoutMs));
 
     if (model.provider.toLowerCase() === 'anthropic') {

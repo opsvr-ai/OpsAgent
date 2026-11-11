@@ -894,7 +894,10 @@ export function normalizeTopologyAnalysis(
   const durationMs = Math.floor(num(record.durationMs));
   const warning = text(record.warning, MAX_ERROR_LENGTH);
   const fallbackReason = text(record.fallbackReason, MAX_ERROR_LENGTH);
-  const trace = asRecord(record.trace);
+  // 注意 asRecord(undefined) 返回 {}；必须用「非空对象」判断，否则旧图会被写入
+  // 空 trace {}，前端会误以为有 trace 并读取 trace.model.name 崩溃。
+  const traceRecord = asRecord(record.trace);
+  const trace = Object.keys(traceRecord).length > 0 ? traceRecord : null;
   const generated = typeof record.generatedAt === 'string' && !Number.isNaN(Date.parse(record.generatedAt))
     ? new Date(record.generatedAt).toISOString()
     : generatedAt.toISOString();

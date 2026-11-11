@@ -99,7 +99,14 @@ export function AnalysisTracePanel({
     }
   }, [open]);
 
-  const trace = graph.analysis.trace;
+  const rawTrace = graph.analysis.trace;
+  // 防御旧数据/半成品 trace：没有 model/prompt/steps 的 trace 当作「无 trace」。
+  const trace = rawTrace
+    && rawTrace.model
+    && rawTrace.prompt
+    && Array.isArray(rawTrace.steps)
+    ? rawTrace
+    : undefined;
   const analysis = graph.analysis;
   const canReanalyze = Boolean(graph.sessionId) && !running;
   const completedSteps = Math.min(CLIENT_STEPS.length, Math.floor(elapsed / 1.4));

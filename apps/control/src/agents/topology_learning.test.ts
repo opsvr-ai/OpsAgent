@@ -9,6 +9,7 @@ import { AgentHttpRequestService } from './topology_http_requests.js';
 import {
   buildGraphPayload,
   buildLearningInput,
+  normalizeTopologyAnalysis,
   normalizeTopologyTier,
   TopologyLearningService,
   type LearningAgentSource,
@@ -16,7 +17,7 @@ import {
   type LearningInventorySource,
   type TopologyAnalyzerLike,
 } from './topology_learning.js';
-import type { TopologyLearningInput, TopologyScope } from '@opsagent/contracts';
+import type { TopologyAnalysis, TopologyLearningInput, TopologyScope } from '@opsagent/contracts';
 
 const databaseUrl = process.env.TEST_DATABASE_URL
   ?? process.env.DATABASE_URL
@@ -499,6 +500,22 @@ describe('buildLearningInput（窗口样本聚合纯函数）', () => {
 });
 
 describe('buildGraphPayload（draft → 拓扑图纯函数）', () => {
+  it('旧图 analysis 没有 trace 时不会伪造空 trace {}（避免前端读 trace.model.name 崩溃）', () => {
+    const legacy = normalizeTopologyAnalysis({
+      summary: '旧图',
+      insights: [],
+      hotPaths: [],
+      risks: [],
+      model: 'topology-mock',
+      promptVersion: 'topology-v2',
+      generatedAt: '2026-11-11T01:44:47.061Z',
+      confidence: 0.8,
+      durationMs: 10,
+      fallback: false,
+    } as TopologyAnalysis, '', new Date('2026-11-11T02:00:00.000Z'));
+    expect(legacy.trace).toBeUndefined();
+  });
+
   const input = learningInput();
   const generatedAt = new Date('2026-11-10T04:06:00.000Z');
   const draft = {

@@ -220,6 +220,8 @@ export function MiniIcon({
     | 'pin'
     | 'settings'
     | 'chevron-right'
+    | 'tag'
+    | 'chart'
     | 'warning';
 }): ReactNode {
   switch (name) {
@@ -352,6 +354,23 @@ export function MiniIcon({
       );
     case 'chevron-right':
       return frame(<path d="M9 6l6 6-6 6" />, props);
+    case 'tag':
+      return frame(
+        <>
+          <path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3.4 13.4a2 2 0 01-.6-1.4V4.6A1.6 1.6 0 014.4 3h7.4a2 2 0 011.4.6l7.4 7.4a1.7 1.7 0 010 2.4z" />
+          <circle cx="8.2" cy="8.2" r="1.5" />
+        </>,
+        props,
+      );
+    case 'chart':
+      return frame(
+        <>
+          <path d="M4 19V5" />
+          <path d="M4 19h16" />
+          <path d="M8 16v-5M12 16V7M16 16v-8" />
+        </>,
+        props,
+      );
     case 'pin':
       return frame(
         <>

@@ -7,6 +7,10 @@ import type {
   TopologyLearningPolicy,
   TopologyLearningPolicyUpdate,
   TopologyLearningSession,
+  TopologyEdgeTag,
+  TopologyEdgeTagInput,
+  AccessTrendsResponse,
+  AccessTrendRow,
 } from '@opsagent/contracts';
 import {
   ApiError,
@@ -18,6 +22,10 @@ import {
   getTopologySession,
   analyzeTopologySession,
   cancelTopologySession,
+  createEdgeTag,
+  deleteEdgeTag,
+  getAccessTrends,
+  getEdgeTags,
   listAppSystems,
   listAvailableModels,
   startTopologyLearning,
@@ -37,6 +45,12 @@ import {
 import { TopologyCanvas, type CenterTarget } from '../topology/topology-canvas.js';
 import { AnalysisPanel, NodeDetailPanel } from '../topology/analysis-panel.js';
 import { LearningWizard, PolicyPanel, type AppSystemOption } from '../topology/learning.js';
+import {
+  RelationsPanel,
+  TrendsPanel,
+  suggestedTagForPort,
+  type RelationRow,
+} from '../topology/visits-panel.js';
 import { MiniIcon } from '../topology/icons.js';
 import {
   DEMO_APP_SYSTEMS,
@@ -114,6 +128,64 @@ function timeOf(value: string): string {
   return new Date(value).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' });
 }
 
+function mergeTagLists(
+  current: readonly TopologyEdgeTag[],
+  incoming: readonly TopologyEdgeTag[],
+): TopologyEdgeTag[] {
+  const map = new Map<string, TopologyEdgeTag>();
+  for (const tag of [...current, ...incoming]) {
+    map.set(tag.id || `${tag.relationKey}|${tag.label}`, tag);
+  }
+  return [...map.values()];
+}
+
+function demoAccessTrends(graph: TopologyGraph, windowHours: number): AccessTrendsResponse {
+  const bucket = windowHours <= 24 ? 'hour' : 'day';
+  const bucketCount = windowHours <= 24 ? 24 : 7;
+  const now = Date.now();
+  const bucketMs = (windowHours * 3_600_000) / bucketCount;
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const rows: AccessTrendRow[] = graph.edges.map((edge, edgeIndex) => {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      const weight = 0.55 + ((Math.sin((edgeIndex + index) * 1.7) + 1) / 2) * 0.75;
+      const opened = Math.max(1, Math.round((edge.opened / bucketCount) * weight));
+      const failed = Math.round((edge.failed / bucketCount) * weight);
+      return {
+        start: new Date(now - (bucketCount - index) * bucketMs).toISOString(),
+        opened,
+        failed,
+      };
+    });
+    return {
+      id: `trend-${edge.id}`,
+      relationKey: edge.relationKey ?? edge.id,
+      sourceAgentId: edge.source,
+      sourceHost: source?.hostname ?? source?.label ?? edge.source,
+      sourceService: edge.processes?.[0] ?? source?.services[0]?.name ?? source?.product ?? '服务',
+      sourceIp: source?.ip ?? '—',
+      targetAgentId: target?.id ?? null,
+      targetHost: target?.hostname ?? target?.label ?? edge.target,
+      targetIp: target?.ip ?? '—',
+      targetPort: edge.port,
+      protocol: edge.protocol,
+      totalOpened: buckets.reduce((sum, item) => sum + item.opened, 0),
+      totalFailed: buckets.reduce((sum, item) => sum + item.failed, 0),
+      buckets,
+      ...(edge.lastSeen ? { lastSeen: edge.lastSeen } : {}),
+      suggestedTag: suggestedTagForPort(edge.port, Boolean(edge.external || target?.kind === 'external')),
+    };
+  });
+  return {
+    windowSeconds: windowHours * 3_600,
+    bucket,
+    from: new Date(now - windowHours * 3_600_000).toISOString(),
+    to: new Date(now).toISOString(),
+    rows,
+  };
+}
+
 export function Topology({ onBack, demo = false }: TopologyProps): ReactElement {
   const denseCase = demo && new URLSearchParams(window.location.search).get('case') === 'dense';
   const initialGraph = denseCase ? DEMO_DENSE_GRAPH : DEMO_GRAPH;
@@ -144,6 +216,17 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   const [keepFullView, setKeepFullView] = useState(false);
   const [fitEpoch, setFitEpoch] = useState(0);
   const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
+  const [panelTab, setPanelTab] = useState<'relations' | 'trends' | null>(null);
+  const [edgeTags, setEdgeTags] = useState<TopologyEdgeTag[]>([]);
+  const [tagSavingKey, setTagSavingKey] = useState<string | null>(null);
+  const [highlightRelationKey, setHighlightRelationKey] = useState<string | null>(null);
+  const [resetEpoch, setResetEpoch] = useState(0);
+  const [trendWindow, setTrendWindow] = useState<24 | 168>(24);
+  const [trendData, setTrendData] = useState<AccessTrendsResponse | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState<string | null>(null);
+  const [trendReload, setTrendReload] = useState(0);
+  const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
   const [analysisNodeIds, setAnalysisNodeIds] = useState<readonly string[] | null>(null);
   const [analysisEdgeIds, setAnalysisEdgeIds] = useState<readonly string[] | null>(null);
   const [activeHotPath, setActiveHotPath] = useState<number | null>(null);
@@ -357,18 +440,20 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   useEffect(() => {
     const handler = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
-      if (settingsOpen) setSettingsOpen(false);
+      if (panelTab) setPanelTab(null);
+      else if (settingsOpen) setSettingsOpen(false);
       else if (policyOpen) setPolicyOpen(false);
       else if (wizardOpen && !(session && RUNNING_STATUS.has(session.status))) setWizardOpen(false);
       else if (fullscreen) setFullscreen(false);
-      else if (selectedId) {
+      else if (selectedId || highlightRelationKey) {
         setSelectedId(null);
         setFocusId(null);
+        setHighlightRelationKey(null);
       } else if (focusId) setFocusId(null);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [focusId, fullscreen, policyOpen, selectedId, session, settingsOpen, wizardOpen]);
+  }, [focusId, fullscreen, highlightRelationKey, panelTab, policyOpen, selectedId, session, settingsOpen, wizardOpen]);
 
   useEffect(() => {
     if (demo) return;
@@ -388,6 +473,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
   useEffect(() => {
     saveDisplaySettings(displaySettings);
   }, [displaySettings]);
+
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -445,6 +531,116 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     () => (selectedNode ? splitServices(selectedNode.node.services) : { business: [], management: [] }),
     [selectedNode],
   );
+  const tagsByRelation = useMemo(() => {
+    const map = new Map<string, TopologyEdgeTag[]>();
+    for (const tag of edgeTags) {
+      const list = map.get(tag.relationKey) ?? [];
+      if (!list.some((item) => item.id === tag.id || item.label === tag.label)) list.push(tag);
+      map.set(tag.relationKey, list);
+    }
+    return map;
+  }, [edgeTags]);
+
+  const relationRows = useMemo<RelationRow[]>(() => {
+    if (!prepared) return [];
+    const nodeById = new Map(prepared.graph.nodes.map((node) => [node.id, node]));
+    return [...prepared.graph.edges]
+      .sort((a, b) => b.count - a.count)
+      .map((edge) => {
+        const source = nodeById.get(edge.source);
+        const target = nodeById.get(edge.target);
+        const sourceService =
+          edge.processes?.[0] ??
+          source?.services.find((service) => service.port === edge.port)?.name ??
+          source?.services[0]?.name ??
+          source?.product ??
+          edge.source;
+        const targetService =
+          target?.services.find((service) => service.port === edge.port)?.name ??
+          target?.product ??
+          target?.hostname ??
+          edge.target;
+        const external = Boolean(edge.external || target?.kind === 'external');
+        return {
+          relationKey: edge.relationKey ?? edge.id,
+          sourceLabel: source?.hostname ?? source?.label ?? edge.source,
+          targetLabel: target?.hostname ?? target?.label ?? edge.target,
+          targetPort: edge.port,
+          protocol: edge.protocol,
+          sourceService,
+          targetService,
+          count: edge.count,
+          opened: edge.opened,
+          failed: edge.failed,
+          external,
+          suggestedTag: suggestedTagForPort(edge.port, external),
+        };
+      });
+  }, [prepared]);
+
+  useEffect(() => {
+    if (!prepared) return;
+    const incoming = prepared.graph.edges.flatMap((edge) => edge.tags ?? []);
+    if (incoming.length > 0) {
+      setEdgeTags((current) => mergeTagLists(current, incoming));
+    }
+  }, [prepared]);
+
+  useEffect(() => {
+    if (demo) return;
+    let cancelled = false;
+    void getEdgeTags()
+      .then(({ tags }) => {
+        if (!cancelled) setEdgeTags((current) => mergeTagLists(current, tags));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [demo]);
+
+  useEffect(() => {
+    if (panelTab !== 'trends') return;
+    let cancelled = false;
+    if (demo) {
+      setTrendData(prepared ? demoAccessTrends(prepared.graph, trendWindow) : null);
+      setTrendLoading(false);
+      setTrendError(null);
+      return;
+    }
+    setTrendLoading(true);
+    setTrendError(null);
+    void getAccessTrends({
+      windowHours: trendWindow,
+      bucket: trendWindow <= 24 ? 'hour' : 'day',
+      ...(scopeId ? { appSystemId: scopeId } : {}),
+    })
+      .then((response) => {
+        if (cancelled) return;
+        setTrendData({
+          ...response,
+          rows: response.rows.map((row) => ({
+            ...row,
+            suggestedTag:
+              row.suggestedTag ??
+              suggestedTagForPort(row.targetPort, /^\d+\.\d+\.\d+\.\d+$/.test(row.targetHost)),
+          })),
+        });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setTrendData(null);
+          setTrendError(error instanceof Error ? error.message : '访问量接口暂不可用');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTrendLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, panelTab, prepared, scopeId, trendReload, trendWindow]);
+
   const neighbourhood = useMemo(() => {
     if (!layout || !selectedId) return new Set<string>();
     const ids = new Set<string>([selectedId]);
@@ -682,6 +878,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     if (!id) {
       setSelectedId(null);
       setFocusId(null);
+      setHighlightRelationKey(null);
       setAnalysisNodeIds(null);
       setAnalysisEdgeIds(null);
       setActiveHotPath(null);
@@ -690,6 +887,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     }
     setSelectedId(id);
     setFocusId(id);
+    setHighlightRelationKey(null);
     setRailOpen(true);
     setAnalysisNodeIds(null);
     setAnalysisEdgeIds(null);
@@ -799,6 +997,79 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
     if (matches.length === 0) return;
     centerOn(matches.slice(0, 4));
   }, [centerOn, layout, search]);
+
+  const saveAccessTag = useCallback(
+    async (input: TopologyEdgeTagInput): Promise<void> => {
+      setTagSavingKey(input.relationKey);
+      const optimistic: TopologyEdgeTag = {
+        id: `local-${Date.now()}-${input.label}`,
+        relationKey: input.relationKey,
+        label: input.label,
+        ...(input.category ? { category: input.category } : {}),
+        ...(input.color ? { color: input.color } : {}),
+        ...(input.note ? { note: input.note } : {}),
+        source: 'user',
+      };
+      setEdgeTags((current) => mergeTagLists(current, [optimistic]));
+      try {
+        if (!demo) {
+          const saved = await createEdgeTag(input);
+          setEdgeTags((current) => current.map((tag) => (tag.id === optimistic.id ? saved : tag)));
+        }
+        showToast('ok', `已保存标签「${input.label}」`);
+      } catch {
+        showToast('warn', '标签接口暂不可用，已保留在本地，稍后可重新保存。');
+      } finally {
+        setTagSavingKey(null);
+      }
+    },
+    [demo, showToast],
+  );
+
+  const removeAccessTag = useCallback(
+    async (tag: TopologyEdgeTag): Promise<void> => {
+      setEdgeTags((current) =>
+        current.filter(
+          (item) => !(item.id === tag.id || (item.relationKey === tag.relationKey && item.label === tag.label)),
+        ),
+      );
+      if (demo || tag.id.startsWith('local-')) return;
+      try {
+        await deleteEdgeTag(tag.id);
+      } catch {
+        showToast('warn', '删除标签接口暂不可用，已从当前视图移除。');
+      }
+    },
+    [demo, showToast],
+  );
+
+  const focusRelation = useCallback(
+    (row: { readonly relationKey: string }): void => {
+      setHighlightRelationKey(row.relationKey);
+      setPanelTab(null);
+      setSelectedId(null);
+      setFocusId(null);
+      const edge = layout?.edges.find((item) => item.edge.relationKey === row.relationKey);
+      if (edge) centerOn([edge.sourceId, edge.targetId]);
+      showToast('ok', '已在画布高亮该访问关系');
+    },
+    [centerOn, layout, showToast],
+  );
+
+  const adoptTrendTag = useCallback(
+    async (row: AccessTrendRow): Promise<void> => {
+      if (!row.suggestedTag) return;
+      setAdoptingKey(row.relationKey);
+      await saveAccessTag({
+        relationKey: row.relationKey,
+        label: row.suggestedTag,
+        category: row.suggestedTag,
+        color: '#3d7ab8',
+      });
+      setAdoptingKey(null);
+    },
+    [saveAccessTag],
+  );
 
   const running = session !== null && RUNNING_STATUS.has(session.status);
   const stats = graph?.stats;
@@ -1104,6 +1375,35 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     </button>
                     <button
                       type="button"
+                      className={`topo-filter${panelTab === 'relations' ? ' is-on' : ''}`}
+                      onClick={() => setPanelTab((current) => (current === 'relations' ? null : 'relations'))}
+                      aria-expanded={panelTab === 'relations'}
+                    >
+                      <MiniIcon name="tag" size={13} /> 访问关系
+                    </button>
+                    <button
+                      type="button"
+                      className={`topo-filter${panelTab === 'trends' ? ' is-on' : ''}`}
+                      onClick={() => setPanelTab((current) => (current === 'trends' ? null : 'trends'))}
+                      aria-expanded={panelTab === 'trends'}
+                    >
+                      <MiniIcon name="chart" size={13} /> 访问量分析
+                    </button>
+                    <button
+                      type="button"
+                      className="topo-filter"
+                      onClick={() => {
+                        setResetEpoch((current) => current + 1);
+                        setFitEpoch((current) => current + 1);
+                        setHighlightRelationKey(null);
+                        showToast('ok', '已恢复自动布局');
+                      }}
+                      title="清除手动拖动，恢复自动布局"
+                    >
+                      <MiniIcon name="refresh" size={13} /> 重置布局
+                    </button>
+                    <button
+                      type="button"
                       className={`topo-filter${fullscreen ? ' is-on' : ''}`}
                       onClick={() => {
                         setFullscreen((current) => {
@@ -1366,6 +1666,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     onClick={() => {
                       setSelectedId(null);
                       setFocusId(null);
+                      setHighlightRelationKey(null);
                       setFitEpoch((current) => current + 1);
                     }}
                   >
@@ -1402,6 +1703,9 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                   centerTarget={centerTarget}
                   showEdgeLabels={displaySettings.edgeLabels}
                   fitEpoch={fitEpoch}
+                  resetEpoch={resetEpoch}
+                  edgeTags={tagsByRelation}
+                  highlightRelationKey={highlightRelationKey}
                   onSelect={handleSelect}
                   onFocus={handleFocus}
                   onDrill={handleDrill}
@@ -1475,6 +1779,7 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
                     services={selectedNodeServices}
                     relatedNodes={relatedNodes}
                     externalGroup={externalGroup}
+                    tagsByRelation={tagsByRelation}
                     keepFullView={keepFullView}
                     onClose={() => {
                       setSelectedId(null);
@@ -1522,6 +1827,56 @@ export function Topology({ onBack, demo = false }: TopologyProps): ReactElement 
           )}
         </div>
       </section>
+
+      {panelTab ? (
+        <div className="topo-v4-overlay" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPanelTab(null);
+        }}>
+          <div className="topo-v4-panel" role="dialog" aria-modal="true" aria-label="访问关系与访问量分析">
+            <header className="topo-v4-head">
+              <div className="topo-v4-tabs">
+                <button type="button" className={panelTab === 'relations' ? 'is-on' : ''} onClick={() => setPanelTab('relations')}>
+                  <MiniIcon name="tag" size={14} /> 访问关系
+                  <em>{relationRows.length}</em>
+                </button>
+                <button type="button" className={panelTab === 'trends' ? 'is-on' : ''} onClick={() => setPanelTab('trends')}>
+                  <MiniIcon name="chart" size={14} /> 访问量分析
+                </button>
+              </div>
+              <button type="button" className="topo-icon-btn" aria-label="关闭访问关系面板" onClick={() => setPanelTab(null)}>
+                <MiniIcon name="close" size={16} />
+              </button>
+            </header>
+            {panelTab === 'relations' ? (
+              <RelationsPanel
+                rows={relationRows}
+                tagsByRelation={tagsByRelation}
+                selectedKey={highlightRelationKey}
+                savingKey={tagSavingKey}
+                onSaveTag={(input) => void saveAccessTag(input)}
+                onDeleteTag={(tag) => void removeAccessTag(tag)}
+                onFocusRow={focusRelation}
+              />
+            ) : (
+              <TrendsPanel
+                data={trendData}
+                loading={trendLoading}
+                error={trendError}
+                windowHours={trendWindow}
+                scopeLabel={scopeName}
+                tagsByRelation={tagsByRelation}
+                selectedKey={highlightRelationKey}
+                adoptingKey={adoptingKey}
+                onWindowChange={(hours) => setTrendWindow(hours === 168 ? 168 : 24)}
+                onRowClick={focusRelation}
+                onAdopt={(row) => void adoptTrendTag(row)}
+                onEditTag={() => setPanelTab('relations')}
+                onRetry={() => setTrendReload((current) => current + 1)}
+              />
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <LearningWizard
         open={wizardOpen}

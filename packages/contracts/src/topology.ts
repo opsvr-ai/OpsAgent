@@ -106,6 +106,64 @@ export interface TopologyEdge {
   readonly processes?: readonly string[];
   readonly lastSeen?: string;
   readonly external?: boolean;
+  /** 跨版本稳定的访问关系标识：源主机|目标主机|端口，用于挂标签与做趋势分析。 */
+  readonly relationKey?: string;
+  /** 访问关系标签（运维工具 / 应用调用 / 数据访问 / 外部依赖等，用户可编辑）。 */
+  readonly tags?: readonly TopologyEdgeTag[];
+}
+
+export interface TopologyEdgeTag {
+  readonly id: string;
+  readonly relationKey: string;
+  readonly label: string;
+  readonly category?: string;
+  readonly color?: string;
+  readonly note?: string;
+  readonly source?: 'user' | 'model' | 'auto';
+}
+
+export interface TopologyEdgeTagInput {
+  readonly relationKey: string;
+  readonly label: string;
+  readonly category?: string;
+  readonly color?: string;
+  readonly note?: string;
+}
+
+/** 访问次数趋势（小时/天粒度），用于量化分析与表格展示。 */
+export interface AccessTrendBucket {
+  readonly start: string;
+  readonly opened: number;
+  readonly failed: number;
+}
+
+export interface AccessTrendRow {
+  readonly id: string;
+  readonly relationKey: string;
+  readonly sourceAgentId: string;
+  readonly sourceHost: string;
+  readonly sourceService: string;
+  readonly sourceIp: string;
+  readonly targetAgentId?: string | null;
+  readonly targetHost: string;
+  readonly targetIp: string;
+  readonly targetPort: number;
+  readonly protocol: string;
+  readonly totalOpened: number;
+  readonly totalFailed: number;
+  readonly buckets: readonly AccessTrendBucket[];
+  readonly lastSeen?: string;
+  readonly tags?: readonly TopologyEdgeTag[];
+  /** 基于端口/进程/目标层级的自动建议标签（用户可一键采纳）。 */
+  readonly suggestedTag?: string;
+}
+
+export interface AccessTrendsResponse {
+  readonly windowSeconds: number;
+  readonly bucket: 'hour' | 'day';
+  readonly from: string;
+  readonly to: string;
+  readonly rows: readonly AccessTrendRow[];
 }
 
 export interface TopologyHotPath {

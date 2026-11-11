@@ -11,6 +11,8 @@ import {
   TopologyLearningError,
   TopologyLearningService,
 } from './topology_learning.js';
+import { TopologyEdgeTagService, normalizeEdgeTagInput } from './topology_tags.js';
+import { AccessTrendError, AccessTrendService } from './topology_trends.js';
 
 /**
  * 访问拓扑学习 API（/api/topologies 前缀）。
@@ -107,6 +109,8 @@ export function registerTopologyRoutes(
 ): void {
   const learning = service ?? new TopologyLearningService(pool, modelSecret);
   const edgeSamples = new AgentConnectionEdgeService(pool);
+  const edgeTags = new TopologyEdgeTagService(pool);
+  const trends = new AccessTrendService(pool, edgeTags);
 
   app.post('/api/topologies/learn', async (request, reply) => {
     const ctx = await authorize(request, reply, pool);
@@ -266,6 +270,61 @@ export function registerTopologyRoutes(
       sendLearningError(reply, error);
     }
   });
+
+  // 访问关系标签（按 relationKey 跨版本复用）。
+  app.get<{ Querystring: { relationKey?: string } }>('/api/topologies/edge-tags', async (request, reply) => {
+    const ctx = await authorize(request, reply, pool);
+    if (!ctx) return;
+    const relationKey = typeof request.query.relationKey === 'string' && request.query.relationKey.trim()
+      ? request.query.relationKey.trim()
+      : undefined;
+    return reply.send({ tags: await edgeTags.list(ctx.tenantId, relationKey) });
+  });
+
+  app.post('/api/topologies/edge-tags', async (request, reply) => {
+    const ctx = await authorize(request, reply, pool);
+    if (!ctx) return;
+    const normalized = normalizeEdgeTagInput(request.body);
+    if (!normalized) return reply.code(400).send({ error: 'invalid_request' });
+    const tag = await edgeTags.create(ctx.tenantId, normalized, ctx.userId);
+    if (!tag) return reply.code(400).send({ error: 'invalid_request' });
+    return reply.code(201).send(tag);
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/topologies/edge-tags/:id', async (request, reply) => {
+    const ctx = await authorize(request, reply, pool);
+    if (!ctx) return;
+    if (!isUuid(request.params.id)) return reply.code(404).send({ error: 'edge_tag_not_found' });
+    const deleted = await edgeTags.delete(ctx.tenantId, request.params.id);
+    if (!deleted) return reply.code(404).send({ error: 'edge_tag_not_found' });
+    return reply.send({ ok: true });
+  });
+
+  // 访问量趋势：out 方向建连样本按小时/天分桶，供页面表格与 sparkline 使用。
+  app.get<{ Querystring: { windowHours?: string; bucket?: string; appSystemId?: string } }>(
+    '/api/topologies/access-trends',
+    async (request, reply) => {
+      const ctx = await authorize(request, reply, pool);
+      if (!ctx) return;
+      const windowHours = request.query.windowHours === undefined
+        ? 24
+        : Number.parseInt(request.query.windowHours, 10);
+      if (!Number.isFinite(windowHours)) return reply.code(400).send({ error: 'invalid_window' });
+      const bucket = request.query.bucket ?? 'hour';
+      if (bucket !== 'hour' && bucket !== 'day') return reply.code(400).send({ error: 'invalid_bucket' });
+      const appSystemId = parseAppSystemId(request.query.appSystemId);
+      if (appSystemId === undefined) return reply.code(400).send({ error: 'invalid_app_system' });
+      try {
+        const response = await trends.get(ctx.tenantId, { windowHours, bucket, appSystemId });
+        return reply.send(response);
+      } catch (error) {
+        if (error instanceof AccessTrendError) {
+          return reply.code(400).send({ error: error.code });
+        }
+        throw error;
+      }
+    },
+  );
 
   // 注意：通配 /:id 必须放在最后。
   app.get<{ Params: { id: string } }>('/api/topologies/:id', async (request, reply) => {

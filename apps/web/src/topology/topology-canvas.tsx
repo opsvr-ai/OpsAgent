@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TopologyEdgeTag } from '@opsagent/contracts';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import {
   SYSTEM_COLORS,
   TIER_META,
   matchNodeIds,
+  edgeGeometry,
   measureText,
   type RoutedEdge,
   type TopoLayout,
@@ -14,7 +16,7 @@ import { NodeCard } from './node-card.js';
 import { MiniIcon, TierIcon } from './icons.js';
 
 const MIN_K = 0.3;
-const MAX_K = 3;
+const MAX_K = 5;
 
 interface Emphasis {
   readonly nodes: ReadonlySet<string>;
@@ -42,6 +44,9 @@ export interface TopologyCanvasProps {
   readonly centerTarget: CenterTarget | null;
   readonly showEdgeLabels: boolean;
   readonly fitEpoch: number;
+  readonly resetEpoch?: number;
+  readonly edgeTags?: ReadonlyMap<string, readonly TopologyEdgeTag[]>;
+  readonly highlightRelationKey?: string | null;
   readonly onSelect: (id: string | null) => void;
   readonly onFocus: (id: string | null) => void;
   readonly onDrill: (systemId: string) => void;
@@ -120,6 +125,9 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     centerTarget,
     showEdgeLabels,
     fitEpoch,
+    resetEpoch,
+    edgeTags,
+    highlightRelationKey,
     onSelect,
     onFocus,
     onDrill,
@@ -134,7 +142,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   const layoutRef = useRef<TopoLayout | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const transformRef = useRef<ViewTransform>({ x: 0, y: 0, k: 0.6 });
-  const dragRef = useRef<DragState | null>(null);
+  const panDragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -143,6 +151,10 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   const [edgeTip, setEdgeTip] = useState<{ edge: RoutedEdge; x: number; y: number } | null>(null);
   const [detailZoom, setDetailZoom] = useState(false);
   const [zoomK, setZoomK] = useState(0.8);
+  const [offsets, setOffsets] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const nodeDragRef = useRef<{ id: string; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const nodeSelectRef = useRef<((id: string) => void) | null>(null);
 
   const miniWidth = 150;
   const miniHeight = useMemo(
@@ -311,7 +323,9 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
     if (event.button !== 0) return;
-    dragRef.current = {
+    const target = event.target as Element | null;
+    if (target?.closest('.topo2-node')) return;
+    panDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -323,7 +337,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
-    const drag = dragRef.current;
+    const drag = panDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const dx = event.clientX - drag.startX;
     const dy = event.clientY - drag.startY;
@@ -337,14 +351,14 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
   };
 
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>): void => {
-    const drag = dragRef.current;
+    const drag = panDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    dragRef.current = null;
+    panDragRef.current = null;
   };
 
   useEffect(() => {
     const clearDrag = (): void => {
-      dragRef.current = null;
+      panDragRef.current = null;
     };
     window.addEventListener('pointerup', clearDrag);
     window.addEventListener('pointercancel', clearDrag);
@@ -410,6 +424,8 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     [onDrill, onSelect],
   );
 
+  nodeSelectRef.current = handleNodeSelect;
+
   const handleNodeFocus = useCallback(
     (id: string): void => {
       if (suppressClickRef.current) {
@@ -451,6 +467,65 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     setEdgeTip({ edge, x: point.x - box.left, y: point.y - box.top });
   }, []);
 
+  useEffect(() => {
+    if (resetEpoch === undefined) return;
+    setOffsets({});
+    setDraggingId(null);
+    nodeDragRef.current = null;
+  }, [resetEpoch]);
+
+  const beginNodeDrag = useCallback(
+    (id: string, event: ReactPointerEvent<SVGGElement>): void => {
+      if (event.button !== 0) return;
+      const node = layoutRef.current?.nodeById.get(id);
+      if (!node) return;
+      const origin = offsets[id] ?? { x: node.x, y: node.y };
+      const drag = {
+        id,
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: origin.x,
+        originY: origin.y,
+        moved: false,
+      };
+      nodeDragRef.current = drag;
+      setEdgeTip(null);
+      setHoveredEdgeId(null);
+
+      const onMove = (moveEvent: PointerEvent): void => {
+        const dx = (moveEvent.clientX - drag.startX) / transformRef.current.k;
+        const dy = (moveEvent.clientY - drag.startY) / transformRef.current.k;
+        if (!drag.moved && Math.abs(dx) + Math.abs(dy) <= 3) return;
+        drag.moved = true;
+        suppressClickRef.current = true;
+        setDraggingId(id);
+        setOffsets((previous) => ({ ...previous, [id]: { x: drag.originX + dx, y: drag.originY + dy } }));
+      };
+      const onUp = (): void => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        nodeDragRef.current = null;
+        setDraggingId(null);
+        if (!drag.moved) {
+          // 浏览器在带 pointerdown 的 SVG 节点上不一定合成 click，直接按 pointerup 选择节点。
+          suppressClickRef.current = false;
+          nodeSelectRef.current?.(id);
+          suppressClickRef.current = true;
+        }
+        if (drag.moved) {
+          window.setTimeout(() => {
+            suppressClickRef.current = false;
+          }, 180);
+        }
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    },
+    [offsets],
+  );
+
   const analysisEmphasis = useMemo<Emphasis | null>(() => {
     const hasNodes = (analysisNodeIds?.length ?? 0) > 0;
     const hasEdges = (analysisEdgeIds?.length ?? 0) > 0;
@@ -477,7 +552,14 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     return { nodes, edges: new Set(), hard: true, label: '业务系统聚焦' };
   }, [drillSystemId, layout.nodes, view.mode]);
 
+  const dragEmphasis = useMemo<Emphasis | null>(() => {
+    if (!draggingId) return null;
+    const neighbor = neighborIds(layout, draggingId);
+    return { nodes: neighbor.nodes, edges: neighbor.edges, hard: true, label: '拖动关联' };
+  }, [draggingId, layout]);
+
   const emphasis = useMemo<Emphasis | null>(() => {
+    if (draggingId) return dragEmphasis;
     if (hoveredEdgeId) {
       const edge = layout.edgeById.get(hoveredEdgeId);
       if (edge) {
@@ -499,7 +581,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       return { nodes: neighbor.nodes, edges: neighbor.edges, hard: false, label: '选中节点' };
     }
     return null;
-  }, [analysisEmphasis, drillEmphasis, focusId, hoveredEdgeId, hoveredNodeId, layout, selectedId]);
+  }, [analysisEmphasis, dragEmphasis, draggingId, drillEmphasis, focusId, hoveredEdgeId, hoveredNodeId, layout, selectedId]);
 
   const searchQuery = search.trim().toLowerCase();
   const matchedNodeIds = useMemo<ReadonlySet<string>>(
@@ -544,18 +626,46 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
     return false;
   };
 
+  const displayEdges = useMemo<readonly RoutedEdge[]>(() => {
+    const hasOffsets = Object.keys(offsets).length > 0;
+    if (!hasOffsets) return [...layout.edges];
+    return layout.edges.map((edge) => {
+      const source = layout.nodeById.get(edge.sourceId);
+      const target = layout.nodeById.get(edge.targetId);
+      if (!source || !target) return edge;
+      const sourceOffset = offsets[edge.sourceId];
+      const targetOffset = offsets[edge.targetId];
+      if (!sourceOffset && !targetOffset) return edge;
+      const geometry = edgeGeometry(
+        sourceOffset ? { ...source, ...sourceOffset } : source,
+        targetOffset ? { ...target, ...targetOffset } : target,
+      );
+      return { ...edge, ...geometry };
+    });
+  }, [layout, offsets]);
+
+  const highlightEdgeIds = useMemo<ReadonlySet<string>>(() => {
+    if (!highlightRelationKey) return new Set<string>();
+    return new Set(
+      layout.edges
+        .filter((edge) => edge.edge.relationKey === highlightRelationKey)
+        .map((edge) => edge.edge.id),
+    );
+  }, [highlightRelationKey, layout.edges]);
+
   const activeEdgeIds = useMemo<ReadonlySet<string>>(() => {
     const active = new Set<string>();
     if (hoveredEdgeId) active.add(hoveredEdgeId);
     if (emphasis) for (const id of emphasis.edges) active.add(id);
+    for (const id of highlightEdgeIds) active.add(id);
     return active;
-  }, [emphasis, hoveredEdgeId]);
+  }, [emphasis, highlightEdgeIds, hoveredEdgeId]);
 
   const sortedEdges = useMemo(() => {
-    const inactive = layout.edges.filter((edge) => !activeEdgeIds.has(edge.edge.id));
-    const active = layout.edges.filter((edge) => activeEdgeIds.has(edge.edge.id));
+    const inactive = displayEdges.filter((edge) => !activeEdgeIds.has(edge.edge.id));
+    const active = displayEdges.filter((edge) => activeEdgeIds.has(edge.edge.id));
     return [...inactive, ...active];
-  }, [activeEdgeIds, layout.edges]);
+  }, [activeEdgeIds, displayEdges]);
 
   const sortedNodes = useMemo(() => {
     const nodeId = focusId ?? hoveredNodeId ?? selectedId;
@@ -564,17 +674,20 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       active.add(nodeId);
       for (const id of neighborIds(layout, nodeId).nodes) active.add(id);
     }
-    return [...layout.nodes.filter((node) => !active.has(node.id)), ...layout.nodes.filter((node) => active.has(node.id))];
-  }, [focusId, hoveredNodeId, layout, selectedId]);
+    const base = [
+      ...layout.nodes.filter((node) => !active.has(node.id)),
+      ...layout.nodes.filter((node) => active.has(node.id)),
+    ];
+    if (draggingId) {
+      return [...base.filter((node) => node.id !== draggingId), ...base.filter((node) => node.id === draggingId)];
+    }
+    return base;
+  }, [draggingId, focusId, hoveredNodeId, layout, selectedId]);
 
   const activeLabels = useMemo(() => {
+    if (draggingId) return [];
     const ids = new Set<string>();
     if (hoveredEdgeId) ids.add(hoveredEdgeId);
-    if (hoveredNodeId) {
-      for (const edge of layout.edges) {
-        if (edge.sourceId === hoveredNodeId || edge.targetId === hoveredNodeId) ids.add(edge.edge.id);
-      }
-    }
     if (ids.size === 0 && analysisEdgeIds) {
       for (const id of analysisEdgeIds) ids.add(id);
     }
@@ -589,7 +702,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
       w: Math.round(measureText(edge.fullLabel, 11.5) + 18),
       h: 20,
     }));
-  }, [analysisEdgeIds, hoveredEdgeId, hoveredNodeId, layout]);
+  }, [analysisEdgeIds, draggingId, hoveredEdgeId, layout]);
 
   const gradientEdges = useMemo(
     () => layout.edges.filter((edge) => edge.crossSystem && !edge.external && !edge.anomalous),
@@ -791,6 +904,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               gradientId={edge.crossSystem && !edge.external && !edge.anomalous ? gradientIdOf(edge.edge.id) : null}
               markerId={markerIdOf(edge)}
               onHover={handleHoverEdge}
+              tags={edgeTags?.get(edge.edge.relationKey ?? '') ?? edge.edge.tags ?? []}
             />
           ))}
 
@@ -807,10 +921,13 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
               onHover={handleHoverNode}
               onSelect={handleNodeSelect}
               onFocus={handleNodeFocus}
+              {...(offsets[node.id] ? { position: offsets[node.id] } : {})}
+              dragging={draggingId === node.id}
+              onPointerDown={(event) => beginNodeDrag(node.id, event)}
             />
           ))}
 
-          {layout.labels.map((label) => (
+          {Object.keys(offsets).length === 0 ? layout.labels.map((label) => (
             <g
               key={`static-${label.edgeId}`}
               className="topo2-edge-label is-static"
@@ -821,7 +938,7 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
                 {label.text}
               </text>
             </g>
-          ))}
+          )) : null}
 
           {activeLabels.map((label) => (
             <g
@@ -864,6 +981,18 @@ export function TopologyCanvas(props: TopologyCanvasProps): ReactElement {
           <span>
             新建 {edgeTip.edge.edge.opened.toLocaleString('zh-CN')} · 失败 {edgeTip.edge.edge.failed.toLocaleString('zh-CN')}
           </span>
+          {(() => {
+            const tags = edgeTags?.get(edgeTip.edge.edge.relationKey ?? '') ?? edgeTip.edge.edge.tags ?? [];
+            return tags.length > 0 ? (
+              <span className="topo2-edge-tip-tags">
+                {tags.map((tag) => (
+                  <em key={tag.id || tag.label} style={{ color: tag.color ?? 'var(--blue-text)' }}>
+                    {tag.label}
+                  </em>
+                ))}
+              </span>
+            ) : null;
+          })()}
         </div>
       ) : null}
 

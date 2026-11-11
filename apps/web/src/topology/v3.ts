@@ -267,9 +267,9 @@ export function prepareTopology(
   const mappedEdges = baseEdges.map((edge) => {
     const sourceIp = externalNodeToIp.get(edge.source);
     const targetIp = externalNodeToIp.get(edge.target);
-    const source = sourceIp ? `ext:${sourceIp}` : edge.source;
-    const target = targetIp ? `ext:${targetIp}` : edge.target;
-    return { ...edge, source, target, __externalIp: targetIp ?? sourceIp };
+    // 这里保留原始节点 id，最后再统一映射到 ext:<ip> / ext:other；
+    // 提前改成 ext:<ip> 会让 externalRemap 找不到 map key，折叠 IP 的边会丢。
+    return { ...edge, __externalIp: targetIp ?? sourceIp };
   });
   // 把边上的连接数汇总到外部 IP，供排序 / topN 使用。
   for (const edge of mappedEdges) {
@@ -370,6 +370,8 @@ export function prepareTopology(
         countBasis: edge.countBasis ?? 'observed',
         ...(edge.processes ? { processes: edge.processes } : {}),
         ...(edge.external ? { external: true } : {}),
+        ...(edge.relationKey ? { relationKey: edge.relationKey } : {}),
+        ...(edge.tags ? { tags: edge.tags } : {}),
         ports: [edge.port],
       });
     } else {
@@ -381,6 +383,10 @@ export function prepareTopology(
         failed: existing.failed + edge.failed,
         confidence: Math.min(existing.confidence, edge.confidence),
         processes: [...new Set([...(existing.processes ?? []), ...(edge.processes ?? [])])],
+        ...(edge.relationKey ? { relationKey: existing.relationKey ?? edge.relationKey } : {}),
+        tags: [...(existing.tags ?? []), ...(edge.tags ?? [])].filter(
+          (tag, index, list) => list.findIndex((item) => item.id === tag.id || item.label === tag.label) === index,
+        ),
         ports,
         protocol: existing.protocol === edge.protocol ? existing.protocol : 'mixed',
         ...(existing.external || edge.external ? { external: true } : {}),
@@ -392,6 +398,13 @@ export function prepareTopology(
   for (const node of syntheticExternalNodes) allNodes.set(node.id, node);
   if (otherExternalNode) allNodes.set(otherExternalNode.id, otherExternalNode);
 
+  const relationKeyOf = (sourceId: string, targetId: string, port: number): string => {
+    const sourceNode = allNodes.get(sourceId);
+    const targetNode = allNodes.get(targetId);
+    const sourceHost = sourceNode?.hostname ?? sourceNode?.ip ?? sourceNode?.label ?? sourceId;
+    const targetHost = targetNode?.hostname ?? targetNode?.ip ?? targetNode?.label ?? targetId;
+    return `${sourceHost}|${targetHost}|${port}`;
+  };
   let mergedEdges: TopologyEdge[] = [...mergedMap.values()].map((edge) => {
     const source = allNodes.get(edge.source);
     const target = allNodes.get(edge.target);
@@ -408,6 +421,7 @@ export function prepareTopology(
       ...(edge.countBasis ? { countBasis: edge.countBasis } : {}),
       ...(edge.processes ? { processes: edge.processes } : {}),
       ...(edge.external ? { external: true } : {}),
+      relationKey: edge.relationKey ?? relationKeyOf(edge.source, edge.target, edge.ports[0] ?? edge.port),
       label: buildMergedLabel(source, target, edge.ports, edge.count),
     };
   });
@@ -499,6 +513,8 @@ export interface RelatedNode {
   readonly ports: readonly number[];
   readonly connections: number;
   readonly failed: number;
+  readonly tags: readonly import('@opsagent/contracts').TopologyEdgeTag[];
+  readonly relationKeys: readonly string[];
 }
 
 export function buildRelatedNodes(
@@ -509,17 +525,22 @@ export function buildRelatedNodes(
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const collect = (direction: 'out' | 'in'): RelatedNode[] => {
     const map = new Map<string, { ports: Set<number>; connections: number; failed: number }>();
+    const tagMap = new Map<string, { ports: Set<number>; connections: number; failed: number; tags: import('@opsagent/contracts').TopologyEdgeTag[]; relationKeys: Set<string> }>();
     for (const edge of edges) {
       const peerId = direction === 'out' ? edge.target : edge.source;
       const ownId = direction === 'out' ? edge.source : edge.target;
       if (ownId !== nodeId) continue;
-      const entry = map.get(peerId) ?? { ports: new Set<number>(), connections: 0, failed: 0 };
+      const entry = tagMap.get(peerId) ?? { ports: new Set<number>(), connections: 0, failed: 0, tags: [], relationKeys: new Set<string>() };
       entry.ports.add(edge.port);
       entry.connections += edge.count;
       entry.failed += edge.failed;
-      map.set(peerId, entry);
+      if (edge.relationKey) entry.relationKeys.add(edge.relationKey);
+      for (const tag of edge.tags ?? []) {
+        if (!entry.tags.some((item) => item.id === tag.id || item.label === tag.label)) entry.tags.push(tag);
+      }
+      tagMap.set(peerId, entry);
     }
-    return [...map.entries()]
+    return [...tagMap.entries()]
       .map(([peerId, value]) => {
         const peer = nodeById.get(peerId);
         return {
@@ -529,6 +550,8 @@ export function buildRelatedNodes(
           ports: [...value.ports].sort((a, b) => a - b),
           connections: value.connections,
           failed: value.failed,
+          tags: value.tags,
+          relationKeys: [...value.relationKeys],
         } satisfies RelatedNode;
       })
       .sort((a, b) => b.connections - a.connections);

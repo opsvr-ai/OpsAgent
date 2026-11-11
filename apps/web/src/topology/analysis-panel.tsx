@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import type { TopologyGraph, TopologyHotPath, TopologyInsight, TopologyServicePort } from '@opsagent/contracts';
+import type { TopologyGraph, TopologyHotPath, TopologyInsight, TopologyServicePort, TopologyEdgeTag } from '@opsagent/contracts';
 import { relativeTime } from '../format.js';
 import {
   displayProduct,
@@ -259,6 +259,7 @@ export interface NodeDetailPanelProps {
   readonly services: { business: readonly TopologyServicePort[]; management: readonly TopologyServicePort[] };
   readonly relatedNodes: { outgoing: readonly RelatedNode[]; incoming: readonly RelatedNode[] };
   readonly externalGroup: ExternalGroupInfo | null;
+  readonly tagsByRelation: ReadonlyMap<string, readonly TopologyEdgeTag[]>;
   readonly keepFullView: boolean;
   readonly onClose: () => void;
   readonly onFocus: () => void;
@@ -293,10 +294,12 @@ function ServiceRows({ services }: { services: readonly TopologyServicePort[] })
 function RelatedList({
   title,
   items,
+  tagsByRelation,
   onNavigate,
 }: {
   title: string;
   items: readonly RelatedNode[];
+  tagsByRelation: ReadonlyMap<string, readonly TopologyEdgeTag[]>;
   onNavigate: (id: string) => void;
 }): ReactElement {
   return (
@@ -315,6 +318,22 @@ function RelatedList({
                 {item.role}
                 {item.ports.length > 0 ? ` · :${item.ports.slice(0, 4).join('/')}` : ''}
               </span>
+              {(() => {
+                const tagged = [...new Map(
+                  item.relationKeys
+                    .flatMap((key) => tagsByRelation.get(key) ?? [])
+                    .map((tag) => [tag.label, tag]),
+                ).values()];
+                return tagged.length > 0 ? (
+                  <span className="topo-v4-tagchips">
+                    {tagged.map((tag) => (
+                      <em key={tag.id || tag.label} className="topo-v4-tagchip" style={{ color: tag.color ?? '#3d7ab8', borderColor: `${tag.color ?? '#3d7ab8'}55`, background: `${tag.color ?? '#3d7ab8'}14` }}>
+                        {tag.label}
+                      </em>
+                    ))}
+                  </span>
+                ) : null;
+              })()}
             </span>
             <span className="topo-related-count">
               {formatConnections(item.connections)}
@@ -336,6 +355,7 @@ export function NodeDetailPanel({
   services,
   relatedNodes,
   externalGroup,
+  tagsByRelation,
   keepFullView,
   onClose,
   onFocus,
@@ -489,8 +509,8 @@ export function NodeDetailPanel({
         </section>
       ) : null}
 
-      <RelatedList title="出站关联" items={relatedNodes.outgoing} onNavigate={onNavigate} />
-      <RelatedList title="入站关联" items={relatedNodes.incoming} onNavigate={onNavigate} />
+      <RelatedList title="出站关联" items={relatedNodes.outgoing} tagsByRelation={tagsByRelation} onNavigate={onNavigate} />
+      <RelatedList title="入站关联" items={relatedNodes.incoming} tagsByRelation={tagsByRelation} onNavigate={onNavigate} />
 
       {node.node.note ? <p className="topo-detail-note">{node.node.note}</p> : null}
       {!node.aggregated && view.mode === 'host' ? (

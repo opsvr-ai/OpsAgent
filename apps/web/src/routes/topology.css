@@ -1621,6 +1621,7 @@ html[data-theme="dark"] .topo2-canvas {
 .topo2-edge.is-active .topo2-edge-line { stroke-opacity: 1; }
 
 /* 标签 */
+.topo2-edge-label { pointer-events: none; }
 .topo2-edge-label rect {
   fill: var(--surface);
   stroke: var(--line-strong);
@@ -1978,3 +1979,132 @@ html[data-theme="dark"] .topo2-header-bg { fill: var(--surface); }
 .topo2-lane-meta.is-bad { fill: var(--danger); }
 
 .topo-external-target.is-active { border-color: var(--primary); background: var(--primary-soft); }
+
+
+/* ==========================================================================
+   V4 · 拖动 / 访问关系标签 / 访问量分析
+   ========================================================================== */
+.topo2-node { cursor: grab; }
+.topo2-node.is-dragging { cursor: grabbing; }
+.topo2-node.is-dragging .topo2-node-bg { stroke: var(--primary); stroke-width: 1.6; filter: drop-shadow(0 8px 18px rgba(31, 56, 88, 0.18)); }
+
+.topo2-edge-tip-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+.topo2-edge-tip-tags em { font-style: normal; font-size: 10.5px; border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; line-height: 1.5; }
+
+.topo-v4-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(23, 34, 48, 0.32);
+  backdrop-filter: blur(2px);
+}
+.topo-v4-panel {
+  width: min(1180px, 96vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+}
+.topo-v4-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.topo-v4-tabs { display: flex; align-items: center; gap: 4px; }
+.topo-v4-tabs button {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 7px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--muted); font-size: 12.5px; font-weight: 600;
+}
+.topo-v4-tabs button em { font-style: normal; font-size: 11px; font-weight: 500; background: var(--surface-2); border-radius: 999px; padding: 1px 6px; }
+.topo-v4-tabs button.is-on { color: var(--blue-text); background: var(--primary-soft); border-color: var(--primary-line); }
+.topo-v4-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 16px; }
+.topo-v4-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 10px; }
+.topo-v4-search {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 9px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--surface); color: var(--muted);
+}
+.topo-v4-search input { width: 200px; border: 0; background: transparent; color: var(--text); font-size: 12px; outline: none; }
+.topo-v4-select { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+.topo-v4-select .select { width: 122px; height: 32px; font-size: 12px; }
+.topo-v4-count { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.topo-v4-tablewrap { border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 52vh; background: var(--surface); }
+.topo-v4-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.topo-v4-table th {
+  position: sticky; top: 0; z-index: 1;
+  padding: 9px 12px; text-align: left; white-space: nowrap;
+  background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.topo-v4-table td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; color: var(--text-soft); }
+.topo-v4-table tbody tr { cursor: pointer; }
+.topo-v4-table tbody tr:hover { background: var(--surface-2); }
+.topo-v4-table tbody tr.is-active { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
+.topo-v4-table tbody tr.is-editing { background: var(--primary-soft); }
+.topo-v4-table tbody tr:last-child td { border-bottom: 0; }
+.topo-v4-table .is-num { text-align: right; font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+.topo-v4-table .is-danger { color: var(--danger); }
+.topo-v4-table .is-actions { text-align: right; white-space: nowrap; }
+.topo-v4-relation { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; color: var(--text); }
+.topo-v4-relation strong { font-size: 12px; font-weight: 600; }
+.topo-v4-relation em { font-style: normal; font-family: var(--font-mono); color: var(--muted); font-size: 11px; }
+.topo-v4-sub { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.topo-v4-muted { color: var(--faint); }
+.topo-v4-tagchips { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-right: 4px; }
+.topo-v4-tagchip { font-style: normal; border: 1px solid; border-radius: 4px; padding: 0 4px; line-height: 1.6; font-size: 10.5px; white-space: nowrap; }
+.topo-v4-inline-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); border-radius: 5px; height: 22px; padding: 0 6px; font-size: 10.5px;
+}
+.topo-v4-inline-btn:hover { color: var(--blue-text); border-color: var(--primary-line); background: var(--primary-soft); }
+.topo-v4-suggest {
+  display: inline-flex; align-items: center; margin-left: 4px;
+  border: 1px dashed var(--warn); background: var(--warn-soft); color: var(--warn);
+  border-radius: 4px; height: 22px; padding: 0 6px; font-size: 10.5px;
+}
+.topo-v4-suggest:hover { border-style: solid; }
+.topo-v4-editor { margin-top: 12px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface-2); }
+.topo-v4-editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.topo-v4-editor-head strong { font-size: 12.5px; }
+.topo-v4-editor-head span { color: var(--faint); font-family: var(--font-mono); font-size: 10.5px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-v4-editor-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+.topo-v4-editor-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.topo-v4-editor-grid label.is-wide { grid-column: 1 / -1; }
+.topo-v4-editor-grid .input, .topo-v4-editor-grid .select { height: 32px; font-size: 12px; }
+.topo-v4-colors { display: flex; gap: 6px; align-items: center; height: 32px; }
+.topo-v4-color { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.topo-v4-color.is-on { border-color: var(--text); }
+.topo-v4-existing { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: var(--muted); }
+.topo-v4-existing-tag { display: inline-flex; align-items: center; gap: 3px; border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px; font-size: 10.5px; }
+.topo-v4-existing-tag button { display: inline-flex; color: inherit; opacity: .65; }
+.topo-v4-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.topo-v4-trend-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-bottom: 12px; }
+.topo-v4-trend-summary > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.topo-v4-trend-summary span { font-size: 10.5px; color: var(--muted); }
+.topo-v4-trend-summary strong { font-size: 15px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-v4-trend-summary em { font-style: normal; font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-v4-tabs-inline { display: inline-flex; padding: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; }
+.topo-v4-tabs-inline button { height: 26px; padding: 0 9px; border-radius: 5px; font-size: 11.5px; color: var(--muted); }
+.topo-v4-tabs-inline button.is-on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.topo-v4-sort { display: inline-flex; gap: 4px; }
+.topo-v4-sort button { height: 30px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 11px; background: var(--surface); }
+.topo-v4-sort button.is-on { color: var(--blue-text); border-color: var(--primary-line); background: var(--primary-soft); }
+.topo-v4-spark { display: block; }
+.topo-v4-note { margin: 10px 2px 0; color: var(--faint); font-size: 11px; line-height: 1.6; }
+.topo-v4-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 16px; color: var(--muted); text-align: center; }
+.topo-v4-state strong { color: var(--text); font-size: 13px; }
+.topo-v4-state p { max-width: 480px; margin: 0; font-size: 11.5px; line-height: 1.6; }
+.topo-v4-empty { padding: 26px 12px !important; text-align: center; color: var(--muted); font-size: 12px; }

@@ -500,10 +500,15 @@ export function hostCardLayout(node: TopologyNode, compact = true): HostCardLayo
   const chips: string[] = [];
   let used = 0;
   const maxChips = 2;
-  const reserveMore = businessServices.length > 1 ? 24 : 0;
+  const reserveMore = businessServices.length > 1 ? 18 : 0;
   for (const text of serviceTexts) {
-    const width = Math.round(measureText(text, 11.5) + 13);
-    if (chips.length >= maxChips || used + width + 4 + reserveMore > w - 16) break;
+    const width = Math.round(measureText(text, 11.5) + 10);
+    if (chips.length >= maxChips || used + width + 4 + reserveMore > w - 16) {
+      if (chips.length === 0 && width + 4 <= w - 12) {
+        chips.push(text);
+      }
+      break;
+    }
     chips.push(text);
     used += width + 4;
   }
@@ -1550,3 +1555,71 @@ export function matchNodeIds(layout: TopoLayout, search: string): ReadonlySet<st
 }
 
 export { compactNumber };
+
+
+export interface EdgeGeometry {
+  readonly d: string;
+  readonly ax: number;
+  readonly ay: number;
+  readonly bx: number;
+  readonly by: number;
+  readonly mx: number;
+  readonly my: number;
+}
+
+/** 拖动节点时实时重算边路径，锚点规则与自动布局保持一致。 */
+export function edgeGeometry(
+  source: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+  target: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+  stagger = 0,
+  index = 0,
+): EdgeGeometry {
+  const forward = target.x > source.x + 20;
+  const backward = target.x + target.w < source.x - 20;
+  let ax: number;
+  let ay: number;
+  let bx: number;
+  let by: number;
+  let mx: number;
+  let my: number;
+  let d: string;
+  if (forward) {
+    ax = source.x + source.w;
+    ay = source.y + source.h / 2 + stagger * 0.3;
+    bx = target.x - 3;
+    by = target.y + target.h / 2 + stagger * 0.3;
+    const dx = Math.max(36, (bx - ax) * 0.44);
+    const c1x = ax + dx;
+    const c1y = ay + stagger;
+    const c2x = bx - dx;
+    const c2y = by + stagger * 0.6;
+    d = `M ${ax.toFixed(1)} ${ay.toFixed(1)} C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${bx.toFixed(1)} ${by.toFixed(1)}`;
+    mx = (ax + 3 * c1x + 3 * c2x + bx) / 8;
+    my = (ay + 3 * c1y + 3 * c2y + by) / 8;
+  } else if (backward) {
+    ax = source.x;
+    ay = source.y + source.h / 2 + stagger * 0.4;
+    bx = target.x + target.w + 3;
+    by = target.y + target.h / 2 + stagger * 0.4;
+    const bow = 58 + index * 12;
+    const c1x = ax - 46;
+    const c1y = ay + bow;
+    const c2x = bx + 46;
+    const c2y = by + bow;
+    d = `M ${ax.toFixed(1)} ${ay.toFixed(1)} C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${bx.toFixed(1)} ${by.toFixed(1)}`;
+    mx = (ax + 3 * c1x + 3 * c2x + bx) / 8;
+    my = (ay + 3 * c1y + 3 * c2y + by) / 8;
+  } else {
+    ax = source.x + source.w;
+    ay = source.y + source.h / 2 + stagger;
+    bx = target.x + target.w;
+    by = target.y + target.h / 2 + stagger;
+    const bow = 40 + index * 10;
+    const c1x = ax + bow;
+    const c2x = bx + bow;
+    d = `M ${ax.toFixed(1)} ${ay.toFixed(1)} C ${c1x.toFixed(1)} ${ay.toFixed(1)}, ${c2x.toFixed(1)} ${by.toFixed(1)}, ${bx.toFixed(1)} ${by.toFixed(1)}`;
+    mx = (ax + 3 * c1x + 3 * c2x + bx) / 8;
+    my = (ay + 3 * ay + 3 * by + by) / 8;
+  }
+  return { d, ax, ay, bx, by, mx, my };
+}

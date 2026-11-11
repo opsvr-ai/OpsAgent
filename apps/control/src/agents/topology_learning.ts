@@ -30,6 +30,13 @@ import type {
 import { ModelCompletionService } from '../models/completion.js';
 import { ModelProviderService } from '../models/service.js';
 import { AgentConnectionEdgeService } from './connection_edges.js';
+import {
+  TopologyEdgeTagService,
+  attachEdgeTags,
+  backfillGraphRelationKeys,
+  topologyNodeRelationName,
+  topologyRelationKey,
+} from './topology_tags.js';
 import { TopologyAnalyzer } from './topology_analyzer.js';
 import type { TopologyAnalysisResult } from './topology_analyzer.js';
 
@@ -1043,6 +1050,10 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
     effectiveNodes.filter((node) => node.kind === 'external').map((node) => node.id),
   );
   const nodeById = new Map(effectiveNodes.map((node) => [node.id, node]));
+  const relationNameOf = (id: string): string => {
+    const node = nodeById.get(id);
+    return node ? topologyNodeRelationName(node) : id;
+  };
   const edgeIds = new Set<string>();
   const edges: TopologyEdge[] = [];
   const seenEdges = new Map<string, number>();
@@ -1106,6 +1117,7 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
       ...(matched?.lastSeen ? { lastSeen: matched.lastSeen } : {}),
       ...(external ? { external: true } : {}),
       label,
+      relationKey: topologyRelationKey(relationNameOf(source), relationNameOf(target), port),
     });
     seenEdges.set(key, edges.length - 1);
     edgeIds.add(id);
@@ -1134,6 +1146,7 @@ export function buildGraphPayload(args: BuildGraphPayloadArgs): TopologyGraphPay
         confidence: edge.direction === 'both' ? 0.95 : 0.9,
         direction: edge.direction,
         label: `${nodeById.get(target)?.label ?? target}:${edge.toPort}`,
+        relationKey: topologyRelationKey(relationNameOf(source), relationNameOf(target), edge.toPort),
         ...(processes.length > 0 ? { processes } : {}),
         ...(edge.lastSeen ? { lastSeen: edge.lastSeen } : {}),
         ...(edge.external ? { external: true } : {}),
@@ -1413,7 +1426,7 @@ function graphFromRow(row: GraphRow): TopologyGraph {
     samples: 0,
     reportingAgents: 0,
   };
-  return {
+  const graph: TopologyGraph = {
     id: row.id,
     tenantId: row.tenant_id,
     sessionId: row.session_id,
@@ -1437,6 +1450,7 @@ function graphFromRow(row: GraphRow): TopologyGraph {
     createdAt: iso(row.created_at),
     version: row.version,
   };
+  return backfillGraphRelationKeys(graph);
 }
 
 function policyFromRow(row: PolicyRow): TopologyLearningPolicy {
@@ -1477,6 +1491,7 @@ const SESSION_SELECT = `SELECT s.*, a.name AS app_system_name
 export class TopologyLearningService {
   private readonly completion: ModelCompletionService;
   private readonly models: ModelProviderService;
+  private readonly edgeTags: TopologyEdgeTagService;
   private analyzerInstance: TopologyAnalyzerLike | undefined;
 
   constructor(
@@ -1486,6 +1501,7 @@ export class TopologyLearningService {
   ) {
     this.models = new ModelProviderService(pool, modelSecret);
     this.completion = new ModelCompletionService(this.models);
+    this.edgeTags = new TopologyEdgeTagService(pool);
     this.analyzerInstance = analyzer;
   }
 
@@ -2134,7 +2150,9 @@ export class TopologyLearningService {
       [tenantId, appSystemId ?? null],
     );
     const row = result.rows[0];
-    return row ? graphFromRow(row) : null;
+    if (!row) return null;
+    const graph = graphFromRow(row);
+    return attachEdgeTags(graph, await this.edgeTags.list(tenantId));
   }
 
   /** 按 id 读取完整拓扑图。 */
@@ -2144,7 +2162,9 @@ export class TopologyLearningService {
       [tenantId, graphId],
     );
     const row = result.rows[0];
-    return row ? graphFromRow(row) : null;
+    if (!row) return null;
+    const graph = graphFromRow(row);
+    return attachEdgeTags(graph, await this.edgeTags.list(tenantId));
   }
 
   /** 自动学习策略（未配置时返回默认关闭策略）。 */

@@ -344,6 +344,11 @@ Agent 异常事件上报后自动触发；同一应用系统已有运行中分�
 - **V2（2026-11-10）**：按 IT 架构精确分层为「接入层 / 应用层 / 中间件层 / 数据层 / 运维观测层 / 外部依赖」；节点带 `product`（Nginx、Spring Boot、MySQL、Redis、Kafka、Prometheus 等）、`role`（接入网关、业务应用、关系型数据库、缓存、消息队列、监控…）与 `systemService` 标记。大模型基于「监听端口 + 进程命令行 + 建连证据」识别组件并分层，规则引擎兜底保持同口径。
 - 学习**默认只纳入归属应用系统的主机**（`includeUnassigned=false`），未归属主机不再混入拓扑；需要时可在学习向导/自动学习策略中显式打开。大模型 prompt 压缩预算 ≤45k 字符（适配 32k/64k 上下文），模型不可用时自动回落规则引擎。
 - **V3（2026-11-10 晚）拓扑可读性重构**：边按节点对聚合（实测原始 72 条边默认展示 28 条），**边标签只在悬停/选中时显示**；默认过滤管理流量（SSH/Zabbix/Node Exporter/Prometheus/Grafana/Agent 自身）与低流量边，可在「显示设置」恢复；外部依赖按 IP 聚合 + topN（默认 8 个）+「其他外部依赖」；节点卡紧凑（product/role + 主端口 + N 项服务），服务明细进详情；支持**全屏模式**；**点击节点进入聚焦态**，右侧展示「入站/出站关联节点」并可点击切换；缩放 30%~300%。**切换「范围」到某个应用系统时，画布只保留该系统的主机、外部依赖与跨系统边界节点（其他系统聚合），不再混入其他系统的内部拓扑**。
+- **V4（2026-11-11）运维交互与量化**：
+  - 全屏 + 缩放上限 **500%**（滚轮/按钮/1:1/适应/全图），大图细节可读；
+  - **节点可拖动**，拖动时实时重算连线并高亮 1 跳关联节点/边、其余淡化，松手保留位置，「重置布局」恢复自动布局；
+  - **访问关系标签**：可按关系（源主机→目标主机:端口，`relationKey` 跨版本稳定）打「运维工具 / 应用调用 / 数据访问 / 中间件访问 / 外部依赖」等标签，支持颜色、类别过滤、边 tooltip/节点详情/趋势表展示；标签持久化到 `topology_edge_tags`；
+  - **访问量分析**：24h/7d、小时/天分桶，表格按访问次数/失败排序，含 SVG 趋势 sparkline、Top 链路、建议标签一键采纳、点击行在画布定位对应边；访问次数口径为 **Agent 每 10s 窗口统计的 TCP 建连次数（opened 合计，不是 HTTP 请求数）**。
 
 API（权限 `agent.manage`）：
 
@@ -358,6 +363,9 @@ GET  /api/topologies                  # 版本列表
 GET  /api/topologies/latest           # 最新拓扑（无图返回 null）
 GET  /api/topologies/:id
 GET|PUT /api/topologies/policy        # 自动学习策略（含 includeUnassigned）
+GET|POST /api/topologies/edge-tags    # 访问关系标签（GET 列表 / POST upsert）
+DELETE /api/topologies/edge-tags/:id  # 删除标签
+GET  /api/topologies/access-trends    # 访问量趋势 ?windowHours=24&bucket=hour&appSystemId=
 ```
 
 自动学习：控制面 `TopologyLearningScheduler` 每 10s 处理到期会话与策略；`OPSAGENT_TOPOLOGY_AUTOLEARN=false` 可关闭。Agent 可用 `OPSAGENT_CONN_EDGES=false` 关闭采集，或用 `OPSAGENT_CONN_SAMPLE_INTERVAL_SECONDS` / `OPSAGENT_CONN_WINDOW_SECONDS` / `OPSAGENT_CONN_COLLECTOR_DIR` 调整。

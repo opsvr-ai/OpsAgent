@@ -1628,6 +1628,9 @@ import type {
   TopologyLearningPolicy,
   TopologyLearningPolicyUpdate,
   TopologyLearningSession,
+  TopologyEdgeTag,
+  TopologyEdgeTagInput,
+  AccessTrendsResponse,
 } from '@opsagent/contracts';
 
 function topologyQuery(appSystemId?: string): string {
@@ -1708,4 +1711,41 @@ export async function updateTopologyPolicy(
     method: 'PUT',
     body: JSON.stringify(body),
   });
+}
+
+
+// ---------------------------------------------------------------------------
+// 访问关系标签 / 访问量趋势（V4）
+// ---------------------------------------------------------------------------
+
+export async function getEdgeTags(): Promise<{ tags: TopologyEdgeTag[] }> {
+  return request<{ tags: TopologyEdgeTag[] }>('/api/topologies/edge-tags');
+}
+
+export async function createEdgeTag(input: TopologyEdgeTagInput): Promise<TopologyEdgeTag> {
+  return request<TopologyEdgeTag>('/api/topologies/edge-tags', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteEdgeTag(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/topologies/edge-tags/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export interface AccessTrendsQuery {
+  readonly windowHours: number;
+  readonly bucket: 'hour' | 'day';
+  readonly appSystemId?: string;
+}
+
+export async function getAccessTrends(query: AccessTrendsQuery): Promise<AccessTrendsResponse> {
+  const params = new URLSearchParams({
+    windowHours: String(query.windowHours),
+    bucket: query.bucket,
+  });
+  if (query.appSystemId) params.set('appSystemId', query.appSystemId);
+  return request<AccessTrendsResponse>(`/api/topologies/access-trends?${params.toString()}`);
 }

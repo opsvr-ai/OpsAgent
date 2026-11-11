@@ -22,6 +22,9 @@ export interface NodeCardProps {
   readonly onHover: (id: string | null) => void;
   readonly onSelect: (id: string) => void;
   readonly onFocus: (id: string) => void;
+  readonly position?: { readonly x: number; readonly y: number };
+  readonly dragging?: boolean;
+  readonly onPointerDown?: (event: ReactPointerEvent<SVGGElement>) => void;
 }
 
 function StatusDot({ status, x, y }: { status: string; x: number; y: number }): ReactElement {
@@ -45,12 +48,16 @@ function NodeCardView({
   onHover,
   onSelect,
   onFocus,
+  position,
+  dragging,
+  onPointerDown,
 }: NodeCardProps): ReactElement {
   const data = node.node;
   const statusLabel = data.status === 'offline' ? '离线' : data.status === 'unknown' ? '未上报' : '在线';
   const anomalies = data.anomalies ?? [];
   const className = [
     'topo2-node',
+    dragging ? 'is-dragging' : '',
     node.aggregated ? 'is-system' : '',
     selected ? 'is-selected' : '',
     hovered ? 'is-hovered' : '',
@@ -92,9 +99,10 @@ function NodeCardView({
     return (
       <g
         className={className}
-        transform={`translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})`}
+        transform={`translate(${(position?.x ?? node.x).toFixed(1)} ${(position?.y ?? node.y).toFixed(1)})`}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
+        onPointerDown={onPointerDown}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         role="button"
@@ -139,9 +147,10 @@ function NodeCardView({
   return (
     <g
       className={className}
-      transform={`translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})`}
+      transform={`translate(${(position?.x ?? node.x).toFixed(1)} ${(position?.y ?? node.y).toFixed(1)})`}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
+      onPointerDown={onPointerDown}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       role="button"
@@ -179,8 +188,8 @@ function NodeCardView({
       </text>
       {card.chips.map((chip, index) => {
         const previous = card.chips.slice(0, index);
-        const x = 9 + previous.reduce((sum, item) => sum + Math.round(measureText(item, 11.5) + 13) + 4, 0);
-        const width = Math.round(measureText(chip, 11.5) + 13);
+        const x = 9 + previous.reduce((sum, item) => sum + Math.round(measureText(item, 11.5) + 10) + 4, 0);
+        const width = Math.round(measureText(chip, 11.5) + 10);
         return (
           <g key={chip} className="topo2-chip">
             <rect x={x} y={card.chipY} width={width} height={14} rx={4} />

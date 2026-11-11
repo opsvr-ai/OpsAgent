@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
+import type { TopologyEdgeTag } from '@opsagent/contracts';
 import type { RoutedEdge } from './layout.js';
 
 export interface EdgePathProps {
@@ -10,6 +11,7 @@ export interface EdgePathProps {
   readonly gradientId: string | null;
   readonly markerId: string;
   readonly onHover: (id: string | null, point?: { x: number; y: number }) => void;
+  readonly tags?: readonly TopologyEdgeTag[];
 }
 
 function EdgePathView({
@@ -20,6 +22,7 @@ function EdgePathView({
   gradientId,
   markerId,
   onHover,
+  tags = [],
 }: EdgePathProps): ReactElement {
   const stroke = edge.anomalous
     ? '#dc5a5a'
@@ -46,7 +49,7 @@ function EdgePathView({
 
   return (
     <g className={className}>
-      <title>{`${edge.fullLabel} · 新建 ${edge.edge.opened} · 失败 ${edge.edge.failed}`}</title>
+      <title>{`${edge.fullLabel} · 新建 ${edge.edge.opened} · 失败 ${edge.edge.failed}${tags.length > 0 ? ` · 标签 ${tags.map((tag) => tag.label).join('、')}` : ''}`}</title>
       {active ? (
         <path className="topo2-edge-glow" d={edge.d} stroke={stroke} strokeWidth={width + 5} />
       ) : null}

@@ -1004,6 +1004,7 @@ describeDb('TopologyLearningService (postgres)', () => {
     expect(agentNodeIds.size).toBe(2);
     const edge = graph?.edges[0];
     expect(edge?.id).toMatch(/^e:h:node-\d+->h:node-\d+:3306$/);
+    expect(edge?.relationKey).toBe('web-01|db-01|3306');
     expect(edge).toMatchObject({
       protocol: 'tcp',
       port: 3306,
@@ -1221,6 +1222,78 @@ describeDb('TopologyLearningService (postgres)', () => {
     const detail = await app.inject({ method: 'GET', url: `/api/topologies/${graphId}`, headers });
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toMatchObject({ id: graphId, mode: 'app-system' });
+    const graph = detail.json() as {
+      edges: Array<{ relationKey?: string; tags?: Array<{ label: string }> }>;
+    };
+    const relationKey = graph.edges[0]?.relationKey;
+    expect(relationKey).toBe('web-01|db-01|3306');
+
+    // 标签 CRUD + latest/get 挂载。
+    const createdTag = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags',
+      headers,
+      payload: { relationKey, label: '核心链路', category: '应用调用', color: '#3b82f6' },
+    });
+    expect(createdTag.statusCode).toBe(201);
+    const tagId = (createdTag.json() as { id: string }).id;
+    // 同 relationKey+label upsert 更新而不是重复插入。
+    const upsertedTag = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags',
+      headers,
+      payload: { relationKey, label: '核心链路', note: '更新后的备注' },
+    });
+    expect(upsertedTag.statusCode).toBe(201);
+    expect((upsertedTag.json() as { id: string }).id).toBe(tagId);
+    const tags = await app.inject({
+      method: 'GET',
+      url: `/api/topologies/edge-tags?relationKey=${encodeURIComponent(relationKey ?? '')}`,
+      headers,
+    });
+    expect(tags.statusCode).toBe(200);
+    expect((tags.json() as { tags: Array<{ label: string }> }).tags.map((tag) => tag.label)).toEqual(['核心链路']);
+    const latestWithTags = await app.inject({ method: 'GET', url: `/api/topologies/latest?appSystemId=${appSystemId}`, headers });
+    const taggedGraph = latestWithTags.json() as { edges: Array<{ relationKey?: string; tags?: Array<{ label: string }> }> };
+    expect(taggedGraph.edges.find((edge) => edge.relationKey === relationKey)?.tags?.map((tag) => tag.label))
+      .toEqual(['核心链路']);
+    const invalidTag = await app.inject({
+      method: 'POST',
+      url: '/api/topologies/edge-tags',
+      headers,
+      payload: { relationKey, label: '' },
+    });
+    expect(invalidTag.statusCode).toBe(400);
+
+    const trends = await app.inject({
+      method: 'GET',
+      url: `/api/topologies/access-trends?windowHours=24&bucket=hour&appSystemId=${appSystemId}`,
+      headers,
+    });
+    expect(trends.statusCode).toBe(200);
+    const trendBody = trends.json() as {
+      windowSeconds: number;
+      bucket: string;
+      from: string;
+      to: string;
+      rows: Array<{ relationKey: string; totalOpened: number; buckets: unknown[]; suggestedTag?: string }>;
+    };
+    expect(trendBody).toMatchObject({ windowSeconds: 86400, bucket: 'hour' });
+    expect(trendBody.rows.length).toBeGreaterThanOrEqual(1);
+    const trendRow = trendBody.rows.find((row) => row.relationKey === relationKey);
+    expect(trendRow?.totalOpened).toBeGreaterThanOrEqual(5);
+    expect(trendRow?.buckets.length).toBeGreaterThanOrEqual(24);
+    expect(typeof trendRow?.suggestedTag).toBe('string');
+    const invalidWindow = await app.inject({ method: 'GET', url: '/api/topologies/access-trends?windowHours=0', headers });
+    expect(invalidWindow.statusCode).toBe(400);
+    const invalidBucket = await app.inject({ method: 'GET', url: '/api/topologies/access-trends?bucket=minute', headers });
+    expect(invalidBucket.statusCode).toBe(400);
+
+    const deleted = await app.inject({ method: 'DELETE', url: `/api/topologies/edge-tags/${tagId}`, headers });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toEqual({ ok: true });
+    const deletedAgain = await app.inject({ method: 'DELETE', url: `/api/topologies/edge-tags/${tagId}`, headers });
+    expect(deletedAgain.statusCode).toBe(404);
 
     const learn = await app.inject({
       method: 'POST',
